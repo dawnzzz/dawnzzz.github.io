@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Watchdog什么是 Watchdog在 Kuma KDS 中，当 Zone CP 和 Global CP 建立 streaming 连接后，需要推送资源的一方在每一条连接开启一个 Watchdog。 Watchdog 用于收集变化的资源，并定期更新 xds-cache（xds-cache 的更新会引发 xds 推送），完成从 Global CP 与 Zone CP 之间的被更新资源的主动推送过">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kuma学习笔记 (8) KDS Watchdog">
+<meta property="og:url" content="http://dawnzzz.github.io/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Watchdog什么是 Watchdog在 Kuma KDS 中，当 Zone CP 和 Global CP 建立 streaming 连接后，需要推送资源的一方在每一条连接开启一个 Watchdog。 Watchdog 用于收集变化的资源，并定期更新 xds-cache（xds-cache 的更新会引发 xds 推送），完成从 Global CP 与 Zone CP 之间的被更新资源的主动推送过">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/image-20240308110246222.png">
+<meta property="article:published_time" content="2024-03-08T02:59:20.000Z">
+<meta property="article:modified_time" content="2024-03-08T07:18:07.082Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta property="article:tag" content="service mesh">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/image-20240308110246222.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kuma学习笔记 (8) KDS Watchdog | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kuma学习笔记 (8) KDS Watchdog
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-03-08 10:59:20 / 修改时间：15:18:07" itemprop="dateCreated datePublished" datetime="2024-03-08T10:59:20+08:00">2024-03-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Watchdog"><a href="#Watchdog" class="headerlink" title="Watchdog"></a>Watchdog</h1><h2 id="什么是-Watchdog"><a href="#什么是-Watchdog" class="headerlink" title="什么是 Watchdog"></a>什么是 Watchdog</h2><p>在 Kuma KDS 中，<strong>当 Zone CP 和 Global CP 建立 streaming 连接后</strong>，需要推送资源的一方在每一条连接开启一个 Watchdog。</p>
+<p>Watchdog 用于收集变化的资源，并定期更新 xds-cache（xds-cache 的更新会引发 xds 推送），<strong>完成从 Global CP 与 Zone CP 之间的被更新资源的主动推送过程</strong>。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/image-20240308110246222.png" alt="image-20240308110246222"></p>
+<h2 id="Watchdog-数据结构"><a href="#Watchdog-数据结构" class="headerlink" title="Watchdog 数据结构"></a>Watchdog 数据结构</h2><p>Watchdog 的数据结构如下：</p>
+<ul>
+<li>Node：表示一个 envoy 节点，这里是一个 Zone CP 节点。</li>
+<li>EventBus：事件总线，Watchdog 通过事件总线订阅资源更新的事件。</li>
+<li>Reconciler：调和器，用于重新计算配置资源，并更新 xds-cache。</li>
+<li>ProvidedTypes：需要同步的所有资源类型。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> EventBasedWatchdog <span class="keyword">struct</span> &#123;</span><br><span class="line">   Ctx                 context.Context</span><br><span class="line">   Node                *envoy_core.Node</span><br><span class="line">   EventBus            events.EventBus</span><br><span class="line">   Reconciler          reconcile.Reconciler</span><br><span class="line">   ProvidedTypes       <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   Log                 logr.Logger</span><br><span class="line">   NewFlushTicker      <span class="function"><span class="keyword">func</span><span class="params">()</span> *<span class="title">time</span>.<span class="title">Ticker</span></span></span><br><span class="line">   NewFullResyncTicker <span class="function"><span class="keyword">func</span><span class="params">()</span> *<span class="title">time</span>.<span class="title">Ticker</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><p>在 Start 方法中定义了 Watchdog 的工作流程：</p>
+<ol>
+<li>首先，从事件总线中<strong>订阅 ResourceChangedEvent 资源更新事件</strong>。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">listener := e.EventBus.Subscribe(<span class="function"><span class="keyword">func</span><span class="params">(event events.Event)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">   resChange, ok := event.(events.ResourceChangedEvent)</span><br><span class="line">   <span class="keyword">if</span> !ok &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> _, ok := e.ProvidedTypes[resChange.Type]; !ok &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>changedTypes 记录已经修改的资源，<strong>第一次同步的是全量的资源</strong>。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// for the first reconcile assign all types</span></span><br><span class="line">changedTypes := maps.Clone(e.ProvidedTypes)</span><br><span class="line">reasons := <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;&#123;</span><br><span class="line">   ReasonResync: &#123;&#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>开启<strong>两个定时器 flushTicker 和 fullResyncTicker</strong>。flushTicker 用于<strong>定期向 xds-cache 中同步被修改的资源</strong>；fullResyncTicker 用于定期向 xds-cache 进行<strong>全量</strong>的资源同步。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">   <span class="keyword">select</span> &#123;</span><br><span class="line">   <span class="keyword">case</span> &lt;-stop:</span><br><span class="line">      <span class="keyword">if</span> err := e.Reconciler.Clear(e.Ctx, e.Node); err != <span class="literal">nil</span> &#123;</span><br><span class="line">         e.Log.Error(err, <span class="string">&quot;reconcile clear failed&quot;</span>)</span><br><span class="line">      &#125;</span><br><span class="line">      listener.Close()</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   <span class="keyword">case</span> &lt;-flushTicker.C:</span><br><span class="line">      <span class="keyword">if</span> <span class="built_in">len</span>(changedTypes) == <span class="number">0</span> &#123;</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line">      reason := strings.Join(util_maps.SortedKeys(reasons), <span class="string">&quot;_and_&quot;</span>)</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;reconcile&quot;</span>, <span class="string">&quot;changedTypes&quot;</span>, changedTypes, <span class="string">&quot;reason&quot;</span>, reason)</span><br><span class="line">      err, _ := e.Reconciler.Reconcile(e.Ctx, e.Node, changedTypes, e.Log)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &amp;&amp; errors.Is(err, context.Canceled) &#123;</span><br><span class="line">         e.Log.Error(err, <span class="string">&quot;reconcile failed&quot;</span>, <span class="string">&quot;changedTypes&quot;</span>, changedTypes, <span class="string">&quot;reason&quot;</span>, reason)</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">         changedTypes = <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">         reasons = <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">      &#125;</span><br><span class="line">   <span class="keyword">case</span> &lt;-fullResyncTicker.C:</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;schedule full resync&quot;</span>)</span><br><span class="line">      changedTypes = maps.Clone(e.ProvidedTypes)</span><br><span class="line">      reasons[ReasonResync] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   <span class="keyword">case</span> event := &lt;-listener.Recv():</span><br><span class="line">      resChange := event.(events.ResourceChangedEvent)</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;schedule sync for type&quot;</span>, <span class="string">&quot;typ&quot;</span>, resChange.Type)</span><br><span class="line">      changedTypes[resChange.Type] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">      reasons[ReasonEvent] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Reconciler-调和器"><a href="#Reconciler-调和器" class="headerlink" title="Reconciler 调和器"></a>Reconciler 调和器</h1><p>Reconciler 用于重新计算给定 node 的配置资源信息，并同步到 xds-cache 中，接口定义如下：</p>
+<ul>
+<li><strong>Reconcile 方法：</strong>调和已经修改的资源类型，从老的 Snapshot 中取未改变的资源，再重新查询已经改变的资源，并以此创建新的 Snapshot 并更新给 xds-cache。</li>
+<li>Clear 方法：在 xds-cache 中清理 Snapshot，在 streaming 结束时调用。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Reconciler re-computes configuration for a given node.</span></span><br><span class="line"><span class="keyword">type</span> Reconciler <span class="keyword">interface</span> &#123;</span><br><span class="line">   <span class="comment">// Reconcile reconciles state of node given changed resource types.</span></span><br><span class="line">   <span class="comment">// Returns error and bool which is true if any resource was changed.</span></span><br><span class="line">   Reconcile(context.Context, *envoy_core.Node, <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;, logr.Logger) (error, <span class="keyword">bool</span>)</span><br><span class="line">   Clear(context.Context, *envoy_core.Node) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Reconcile-方法"><a href="#Reconcile-方法" class="headerlink" title="Reconcile 方法"></a>Reconcile 方法</h2><p>Reconcile 方法调和已经修改的资源类型，从老的 Snapshot 中取未改变的资源，再重新查询已经改变的资源，并<strong>以此创建新的 Snapshot 并更新给 xds-cache</strong>。具体流程如下：</p>
+<ol>
+<li>首先从 xds-cache 中查询老的 Snapshot。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">id := r.hasher.ID(node)</span><br><span class="line">old, _ := r.cache.GetSnapshot(id)</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>对于<strong>未变更的资源</strong>，直接<strong>从老的 Snapshot 中获取</strong>。接着调用 <code>r.generator.GenerateSnapshot</code> 方法，<strong>重新查询已经修改的资源</strong>，并根据已变更和未变更的资源<strong>创建新的 Snapshot</strong>。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// construct builder with unchanged types from the old snapshot</span></span><br><span class="line">builder := cache.NewSnapshotBuilder()</span><br><span class="line"><span class="keyword">if</span> old != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">for</span> _, typ := <span class="keyword">range</span> util_dds.GetSupportedTypes() &#123;</span><br><span class="line">      resType := core_model.ResourceType(typ)</span><br><span class="line">      <span class="keyword">if</span> _, ok := changedTypes[resType]; ok &#123;</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      oldRes := old.GetResources(typ)</span><br><span class="line">      <span class="keyword">if</span> <span class="built_in">len</span>(oldRes) &gt; <span class="number">0</span> &#123;</span><br><span class="line">         builder = builder.With(resType, maps.Values(oldRes))</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="built_in">new</span>, err := r.generator.GenerateSnapshot(ctx, node, builder, changedTypes)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> err, <span class="literal">false</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> <span class="built_in">new</span> == <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> errors.New(<span class="string">&quot;nil snapshot&quot;</span>), <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>若新的 Snapshot 相比于老的<strong>发生了修改</strong>，则<strong>同步</strong>到 xds-cache 中。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">new</span>, changed := r.Version(<span class="built_in">new</span>, old)</span><br><span class="line"><span class="keyword">if</span> changed &#123;</span><br><span class="line">   r.logChanges(logger, <span class="built_in">new</span>, old, node)</span><br><span class="line">   r.meterConfigReadyForDelivery(<span class="built_in">new</span>, old, node.Id)</span><br><span class="line">   <span class="keyword">return</span> r.cache.SetSnapshot(ctx, id, <span class="built_in">new</span>), <span class="literal">true</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+              <a href="/tags/service-mesh/" rel="tag"># service mesh</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/" rel="prev" title="Pulsar消息队列(4)延迟消息投递">
+      <i class="fa fa-chevron-left"></i> Pulsar消息队列(4)延迟消息投递
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Watchdog"><span class="nav-number">1.</span> <span class="nav-text">Watchdog</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF-Watchdog"><span class="nav-number">1.1.</span> <span class="nav-text">什么是 Watchdog</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Watchdog-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.2.</span> <span class="nav-text">Watchdog 数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B5%81%E7%A8%8B"><span class="nav-number">1.3.</span> <span class="nav-text">流程</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Reconciler-%E8%B0%83%E5%92%8C%E5%99%A8"><span class="nav-number">2.</span> <span class="nav-text">Reconciler 调和器</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Reconcile-%E6%96%B9%E6%B3%95"><span class="nav-number">2.1.</span> <span class="nav-text">Reconcile 方法</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

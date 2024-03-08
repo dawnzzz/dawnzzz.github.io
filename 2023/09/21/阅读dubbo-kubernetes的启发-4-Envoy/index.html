@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Envoy 介绍Envoy 是由 C++ 实现的，为面向大型现代服务架构而设计的 L7 代理和通信总线。Envoy 是一个独立的进程，伴随每个应用服务运行（service mesh），所有的 Envoy 形成了一个透明的网络，每一个应用与 localhost 收发消息，而对网络拓扑结构无感知。这样做的好处：  适用于任何编程语言。Envoy 可以在 Java、Go、Python 等应用程序之间形成">
+<meta property="og:type" content="article">
+<meta property="og:title" content="阅读dubbo-kubernetes的启发 (4) Envoy">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/09/21/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Envoy 介绍Envoy 是由 C++ 实现的，为面向大型现代服务架构而设计的 L7 代理和通信总线。Envoy 是一个独立的进程，伴随每个应用服务运行（service mesh），所有的 Envoy 形成了一个透明的网络，每一个应用与 localhost 收发消息，而对网络拓扑结构无感知。这样做的好处：  适用于任何编程语言。Envoy 可以在 Java、Go、Python 等应用程序之间形成">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200503110532.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200504160047.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200504224710.png">
+<meta property="article:published_time" content="2023-09-21T13:25:00.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.835Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta property="article:tag" content="dubbo - 微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200503110532.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/09/21/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>阅读dubbo-kubernetes的启发 (4) Envoy | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/21/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          阅读dubbo-kubernetes的启发 (4) Envoy
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-21 21:25:00" itemprop="dateCreated datePublished" datetime="2023-09-21T21:25:00+08:00">2023-09-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Envoy-介绍"><a href="#Envoy-介绍" class="headerlink" title="Envoy 介绍"></a>Envoy 介绍</h1><p>Envoy 是由 C++ 实现的，为面向大型现代服务架构而<strong>设计的 L7 代理和通信总线</strong>。Envoy 是一个<strong>独立的进程</strong>，伴随每个应用服务运行（<strong>service mesh</strong>），所有的 Envoy 形成了一个透明的网络，每一个应用与 localhost 收发消息，而对网络拓扑结构无感知。这样做的好处：</p>
+<ul>
+<li>适用于任何编程语言。Envoy 可以在 Java、Go、Python 等应用程序之间形成一个网络，Envoy 弥合了它们之间的差异。</li>
+<li>Envoy 可以透明地在整个基础架构上快速部署和升级。</li>
+</ul>
+<p>Envoy 在云原生中可以扮演<strong>边车</strong>的角色，所有到服务的流量都通过 Envoy 代理。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200503110532.png" alt="img"></p>
+<h2 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h2><p>Envoy 有以下功能/特点：</p>
+<ul>
+<li><strong>L3/L4/L7 架构：</strong>传统的网络代理要么在 HTTP 层工作，要么在 TCP 层工作。在 HTTP 层会读取整个 HTTP 请求数据，对请求解析并查看 HTTP 头部和 URL 以决定做什么；同时也需要读取后段的整个响应数据，并将其发送给客户端。这种方法非常复杂和缓慢，解决方法就是下沉到 TCP 中去操作。在 TCP 层只读取和写入字节，并使用 IP + 端口号来决定如何处理，但是无法根据不同的 URL 代理到不同的后端。Envoy 同时支持在 3/4 和 7 层工作，以此应对各自层级的限制。</li>
+<li><strong>顶级 HTTP/2 支持：</strong>Envoy 将 HTTP/2 视为一等公民，支持 HTTP2 和 HTTP/1.1 之间的转换。</li>
+<li><strong>服务发现和动态配置：</strong>Envoy 可以通过 API 来实现其控制平面（典型的，Istio 就是 Envoy 的一个控制面），控制平面可以实现服务发现并通过 API 接口动态更新 Envoy（数据面）的配置。不仅如此，控制平面还可以通过 API 将配置进行分层，然后逐层更新。</li>
+<li><strong>gRPC 支持：</strong>Envoy 支持 HTTP/2，同时也支持 gRPC。</li>
+<li><strong>特殊协议支持：</strong>Envoy 支持对特殊协议在 L7 进行嗅探，包括 MongoDB、DynamoDB 等。</li>
+<li><strong>可观测性：</strong>Envoy 使网络透明，可以生成许多流量方面的统计数据，这是其它代理软件很难取代的地方，可以集成 Promethus 等监控方案、分布式追踪系统。</li>
+</ul>
+<h1 id="Envoy-架构"><a href="#Envoy-架构" class="headerlink" title="Envoy 架构"></a>Envoy 架构</h1><p>Envoy 使用<strong>单进程-多线程</strong>架构。一个主线处理与协调任务，多个 worker 线程负责监听、过滤、转发。 当一个连接被监听器接受，连接的剩余生命周期将<strong>绑定</strong>在当前 worker 线程，这<strong>使得 Envoy 近似于非阻塞</strong>。这使得 Envoy 大部分连接近似单线程运行（高度并行）， 只有少量的复杂代码用于实现 worker 线程之间的协调。</p>
+<blockquote>
+<p>所以，<strong>worker 线程数量应该配置为物理机的线程数量</strong>。</p>
+<p>Envoy 同 Nginx 一样，也采用了多进程 + 非阻塞 + 异步 IO。</p>
+</blockquote>
+<p>默认情况下，worker 线程之间没有协调。这表示所有 worker 线程都独立的尝试从每一个监听器接受连接， 然后依赖内核在线程之间执行适当的均衡。对于大多数工作负载，内核都可以很好的均衡传入的连接。但是， 对于某些工作负载，特别是那些只有少量但非常长寿命的连接的工作负载（例如 gRPC 流）， 则可能希望让 Envoy 强制平衡工作线程之间的连接。为了支持这种行为， Envoy 允许为每个监听器配置不同类型的连接均衡。</p>
+<p>下图为 Envoy 的架构图：</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200504160047.png" alt="img"></p>
+<p>Envoy 有四个关键组件</p>
+<ul>
+<li><strong>监听器（Listener）：</strong> 监听器定义了 Envoy 如何<strong>处理连接请求</strong>，一旦建立连接之后，就会将该请求传递给一组过滤器（filter）进行处理。</li>
+<li><strong>过滤器（Filter）：</strong> 过滤器是<strong>处理入站和出站流量</strong>的链式结构的一部分。在过滤器链上可以集成很多特定功能的过滤器，例如，通过集成 GZip 过滤器可以在数据发送到客户端之前压缩数据。</li>
+<li><strong>路由（Router）：</strong> 路由用来将流量转发到具体的目标实例，目标实例在 Envoy 中被定义为集群。</li>
+<li><strong>集群（Cluster）：</strong> 集群定义了流量的<strong>目标端点</strong>，同时还包括一些其他可选配置，如负载均衡策略等。</li>
+</ul>
+<h2 id="Filter"><a href="#Filter" class="headerlink" title="Filter"></a>Filter</h2><p>Envoy 运行着一系列 Listener，Listener 的核心就是过滤器链（FilterChain）。过滤器链中的过滤器分为两个类别：</p>
+<ul>
+<li><strong>网络过滤器（L3/L4 层）：</strong>是 Envoy 网络连接处理的核心，处理的是原始字节，分为 Read、Write 和 Read/Write 三类。</li>
+<li><strong>L7 过滤器：</strong>在 L3/L4 之上的过滤器，主要支持 HTTP 和 Thrift 协议。<ul>
+<li><strong>HTTP 过滤器：</strong>由 HTTP connection manager 管理，专门处理 HTTP1/HTTP2/gRPC 协议，将原始字节转换成 HTTP 格式，从而对 HTTP 协议进行精准控制。</li>
+<li><strong>Thrift Proxy：</strong>用于支持 Thrift 协议。</li>
+</ul>
+</li>
+</ul>
+<p>除了过滤器链之外，还有一种过滤器叫<strong>监听器过滤器</strong>（Listener Filters），它会在过滤器链之前执行，用于操纵连接的<strong>元数据</strong>。这样做的目的是，无需更改 Envoy 的核心代码就可以方便地集成更多功能。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200504224710.png" alt="img"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+              <a href="/tags/dubbo-%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># dubbo - 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-3-OCI%E4%B8%8EBuildpack/" rel="prev" title="阅读dubbo-kubernetes的启发 (3) OCI与Buildpack">
+      <i class="fa fa-chevron-left"></i> 阅读dubbo-kubernetes的启发 (3) OCI与Buildpack
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/" rel="next" title="Istio学习笔记 (1) 理解Istio">
+      Istio学习笔记 (1) 理解Istio <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Envoy-%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">Envoy 介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%B9%E7%82%B9"><span class="nav-number">1.1.</span> <span class="nav-text">特点</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Envoy-%E6%9E%B6%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">Envoy 架构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Filter"><span class="nav-number">2.1.</span> <span class="nav-text">Filter</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

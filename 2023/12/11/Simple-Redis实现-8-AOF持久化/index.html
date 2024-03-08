@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本项目完整地址 simple-redis 本节说明 simple-redis 中的 AOF 持久化功能。AOF（append only file）是一种 Redis 持久化方式。，其优缺点总结如下：  优势： 持久化文件是用户可以理解的。 备份机制更稳健，丢失数据概率更低。 AOF日志文件的命令通过可读的方式进行记录，这个特性非常适合做灾难性的误删除的紧急恢复。比如某人不小心使用了flushall">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Simple-Redis实现 (8) AOF持久化">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本项目完整地址 simple-redis 本节说明 simple-redis 中的 AOF 持久化功能。AOF（append only file）是一种 Redis 持久化方式。，其优缺点总结如下：  优势： 持久化文件是用户可以理解的。 备份机制更稳健，丢失数据概率更低。 AOF日志文件的命令通过可读的方式进行记录，这个特性非常适合做灾难性的误删除的紧急恢复。比如某人不小心使用了flushall">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-11T13:46:58.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.790Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis - 后端开发 - simple-redis">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Simple-Redis实现 (8) AOF持久化 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Simple-Redis实现 (8) AOF持久化
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-11 21:46:58" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:58+08:00">2023-12-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
+<p>本节说明 simple-redis 中的 AOF 持久化功能。AOF（append only file）是一种 Redis 持久化方式。，其优缺点总结如下：</p>
+<ul>
+<li><strong>优势：</strong><ul>
+<li>持久化文件是用户可以理解的。</li>
+<li>备份机制更稳健，<strong>丢失数据概率更低。</strong></li>
+<li>AOF日志文件的命令通过<strong>可读</strong>的方式进行<strong>记录</strong>，这个特性非常适合做<strong>灾难性的误删除的紧急恢复</strong>。比如某人不小心使用了flushall清空了所有数据库，只有重写操作还没有发生，那么就可以立即拷贝AOF文件，将最后一条flushall命令给删了，然后再将该AOF文件放回去，就可以通过恢复机制，自动恢复所有数据。</li>
+</ul>
+</li>
+<li><strong>劣势：</strong><ul>
+<li>比起RDB占用<strong>更多的磁盘空间。</strong></li>
+<li>恢复备份<strong>速度慢</strong>。</li>
+<li>每次读写都同步的话，有一定的性能压力。</li>
+</ul>
+</li>
+</ul>
+<h1 id="AOF-持久化"><a href="#AOF-持久化" class="headerlink" title="AOF 持久化"></a>AOF 持久化</h1><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>Persister 是 AOF 持久化中的核心数据结构，它从 channel 中接收消息并且将消息写入到 AOF 文件中。其中重要的字段如下：</p>
+<ul>
+<li><strong>db：</strong>指向 simple-redis 服务器。</li>
+<li><strong>tmpDBMaker：</strong>临时数据库创建函数，在进行 AOF 重写时，需要建立一个临时数据库加载 AOF 持久化文件，通过遍历临时数据库中的 key 实现 AOF 持久化文件的重写压缩。</li>
+<li><strong>aofChan：</strong>需要持久化的命令（payload 包含命令、数据库编号两个字段）发送到这个管道上进行持久化。</li>
+<li><strong>aofFilename：</strong>AOF 持久化文件名。</li>
+<li><strong>aofFsync：</strong>AOF 刷盘策略，共有三种策略分别是FsyncAlways、FsyncEverySec、FsyncNo。</li>
+<li><strong>currentDB：</strong>当前数据库编号。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> (</span><br><span class="line">   FsyncAlways   = <span class="literal">iota</span> <span class="comment">// 每一个命令都会进行刷盘操作</span></span><br><span class="line">   FsyncEverySec        <span class="comment">// 每秒进行一次刷盘操作</span></span><br><span class="line">   FsyncNo              <span class="comment">// 不主动进行刷盘操作，交给操作系统去决定</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CmdLine [][]<span class="keyword">byte</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> (</span><br><span class="line">   aofQueueSize = <span class="number">1</span> &lt;&lt; <span class="number">16</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Persister <span class="keyword">struct</span> &#123;</span><br><span class="line">   ctx         context.Context</span><br><span class="line">   cancel      context.CancelFunc</span><br><span class="line">   db          database.DBEngine</span><br><span class="line">   tmpDBMaker  <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">database</span>.<span class="title">DBEngine</span></span></span><br><span class="line">   aofChan     <span class="keyword">chan</span> *payload</span><br><span class="line">   aofFile     *os.File</span><br><span class="line">   aofFilename <span class="keyword">string</span></span><br><span class="line">   aofFsync    <span class="keyword">int</span> <span class="comment">// AOF 刷盘策略</span></span><br><span class="line">   <span class="comment">// aof goroutine will send msg to main goroutine through this channel when aof tasks finished and ready to shut down</span></span><br><span class="line">   aofFinished <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   <span class="comment">// pause aof for start/finish aof rewrite progress</span></span><br><span class="line">   pausingAof sync.Mutex</span><br><span class="line">   <span class="comment">// 表示正在aof重写，同时只有一个aof重写</span></span><br><span class="line">   aofRewriting sync.WaitGroup</span><br><span class="line">   currentDB    <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>payload 包含命令、数据库编号两个字段，它表示发送给 aofChan 的数据。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> payload <span class="keyword">struct</span> &#123;</span><br><span class="line">	cmdLine CmdLine</span><br><span class="line">	dbIndex <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="持久化流程"><a href="#持久化流程" class="headerlink" title="持久化流程"></a>持久化流程</h2><h3 id="LoadAof-加载持久化文件"><a href="#LoadAof-加载持久化文件" class="headerlink" title="LoadAof 加载持久化文件"></a>LoadAof 加载持久化文件</h3><p>Persister.LoadAof 用于读取 AOF文件，这个方法在监听 aofChan 之前使用。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// LoadAof 用于读取 AOF文件，这个方法在监听 aofChan 之前使用。</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(persister *Persister)</span> <span class="title">LoadAof</span><span class="params">(maxBytes <span class="keyword">int64</span>)</span></span> &#123;</span><br></pre></td></tr></table></figure>
+
+<p>其流程如下：</p>
+<ul>
+<li><strong>首先将 aofChan 设置为 nil</strong>，因为 persister.db.Exec 在<strong>执行 AOF 文件中的命令时，可能又会向 aofChan 中加入命令</strong>。些命令是不需要加入到 aofChan 中的（加入 aofChan 中数据会出错，因为这算是又在 AOF 文件中记录了一次）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">aofChan := persister.aofChan</span><br><span class="line">persister.aofChan = <span class="literal">nil</span></span><br><span class="line"><span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">(aofChan <span class="keyword">chan</span> *payload)</span></span> &#123;</span><br><span class="line">   persister.aofChan = aofChan</span><br><span class="line">&#125;(aofChan)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>打开 AOF 文件，从 AOF 文件中读取 maxBytes 字节的数据。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">file, err := os.Open(persister.aofFilename)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">if</span> _, ok := err.(*os.PathError); ok &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br><span class="line">   logger.Warn(err)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">defer</span> file.Close()</span><br><span class="line"></span><br><span class="line"><span class="comment">// 打开 AOF 文件，从 AOF 文件中读取 maxBytes 字节的数据。</span></span><br><span class="line"><span class="keyword">var</span> reader io.Reader</span><br><span class="line"><span class="keyword">if</span> maxBytes &gt; <span class="number">0</span> &#123;</span><br><span class="line">   reader = io.LimitReader(file, <span class="keyword">int64</span>(maxBytes))</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   reader = file</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>读取 AOF 文件复用了协议解析器，fakeConn 仅仅用于持久化操作中（它表示一个<strong>虚拟的客户端连接</strong>，仅仅用于执行 AOF 文件中的命令）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 读取 AOF 文件复用了协议解析器，fakeConn 仅仅用于持久化操作中（它表示一个**虚拟的客户端连接**，仅仅用于执行 AOF 文件中的命令）。</span></span><br><span class="line">ch := parser.ParseStream(reader)</span><br><span class="line"><span class="keyword">for</span> p := <span class="keyword">range</span> ch &#123;</span><br><span class="line">   <span class="keyword">if</span> p.Err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">if</span> p.Err == io.EOF &#123;</span><br><span class="line">         <span class="comment">// aof file read finish</span></span><br><span class="line">         <span class="keyword">break</span></span><br><span class="line">      &#125;</span><br><span class="line">      logger.Error(<span class="string">&quot;parse error: &quot;</span> + p.Err.Error())</span><br><span class="line">      <span class="keyword">continue</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> p.Data == <span class="literal">nil</span> &#123;</span><br><span class="line">      logger.Error(<span class="string">&quot;empty payload&quot;</span>)</span><br><span class="line">      <span class="keyword">continue</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 执行</span></span><br><span class="line">   r, ok := p.Data.(*reply.MultiBulkStringReply)</span><br><span class="line">   fakeConn := connection.NewFakeConn()</span><br><span class="line">   <span class="keyword">if</span> !ok &#123;</span><br><span class="line">      logger.Error(<span class="string">&quot;require multi bulk protocol&quot;</span>)</span><br><span class="line">      <span class="keyword">continue</span></span><br><span class="line">   &#125;</span><br><span class="line">   ret := persister.db.Exec(fakeConn, r.Args)</span><br><span class="line">   <span class="keyword">if</span> reply.IsErrorReply(ret) &#123;</span><br><span class="line">      logger.Error(<span class="string">&quot;exec err&quot;</span>, <span class="keyword">string</span>(ret.ToBytes()))</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 遇到 select 切换aof当前数据库</span></span><br><span class="line">   <span class="keyword">if</span> strings.ToLower(<span class="keyword">string</span>(r.Args[<span class="number">0</span>])) == <span class="string">&quot;select&quot;</span> &#123;</span><br><span class="line">      <span class="comment">// execSelect success, here must be no error</span></span><br><span class="line">      dbIndex, err := strconv.Atoi(<span class="keyword">string</span>(r.Args[<span class="number">1</span>]))</span><br><span class="line">      <span class="keyword">if</span> err == <span class="literal">nil</span> &#123;</span><br><span class="line">         persister.currentDB = dbIndex</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="写入-AOF-文件"><a href="#写入-AOF-文件" class="headerlink" title="写入 AOF 文件"></a>写入 AOF 文件</h3><p>需要被持久化的命令都会被送往 Persister.AofChan，当启动 AOF 持久化时，会同时<strong>启动一个协程监听 Persister.aofChan</strong>，调用 Persister.writeAof 方法写入 AOF 文件。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 监听aofChan，写入 AOF 文件</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(persister *Persister)</span> <span class="title">listenCmd</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="keyword">for</span> p := <span class="keyword">range</span> persister.aofChan &#123;</span><br><span class="line">      persister.writeAof(p)</span><br><span class="line">   &#125;</span><br><span class="line">   persister.aofFinished &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="writeAof-将一条命令写入-AOF-持久化文件"><a href="#writeAof-将一条命令写入-AOF-持久化文件" class="headerlink" title="writeAof 将一条命令写入 AOF 持久化文件"></a>writeAof 将一条命令写入 AOF 持久化文件</h4><p>Persister.writeAof 方法用于将一条命令写入到 AOF 文件中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(persister *Persister)</span> <span class="title">writeAof</span><span class="params">(p *payload)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程如下：</p>
+<ul>
+<li>首先，<strong>选择正确的数据库</strong>。每个客户端都可以选择自己的数据库，所以 payload 中要保存客户端选择的数据库。<strong>选择的数据库与 AOF 文件中当前的数据库不一致时写入一条 Select 命令</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">persister.pausingAof.Lock()</span><br><span class="line"><span class="keyword">defer</span> persister.pausingAof.Unlock()</span><br><span class="line"><span class="comment">// 首先，**选择正确的数据库**。</span></span><br><span class="line"><span class="comment">// 每个客户端都可以选择自己的数据库，所以 payload 中要保存客户端选择的数据库。</span></span><br><span class="line"><span class="comment">// **选择的数据库与 AOF 文件中当前的数据库不一致时写入一条 Select 命令**。</span></span><br><span class="line"><span class="keyword">if</span> p.dbIndex != persister.currentDB &#123;</span><br><span class="line">   selectCmd := utils.StringsToCmdLine(<span class="string">&quot;SELECT&quot;</span>, strconv.Itoa(p.dbIndex))</span><br><span class="line">   data := reply.MakeMultiBulkStringReply(selectCmd).ToBytes()</span><br><span class="line">   _, err := persister.aofFile.Write(data)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      logger.Warn(err)</span><br><span class="line">      <span class="keyword">return</span> <span class="comment">// skip this command</span></span><br><span class="line">   &#125;</span><br><span class="line">   persister.currentDB = p.dbIndex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着<strong>写入命令内容</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">data := reply.MakeMultiBulkStringReply(p.cmdLine).ToBytes()</span><br><span class="line">_, err := persister.aofFile.Write(data)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Warn(err)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着调用 listener.CallBack，如果刷盘策略为 FsyncAlways（每一条命令都刷盘），则调用 persister.aofFile.Sync 刷盘。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 如果刷盘策略为 FsyncAlways（每一条命令都刷盘），则调用 persister.aofFile.Sync 刷盘。</span></span><br><span class="line"><span class="keyword">if</span> persister.aofFsync == FsyncAlways &#123;</span><br><span class="line">   _ = persister.aofFile.Sync()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="fsyncEverySecond-每秒钟进行刷盘"><a href="#fsyncEverySecond-每秒钟进行刷盘" class="headerlink" title="fsyncEverySecond 每秒钟进行刷盘"></a>fsyncEverySecond 每秒钟进行刷盘</h3><p>当刷盘策略（fsync）为 FsyncEverySec 时，表示每秒钟都要进行一次刷盘策略。当开启这个选项时，会额外启动一个协程 Persister.fsyncEverySecond，来进行每秒钟的刷盘操作。</p>
+<p>具体实现的思路就是<strong>启动一个一秒钟通知一次 time.Ticker</strong>，来执行 Persister.aofFile.Sync 同步刷盘操作。<strong>当监听到 AOF 持久化结束（Persister.ctx.Done() 收到数据时）</strong>退出线程。</p>
+<h2 id="关闭持久化"><a href="#关闭持久化" class="headerlink" title="关闭持久化"></a>关闭持久化</h2><p>调用 Persister.Close 可以关闭 AOF 持久化，在关闭持久化操作时，需要进行以下步骤：</p>
+<ul>
+<li>首先<strong>等待 AOF 重写</strong>完成。</li>
+<li>接着关<strong>闭 aofChan 管道</strong>，等待 AOF 持久化完成。</li>
+<li>调用 Persister中上下文 cancel 方法，用于<strong>结束 Persister.fsyncEverySecond 方法</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Close 关闭 AOF 持久化close</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(persister *Persister)</span> <span class="title">Close</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="comment">// 等待 AOF 重写完成</span></span><br><span class="line">   persister.aofRewriting.Wait()</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> persister.aofFile != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="comment">// 先**关闭 aofChan 通道**，接着**等待 AOF 持久化完成**（persister.listenCmd 方法结束），**关闭 AOF 文件句柄**。</span></span><br><span class="line">      <span class="built_in">close</span>(persister.aofChan)</span><br><span class="line">      &lt;-persister.aofFinished <span class="comment">// wait for aof finished</span></span><br><span class="line">      err := persister.aofFile.Close()</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         logger.Warn(err)</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 调用 persister 中上下文 cancel 方法，用于结束 persister.fsyncEverySecond 方法。</span></span><br><span class="line">   persister.cancel()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="AOF-重写"><a href="#AOF-重写" class="headerlink" title="AOF 重写"></a>AOF 重写</h1><p>AOF 重写可以减小持久化文件的大小，以删除无用的指令。</p>
+<p><strong>重写必须在固定不变的数据集上进行</strong>，不能直接使用内存中的数据。在 simple-redis 中，采用读取 AOF 文件生成<strong>副本</strong>的方式进行重写操作。</p>
+<p>流程如下：</p>
+<ol>
+<li><strong>重写开始：</strong>暂停 AOF 写入 -&gt;  准备重写 -&gt; 恢复AOF写入。</li>
+<li><strong>执行重写：</strong>重写协程读取 AOF 文件中的<strong>前一部分</strong>（重写开始前的数据，不包括读写过程中写入的数据）并重写到临时文件中。</li>
+<li><strong>重写结束：</strong>暂停 AOF 写入 -&gt; 将重写过程中产生的<strong>新数据写入临时文件</strong>中 -&gt; 使用临时文件覆盖 AOF 文件（使用文件系统的 mv 命令保证安全） -&gt; 恢复 AOF 写入。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> RewriteCtx <span class="keyword">struct</span> &#123;</span><br><span class="line">   tmpFile  *os.File <span class="comment">// 重写时用到的临时文件</span></span><br><span class="line">   fileSize <span class="keyword">int64</span>    <span class="comment">// 重写时文件大小</span></span><br><span class="line">   dbIndex  <span class="keyword">int</span>      <span class="comment">// 重写时的当前数据库</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(persister *Persister)</span> <span class="title">newRewritePersister</span><span class="params">()</span> *<span class="title">Persister</span></span> &#123;</span><br><span class="line">   tmpDB := persister.tmpDBMaker()</span><br><span class="line">   <span class="keyword">return</span> &amp;Persister&#123;</span><br><span class="line">      db:          tmpDB,</span><br><span class="line">      aofFilename: persister.aofFilename,</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(persister *Persister)</span> <span class="title">Rewrite</span><span class="params">(rewriteWait *sync.WaitGroup, rewriting *atomic.Bool)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">   logger.Info(<span class="string">&quot;rewrite start...&quot;</span>)</span><br><span class="line">   persister.aofRewriting.Add(<span class="number">1</span>)</span><br><span class="line">   rewriting.Store(<span class="literal">true</span>)</span><br><span class="line">   <span class="keyword">defer</span> persister.aofRewriting.Done()</span><br><span class="line">   <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">      <span class="keyword">if</span> rewriteWait != <span class="literal">nil</span> &#123;</span><br><span class="line">         rewriteWait.Done() <span class="comment">// 通知 server 重写结束</span></span><br><span class="line">      &#125;</span><br><span class="line">      rewriting.Store(<span class="literal">false</span>)</span><br><span class="line">      logger.Info(<span class="string">&quot;rewrite finished...&quot;</span>)</span><br><span class="line">   &#125;()</span><br><span class="line"></span><br><span class="line">   rewriteCtx, err := persister.StartRewrite()</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> err</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   err = persister.DoRewrite(rewriteCtx)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> err</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   err = persister.FinishRewrite(rewriteCtx)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> err</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="StartRewrite-开始重写"><a href="#StartRewrite-开始重写" class="headerlink" title="StartRewrite 开始重写"></a>StartRewrite 开始重写</h2><p>StartRewrite 开始重写流程为：暂停 AOF 写入 -&gt;  准备重写 -&gt; 恢复AOF写入。</p>
+<ul>
+<li>首先暂停 AOF 写入。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">persister.pausingAof.Lock()</span><br><span class="line"><span class="keyword">defer</span> persister.pausingAof.Unlock()</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着调用 fsync 将缓冲区数据<strong>落盘</strong>，防止 AOF 文件不完整造成错误。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">err := persister.aofFile.Sync()</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Warn(<span class="string">&quot;fsync failed&quot;</span>)</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>获取当前 AOF 文件大小，创建临时文件。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取当前aof文件大小</span></span><br><span class="line">fileStat, _ := os.Stat(persister.aofFilename)</span><br><span class="line">fileSize := fileStat.Size()</span><br><span class="line"></span><br><span class="line"><span class="comment">// 创建临时文件</span></span><br><span class="line">tmpFile, err := ioutil.TempFile(<span class="string">&quot;./&quot;</span>, <span class="string">&quot;*.aof&quot;</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Warn(<span class="string">&quot;tmp file create failed&quot;</span>)</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">return</span> &amp;RewriteCtx&#123;</span><br><span class="line">   tmpFile:  tmpFile,</span><br><span class="line">   fileSize: fileSize,</span><br><span class="line">   dbIndex:  persister.currentDB,</span><br><span class="line">&#125;, <span class="literal">nil</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="DoRewrite-执行重写"><a href="#DoRewrite-执行重写" class="headerlink" title="DoRewrite 执行重写"></a>DoRewrite 执行重写</h2><p>DoRewrite 用于重写协程读取 AOF 文件中的<strong>前一部分</strong>（重写开始前的数据，不包括读写过程中写入的数据）并重写到临时文件中。流程如下：</p>
+<ul>
+<li><strong>读取 AOF 文件</strong>在重写开始时获取到的文件大小长度的数据，这些数据是重写开始前的数据，<strong>将重写的数据加载进入内存</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">tmpFile := rewriteCtx.tmpFile</span><br><span class="line"></span><br><span class="line">rewritePersister := persister.newRewritePersister()</span><br><span class="line">rewritePersister.LoadAof(rewriteCtx.fileSize)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>依次将每一个数据库中的数据，<strong>重写进入临时的 AOF 文件</strong>中。<ul>
+<li>对于每一个数据库，首先在临时文件中写入 Select 命令<strong>选择正确的数据库</strong>。</li>
+<li>调用 foreach 函数，遍历数据库中的每一个 key，将每一个键值对写入到临时文件中。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 依次将每一个数据库中的数据，**重写进入临时的 AOF 文件**中。</span></span><br><span class="line"><span class="keyword">for</span> i := <span class="number">0</span>; i &lt; config.Properties.Databases; i++ &#123;</span><br><span class="line">   <span class="comment">// 对于每一个数据库，首先在临时文件中写入 Select 命令**选择正确的数据库**。</span></span><br><span class="line">   data := reply.MakeMultiBulkStringReply(utils.StringsToCmdLine(<span class="string">&quot;SELECT&quot;</span>, strconv.Itoa(i))).ToBytes()</span><br><span class="line">   _, err := tmpFile.Write(data)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> err</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 调用 foreach 函数，遍历数据库中的每一个 key，将每一个键值对写入到临时文件中。</span></span><br><span class="line">   rewritePersister.db.ForEach(i, <span class="function"><span class="keyword">func</span><span class="params">(key <span class="keyword">string</span>, entity *database.DataEntity, expiration *time.Time)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">      bytes := utils.EntityToBytes(key, entity)</span><br><span class="line">      <span class="keyword">if</span> bytes != <span class="literal">nil</span> &#123;</span><br><span class="line">         _, _ = tmpFile.Write(bytes)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">if</span> expiration != <span class="literal">nil</span> &#123;</span><br><span class="line">         <span class="comment">// 有 TTL</span></span><br><span class="line">         bytes := utils.ExpireToBytes(key, *expiration)</span><br><span class="line">         <span class="keyword">if</span> bytes != <span class="literal">nil</span> &#123;</span><br><span class="line">            _, _ = tmpFile.Write(bytes)</span><br><span class="line">         &#125;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">   &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="FinishRewrite-结束重写"><a href="#FinishRewrite-结束重写" class="headerlink" title="FinishRewrite 结束重写"></a>FinishRewrite 结束重写</h2><p>FinishRewrite 的作用是暂停 AOF 写入 -&gt; 将重写过程中产生的<strong>新数据写入临时文件</strong>中 -&gt; 使用临时文件覆盖 AOF 文件（使用文件系统的 mv 命令保证安全） -&gt; 恢复 AOF 写入。</p>
+<p>其流程如下：</p>
+<ul>
+<li>首先<strong>暂停 AOF 文件的写入</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">persister.pausingAof.Lock()</span><br><span class="line"><span class="keyword">defer</span> persister.pausingAof.Unlock()</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>打开 AOF 文件</strong>，并 seek 到<strong>重写开始的位置</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">src, err := os.Open(persister.aofFilename)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Error(<span class="string">&quot;open aofFilename failed: &quot;</span> + err.Error())</span><br><span class="line">   <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">_, err = src.Seek(rewriteCtx.fileSize, <span class="number">0</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Error(<span class="string">&quot;seek failed: &quot;</span> + err.Error())</span><br><span class="line">   <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>在临时文件中<strong>写入一条 Select 命令</strong>，使得临时文件切换到重写开始时选中的数据库。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">tmpFile := rewriteCtx.tmpFile</span><br><span class="line"><span class="comment">// 在临时文件中**写入一条 Select 命令**，使得临时文件切换到重写开始时选中的数据库。</span></span><br><span class="line">data := reply.MakeMultiBulkStringReply(utils.StringsToCmdLine(<span class="string">&quot;SELECT&quot;</span>, strconv.Itoa(rewriteCtx.dbIndex))).ToBytes()</span><br><span class="line">_, err = tmpFile.Write(data)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Error(<span class="string">&quot;tmp file rewrite failed: &quot;</span> + err.Error())</span><br><span class="line">   <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>对齐数据库后，就可以把重写过程中产生的数据<strong>复制到临时文件中了</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">_, err = io.Copy(tmpFile, src)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   logger.Error(<span class="string">&quot;copy aof file failed: &quot;</span> + err.Error())</span><br><span class="line">   <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>使用 mv 命令</strong>，令临时文件<strong>代替</strong> AOF 文件。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">_ = persister.aofFile.Close()</span><br><span class="line">_ = src.Close()</span><br><span class="line">_ = tmpFile.Close()</span><br><span class="line">_ = os.Rename(tmpFile.Name(), persister.aofFilename)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>重新打开 AOF 文件</strong>，并重新<strong>写入一次 Select 命令</strong>保证 AOF 文件中的数据库与 persister.currentDB 一致。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">aofFile, err := os.OpenFile(persister.aofFilename, os.O_APPEND|os.O_CREATE|os.O_RDWR, <span class="number">0666</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="built_in">panic</span>(err)</span><br><span class="line">&#125;</span><br><span class="line">persister.aofFile = aofFile</span><br><span class="line"></span><br><span class="line"><span class="comment">// write select command again to ensure aof file has the same db index with  persister.currentDB</span></span><br><span class="line">data = reply.MakeMultiBulkStringReply(utils.StringsToCmdLine(<span class="string">&quot;SELECT&quot;</span>, strconv.Itoa(rewriteCtx.dbIndex))).ToBytes()</span><br><span class="line">_, err = persister.aofFile.Write(data)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="built_in">panic</span>(err)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span></span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis-%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91-simple-redis/" rel="tag"># Redis - 后端开发 - simple-redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/" rel="prev" title="Simple-Redis实现 (7) 底层数据库">
+      <i class="fa fa-chevron-left"></i> Simple-Redis实现 (7) 底层数据库
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-9-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95/" rel="next" title="Simple-Redis实现 (9) 性能测试">
+      Simple-Redis实现 (9) 性能测试 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#AOF-%E6%8C%81%E4%B9%85%E5%8C%96"><span class="nav-number">1.</span> <span class="nav-text">AOF 持久化</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%81%E4%B9%85%E5%8C%96%E6%B5%81%E7%A8%8B"><span class="nav-number">1.2.</span> <span class="nav-text">持久化流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#LoadAof-%E5%8A%A0%E8%BD%BD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%87%E4%BB%B6"><span class="nav-number">1.2.1.</span> <span class="nav-text">LoadAof 加载持久化文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%99%E5%85%A5-AOF-%E6%96%87%E4%BB%B6"><span class="nav-number">1.2.2.</span> <span class="nav-text">写入 AOF 文件</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#writeAof-%E5%B0%86%E4%B8%80%E6%9D%A1%E5%91%BD%E4%BB%A4%E5%86%99%E5%85%A5-AOF-%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%87%E4%BB%B6"><span class="nav-number">1.2.2.1.</span> <span class="nav-text">writeAof 将一条命令写入 AOF 持久化文件</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#fsyncEverySecond-%E6%AF%8F%E7%A7%92%E9%92%9F%E8%BF%9B%E8%A1%8C%E5%88%B7%E7%9B%98"><span class="nav-number">1.2.3.</span> <span class="nav-text">fsyncEverySecond 每秒钟进行刷盘</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%97%AD%E6%8C%81%E4%B9%85%E5%8C%96"><span class="nav-number">1.3.</span> <span class="nav-text">关闭持久化</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#AOF-%E9%87%8D%E5%86%99"><span class="nav-number">2.</span> <span class="nav-text">AOF 重写</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#StartRewrite-%E5%BC%80%E5%A7%8B%E9%87%8D%E5%86%99"><span class="nav-number">2.1.</span> <span class="nav-text">StartRewrite 开始重写</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DoRewrite-%E6%89%A7%E8%A1%8C%E9%87%8D%E5%86%99"><span class="nav-number">2.2.</span> <span class="nav-text">DoRewrite 执行重写</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FinishRewrite-%E7%BB%93%E6%9D%9F%E9%87%8D%E5%86%99"><span class="nav-number">2.3.</span> <span class="nav-text">FinishRewrite 结束重写</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

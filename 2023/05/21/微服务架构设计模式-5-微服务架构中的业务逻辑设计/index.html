@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="事务脚本模式对于简单的业务逻辑，可以使用事务脚本模式，事务脚本模式是面向过程而不是面向对象的。事务脚本模式就是，对于每一种系统操作，都有一个方法专门用于实现这个系统操作，使用数据库访问对象（Dao）访问数据库，而数据对象是纯数据几乎没有行为。  事务脚本模式的重要特征就是实现行为的类于存储状态的类是分开的。   领域模型模式对于复杂的业务，就需要使用领域模型模式了，领域模型模式是面向对象的。领域模">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务架构设计模式 (5) 微服务架构中的业务逻辑设计">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="事务脚本模式对于简单的业务逻辑，可以使用事务脚本模式，事务脚本模式是面向过程而不是面向对象的。事务脚本模式就是，对于每一种系统操作，都有一个方法专门用于实现这个系统操作，使用数据库访问对象（Dao）访问数据库，而数据对象是纯数据几乎没有行为。  事务脚本模式的重要特征就是实现行为的类于存储状态的类是分开的。   领域模型模式对于复杂的业务，就需要使用领域模型模式了，领域模型模式是面向对象的。领域模">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521212736373.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521213659409.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230522140855911.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230522140843639.png">
+<meta property="article:published_time" content="2023-05-21T13:15:07.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.817Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521212736373.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务架构设计模式 (5) 微服务架构中的业务逻辑设计 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务架构设计模式 (5) 微服务架构中的业务逻辑设计
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-21 21:15:07" itemprop="dateCreated datePublished" datetime="2023-05-21T21:15:07+08:00">2023-05-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="事务脚本模式"><a href="#事务脚本模式" class="headerlink" title="事务脚本模式"></a>事务脚本模式</h1><p>对于<strong>简单</strong>的业务逻辑，可以使用<strong>事务脚本模式</strong>，事务脚本模式是<strong>面向过程</strong>而不是面向对象的。事务脚本模式就是，对于每一种系统操作，都有一个方法专门用于实现这个系统操作，使用数据库访问对象（Dao）访问数据库，而数据对象是纯数据几乎没有行为。</p>
+<blockquote>
+<p>事务脚本模式的重要特征就是实现行为的类于存储状态的类是分开的。</p>
+</blockquote>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521212736373.png" alt="image-20230521212736373"></p>
+<h1 id="领域模型模式"><a href="#领域模型模式" class="headerlink" title="领域模型模式"></a>领域模型模式</h1><p>对于复杂的业务，就需要使用<strong>领域模型模式</strong>了，领域模型模式是<strong>面向对象</strong>的。领域模型模式将业务逻辑组织为<strong>具有状态和行为的类</strong>构成的对象模型。这样的设计中，有些类只有状态或者行为，但是很多类同时包含状态和行为。</p>
+<p>这样设计的好处是：</p>
+<ul>
+<li><strong>易于理解和维护</strong>。它不像事务脚本模式由一个完成所有事情的大类组成，而是由许多小类组成，每个小类都有少量的职责。</li>
+<li><strong>更容易测试</strong>。每一个对象都能够被独立的测试。</li>
+<li><strong>更容易扩展</strong>。通常而言，面向对象的设计可以使用设计模式，这样提供了易于扩展的可能性。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521213659409.png" alt="image-20230521213659409"></p>
+<h2 id="领域驱动设计"><a href="#领域驱动设计" class="headerlink" title="领域驱动设计"></a>领域驱动设计</h2><p>领域模型模式需要用<strong>领域驱动设计（DDD）</strong>来优化，DDD 是对面向对象设计的改进，是开发复杂业务逻辑的一种方法。在领域驱动设计中，由以下几种基本元素组成：</p>
+<ul>
+<li><strong>Entity：</strong>具有<strong>状态</strong>的对象。</li>
+<li><strong>Value Object：</strong>不具有状态的对象，<strong>仅有值</strong>，具有相同的值对象可以互换使用。</li>
+<li><strong>Factory：</strong>复杂实现对象创建的方法或者对象。</li>
+<li><strong>Repository：</strong>用来<strong>访问持久化实体</strong>的对象，Repository 也封装了访问数据库的底层机制。</li>
+<li><strong>Service：</strong>实现<strong>业务逻辑</strong>的对象。</li>
+</ul>
+<h2 id="领域驱动设计聚合模式"><a href="#领域驱动设计聚合模式" class="headerlink" title="领域驱动设计聚合模式"></a>领域驱动设计聚合模式</h2><p>传统的领域模型<strong>缺少明确的边界</strong>，这会导致一些问题。所以使用领域驱动设计中的<strong>聚合</strong>模式，聚合具有明确的边界。</p>
+<p><strong>聚合</strong>是一个边界内领域对象的集群，可以将其视为<strong>一个单元</strong>。使用聚合有两个好处：</p>
+<ul>
+<li>消除了服务之间的对象引用。</li>
+<li>确保了本地事务 ACID 在每一个服务内部（对于服务之间的事务性保证，则通过 Saga 实现）。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230522140855911.png" alt="image-20230522140855911"></p>
+<blockquote>
+<p>所有的操作都<strong>作用于整个聚合</strong>而不是部分聚合。</p>
+</blockquote>
+<h3 id="聚合的规则"><a href="#聚合的规则" class="headerlink" title="聚合的规则"></a>聚合的规则</h3><p>领域驱动设计要求聚合遵守一组规则：</p>
+<ul>
+<li><strong>只引用聚合根：</strong>聚合根（Aggregate Root）是聚合中唯一可以由外部类引用的部分，客户端只能调用聚合根上的方法来更新聚合。</li>
+<li><strong>聚合间的引用必须使用主键：</strong>聚合间的引用使用<strong>主键</strong>（如唯一 ID，可以看成是<strong>外键</strong>），而不是对象引用。它确保聚合之间的<strong>边界</strong>得到了良好的定义，不会出现跨服务的<strong>对象引用问题</strong>。</li>
+<li><strong>一个事务中，只能创建或者更新一个聚合：</strong>确保单个事务的范围不超过服务的边界，<strong>使用 Saga 可以解决</strong>创建或者更新<strong>多个</strong>聚合。</li>
+</ul>
+<span id="more"></span>
+
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230522140843639.png" alt="image-20230522140843639"></p>
+<blockquote>
+<p>对于第三点规则，只能说是仁者见仁智者见智，在一个事务中更新多个聚合感觉也是可以的，把在一个服务中的多个聚合更新操作作为同一个本地事务。可以把这几个聚合合并起来，作为一个更大的聚合，聚合的边界是十分主观的事情。</p>
+</blockquote>
+<h3 id="聚合的粒度"><a href="#聚合的粒度" class="headerlink" title="聚合的粒度"></a>聚合的粒度</h3><p>一个重要的方面是决定聚合的粒度。通常而言，一个<strong>细粒度</strong>的聚合可以提高性能，改善用户体验（因为降低了两个用户同时更新同一个聚合的可能性）。一个<strong>粗粒度</strong>的聚合，因为聚合是事务的范围，则可以更加满足事务的原子性要求。</p>
+<blockquote>
+<p>但是，粗粒度的聚合有以下几点弊端：</p>
+<ul>
+<li>降低了<strong>可扩展性</strong>。</li>
+<li>因为聚合是事务的范围，事务的范围扩大了，所以可能会产生更多的<strong>冲突</strong>。</li>
+<li>更大的聚合称为服务分解的障碍，同一个聚合内的模块需要放在同一个服务上，这使得<strong>服务变得更大</strong>。</li>
+</ul>
+<p>基于以上的弊端，我们更加<strong>倾向于细粒度的聚合</strong>。</p>
+</blockquote>
+<h3 id="领域事件"><a href="#领域事件" class="headerlink" title="领域事件"></a>领域事件</h3><p>在聚合被<strong>创建、或者状态发生重大变更</strong>时，会对外发布<strong>领域事件</strong>。</p>
+<p>在命名领域事件时，通常采用<strong>动词的过去分词</strong>，如 OrderCreated 表示订单创建这一领域事件。领域事件通常还具有<strong>元数据</strong>，如事件 ID 和时间戳（也可能是其他的，只是举个例子）。</p>
+<blockquote>
+<p>在领域事件的接收方，如果接收到了领域事件，在处理领域事件时可能需要更详细的信息。可以从发布领域事件的服务中检索信息。也可以使用<strong>事件增强</strong>的方法，事件包含接收方需要的信息，因此接收方不需要再额外的查询详细信息。</p>
+</blockquote>
+<p>在发布领域事件时，<strong>与发布事务性消息一样</strong>，可以引入数据库中间表 OUTBOX，先将数据插入到 OUTBOX 中接着再发布到消息代理中。</p>
+<h1 id="领域驱动设计-1"><a href="#领域驱动设计-1" class="headerlink" title="领域驱动设计"></a>领域驱动设计</h1><p>下面明确一下什么是<strong>领域驱动设计（DDD，Domain Driven Design）</strong>，一种处理高复杂度领域的设计方法，它试图分离技术实现的复杂性，并<strong>围绕业务</strong>概念<strong>构建领域模型</strong>来控制业务的复杂性，以解决软件难以理解，难以演进的问题。DDD 包括战略设计和战术设计：</p>
+<ul>
+<li><strong>战略设计：</strong>建立业务<strong>领域模型</strong>，划分<strong>领域边界</strong>，建立通用语言的<strong>限界上下文</strong>，限界上下文可以作为微服务设计的参考边界。</li>
+<li><strong>战术设计：</strong>侧重于领域模型的<strong>技术</strong>实现，完成软件开发和落地，包括：聚合根、实体、值对象、领域服务、服务和仓库等代码逻辑的设计和实现。</li>
+</ul>
+<blockquote>
+<p>DDD 就是将复杂的问题划分成许多个小问题（小领域），去分别的解决各自领域内的问题。</p>
+</blockquote>
+<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>在 DDD 中有许多基础概念需要解释。</p>
+<h3 id="界限上下文"><a href="#界限上下文" class="headerlink" title="界限上下文"></a>界限上下文</h3><p>可以将界限上下文拆分为两个词：<strong>界限</strong>和<strong>上下文</strong>。限界就是领域的<strong>边界</strong>，而上下文则是<strong>语义环境</strong>。通过领域的限界上下文，就可以<strong>在统一的领域边界内用统一的语言进行交流</strong>。</p>
+<blockquote>
+<p>比如商品在不同的阶段有不同的术语，在销售阶段是商品，而在运输阶段则变成了货物。同样的一个东西，由于业务领域的不同，赋予了这些术语不同的涵义和职责边界，这个边界就可能会成为未来微服务设计的边界。</p>
+</blockquote>
+<p><strong>通过领域上下文，可以保证概念在领域内部是统一的、没有二义性的。</strong>这个边界定义了模型的适用范围，同样也可能成为微服务设计的参考。</p>
+<h3 id="实体和值对象"><a href="#实体和值对象" class="headerlink" title="实体和值对象"></a>实体和值对象</h3><p><strong>实体（Entity）</strong>具有<strong>唯一标识符</strong>，是有<strong>状态</strong>的对象。实体类通常采用<strong>充血</strong>模型。</p>
+<p><strong>值对象（Value Object）</strong>是<strong>没有状态</strong>的对象，值对象只能通过属性值区分，如果两个值对象的属性完全相同则视为同一个对象。</p>
+<h3 id="聚合和聚合根"><a href="#聚合和聚合根" class="headerlink" title="聚合和聚合根"></a>聚合和聚合根</h3><p>领域模型内的实体和值对象就好比个体，而能让实体和值对象<strong>协同工作的组织就是聚合</strong>。聚合是数据存储和持久化的基本单元，一个聚合对应一个 Repository，从而实现数据持久化。聚合也是可以拆分为微服务的<strong>最小单位</strong>。一个微服务可以包含多个聚合，聚合之间的边界是微服务内天然的逻辑边界。有了这个逻辑边界，在微服务架构演进时就可以以聚合为单位进行拆分和组合。</p>
+<p><strong>聚合根</strong>可以看作是聚合的负责人，也称为<strong>根实体</strong>，它不仅是实体，还是聚合的管理者。聚合根还是聚合<strong>对外暴露的接口</strong>，客户端只能调用聚合根上的方法。</p>
+<blockquote>
+<p>聚合的规则前文已经解释了，这里不再赘述。</p>
+</blockquote>
+<h2 id="模型形态"><a href="#模型形态" class="headerlink" title="模型形态"></a>模型形态</h2><h3 id="三种模型"><a href="#三种模型" class="headerlink" title="三种模型"></a>三种模型</h3><ul>
+<li><p><strong>充血模型：</strong>不仅包含了对象的属性以及访问修改属性的方法（get 和 set），而且还包含了如验证、持久化等的业务逻辑。</p>
+</li>
+<li><p><strong>失学模型：</strong>仅仅包含对象的属性以及访问修改属性的方法（get 和 set）。</p>
+</li>
+<li><p><strong>贫血模型：</strong>类似于充血模型，但是不包含持久化相关的逻辑。</p>
+</li>
+</ul>
+<h3 id="四种对象"><a href="#四种对象" class="headerlink" title="四种对象"></a>四种对象</h3><ul>
+<li><strong>PO（Persistent Object，持久化对象）：</strong>直接从数据库读取出来，<strong>经过 ORM 映射得到的对象</strong>，可以理解为 model。</li>
+<li><strong>DO（Domain Object，领域对象）：</strong>从数据库取出来之后，<strong>需要从数据还原成实体</strong>，这个实体就是 DO。至于为什么不能直接用 PO 作为 DO，这是因为数据库中读取出来的对象与 DO 不是一一对应的，比如一个用户实体的信息需要通过用户表、权限表共同构建出来。</li>
+<li><strong>DTO（Data Transfer Object，数据传输对象）：</strong>这种对象存在于 Controller 和 Service 之间。</li>
+<li><strong>VO（View Object，视图对象）：</strong>在给客户端返回时，不仅需要 DTO，可能还需要<strong>状态码、提示文本</strong>等信息，这就引入了 VO。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/" rel="prev" title="微服务架构设计模式 (4) 使用Saga管理事务">
+      <i class="fa fa-chevron-left"></i> 微服务架构设计模式 (4) 使用Saga管理事务
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E4%BA%8B%E4%BB%B6%E6%BA%AF%E6%BA%90/" rel="next" title="微服务架构设计模式 (6) 事件溯源">
+      微服务架构设计模式 (6) 事件溯源 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E8%84%9A%E6%9C%AC%E6%A8%A1%E5%BC%8F"><span class="nav-number">1.</span> <span class="nav-text">事务脚本模式</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%A2%86%E5%9F%9F%E6%A8%A1%E5%9E%8B%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.</span> <span class="nav-text">领域模型模式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1"><span class="nav-number">2.1.</span> <span class="nav-text">领域驱动设计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1%E8%81%9A%E5%90%88%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.2.</span> <span class="nav-text">领域驱动设计聚合模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%81%9A%E5%90%88%E7%9A%84%E8%A7%84%E5%88%99"><span class="nav-number">2.2.1.</span> <span class="nav-text">聚合的规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%81%9A%E5%90%88%E7%9A%84%E7%B2%92%E5%BA%A6"><span class="nav-number">2.2.2.</span> <span class="nav-text">聚合的粒度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A2%86%E5%9F%9F%E4%BA%8B%E4%BB%B6"><span class="nav-number">2.2.3.</span> <span class="nav-text">领域事件</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1-1"><span class="nav-number">3.</span> <span class="nav-text">领域驱动设计</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A6%82%E5%BF%B5"><span class="nav-number">3.1.</span> <span class="nav-text">概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%95%8C%E9%99%90%E4%B8%8A%E4%B8%8B%E6%96%87"><span class="nav-number">3.1.1.</span> <span class="nav-text">界限上下文</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9E%E4%BD%93%E5%92%8C%E5%80%BC%E5%AF%B9%E8%B1%A1"><span class="nav-number">3.1.2.</span> <span class="nav-text">实体和值对象</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%81%9A%E5%90%88%E5%92%8C%E8%81%9A%E5%90%88%E6%A0%B9"><span class="nav-number">3.1.3.</span> <span class="nav-text">聚合和聚合根</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B%E5%BD%A2%E6%80%81"><span class="nav-number">3.2.</span> <span class="nav-text">模型形态</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%89%E7%A7%8D%E6%A8%A1%E5%9E%8B"><span class="nav-number">3.2.1.</span> <span class="nav-text">三种模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9B%9B%E7%A7%8D%E5%AF%B9%E8%B1%A1"><span class="nav-number">3.2.2.</span> <span class="nav-text">四种对象</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

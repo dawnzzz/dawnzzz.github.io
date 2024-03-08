@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="介绍 MongoDBMongoDB 是一个由 C++ 编写的，分布式文档型数据库。在高负载的情况下，可以添加更多的节点，可以保证服务器性能。MongoDB 将数据存储为一个文档，数据结构由键值对构成，MongoDB 文档类似于 JSON 对象。字段值可以包含字面量，其他文档，数组及文档数组。 特点MongoDB 的特点是：  支持索引，利用索引可以实现更快的排序。 支持数据分片和数据复制，也就是具">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MongoDB学习 (1) 基础概念">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="介绍 MongoDBMongoDB 是一个由 C++ 编写的，分布式文档型数据库。在高负载的情况下，可以添加更多的节点，可以保证服务器性能。MongoDB 将数据存储为一个文档，数据结构由键值对构成，MongoDB 文档类似于 JSON 对象。字段值可以包含字面量，其他文档，数组及文档数组。 特点MongoDB 的特点是：  支持索引，利用索引可以实现更快的排序。 支持数据分片和数据复制，也就是具">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/2875754375-5a19268f0fd9b_articlex.jpeg">
+<meta property="article:published_time" content="2023-08-28T03:28:24.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.775Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="mongodb">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/2875754375-5a19268f0fd9b_articlex.jpeg">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MongoDB学习 (1) 基础概念 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MongoDB学习 (1) 基础概念
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-28 11:28:24" itemprop="dateCreated datePublished" datetime="2023-08-28T11:28:24+08:00">2023-08-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MongoDB%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">MongoDB学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="介绍-MongoDB"><a href="#介绍-MongoDB" class="headerlink" title="介绍 MongoDB"></a>介绍 MongoDB</h1><p>MongoDB 是一个由 C++ 编写的，<strong>分布式文档型数据库</strong>。在高负载的情况下，可以添加更多的节点，可以保证服务器性能。MongoDB 将数据存储为一个文档，数据结构由<strong>键值对</strong>构成，MongoDB 文档类似于 JSON 对象。字段值可以包含字面量，其他文档，数组及文档数组。</p>
+<h2 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h2><p>MongoDB 的特点是：</p>
+<ul>
+<li>支持索引，利用索引可以实现更快的排序。</li>
+<li>支持数据分片和数据复制，也就是具备分布式能力。</li>
+<li>支持 Map/Reduce，用于对数据进行批量的处理和聚合操作。</li>
+<li>允许在服务器端执行 Javascript 脚本。</li>
+</ul>
+<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>在 mongodb 中，最基本的概念就是文档、集合、数据库。</p>
+<table>
+<thead>
+<tr>
+<th align="left">SQL术语/概念</th>
+<th align="left">MongoDB术语/概念</th>
+<th align="left">解释/说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">database</td>
+<td align="left">database</td>
+<td align="left">数据库</td>
+</tr>
+<tr>
+<td align="left">table</td>
+<td align="left">collection</td>
+<td align="left">数据库表/集合</td>
+</tr>
+<tr>
+<td align="left">row</td>
+<td align="left">document</td>
+<td align="left">数据记录行/文档</td>
+</tr>
+<tr>
+<td align="left">column</td>
+<td align="left">field</td>
+<td align="left">数据字段/域</td>
+</tr>
+<tr>
+<td align="left">index</td>
+<td align="left">index</td>
+<td align="left">索引</td>
+</tr>
+<tr>
+<td align="left">table joins</td>
+<td align="left"></td>
+<td align="left">表连接，MongoDB不支持</td>
+</tr>
+<tr>
+<td align="left">primary key</td>
+<td align="left">primary key</td>
+<td align="left">主键，MongoDB自动将_id字段设置为主键</td>
+</tr>
+</tbody></table>
+<span id="more"></span>
+
+<h1 id="数据库"><a href="#数据库" class="headerlink" title="数据库"></a>数据库</h1><p>在 MongoDB 中，可以建立多个数据库。<code>show dbs</code> 命令可以显示所有数据的列表，<code>db</code> 命令显示当前连接的数据库，<code>use</code> 命令切换选择数据库。</p>
+<p>在 MongoDB 中，一些数据库名是保留的，具有特殊的功能。</p>
+<ul>
+<li><strong>admin</strong>： 从权限的角度来看，这<strong>是 root 数据库</strong>。要是将一个用户添加到这个数据库，这个用户自动继承所有数据库的权限。一些<strong>特定</strong>的服务器端命令也<strong>只能从这个数据库运行</strong>，比如列出所有的数据库或者关闭服务器。</li>
+<li><strong>local：</strong>用于存储在本地集合，在集群部署时不会被复制。</li>
+<li><strong>config</strong>: 当Mongo用于分片设置时，config数据库在内部使用，用于保存分片的相关信息。</li>
+</ul>
+<h1 id="文档"><a href="#文档" class="headerlink" title="文档"></a>文档</h1><p>MongoDB 数据库中的文档是类似于 json 的键值对，所以 MongoDB 被称之为文档型数据库。但是与关系型数据库不同的是，Mongo DB 的文档有以下特性：</p>
+<ul>
+<li>MongoDB 是<strong>无模式</strong>的，也就是说，MongoDB 的文档不需要设置相同的字段，甚至不同文档中相同的字段可以设置不同的数据类型。</li>
+<li>MongoDB 文档之间是<strong>不提供表联合</strong>的，但是可以在一个文档中<strong>嵌入其他的文档</strong>，甚至是文档列表。</li>
+<li>MongoDB 文档的<strong>主键为 _id</strong>，是 MongoDB 自动生成的。</li>
+</ul>
+<h1 id="集合"><a href="#集合" class="headerlink" title="集合"></a>集合</h1><p>集合就是 MogoDB 中的文档组，存在于数据库中，集合没有固定的结构。当第一个文档插入时，集合就会被创建。</p>
+<blockquote>
+<p>系统集合的前缀为 <code>system.</code>，所以用户自定义的集合名称不能只用该前缀。</p>
+</blockquote>
+<h2 id="capped-collections"><a href="#capped-collections" class="headerlink" title="capped collections"></a>capped collections</h2><p>在 mongodb 中，有一种特殊的集合，即 capped collections（固定集合）。固定集合可以声明集合的大小，其类似于循环队列数据占满时会覆盖前面的数据。capped collections 有以下特性：</p>
+<ul>
+<li>由于 capped collections 按照文档的插入顺序而不是使用索引确定插入位置，这样的话可以提高增添数据的效率，<strong>写效率非常高</strong>。</li>
+<li><strong>自动覆盖掉最老的文档</strong>，因此不需要再配置额外的工作来进行旧文档删除。</li>
+<li>不可以删除文档，但是可以更新文档（并且更新文档的大小不能超过原来大小，确保位置不会变化）。</li>
+</ul>
+<blockquote>
+<p>capped collections 非常适合记录日志等场景。</p>
+</blockquote>
+<p>capped collections 必须在使用前显式创建。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">db.createCollection(&quot;mycoll&quot;, &#123;capped:true, size:100000&#125;)</span><br></pre></td></tr></table></figure>
+
+<h2 id="元数据"><a href="#元数据" class="headerlink" title="元数据"></a>元数据</h2><p>数据库的元数据存储在了集合命名空间 <code> dbname.system.*</code> 中，是包含多种系统信息的特殊集合。</p>
+<table>
+<thead>
+<tr>
+<th align="left">集合命名空间</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">dbname.system.namespaces</td>
+<td align="left">列出所有名字空间。</td>
+</tr>
+<tr>
+<td align="left">dbname.system.indexes</td>
+<td align="left">列出所有索引。</td>
+</tr>
+<tr>
+<td align="left">dbname.system.profile</td>
+<td align="left">包含数据库概要(profile)信息。</td>
+</tr>
+<tr>
+<td align="left">dbname.system.users</td>
+<td align="left">列出所有可访问数据库的用户。</td>
+</tr>
+<tr>
+<td align="left">dbname.local.sources</td>
+<td align="left">包含复制对端（slave）的服务器信息和状态。</td>
+</tr>
+</tbody></table>
+<h1 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h1><p>在 mongodb 的文档中，键为字符串，值可以是多种数据类型。 mongodb 提供多种数据类型，如下：</p>
+<table>
+<thead>
+<tr>
+<th align="left">数据类型</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">String</td>
+<td align="left">字符串。存储数据常用的数据类型。在 MongoDB 中，UTF-8 编码的字符串才是合法的。</td>
+</tr>
+<tr>
+<td align="left">Integer</td>
+<td align="left">整型数值。用于存储数值。根据你所采用的服务器，可分为 32 位或 64 位。</td>
+</tr>
+<tr>
+<td align="left">Boolean</td>
+<td align="left">布尔值。用于存储布尔值（真/假）。</td>
+</tr>
+<tr>
+<td align="left">Double</td>
+<td align="left">双精度浮点值。用于存储浮点值。</td>
+</tr>
+<tr>
+<td align="left">Min/Max keys</td>
+<td align="left">将一个值与 BSON（二进制的 JSON）元素的最低值和最高值相对比。</td>
+</tr>
+<tr>
+<td align="left">Array</td>
+<td align="left">用于将数组或列表或多个值存储为一个键。</td>
+</tr>
+<tr>
+<td align="left">Timestamp</td>
+<td align="left">时间戳。记录文档修改或添加的具体时间。</td>
+</tr>
+<tr>
+<td align="left">Object</td>
+<td align="left">用于内嵌文档。</td>
+</tr>
+<tr>
+<td align="left">Null</td>
+<td align="left">用于创建空值。</td>
+</tr>
+<tr>
+<td align="left">Symbol</td>
+<td align="left">符号。该数据类型基本上等同于字符串类型，但不同的是，它一般用于采用特殊符号类型的语言。</td>
+</tr>
+<tr>
+<td align="left">Date</td>
+<td align="left">日期时间。用 UNIX 时间格式来存储当前日期或时间。你可以指定自己的日期时间：创建 Date 对象，传入年月日信息。</td>
+</tr>
+<tr>
+<td align="left">Object ID</td>
+<td align="left">对象 ID。用于创建文档的 ID。</td>
+</tr>
+<tr>
+<td align="left">Binary Data</td>
+<td align="left">二进制数据。用于存储二进制数据。</td>
+</tr>
+<tr>
+<td align="left">Code</td>
+<td align="left">代码类型。用于在文档中存储 JavaScript 代码。</td>
+</tr>
+<tr>
+<td align="left">Regular expression</td>
+<td align="left">正则表达式类型。用于存储正则表达式。</td>
+</tr>
+</tbody></table>
+<h2 id="ObjectId"><a href="#ObjectId" class="headerlink" title="ObjectId"></a>ObjectId</h2><p>ObjectId 类似于唯一主键，包含12字节。含义为：</p>
+<ul>
+<li>前四个字节标识<strong>时间戳</strong>，为格林尼治时间。</li>
+<li>接下来的 3 个字节是机器标识码。</li>
+<li>紧接的两个字节由进程 id 组成 PID。</li>
+<li>最后三个字节是随机数。</li>
+</ul>
+<p><img src="/../images/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/2875754375-5a19268f0fd9b_articlex.jpeg" alt="img"></p>
+<p>MongoDB 中存储的文档必须有一个 <code>_id</code> 键。这个键的值可以是任何类型的，<strong>默认是个 ObjectId 对象</strong>。</p>
+<blockquote>
+<p><strong>由于 ObjectId 中保存了创建的时间戳</strong>，所以不需要为文档保存时间戳字段，可以通过 getTimestamp 函数来获取文档的创建时间。</p>
+</blockquote>
+<h2 id="时间戳和日期"><a href="#时间戳和日期" class="headerlink" title="时间戳和日期"></a>时间戳和日期</h2><p>在 MongoDB 中，<strong>时间戳用于 MongoDB 内部使用</strong>，与普通的日期类型不相关。时间戳值是一个 64 位的值，其中前 32 位为<strong>时间戳</strong>，后 32 位为在某秒操作中的一个<strong>递增序数</strong>。在单个 MongoDB 实例中，时间戳是唯一的。在复制集中， oplog 有一个 ts 字段为时间戳类型，表示了操作时间。</p>
+<p>日期在 MongoDB 中存储为一般的时间戳，日期用于表示时间，供应用层使用。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/mongodb/" rel="tag"># mongodb</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/" rel="prev" title="数据密集型应用系统设计 (5) 数据分区">
+      <i class="fa fa-chevron-left"></i> 数据密集型应用系统设计 (5) 数据分区
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-2-%E6%95%B0%E6%8D%AE%E5%BA%93-%E9%9B%86%E5%90%88-%E6%96%87%E6%A1%A3%E6%93%8D%E4%BD%9C/" rel="next" title="MongoDB学习 (2) 数据库 集合 文档操作">
+      MongoDB学习 (2) 数据库 集合 文档操作 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BB%8B%E7%BB%8D-MongoDB"><span class="nav-number">1.</span> <span class="nav-text">介绍 MongoDB</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%B9%E7%82%B9"><span class="nav-number">1.1.</span> <span class="nav-text">特点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A6%82%E5%BF%B5"><span class="nav-number">1.2.</span> <span class="nav-text">概念</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%BA%93"><span class="nav-number">2.</span> <span class="nav-text">数据库</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%96%87%E6%A1%A3"><span class="nav-number">3.</span> <span class="nav-text">文档</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%9B%86%E5%90%88"><span class="nav-number">4.</span> <span class="nav-text">集合</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#capped-collections"><span class="nav-number">4.1.</span> <span class="nav-text">capped collections</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%83%E6%95%B0%E6%8D%AE"><span class="nav-number">4.2.</span> <span class="nav-text">元数据</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B"><span class="nav-number">5.</span> <span class="nav-text">数据类型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ObjectId"><span class="nav-number">5.1.</span> <span class="nav-text">ObjectId</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%B6%E9%97%B4%E6%88%B3%E5%92%8C%E6%97%A5%E6%9C%9F"><span class="nav-number">5.2.</span> <span class="nav-text">时间戳和日期</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

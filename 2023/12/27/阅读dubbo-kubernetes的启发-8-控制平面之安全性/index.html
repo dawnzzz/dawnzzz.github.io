@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="以下是 CA 安全性的概述，分为两个部分：  控制面：实现了一个 CA 负责为网格中的各个服务签发证书，并将证书颁发给各个服务，具体的做法有两个：  通过（webhook）动态准入控制器的方式，将 CA 的证书挂载到 Pod 里面去，同时添加了环境变量，只需要读取环境变量就可以获取路径了。 Dubbo 应用通过与 CA 建立双向 TLS 连接（CA 证书已经被挂载到了 Pod 中，所以可以验证 C">
+<meta property="og:type" content="article">
+<meta property="og:title" content="阅读dubbo-kubernetes的启发 (8) 控制平面之安全性">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="以下是 CA 安全性的概述，分为两个部分：  控制面：实现了一个 CA 负责为网格中的各个服务签发证书，并将证书颁发给各个服务，具体的做法有两个：  通过（webhook）动态准入控制器的方式，将 CA 的证书挂载到 Pod 里面去，同时添加了环境变量，只需要读取环境变量就可以获取路径了。 Dubbo 应用通过与 CA 建立双向 TLS 连接（CA 证书已经被挂载到了 Pod 中，所以可以验证 C">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/1703656322.png">
+<meta property="article:published_time" content="2023-12-27T05:42:35.000Z">
+<meta property="article:modified_time" content="2024-02-26T08:20:16.473Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta property="article:tag" content="dubbo - 微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/1703656322.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>阅读dubbo-kubernetes的启发 (8) 控制平面之安全性 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          阅读dubbo-kubernetes的启发 (8) 控制平面之安全性
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-27 13:42:35" itemprop="dateCreated datePublished" datetime="2023-12-27T13:42:35+08:00">2023-12-27</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>以下是 CA 安全性的概述，分为两个部分：</p>
+<ul>
+<li><p><strong>控制面：</strong>实现了一个 CA 负责为网格中的各个服务签发证书，并将证书颁发给各个服务，具体的做法有两个：</p>
+<ul>
+<li>通过（webhook）<strong>动态准入控制器</strong>的方式，将 CA 的证书挂载到 Pod 里面去，同时添加了环境变量，只需要读取环境变量就可以获取路径了。</li>
+<li>Dubbo 应用通过与 CA 建立双向 TLS 连接（CA 证书已经被挂载到了 Pod 中，所以可以验证 CA 证书），<strong>发送 CSR 请求申请这个 dubbo 应用的证书</strong>，dubbo-cp 会验证客户端的 CSR 请求并签发证书返回给客户端。</li>
+</ul>
+</li>
+<li><p><strong>数据面：</strong>在网格中服务相互之前发起通信的时候，dubbo sdk 会拦截服务请求，采用证书进行双向 TLS 认证并建立一个 TLS 连接，使用该 TLS 连接来在网格中传输数据。</p>
+</li>
+</ul>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/1703656322.png" alt="1703656322"></p>
+<p>在 dubbo-cp 中，要实现一个 CA 要做两方面的事情：</p>
+<ol>
+<li><strong>维护 CA：</strong>维护 CA 的证书状态，存储 CA 证书。</li>
+<li><strong>签发证书：</strong>接受 CSR 请求，为 Dubbo 应用签发证书。</li>
+</ol>
+<span id="more"></span>
+
+<h1 id="维护-CA"><a href="#维护-CA" class="headerlink" title="维护 CA"></a>维护 CA</h1><p>dubbo-cp 中的 CA 中心结构包含两个关键字段：</p>
+<ul>
+<li><strong>authorityCert：</strong>相当于 CA 认证证书，CA 服务器证书、客户端的证书都是这个证书签发的。</li>
+<li><strong>serverCerts：</strong>CA 服务器的证书，在客户端与控制面的连接中，dubbo-cp 使用的证书就是这个证书，用于响应 CSR 请求（以及其他如 snp，dds 等接口），客户端可能使用ip地址、localhost、域名等方式访问控制面，不同名称的访问返回不同的服务器证书。</li>
+</ul>
+<p>以下是 dubbo-cp 初始化 gRPC 服务器的函数：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewGrpcServer</span><span class="params">(s *provider.CertStorage, config *dubbo_cp.Config)</span> <span class="title">GrpcServer</span></span> &#123;</span><br><span class="line">    srv := GrpcServer&#123;</span><br><span class="line">       PlainServerPort:  config.GrpcServer.PlainServerPort,</span><br><span class="line">       SecureServerPort: config.GrpcServer.SecureServerPort,</span><br><span class="line">    &#125;</span><br><span class="line">    pool := x509.NewCertPool()</span><br><span class="line">    tlsConfig := &amp;tls.Config&#123;</span><br><span class="line">       GetCertificate: <span class="function"><span class="keyword">func</span><span class="params">(info *tls.ClientHelloInfo)</span> <span class="params">(*tls.Certificate, error)</span></span> &#123;</span><br><span class="line">          <span class="keyword">for</span> _, cert := <span class="keyword">range</span> s.GetTrustedCerts() &#123;</span><br><span class="line">             pool.AddCert(cert.Cert)</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="keyword">return</span> s.GetServerCert(info.ServerName), <span class="literal">nil</span></span><br><span class="line">       &#125;,</span><br><span class="line">       ClientCAs:  pool,</span><br><span class="line">       ClientAuth: tls.VerifyClientCertIfGiven,</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    srv.PlainServer = grpc.NewServer()</span><br><span class="line">    reflection.Register(srv.PlainServer)</span><br><span class="line"></span><br><span class="line">    srv.SecureServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))</span><br><span class="line">    reflection.Register(srv.SecureServer)</span><br><span class="line">    <span class="keyword">return</span> srv</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="刷新-CA-服务器证书"><a href="#刷新-CA-服务器证书" class="headerlink" title="刷新 CA 服务器证书"></a>刷新 CA 服务器证书</h2><p>dubbo-cp 会定期的检查 CA 服务器证书是否失效，并刷新 CA 服务器证书：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *CertStorage)</span> <span class="title">RefreshServerCert</span><span class="params">(stop &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">    interval := math.Max(math.Min(math.Floor(<span class="keyword">float64</span>(s.config.Security.CertValidity)/<span class="number">100</span>), <span class="number">10</span>_000), <span class="number">1</span>)</span><br><span class="line">    ticker := time.NewTicker(time.Duration(interval) * time.Millisecond)</span><br><span class="line">    <span class="keyword">defer</span> ticker.Stop()</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">       <span class="keyword">select</span> &#123;</span><br><span class="line">       <span class="keyword">case</span> &lt;-stop:</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       <span class="keyword">case</span> &lt;-ticker.C:</span><br><span class="line">          <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">             s.mutex.Lock()</span><br><span class="line">             <span class="keyword">defer</span> s.mutex.Unlock()</span><br><span class="line">             <span class="keyword">if</span> s.authorityCert == <span class="literal">nil</span> || !s.authorityCert.IsValid() &#123;</span><br><span class="line">                <span class="comment">// ignore if authority cert is invalid</span></span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line">             &#125;</span><br><span class="line">             <span class="keyword">if</span> s.serverCerts == <span class="literal">nil</span> || !s.serverCerts.IsValid() &#123;</span><br><span class="line">                logger.Sugar().Infof(<span class="string">&quot;[Authority] Server cert is invalid, refresh it.&quot;</span>)</span><br><span class="line">                s.serverCerts = SignServerCert(s.authorityCert, s.serverNames, s.config.Security.CertValidity)</span><br><span class="line">             &#125;</span><br><span class="line">          &#125;()</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="刷新-CA-认证证书"><a href="#刷新-CA-认证证书" class="headerlink" title="刷新 CA 认证证书"></a>刷新 CA 认证证书</h2><p>在 CA 启动时，除了刷新 CA 服务器证书，还需要刷新 CA 认证证书。</p>
+<p>因为 dubbo-cp 可能启动多个实例，所以对于 CA 认证证书的刷新只能有一个实例进行（通过 Kubernetes 的选举功能实现只在一个实例上进行）。主要需要做的是：</p>
+<ul>
+<li>更新 CA 认证证书。</li>
+<li>更新 Webhook 动态准入控制器的证书。</li>
+<li>更新 CA 证书在 ConfigMap 上的公钥信息。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *CertStorage)</span> <span class="title">Start</span><span class="params">(stop &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    <span class="keyword">go</span> s.RefreshServerCert(stop)</span><br><span class="line">    <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(stop &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">       ticker := time.NewTicker(calculateInterval(s.config.Security.CaValidity))</span><br><span class="line">       <span class="keyword">defer</span> ticker.Stop()</span><br><span class="line"></span><br><span class="line">       <span class="keyword">for</span> &#123;</span><br><span class="line">          <span class="keyword">select</span> &#123;</span><br><span class="line">          <span class="keyword">case</span> &lt;-stop:</span><br><span class="line">             <span class="keyword">return</span></span><br><span class="line">          <span class="keyword">case</span> &lt;-ticker.C:</span><br><span class="line">             <span class="keyword">if</span> s.GetAuthorityCert().NeedRefresh() &#123;</span><br><span class="line">                logger.Sugar().Infof(<span class="string">&quot;[Authority] Authority cert is invalid, refresh it.&quot;</span>)</span><br><span class="line">                <span class="comment">// TODO lock if multi cp-server</span></span><br><span class="line">                <span class="comment">// TODO refresh signed cert</span></span><br><span class="line"></span><br><span class="line">                err := NewleaderElection().Election(s, s.config, s.certClient.GetKubClient())</span><br><span class="line">                <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">                   logger.Sugar().Error(<span class="string">&quot;[Authority] Leader Election failed&quot;</span>)</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> s.config.KubeConfig.IsKubernetesConnected &#123;</span><br><span class="line">                   s.certClient.UpdateAuthorityCert(s.GetAuthorityCert().CertPem, EncodePrivateKey(s.GetAuthorityCert().PrivateKey), s.config.KubeConfig.Namespace)</span><br><span class="line">                   s.webhookClient.UpdateWebhookConfig(s.config, s.GetAuthorityCert().CertPem)</span><br><span class="line">                   <span class="keyword">if</span> s.certClient.UpdateAuthorityPublicKey(s.GetAuthorityCert().CertPem) &#123;</span><br><span class="line">                      logger.Sugar().Infof(<span class="string">&quot;[Authority] Write ca to config maps success.&quot;</span>)</span><br><span class="line">                   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                      logger.Sugar().Warnf(<span class="string">&quot;[Authority] Write ca to config maps failed.&quot;</span>)</span><br><span class="line">                   &#125;</span><br><span class="line">                &#125;</span><br><span class="line">             &#125;</span><br><span class="line">          &#125;</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;(stop)</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="签发证书"><a href="#签发证书" class="headerlink" title="签发证书"></a>签发证书</h1><p>客户端发起 CSR 请求，CA 为客户端签发证书的接口定义如下：</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">IdentityRequest</span> </span>&#123;</span><br><span class="line">  <span class="built_in">string</span> csr = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> type = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line">  google.protobuf.Struct metadata = <span class="number">3</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">IdentityResponse</span> </span>&#123;</span><br><span class="line">  <span class="built_in">bool</span> success = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> cert_pem = <span class="number">2</span>;</span><br><span class="line">  <span class="keyword">repeated</span> <span class="built_in">string</span> trust_certs = <span class="number">3</span>;</span><br><span class="line">  <span class="built_in">string</span> token = <span class="number">4</span>;</span><br><span class="line">  <span class="keyword">repeated</span> <span class="built_in">string</span> trusted_token_public_keys = <span class="number">5</span>;</span><br><span class="line">  <span class="built_in">int64</span> refresh_time = <span class="number">6</span>;</span><br><span class="line">  <span class="built_in">int64</span> expire_time = <span class="number">7</span>;</span><br><span class="line">  <span class="built_in">string</span> <span class="class"><span class="keyword">message</span> = 8;</span></span><br><span class="line"><span class="class">&#125;</span></span><br><span class="line"><span class="class"></span></span><br><span class="line"><span class="class"><span class="title">service</span> AuthorityService </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> CreateIdentity(IdentityRequest)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (IdentityResponse) </span>&#123;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="接口实现"><a href="#接口实现" class="headerlink" title="接口实现"></a>接口实现</h2><p>接口实现如下，在验证之后，会返回为客户端签发的证书。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *AuthorityService)</span> <span class="title">CreateIdentity</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    c context.Context,</span></span></span><br><span class="line"><span class="params"><span class="function">    req *ca.IdentityRequest,</span></span></span><br><span class="line"><span class="params"><span class="function">)</span> <span class="params">(*ca.IdentityResponse, error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> req.Csr == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> &amp;ca.IdentityResponse&#123;</span><br><span class="line">          Success: <span class="literal">false</span>,</span><br><span class="line">          Message: <span class="string">&quot;CSR is empty.&quot;</span>,</span><br><span class="line">       &#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    csr, err := cert.LoadCSR(req.Csr)</span><br><span class="line">    <span class="keyword">if</span> csr == <span class="literal">nil</span> || err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> &amp;ca.IdentityResponse&#123;</span><br><span class="line">          Success: <span class="literal">false</span>,</span><br><span class="line">          Message: <span class="string">&quot;Decode csr failed.&quot;</span>,</span><br><span class="line">       &#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    p, _ := peer.FromContext(c)</span><br><span class="line">    endpoint, err := endpoint.ExactEndpoint(c, s.CertStorage, s.Options, s.CertClient)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       logger.Sugar().Warnf(<span class="string">&quot;[Authority] Failed to exact endpoint from context: %v. RemoteAddr: %s&quot;</span>, err, p.Addr.String())</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> &amp;ca.IdentityResponse&#123;</span><br><span class="line">          Success: <span class="literal">false</span>,</span><br><span class="line">          Message: err.Error(),</span><br><span class="line">       &#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    certPem, err := cert.SignFromCSR(csr, endpoint, s.CertStorage.GetAuthorityCert(), s.Options.Security.CertValidity)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       logger.Sugar().Warnf(<span class="string">&quot;[Authority] Failed to sign certificate from csr: %v. RemoteAddr: %s&quot;</span>, err, p.Addr.String())</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> &amp;ca.IdentityResponse&#123;</span><br><span class="line">          Success: <span class="literal">false</span>,</span><br><span class="line">          Message: err.Error(),</span><br><span class="line">       &#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    logger.Sugar().Infof(<span class="string">&quot;[Authority] Success to sign certificate from csr. RemoteAddr: %s&quot;</span>, p.Addr.String())</span><br><span class="line"></span><br><span class="line">    token, err := jwt.NewClaims(endpoint.SpiffeID, endpoint.ToString(), endpoint.ID, s.Options.Security.CertValidity).Sign(s.CertStorage.GetAuthorityCert().PrivateKey)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       logger.Sugar().Warnf(<span class="string">&quot;[Authority] Failed to sign jwt token: %v. RemoteAddr: %s&quot;</span>, err, p.Addr.String())</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> &amp;ca.IdentityResponse&#123;</span><br><span class="line">          Success: <span class="literal">false</span>,</span><br><span class="line">          Message: err.Error(),</span><br><span class="line">       &#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> trustedCerts []<span class="keyword">string</span></span><br><span class="line">    <span class="keyword">var</span> trustedTokenPublicKeys []<span class="keyword">string</span></span><br><span class="line">    <span class="keyword">for</span> _, c := <span class="keyword">range</span> s.CertStorage.GetTrustedCerts() &#123;</span><br><span class="line">       trustedCerts = <span class="built_in">append</span>(trustedCerts, c.CertPem)</span><br><span class="line">       trustedTokenPublicKeys = <span class="built_in">append</span>(trustedTokenPublicKeys, cert.EncodePublicKey(&amp;c.PrivateKey.PublicKey))</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &amp;ca.IdentityResponse&#123;</span><br><span class="line">       Success:                <span class="literal">true</span>,</span><br><span class="line">       Message:                <span class="string">&quot;OK&quot;</span>,</span><br><span class="line">       CertPem:                certPem,</span><br><span class="line">       TrustCerts:             trustedCerts,</span><br><span class="line">       Token:                  token,</span><br><span class="line">       TrustedTokenPublicKeys: trustedTokenPublicKeys,</span><br><span class="line">       RefreshTime:            time.Now().UnixMilli() + (s.Options.Security.CertValidity / <span class="number">2</span>),</span><br><span class="line">       ExpireTime:             time.Now().UnixMilli() + s.Options.Security.CertValidity,</span><br><span class="line">    &#125;, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+              <a href="/tags/dubbo-%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># dubbo - 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/" rel="prev" title="阅读dubbo-kubernetes的启发 (7) 控制平面之dds">
+      <i class="fa fa-chevron-left"></i> 阅读dubbo-kubernetes的启发 (7) 控制平面之dds
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/01/21/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/" rel="next" title="Kuma学习笔记 (1) 概述">
+      Kuma学习笔记 (1) 概述 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BB%B4%E6%8A%A4-CA"><span class="nav-number">1.</span> <span class="nav-text">维护 CA</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%B7%E6%96%B0-CA-%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%AF%81%E4%B9%A6"><span class="nav-number">1.1.</span> <span class="nav-text">刷新 CA 服务器证书</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%B7%E6%96%B0-CA-%E8%AE%A4%E8%AF%81%E8%AF%81%E4%B9%A6"><span class="nav-number">1.2.</span> <span class="nav-text">刷新 CA 认证证书</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%AD%BE%E5%8F%91%E8%AF%81%E4%B9%A6"><span class="nav-number">2.</span> <span class="nav-text">签发证书</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.1.</span> <span class="nav-text">接口实现</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="服务发现本节介绍 kuma 如何处理 service mesh 中的服务发现问题，包括数据平面代理和控制平面之间的通信，控制平面代理间的通信。 数据平面代理和控制平面之间的通信当数据平面代理连接到控制平面时，它会启动到控制平面的 gRPC 流连接（xDS）。它从控制平面检索最新的策略配置并向控制平面发送诊断信息。  在独立部署下，kuma-dp 直接连接到 kuma-cp 实例。 在多区域部署下，">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kuma学习笔记 (5) 网络">
+<meta property="og:url" content="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="服务发现本节介绍 kuma 如何处理 service mesh 中的服务发现问题，包括数据平面代理和控制平面之间的通信，控制平面代理间的通信。 数据平面代理和控制平面之间的通信当数据平面代理连接到控制平面时，它会启动到控制平面的 gRPC 流连接（xDS）。它从控制平面检索最新的策略配置并向控制平面发送诊断信息。  在独立部署下，kuma-dp 直接连接到 kuma-cp 实例。 在多区域部署下，">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-01-25T04:53:28.000Z">
+<meta property="article:modified_time" content="2024-02-26T08:20:16.408Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta property="article:tag" content="service mesh">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kuma学习笔记 (5) 网络 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kuma学习笔记 (5) 网络
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-25 12:53:28" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:28+08:00">2024-01-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h1><p>本节介绍 kuma 如何处理 service mesh 中的服务发现问题，包括数据平面代理和控制平面之间的通信，控制平面代理间的通信。</p>
+<h2 id="数据平面代理和控制平面之间的通信"><a href="#数据平面代理和控制平面之间的通信" class="headerlink" title="数据平面代理和控制平面之间的通信"></a>数据平面代理和控制平面之间的通信</h2><p>当数据平面代理连接到控制平面时，它会<strong>启动到控制平面的 gRPC 流连接（xDS）</strong>。它从控制平面<strong>检索最新的策略配置</strong>并向控制平面发送诊断信息。</p>
+<ul>
+<li>在<strong>独立部署</strong>下，kuma-dp 直接连接到 kuma-cp 实例。</li>
+<li>在<strong>多区域部署</strong>下，<strong>kuma-dp 连接到 zone kuma-cp，zone kuma-cp 将通过 KDS 的 xDS API 扩展连接到 global kuma-cp</strong>。在多区域模式下，数据平面代理永远不会连接到全局控制平面，而仅连接到区域控制平面。</li>
+</ul>
+<blockquote>
+<p><strong>数据平面和控制平面之间的连接不在服务请求的执行路径上</strong>，这意味着如果数据平面暂时失去与控制平面的连接，服务流量不会受到影响。</p>
+</blockquote>
+<h2 id="数据平面代理间的通信"><a href="#数据平面代理间的通信" class="headerlink" title="数据平面代理间的通信"></a>数据平面代理间的通信</h2><p>数据平面会<strong>通报每一个服务的 IP 地址：</strong></p>
+<ul>
+<li>在 Kubernetes 环境中，IP 地址<strong>为 Pod 的地址</strong>。</li>
+<li>在 Universal 环境中，IP地址会<strong>检索 inbound listeners</strong>（用于配置控制平面代理的入站监听地址）。</li>
+</ul>
+<p>数据平面会通报 IP 地址到控制平面，这意味着在任何时间 kuma-cp 都知道每一个服务的每个副本关联的所有 IP 地址是什么。</p>
+<p>Kuma 数据平面代理间的通信，在独立部署和多区域部署使用自己的 DNS：</p>
+<ul>
+<li>在<strong>独立部署</strong>模式下，直接<strong>使用 IP 地址</strong>进行通信。</li>
+<li>在<strong>多区域部署</strong>模式下，Kuma 将自动<strong>解析域名</strong>，可以连接到在同一区域中运行的数据平面代理，或者通过 Egress（如果存在）和 另一个区域中的 Ingress 的地址 来实现跨区域连接。这意味着多区域部署模式下，<strong>服务之间可以跨集群</strong>（不管是 Kubernetes 还是 VM）连接。</li>
+</ul>
+<h1 id="DNS"><a href="#DNS" class="headerlink" title="DNS"></a>DNS</h1><p>对于每一份服务，都会生成一个以 <code>.mesh</code> 结尾的域名：</p>
+<ul>
+<li><p>对于一个 Kubernetes Service 和关联的 Pod，Kuma 控制面会自动的生成一个注解 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc_&lt;port&gt;</code>，其中 name 和 namespace 还有 port 均来自 Service 信息。</p>
+</li>
+<li><p>某些情况下 Pods 不属于任何的 Service，仅仅是单纯的一个 Pod（或者在 Universal 下）。在这种情况下，Kuma 会自动生成的注解为 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc</code> ，其中 name 和 namespace 来自于 Pod 资源。</p>
+</li>
+</ul>
+<p>服务的域名被定义为 <code>&lt;kuma.io/service的值&gt;.mesh</code>，默认端口为 80。</p>
+<h1 id="非-mesh-流量"><a href="#非-mesh-流量" class="headerlink" title="非 mesh 流量"></a>非 mesh 流量</h1><h2 id="传入流量"><a href="#传入流量" class="headerlink" title="传入流量"></a>传入流量</h2><p>启用 mTLS 后，来自网格外部的客户端无法访问网格内部的应用程序。如果想允许外部客户端使用服务网格，可以使用 Permissive mTLS 模式（宽松的 mTLS，即允许 mTLS，也允许明文请求）。</p>
+<p>所有域名查找均由数据平面代理在本地处理，而不是由控制平面处理。这种方法允许更稳健地处理名称解析，例如，当控制平面关闭时，数据平面代理仍然可以解析 DNS。</p>
+<p>数据平面代理 DNS 包括：</p>
+<ul>
+<li>Envoy DNS 过滤器提供来自网格的 DNS 记录响应。</li>
+<li>CoreDNS 用于 Envoy DNS 过滤器和原始主机 DNS 之间发送请求</li>
+<li>iptable 规则将原始 DNS 流量重定向到本地 CoreDNS 实例。</li>
+</ul>
+<h2 id="穿出流量"><a href="#穿出流量" class="headerlink" title="穿出流量"></a>穿出流量</h2><p>在默认设置中，Kuma 允许任何非网状流量通过 Envoy，而无需应用任何策略。当 <code>networking.outbound.passthrough</code> 为 <code>false</code> 时，任何非网格资源的流量都不能离开网格。</p>
+<p>使用 ProxyTemplate，可以设置非 mesh 流量的配置。如断路器，超时。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+              <a href="/tags/service-mesh/" rel="tag"># service mesh</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/" rel="prev" title="Kuma学习笔记 (4) KDS">
+      <i class="fa fa-chevron-left"></i> Kuma学习笔记 (4) KDS
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/" rel="next" title="用户增长 Marketing-API重构设计">
+      用户增长 Marketing-API重构设计 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">1.</span> <span class="nav-text">服务发现</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%B9%B3%E9%9D%A2%E4%BB%A3%E7%90%86%E5%92%8C%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1"><span class="nav-number">1.1.</span> <span class="nav-text">数据平面代理和控制平面之间的通信</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%B9%B3%E9%9D%A2%E4%BB%A3%E7%90%86%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1"><span class="nav-number">1.2.</span> <span class="nav-text">数据平面代理间的通信</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#DNS"><span class="nav-number">2.</span> <span class="nav-text">DNS</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%9D%9E-mesh-%E6%B5%81%E9%87%8F"><span class="nav-number">3.</span> <span class="nav-text">非 mesh 流量</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BC%A0%E5%85%A5%E6%B5%81%E9%87%8F"><span class="nav-number">3.1.</span> <span class="nav-text">传入流量</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%A9%BF%E5%87%BA%E6%B5%81%E9%87%8F"><span class="nav-number">3.2.</span> <span class="nav-text">穿出流量</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

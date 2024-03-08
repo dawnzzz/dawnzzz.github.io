@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="垃圾回收GCMutator 即用户线程，Collector 为 GC 线程。 Serial GC：只有一个 Collector Parallel GC：支持多个 Collector 同时回收 Concurrent GC：Mutator 和 Collector 可用同时执行  经典垃圾回收策略追踪垃圾回收 被回收的条件：不可达的对象  过程：  标记根对象 (GC roots): 静态变量、全局变量">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO语言杂谈 (1) 垃圾回收">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="垃圾回收GCMutator 即用户线程，Collector 为 GC 线程。 Serial GC：只有一个 Collector Parallel GC：支持多个 Collector 同时回收 Concurrent GC：Mutator 和 Collector 可用同时执行  经典垃圾回收策略追踪垃圾回收 被回收的条件：不可达的对象  过程：  标记根对象 (GC roots): 静态变量、全局变量">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1655261106302.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/e3c4fd6622f24c6b95d2de18a7488f68_tplv-k3u1fbpfcp-zoom-in-crop-mark_1304_0_0_0.awebp">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/b46e3548bca6497991d4f271b066fc62_tplv-k3u1fbpfcp-zoom-in-crop-mark_1304_0_0_0.awebp">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/510bcba0f0d946f5a459be59c063e33e_tplv-k3u1fbpfcp-zoom-in-crop-mark_1304_0_0_0.awebp">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/bceacf73f8882b666a4109856fa054d7.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665401993401.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665405629448.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665402209881.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665402915601.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665403452399.png">
+<meta property="article:published_time" content="2022-02-13T04:34:47.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.749Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1655261106302.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO语言杂谈 (1) 垃圾回收 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO语言杂谈 (1) 垃圾回收
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-13 12:34:47" itemprop="dateCreated datePublished" datetime="2022-02-13T12:34:47+08:00">2022-02-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="垃圾回收GC"><a href="#垃圾回收GC" class="headerlink" title="垃圾回收GC"></a>垃圾回收GC</h1><p>Mutator 即用户线程，Collector 为 GC 线程。</p>
+<p><strong>Serial GC</strong>：只有一个 Collector</p>
+<p><strong>Parallel GC</strong>：支持多个 Collector 同时回收</p>
+<p><strong>Concurrent GC</strong>：Mutator 和 Collector 可用同时执行</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1655261106302.png" alt="1655261106302"></p>
+<h2 id="经典垃圾回收策略"><a href="#经典垃圾回收策略" class="headerlink" title="经典垃圾回收策略"></a>经典垃圾回收策略</h2><h3 id="追踪垃圾回收"><a href="#追踪垃圾回收" class="headerlink" title="追踪垃圾回收"></a>追踪垃圾回收</h3><ul>
+<li><p>被回收的条件：<strong>不可达</strong>的对象</p>
+</li>
+<li><p>过程：</p>
+<ul>
+<li><p>标记<strong>根对象</strong> (GC roots): 静态变量、全局变量、常量、线程栈等标记为存活</p>
+</li>
+<li><p>标记：从根对象出发，找到所有<strong>可达对象</strong></p>
+</li>
+<li><p>清理：回收所有不可达对象占据的内存空间。清理策略如下：</p>
+<ul>
+<li><strong>Copying GC</strong>: 将存活对象从一块内存空间<strong>复制到另外一块内存空间</strong>，原先的空间可以直接进行对象分配</li>
+</ul>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/e3c4fd6622f24c6b95d2de18a7488f68_tplv-k3u1fbpfcp-zoom-in-crop-mark_1304_0_0_0.awebp" alt="img"></p>
+<ul>
+<li><strong>Mark-sweep GC</strong>: 将死亡对象所在内存块<strong>标记为可分配</strong>，使用 <strong>free list</strong> 管理可分配的空间。缺点在于：会产生<strong>内存碎片</strong>。</li>
+</ul>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/b46e3548bca6497991d4f271b066fc62_tplv-k3u1fbpfcp-zoom-in-crop-mark_1304_0_0_0.awebp" alt="img"></p>
+<ul>
+<li><strong>Mark-compact GC</strong>: 将存活对象复制到<strong>同一块内存区域（原地）的开头</strong>。<strong>缺点</strong>在于：压缩<strong>计算的成本</strong>（需要计算位置，同时需要改变引用对象的指针）、实现复杂。</li>
+</ul>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/510bcba0f0d946f5a459be59c063e33e_tplv-k3u1fbpfcp-zoom-in-crop-mark_1304_0_0_0.awebp" alt="img"></p>
+</li>
+</ul>
+</li>
+</ul>
+<span id="more"></span>
+
+<h3 id="引用计数"><a href="#引用计数" class="headerlink" title="引用计数"></a>引用计数</h3><p>每一个对象都有一个<strong>引用计数</strong>，当且仅当引用数大于 0 时，不会被回收。</p>
+<ul>
+<li><strong>优点</strong><ul>
+<li>内存管理的操作被<strong>平摊到程序运行中</strong>：指针传递的过程中进行引用计数的增减</li>
+<li>不需要了解 runtime 的细节：因为不需要标记 GC roots，因此不需要知道哪里是全局变量、线程栈等</li>
+</ul>
+</li>
+<li><strong>缺点</strong><ul>
+<li>开销大，因为对象可能会被多线程访问，对引用计数的修改需要<strong>原子操作</strong>保证原子性和可见性</li>
+<li>无法回收环形数据结构（自己引用自己，可能永远无法被回收）</li>
+<li>每个对象都引入<strong>额外存储空间</strong>存储引用计数</li>
+<li>虽然引用计数的操作被平摊到程序运行过程中，但是回收大的数据结构依然可能引发暂停（羊群效应）</li>
+</ul>
+</li>
+</ul>
+<h3 id="分代-GC"><a href="#分代-GC" class="headerlink" title="分代 GC"></a>分代 GC</h3><p><strong>分代 GC（Generational GC）</strong>，是一种<strong>思想</strong>。它基于<strong>分代假说</strong>：大多数对象在分配后，很快就不再使用了。</p>
+<p>每一个对象都有<strong>年龄</strong>，即经过 GC 的次数。对于年轻和年老的对象，指定<strong>不同的 GC 策略</strong>，降低整体内存管理的开销。使得不同年龄的对象<strong>处于 heap 的不同区域</strong>：</p>
+<ul>
+<li><strong>年轻代</strong>：很多很快就死了，可以采用 <strong>Copying Collection</strong> 实现对象回收。</li>
+<li><strong>老年代</strong>：对象趋向于一直活在，可以采用 <strong>Mark-sweep Collection</strong> 实现对象回收。</li>
+</ul>
+<h1 id="Go-语言的垃圾回收机制"><a href="#Go-语言的垃圾回收机制" class="headerlink" title="Go 语言的垃圾回收机制"></a>Go 语言的垃圾回收机制</h1><h2 id="基本实现思路"><a href="#基本实现思路" class="headerlink" title="基本实现思路"></a>基本实现思路</h2><p>Go语言垃圾回收（Garbage Collection，简称GC）的基本实现思路：</p>
+<p>从每个包级的变量和每个当前运行函数的每一个局部变量开始，<strong>通过指针或引用的访问路径遍历</strong>，是否可以找到该变量。如果不存在这样的访问路径，那么说明该变量是不可达的，也就是说它是否存在并不会影响程序后续的计算结果。</p>
+<h2 id="Go-垃圾回收演进"><a href="#Go-垃圾回收演进" class="headerlink" title="Go 垃圾回收演进"></a>Go 垃圾回收演进</h2><h2 id="mark-amp-sweep"><a href="#mark-amp-sweep" class="headerlink" title="mark &amp; sweep"></a>mark &amp; sweep</h2><p>mark &amp; sweep（标记-清扫）算法是基于追踪的垃圾回收算法。Go语言<strong>1.3</strong>版本之前使用。</p>
+<p>内存单元并不会在变成垃圾立刻回收，而是保持不可达状态，直到到达某个阈值或者固定时间长度。这个时候系统会挂起用户程序，也就是 STW（stop the world），转而执行垃圾回收程序。垃圾回收程序对所有的存活单元进行一次全局遍历确定哪些单元可以回收。算法分两个部分：<strong>标记</strong>（mark）和<strong>清扫</strong>（sweep）。标记阶段表明所有的存活单元，清扫阶段将垃圾单元回收。</p>
+<p>这个算法<strong>最大的问题</strong>就是GC执行期间，需要STW，把整个程序暂停</p>
+<p>Go语言1.3版本对STW的暂停范围做出了优化，将sweep过程移出STW范围：</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/bceacf73f8882b666a4109856fa054d7.png" alt="Go语言1.3版本对STW的优化"></p>
+<h2 id="三色标记法"><a href="#三色标记法" class="headerlink" title="三色标记法"></a>三色标记法</h2><p>三色标记法是对mark过程的改进，三色标记法能够<strong>让用户程序和mark并发执行</strong>。Go语言<strong>1.5</strong>版本开始，使用基于三色标记法来实现垃圾回收，主要流程如下：</p>
+<ol>
+<li>开始时所有对象都是白色的</li>
+<li>从 root 开始找到所有可达对象，标记为灰色，放入待处理队列</li>
+<li>遍历灰色对象队列，将其引用对象标记为灰色放入待处理队列，自身标记为黑色</li>
+<li>重复进行步骤 3，直到灰色队列为空。此时白色对象即为垃圾，进行回收</li>
+</ol>
+<h2 id="写屏障"><a href="#写屏障" class="headerlink" title="写屏障"></a>写屏障</h2><h3 id="插入写屏障"><a href="#插入写屏障" class="headerlink" title="插入写屏障"></a>插入写屏障</h3><p><strong>插入屏障</strong>，主要做一件事情，在对象新增的同时给它着色，并且着色为<strong>灰色</strong>。因此打开了写屏障可以保证了三色标记法在并发下安全正确地运行。</p>
+<p>在内存中有两种空间，堆和栈。栈空间的特点是容量小,但是要求相应速度快,因为函数调用弹出频繁使用, 所以插入屏障机制，在<strong>栈空间的对象操作中不使用</strong>。而仅仅<strong>使用在堆空间</strong>对象的操作中。</p>
+<p>为了防止出现在栈上出现黑色对象引用白色对象的情况，所以Go在标记阶段完成时，启动STW，对栈<strong>重新</strong>进行三色标记扫描</p>
+<h3 id="删除写屏障"><a href="#删除写屏障" class="headerlink" title="删除写屏障"></a>删除写屏障</h3><p>删除写屏障的操作是：被删除的对象，如果自身为灰色或者白色，那么被标记为灰色</p>
+<p>这种方式的回收精度低，一个对象即使被删除了最后一个指向它的指针也依旧可以活过这一轮，在下一轮GC中被清理掉。</p>
+<blockquote>
+<p>为了不在栈上做屏障技术，又不对栈进行重新扫描：</p>
+<p>所以应用混合写屏障。</p>
+</blockquote>
+<h3 id="混合写屏障"><a href="#混合写屏障" class="headerlink" title="混合写屏障"></a>混合写屏障</h3><p>在Go语言<strong>1.7</strong>版本之前，只使用插入写屏障，缺点是结束时需要STW来重新扫描栈。</p>
+<p>所以从Go语言<strong>1.8</strong>版本开始，使用<strong>混合写屏障，避免重复扫描的过程</strong>。其具体操作为：</p>
+<ol>
+<li>GC开始将<strong>栈上的对象</strong>全部扫描并将栈上可达对象标记为黑色（之后不再进行第二次重复扫描，无需STW）</li>
+<li>GC期间，任何在栈上创建的新对象，均为黑色</li>
+<li>堆上被删除的对象标记为灰色</li>
+<li>堆上被添加的对象标记为灰色</li>
+</ol>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ul>
+<li>Go v1.3：普通的mark &amp; sweep算法，整个过程需要STW</li>
+<li>Go v1.5：三色标记法，堆空间启动写屏障，栈空间不启动，全部扫描之后，需要STW重新扫描一次栈空间</li>
+<li>Go v1.8：三色标记法+混合写屏障，屏障限制只在堆内存中生效。</li>
+</ul>
+<h1 id="Go语言垃圾回收实现"><a href="#Go语言垃圾回收实现" class="headerlink" title="Go语言垃圾回收实现"></a>Go语言垃圾回收实现</h1><p>Go 语言中垃圾回收循环阶段如下所示，主要分为：</p>
+<ul>
+<li><p>触发垃圾回收</p>
+</li>
+<li><p>标记准备阶段（STW）</p>
+</li>
+<li><p>并行标记阶段</p>
+</li>
+<li><p>标记终止阶段</p>
+</li>
+<li><p>垃圾懒清扫阶段</p>
+</li>
+</ul>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665401993401.png" alt="1665401993401"></p>
+<h2 id="触发垃圾回收"><a href="#触发垃圾回收" class="headerlink" title="触发垃圾回收"></a>触发垃圾回收</h2><h3 id="调步算法"><a href="#调步算法" class="headerlink" title="调步算法"></a>调步算法</h3><p>目标是当达到上一个 GC 标记的内存的<strong>一倍</strong>时进行垃圾回收，但是因为与用户协程是并行运行的（用户协程会分配新的对象），所以必须在这之前就进行垃圾回收。</p>
+<p>如果 GC 完成后的内存比目标内存小，说明触发 GC 的时机早了；反之则说明触发 GC 的时机晚了。根据这种计算方式，<strong>不断的调整下一次触发 GC 的时机</strong>。</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665405629448.png" alt="1665405629448"></p>
+<blockquote>
+<p>除了当达到上一个 GC 标记的内存的<strong>一倍</strong>时进行垃圾回收以外，还可以<strong>定期触发 GC</strong>：</p>
+<p>默认情况下，<strong>最长 2 分钟触发一次 GC</strong>。</p>
+</blockquote>
+<h2 id="标记准备（STW）"><a href="#标记准备（STW）" class="headerlink" title="标记准备（STW）"></a>标记准备（STW）</h2><p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665402209881.png" alt="1665402209881"></p>
+<p>标记准备阶段是为了开始标记而进行的初始阶段，需要计算一些<strong>指标</strong>：</p>
+<ul>
+<li>计算需要多少协程，去完成标记工作：Go 语言完成 GC 的目标是<strong>利用 25% 的 CPU 时间</strong>去完成标记（4 核心 CPU 有 4 个 P，则给标记协程分配 1 个 P 专门去进行标记；若只有 1 个 P，则负责标记的协程与用户协程交替运行）。</li>
+<li>如何进行调度，使得标记协程运行：后台标记协程在调度阶段开启后台标记协程，当 STW 结束后调度器做的<strong>第一件</strong>事情就是去看需不需要启动后台标记协程。</li>
+</ul>
+<h2 id="并行标记"><a href="#并行标记" class="headerlink" title="并行标记"></a>并行标记</h2><p>并行标记阶段做的第一件事，找到所有的根对象。<strong>ptrmask</strong> 是一个<strong>位图</strong>，这个位图在编译时期生成，用 0/1 标记内存空间位置（8字节）上是否是一个指针，只有当是一个指针的时候才对其进行标记，根对象被标记为<strong>黑色</strong>。</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665402915601.png" alt="1665402915601"></p>
+<p>当根对象扫描完成后，使用 <strong>bitmap 对象位图</strong>，这个位图标记了对象中的各个位置（8字节）是否是一个指针，若是指针才继续进行向下扫描标记，标记为<strong>灰色</strong>。</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-1-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/1665403452399.png" alt="1665403452399"></p>
+<p>在 Go 1.8 之后，标记阶段在堆上会启动混合写屏障。</p>
+<h2 id="清扫"><a href="#清扫" class="headerlink" title="清扫"></a>清扫</h2><p>对白色对象进行清扫。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/12/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-14/" rel="prev" title="算法刷题笔记 (14) 二叉树的完全性检验 最长连续序列 寻找旋转排序数组中的最小值 寻找峰值">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (14) 二叉树的完全性检验 最长连续序列 寻找旋转排序数组中的最小值 寻找峰值
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/13/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-15/" rel="next" title="算法刷题笔记 (15) 全排列 下一个排序 括号生成 复原IP地址">
+      算法刷题笔记 (15) 全排列 下一个排序 括号生成 复原IP地址 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6GC"><span class="nav-number">1.</span> <span class="nav-text">垃圾回收GC</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%8F%E5%85%B8%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E7%AD%96%E7%95%A5"><span class="nav-number">1.1.</span> <span class="nav-text">经典垃圾回收策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%BD%E8%B8%AA%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6"><span class="nav-number">1.1.1.</span> <span class="nav-text">追踪垃圾回收</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0"><span class="nav-number">1.1.2.</span> <span class="nav-text">引用计数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E4%BB%A3-GC"><span class="nav-number">1.1.3.</span> <span class="nav-text">分代 GC</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Go-%E8%AF%AD%E8%A8%80%E7%9A%84%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E6%9C%BA%E5%88%B6"><span class="nav-number">2.</span> <span class="nav-text">Go 语言的垃圾回收机制</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF"><span class="nav-number">2.1.</span> <span class="nav-text">基本实现思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Go-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E6%BC%94%E8%BF%9B"><span class="nav-number">2.2.</span> <span class="nav-text">Go 垃圾回收演进</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#mark-amp-sweep"><span class="nav-number">2.3.</span> <span class="nav-text">mark &amp; sweep</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E8%89%B2%E6%A0%87%E8%AE%B0%E6%B3%95"><span class="nav-number">2.4.</span> <span class="nav-text">三色标记法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%99%E5%B1%8F%E9%9A%9C"><span class="nav-number">2.5.</span> <span class="nav-text">写屏障</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8F%92%E5%85%A5%E5%86%99%E5%B1%8F%E9%9A%9C"><span class="nav-number">2.5.1.</span> <span class="nav-text">插入写屏障</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%A0%E9%99%A4%E5%86%99%E5%B1%8F%E9%9A%9C"><span class="nav-number">2.5.2.</span> <span class="nav-text">删除写屏障</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B7%B7%E5%90%88%E5%86%99%E5%B1%8F%E9%9A%9C"><span class="nav-number">2.5.3.</span> <span class="nav-text">混合写屏障</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">2.6.</span> <span class="nav-text">总结</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Go%E8%AF%AD%E8%A8%80%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.</span> <span class="nav-text">Go语言垃圾回收实现</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A6%E5%8F%91%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6"><span class="nav-number">3.1.</span> <span class="nav-text">触发垃圾回收</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B0%83%E6%AD%A5%E7%AE%97%E6%B3%95"><span class="nav-number">3.1.1.</span> <span class="nav-text">调步算法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%87%E8%AE%B0%E5%87%86%E5%A4%87%EF%BC%88STW%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">标记准备（STW）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B9%B6%E8%A1%8C%E6%A0%87%E8%AE%B0"><span class="nav-number">3.3.</span> <span class="nav-text">并行标记</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B8%85%E6%89%AB"><span class="nav-number">3.4.</span> <span class="nav-text">清扫</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="MySQL中利用锁来保证事务的隔离性，对并发操作进行控制。同时，锁冲突也是影响数据库并发访问性能的重要因素。 并发问题的解决脏写对于两个事务都进行写数据（写-写情况）的操作，可能会产生脏写问题，这是任何一种隔离级别都不允许这种问题的发生的。 所以在多个未提交事务相继对一条记录做改动时，需要让它们排队执行（通过锁实现）。 脏读 不可重复读 幻读对于一个事务进行读取操作，一个事务进行写数据的操作（读-">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (10) 锁">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="MySQL中利用锁来保证事务的隔离性，对并发操作进行控制。同时，锁冲突也是影响数据库并发访问性能的重要因素。 并发问题的解决脏写对于两个事务都进行写数据（写-写情况）的操作，可能会产生脏写问题，这是任何一种隔离级别都不允许这种问题的发生的。 所以在多个未提交事务相继对一条记录做改动时，需要让它们排队执行（通过锁实现）。 脏读 不可重复读 幻读对于一个事务进行读取操作，一个事务进行写数据的操作（读-">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/1645677552173.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/1645680398625.png">
+<meta property="article:published_time" content="2022-02-24T02:59:26.000Z">
+<meta property="article:modified_time" content="2024-02-26T08:20:16.427Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/1645677552173.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (10) 锁 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (10) 锁
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-24 10:59:26" itemprop="dateCreated datePublished" datetime="2022-02-24T10:59:26+08:00">2022-02-24</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>MySQL中利用<strong>锁</strong>来保证事务的<strong>隔离性</strong>，对并发操作进行控制。同时，锁冲突也是影响数据库<strong>并发访问性能</strong>的重要因素。</p>
+<h1 id="并发问题的解决"><a href="#并发问题的解决" class="headerlink" title="并发问题的解决"></a>并发问题的解决</h1><h2 id="脏写"><a href="#脏写" class="headerlink" title="脏写"></a>脏写</h2><p>对于<strong>两个事务都进行写数据（写-写情况）</strong>的操作，可能会产生<strong>脏写</strong>问题，这是任何一种隔离级别都不允许这种问题的发生的。</p>
+<p>所以在多个未提交事务相继对一条记录做改动时，需要让它们<strong>排队执行</strong>（通过锁实现）。</p>
+<h2 id="脏读-不可重复读-幻读"><a href="#脏读-不可重复读-幻读" class="headerlink" title="脏读 不可重复读 幻读"></a>脏读 不可重复读 幻读</h2><p>对于<strong>一个事务进行读取操作</strong>，<strong>一个事务进行写数据的操作（读-写情况）</strong>，可能会产生<strong>脏读、不可重复读和幻读</strong>的问题。对于这些问题，有两种解决方案。</p>
+<h3 id="方案一：读操作利用多版本并发控制MVCC，写操作进行加锁"><a href="#方案一：读操作利用多版本并发控制MVCC，写操作进行加锁" class="headerlink" title="方案一：读操作利用多版本并发控制MVCC，写操作进行加锁"></a>方案一：读操作利用多版本并发控制MVCC，写操作进行加锁</h3><p>所谓MVCC，就是生成一个<strong>ReadView</strong>，通过ReadView找到符合条件的记录版本。查询语句只能<strong>读</strong>到生成ReadView之前<strong>已提交事务所做的更改</strong>。而<strong>写操作</strong>肯定针对的是<strong>最新的版本信息</strong>，<strong>读</strong>记录的历史版本和<strong>改动</strong>记录的最新版本并<strong>不冲突</strong>，也就是采用MVCC时，<strong>读-写并不冲突</strong>。</p>
+<p>普通的SELECT语句在<code>READ COMMITTED</code>和<code>REPEATABLE READ</code>隔离级别下会使用到MVCC读取记录：</p>
+<ul>
+<li>在<code>READ COMMITTED</code>隔离级别下，一个事务在执行过程中<strong>每次执行SELECT操作</strong>时都会<strong>生成一个ReadView</strong>，ReadView的存在本身就保证了事务不可以读取到未提交的事务所做的更改，也就是避免了<strong>脏读</strong>现象。</li>
+<li>在<code>REPEATABLE READ</code>隔离级别下，一个事务在执行过程中只有<strong>第一次执行SELECT操作才会生成一个ReadView</strong>，之后的SELECT操作都<strong>复用</strong>这个ReadView，这样也就避免了<strong>不可重复读</strong>和<strong>幻读</strong>的问题。</li>
+</ul>
+<span id="more"></span>
+
+<h3 id="方案二：读、写操作都采用加锁方式"><a href="#方案二：读、写操作都采用加锁方式" class="headerlink" title="方案二：读、写操作都采用加锁方式"></a>方案二：读、写操作都采用加锁方式</h3><p>如果一些场景下不允许读取记录的旧版本，而是每次都需要<strong>读取最新的记录版本</strong>。此时<strong>读</strong>取记录时也需要<strong>加锁</strong>，<strong>读操作和写操作一样，也需要排队执行</strong>。</p>
+<h3 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h3><ul>
+<li>采用<strong>MVCC</strong>方式，<strong>读-写操作并不冲突</strong>，性能更高</li>
+<li>采用<strong>读操作加锁</strong>的方式，<strong>读写都需要排队执行</strong>，影响性能。但是可以保证读操作每次都能读到最新的记录版本。</li>
+</ul>
+<h1 id="锁的分类"><a href="#锁的分类" class="headerlink" title="锁的分类"></a>锁的分类</h1><p>MySQL中锁的分类如下：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/1645677552173.png" alt="MySQL锁家族"></p>
+<h2 id="从数据操作的类型划分：读锁、写锁"><a href="#从数据操作的类型划分：读锁、写锁" class="headerlink" title="从数据操作的类型划分：读锁、写锁"></a>从数据操作的类型划分：读锁、写锁</h2><h3 id="读锁-共享锁"><a href="#读锁-共享锁" class="headerlink" title="读锁/共享锁"></a>读锁/共享锁</h3><p><strong>读锁</strong>，也称为<strong>共享锁</strong>，用<strong>S</strong>表示。针对同一份数据，多个事务的读操作可以同时进行而不会互相影响，相互不阻塞的。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> ...</span><br><span class="line">LOCK <span class="keyword">IN</span> SHARE MODE;		# 加S锁</span><br><span class="line"># 或者</span><br><span class="line"><span class="keyword">SELECT</span> ...</span><br><span class="line"><span class="keyword">FOR</span> SHARE		# <span class="number">8.0</span>新语法</span><br></pre></td></tr></table></figure>
+
+<h3 id="写锁-排他锁"><a href="#写锁-排他锁" class="headerlink" title="写锁/排他锁"></a>写锁/排他锁</h3><p><strong>写锁</strong>，也称为<strong>排他锁</strong>，用<strong>X</strong>表示。当前写操作没有完成前，它会阻塞其他写锁和读锁。这样就能确保在给定的时间里，只有一个事务能执行写入，并防止其他用户读取正在写入的同一资源。</p>
+<p><strong>有时查询数据时也需要加上X锁</strong>，防止其他事务修改当前读取的记录：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> ...</span><br><span class="line"><span class="keyword">FOR</span> UPDATE;	# 加X锁</span><br></pre></td></tr></table></figure>
+
+<h3 id="MySQL-8-0新特性"><a href="#MySQL-8-0新特性" class="headerlink" title="MySQL 8.0新特性"></a>MySQL 8.0新特性</h3><p>在8.0版本中，可以为<code>SELECT ... FOR UPDATE</code>和<code>SELECT ... FOR SHARE</code>添加<code>NOWAIT</code>和<code>SKIP LOCKED</code>语法，跳过锁等待或者跳过锁定：</p>
+<ul>
+<li><code>NOWAIT</code>：查询的行已经加锁则<strong>立即报错返回</strong></li>
+<li><code>SKIP LOCKED</code>：立即返回，<strong>返回的结果不包括被锁定的行</strong></li>
+</ul>
+<hr>
+<p><strong>对于InnoDB来说，读锁和写锁既可以加在表上，也可以加在行上。</strong>一般情况下，InnoDB不会使用表级别的S锁和X锁，而是使用行级别的S锁和X锁（并发程度更高）。</p>
+<h2 id="从数据操作的粒度划分：表级锁、页级锁、行锁"><a href="#从数据操作的粒度划分：表级锁、页级锁、行锁" class="headerlink" title="从数据操作的粒度划分：表级锁、页级锁、行锁"></a>从数据操作的粒度划分：表级锁、页级锁、行锁</h2><p>为了尽可能的提高数据库的并发程度，<strong>锁粒度</strong>越小越好，但是锁粒度越小会消耗更多的系统性能来管理锁。所以需要平衡<strong>并发性能</strong>和<strong>系统性能</strong>两方面的关系。</p>
+<h3 id="表级锁"><a href="#表级锁" class="headerlink" title="表级锁"></a>表级锁</h3><h4 id="表级别的S锁和X锁"><a href="#表级别的S锁和X锁" class="headerlink" title="表级别的S锁和X锁"></a>表级别的S锁和X锁</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">LOCK TABLES table_name READ;		# InnoDB对表table_name加上S锁</span><br><span class="line">LOCK TABLES table_name WRITE;	# InnoDB对表table_name加上X锁</span><br><span class="line"></span><br><span class="line">UNLOCK TABLES;		# 释放表级S<span class="operator">/</span>X锁</span><br></pre></td></tr></table></figure>
+
+<p>一般情况下，<strong>不会使用</strong>InnoDB存储引擎提供的<strong>表级别</strong>的S锁和X锁，而是使用行级别的S锁和X锁。</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/1645680398625.png" alt="表级别读/写锁"></p>
+<h4 id="意向锁"><a href="#意向锁" class="headerlink" title="意向锁"></a>意向锁</h4><p>InnoDB 支持<strong>多粒度锁</strong>，它允许<strong>行级锁与表级锁共存</strong>，而意向锁就是其中的一种表级锁。</p>
+<p>比如，现在有两个事务T1和T2。其中T2视图在该<strong>表级</strong>上应用共享锁或者排他锁，如果<strong>没有意向锁</strong>的存在，那么T2就必须<strong>检查各个行</strong>是否存在锁；如果<strong>存在意向锁</strong>，那么此时就会受到由T1控制的<strong>表级别意向锁的阻塞</strong>。T2在锁定该表之前不必检查各个页或者行锁，而只需要检查表上的意向锁。</p>
+<p><strong>如果我们给某一行数据加上排他锁，数据库会自动给更大一级的空间加上意向锁，告诉其他人这个数据页或者数据表已经有人上过排他锁了</strong>。当其他人需要获取整个表的排他锁时，只需要了解是这个表上的意向锁即可。</p>
+<p>意向锁有两种：</p>
+<ul>
+<li><strong>意向共享锁（IS）</strong>：表示事务意图在表中的某行上设置共享锁</li>
+<li><strong>意向排他锁（IX）</strong>：表示事务意图在表中的某行上设置排他锁</li>
+</ul>
+<p>意向锁是存储引擎<strong>自己维护</strong>的，在为数据行加共享/排他锁之前，InnoDB会获取该数据行<strong>所在数据表对应的意向锁</strong>。</p>
+<h4 id="自增锁"><a href="#自增锁" class="headerlink" title="自增锁"></a>自增锁</h4><p>自增锁保证具有<code>AUTO_INCREMENT</code>的字段在插入数据时是递增且唯一的。</p>
+<h4 id="元数据锁（MDL锁）"><a href="#元数据锁（MDL锁）" class="headerlink" title="元数据锁（MDL锁）"></a>元数据锁（MDL锁）</h4><p><strong>元数据（meta data lock，MDL）锁</strong>属于表级锁的范畴。MDL锁用来保证读写的正确性。</p>
+<p>设想这样一个场景，如果一个查询正在遍历一个表中的数据，而执行期间另一个线程对这个表结构做变更（比如增加一个列），这样查询的数据跟表结构对不上，这样是不行的。</p>
+<p>当对一个表做<strong>增删改查</strong>操作的时候，<strong>加上MDL读锁</strong>；当要对表做<strong>结构变更</strong>操作的时候，<strong>加MDL写锁</strong>。</p>
+<p>MDL读锁之间是不互斥的，因为可以有多个线程对同一张表进行增删改查操作；但是MDL读写锁之间、MDL写锁之间是互斥的，用来保证表结构变更的安全性。<strong>MDL锁解决了DML和DDL操作之间的一致性问题，不需要显式使用</strong>会自动加上。</p>
+<h3 id="行级锁"><a href="#行级锁" class="headerlink" title="行级锁"></a>行级锁</h3><p>行锁用于锁住某一行（记录），行级锁只在<strong>存储引擎层</strong>实现。</p>
+<p><strong>优点：</strong>锁的<strong>粒度小</strong>，发生锁冲突的概率低，<strong>并发程度高</strong></p>
+<p><strong>缺点：</strong>所得<strong>开销比较大</strong>，容易出现<strong>死锁</strong>的情况</p>
+<h4 id="记录锁"><a href="#记录锁" class="headerlink" title="记录锁"></a>记录锁</h4><p>记录锁也就是<strong>仅仅把一条记录锁上</strong>，对其他记录没有影响，官方的类型名称为：<code>LOCK_REC_NOT_GAP</code>。</p>
+<p>记录锁有S锁和X锁之分，称为<strong>S型记录锁</strong>和<strong>X型记录锁</strong>（也就是行级别的S锁和X锁）：</p>
+<ul>
+<li>当一个事务获取了一条记录的S型记录锁后，其他事务也可以继续获取该记录的S型记录锁，但不可以继续获取X型记录锁</li>
+<li>当一个事务获取了一条记录的X型记录锁后，其他事务既不可以继续获取该记录的S型记录锁，也不可以继续获取X型记录锁</li>
+</ul>
+<h4 id="间隙锁"><a href="#间隙锁" class="headerlink" title="间隙锁"></a>间隙锁</h4><p><strong>MySQL</strong>在<code>REPEATABLE READ</code>隔离级别下是<strong>可以解决幻读问题</strong>的，解决方案有两种，可以使用<strong>MVCC</strong>方案解决，也可以采用<strong>加锁（间隙锁）</strong>方案解决。但是在使用加锁方案解决时有个大<strong>问题</strong>，就是事务在第一次执行读取操作时，那些幻影记录尚不存在，我们<strong>无法给这些幻影记录上锁</strong>。为此，InnoDB提出了一种称之为<strong>Gap Locks（间隙锁）的锁</strong>，官方的类型名称为<code>LOCK_GAP</code>。</p>
+<p><strong>间隙锁</strong>加在不存在的空间上（用于封锁记录间的间隔），可以是两个索引记录之间，也可能是第一个索引记录之前或最后一个索引之后的空间。</p>
+<ul>
+<li>对于在索引字段查询<strong>某一条记录</strong>的加锁语句，如果该记录不存在，会产生间隙锁。<strong>如果记录存在，唯一索引则不会产生间隙锁；其他索引或没有被索引会产生间隙锁（锁定前面的间隙，防止插入同样符合条件的记录）</strong></li>
+<li>对于在索引字段上<strong>范围查询</strong>的语句，会在范围内加上间隙锁。</li>
+<li>若在非索引字段上了查询，若记录不存在会发生锁表。</li>
+</ul>
+<p><strong>间隙锁的提出仅仅是在REPEATABLE READ级别下，为了防止插入幻影记录而提出的</strong></p>
+<h4 id="临键锁"><a href="#临键锁" class="headerlink" title="临键锁"></a>临键锁</h4><p>有时候我们既想<strong>锁住某条记录</strong>，又想阻止其他事务在该记录前边的<strong>间隙插入新记录</strong>，所以InnoDB就提出了一种称之为Next-Key Locks（临键锁）的锁，官方类型名称为<code>LOCK_ORDINARY</code>。</p>
+<p>临键锁是<strong>存储引擎InnoDB</strong>，<strong>事务级别在REPEATABLE READ</strong>下使用的数据库锁。</p>
+<p><strong>next-key锁 = 记录锁 + 间隙锁</strong>，它既能锁住该条记录，又能阻止别的事务将新记录插入到前面的间隙中。</p>
+<h4 id="插入意向锁"><a href="#插入意向锁" class="headerlink" title="插入意向锁"></a>插入意向锁</h4><p>我们说一个事务在 插入 一条记录时需要判断一下插入位置是不是被别的事务加了<strong>gap锁</strong>（<strong>next-key锁也包含 gap锁</strong>），如果有的话，插入操作需要等待，直到拥有<strong>gap锁</strong>的那个事务提交。但是InnoDB规定事务<strong>在等待的时候也需要在内存中生成一个锁结构</strong>，<strong>表明有事务想在某个间隙中插入新记录</strong>，但是现在在等待。InnoDB就把这种类型的锁命名为<strong>Insert Intention Locks（插入意向锁）</strong>，官方的类型名称为：<code>LOCK_INSERT_INTENTION </code>。</p>
+<p>插入意向锁是一种<strong>gap锁</strong>，不是意向锁。在插入一条记录行前，由INSERT操作产生的一种间隙锁。在<strong>可重复读</strong>这个隔离级别下生效。</p>
+<p>插入意向锁是一种在 INSERT 操作之前设置的一种间隙锁，插入意向锁表示了一种插入意图，即当多个不同的事务，同时往同一个索引的同一个间隙中插入数据的时候，<strong>它们互相之间无需等待，即不会阻塞</strong>。假设有值为 4 和 7 的索引记录，现在有两个事务，分别尝试插入值为 5 和 6 的记录，在获得插入行的排他锁之前，每个事务使用插入意向锁锁定 4 和 7 之间的间隙，但是这两个事务不会相互阻塞，因为行是不冲突的。</p>
+<ol>
+<li>插入意向锁<strong>之间不互斥</strong>。</li>
+<li>插入意向锁<strong>和排他锁之间互斥</strong>。</li>
+</ol>
+<h3 id="页级锁"><a href="#页级锁" class="headerlink" title="页级锁"></a>页级锁</h3><p>页锁就是在<strong>页的粒度</strong>上进行锁定，锁定的数据资源比行锁要多，因为一个页中可以有多个行记录。<strong>页锁的开销介于表锁和行锁之间，会出现死锁。锁定粒度介于表锁和行锁之间，并发度一般。</strong></p>
+<hr>
+<p><strong>注意：</strong></p>
+<p>每个层级的锁数量是有限制的，因为<strong>锁会占用内存空间</strong>，<strong>锁空间大小</strong>也是有<strong>限制</strong>的。当某个层级的锁数量超过了这个层级的阈值时，就会进行<strong>锁升级</strong>，即用更大粒度的锁来代替小粒度的锁，比如InnoDB中行锁升级为表锁。这样锁占用的空间降低了，同时数据的并发程度也降低了。</p>
+<h2 id="从对待锁的态度划分：乐观锁、悲观锁"><a href="#从对待锁的态度划分：乐观锁、悲观锁" class="headerlink" title="从对待锁的态度划分：乐观锁、悲观锁"></a>从对待锁的态度划分：乐观锁、悲观锁</h2><p>乐观锁和悲观锁并不是锁，而是锁的<strong>设计思想</strong></p>
+<h3 id="悲伤锁"><a href="#悲伤锁" class="headerlink" title="悲伤锁"></a>悲伤锁</h3><p>悲观锁总是假设最坏的情况，即<strong>每次去拿数据的时候都认为别人会修改</strong>，所以<strong>每次在拿数据的时候都会上锁</strong>，这样别人想拿这个数据就会<strong>阻塞</strong>直到它拿到锁。</p>
+<h3 id="乐观锁"><a href="#乐观锁" class="headerlink" title="乐观锁"></a>乐观锁</h3><p>乐观锁假设拿数据时别人对数据的并发修改<strong>不是经常发生的</strong>，所以不用每次都对数据上锁，但是在<strong>更新的时候会判断一下在此期间别人有没有去更新这个数据</strong>，也就是不采用数据库自身的锁机制，而是<strong>通过程序来实现</strong>。<strong>乐观锁适用于多读的场景，这样可以提高吞吐量</strong>。</p>
+<p>可以采用<strong>版本号</strong>机制和<strong>时间戳</strong>机制：</p>
+<ul>
+<li><strong>版本号机制：</strong>在表中设计一个<strong>版本号字段version</strong>，第一次读的时候会获取version值。在删除或者更新操作时，会执行<code>UPDATE ... SET version=version+1 WHERE  version=第一次读取的version值</code>。若已经有事务对这条数据做出了修改，那么此时的修改不会成功。</li>
+<li><strong>时间戳机制：</strong>时间戳和版本号机制一样，也是<strong>在更新提交的时候，将当前数据的时间戳和更新之前取得的时间戳进行比较</strong>，如果两者一致则更新成功，否则就是版本冲突。</li>
+</ul>
+<h3 id="两种锁的适用场景"><a href="#两种锁的适用场景" class="headerlink" title="两种锁的适用场景"></a>两种锁的适用场景</h3><ul>
+<li><strong>乐观锁：</strong>适用于<strong>多读</strong>的场景，优点在于不通过数据库的锁机制实现而是，<strong>程序实现</strong>，不存在死锁问题，并发程度更高。</li>
+<li><strong>悲观锁：</strong>适用于<strong>多写</strong>的场景，因为写的操作具有<strong>排他性</strong>。</li>
+</ul>
+<h2 id="按加锁的方式划分：隐式锁和显式锁"><a href="#按加锁的方式划分：隐式锁和显式锁" class="headerlink" title="按加锁的方式划分：隐式锁和显式锁"></a>按加锁的方式划分：隐式锁和显式锁</h2><h3 id="隐式锁"><a href="#隐式锁" class="headerlink" title="隐式锁"></a>隐式锁</h3><p>除去插入意向锁的场景之外，一般情况下<code>INSERT</code>操作是不加锁的。但是，如果一个事务插入了一条数据，然后另一个事务：</p>
+<ul>
+<li>若想要获取这条新插入记录的S锁，可能产生<strong>脏读</strong>问题；</li>
+<li>若想要获取这条新插入记录的X锁，可能产生<strong>脏写</strong>问题。</li>
+</ul>
+<p>所以就可能需要用到<strong>事务ID</strong>，<code>trx_id</code>，从而产生隐式锁。</p>
+<ul>
+<li>对于<strong>聚簇索引</strong>来说，有一个<code>trx_id</code>的<strong>隐藏列</strong>，该隐藏列记录着<strong>最后改动该记录的事务ID</strong>。那么如果在当前事务中新插入一条聚簇索引记录后 ，如果其他事务此时想对该记录添加S锁或者X锁时，会首先查看该记录的<code>trx_id</code>隐藏列所代表的事务<strong>是否为活动的</strong>（未提交/回滚）。如果是活动的事务，那么会<strong>帮助当前事务创建一个X锁</strong>，然后自己进入等待状态。</li>
+<li>对于<strong>二级索引</strong>而言，本身没有<code>trx_id</code>隐藏列，但是在二级索引页面的<code>Page Header</code>部分有一个<code>PAGE_MAX_TRX_ID</code>属性，该属性代表<strong>对该页面做改动的最大的事务ID</strong>，如果<code>PAGE_MAX_TRX_ID</code>小于当前最小的活跃<strong>事务ID</strong>，那么说明对该页面做修改的事务都已经提交了；否则需要进行回表，<strong>帮助当前事务创建一个X锁</strong>，然后自己进入等待状态。</li>
+</ul>
+<p>隐式锁是一种<strong>延迟加锁</strong>的机制，从而减少锁的数量。</p>
+<h3 id="显式锁"><a href="#显式锁" class="headerlink" title="显式锁"></a>显式锁</h3><p>与显式锁相反，需要通过特定的语句显式的加锁，如S锁和X锁：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> ... LOCK <span class="keyword">IN</span> SHARE MODE;</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> ... <span class="keyword">FOR</span> UPDATE;</span><br></pre></td></tr></table></figure>
+
+<h2 id="其他锁：全局锁"><a href="#其他锁：全局锁" class="headerlink" title="其他锁：全局锁"></a>其他锁：全局锁</h2><h3 id="全局锁"><a href="#全局锁" class="headerlink" title="全局锁"></a>全局锁</h3><p>全局锁就是对<strong>整个数据库加锁</strong>，当需要整个数据库处于<strong>只读</strong>状态时，可以加上全局锁：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FLUSH TABLES <span class="keyword">WITH</span> READ LOCK;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/24/Redis%E5%AD%A6%E4%B9%A0-5-%E6%8C%81%E4%B9%85%E5%8C%96/" rel="prev" title="Redis学习 (5) 持久化">
+      <i class="fa fa-chevron-left"></i> Redis学习 (5) 持久化
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/" rel="next" title="算法刷题笔记 (22) 零钱兑换II 打家劫舍 奇偶链表 Pow(x,n) 二叉搜索树中第K小的元素">
+      算法刷题笔记 (22) 零钱兑换II 打家劫舍 奇偶链表 Pow(x,n) 二叉搜索树中第K小的元素 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98%E7%9A%84%E8%A7%A3%E5%86%B3"><span class="nav-number">1.</span> <span class="nav-text">并发问题的解决</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%84%8F%E5%86%99"><span class="nav-number">1.1.</span> <span class="nav-text">脏写</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%84%8F%E8%AF%BB-%E4%B8%8D%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB-%E5%B9%BB%E8%AF%BB"><span class="nav-number">1.2.</span> <span class="nav-text">脏读 不可重复读 幻读</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E4%B8%80%EF%BC%9A%E8%AF%BB%E6%93%8D%E4%BD%9C%E5%88%A9%E7%94%A8%E5%A4%9A%E7%89%88%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6MVCC%EF%BC%8C%E5%86%99%E6%93%8D%E4%BD%9C%E8%BF%9B%E8%A1%8C%E5%8A%A0%E9%94%81"><span class="nav-number">1.2.1.</span> <span class="nav-text">方案一：读操作利用多版本并发控制MVCC，写操作进行加锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E4%BA%8C%EF%BC%9A%E8%AF%BB%E3%80%81%E5%86%99%E6%93%8D%E4%BD%9C%E9%83%BD%E9%87%87%E7%94%A8%E5%8A%A0%E9%94%81%E6%96%B9%E5%BC%8F"><span class="nav-number">1.2.2.</span> <span class="nav-text">方案二：读、写操作都采用加锁方式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B0%8F%E7%BB%93"><span class="nav-number">1.2.3.</span> <span class="nav-text">小结</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%94%81%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-number">2.</span> <span class="nav-text">锁的分类</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8E%E6%95%B0%E6%8D%AE%E6%93%8D%E4%BD%9C%E7%9A%84%E7%B1%BB%E5%9E%8B%E5%88%92%E5%88%86%EF%BC%9A%E8%AF%BB%E9%94%81%E3%80%81%E5%86%99%E9%94%81"><span class="nav-number">2.1.</span> <span class="nav-text">从数据操作的类型划分：读锁、写锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%BB%E9%94%81-%E5%85%B1%E4%BA%AB%E9%94%81"><span class="nav-number">2.1.1.</span> <span class="nav-text">读锁&#x2F;共享锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%99%E9%94%81-%E6%8E%92%E4%BB%96%E9%94%81"><span class="nav-number">2.1.2.</span> <span class="nav-text">写锁&#x2F;排他锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MySQL-8-0%E6%96%B0%E7%89%B9%E6%80%A7"><span class="nav-number">2.1.3.</span> <span class="nav-text">MySQL 8.0新特性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8E%E6%95%B0%E6%8D%AE%E6%93%8D%E4%BD%9C%E7%9A%84%E7%B2%92%E5%BA%A6%E5%88%92%E5%88%86%EF%BC%9A%E8%A1%A8%E7%BA%A7%E9%94%81%E3%80%81%E9%A1%B5%E7%BA%A7%E9%94%81%E3%80%81%E8%A1%8C%E9%94%81"><span class="nav-number">2.2.</span> <span class="nav-text">从数据操作的粒度划分：表级锁、页级锁、行锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A1%A8%E7%BA%A7%E9%94%81"><span class="nav-number">2.2.1.</span> <span class="nav-text">表级锁</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%A1%A8%E7%BA%A7%E5%88%AB%E7%9A%84S%E9%94%81%E5%92%8CX%E9%94%81"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">表级别的S锁和X锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%84%8F%E5%90%91%E9%94%81"><span class="nav-number">2.2.1.2.</span> <span class="nav-text">意向锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%87%AA%E5%A2%9E%E9%94%81"><span class="nav-number">2.2.1.3.</span> <span class="nav-text">自增锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%83%E6%95%B0%E6%8D%AE%E9%94%81%EF%BC%88MDL%E9%94%81%EF%BC%89"><span class="nav-number">2.2.1.4.</span> <span class="nav-text">元数据锁（MDL锁）</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A1%8C%E7%BA%A7%E9%94%81"><span class="nav-number">2.2.2.</span> <span class="nav-text">行级锁</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%B0%E5%BD%95%E9%94%81"><span class="nav-number">2.2.2.1.</span> <span class="nav-text">记录锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%97%B4%E9%9A%99%E9%94%81"><span class="nav-number">2.2.2.2.</span> <span class="nav-text">间隙锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%B4%E9%94%AE%E9%94%81"><span class="nav-number">2.2.2.3.</span> <span class="nav-text">临键锁</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%8F%92%E5%85%A5%E6%84%8F%E5%90%91%E9%94%81"><span class="nav-number">2.2.2.4.</span> <span class="nav-text">插入意向锁</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A1%B5%E7%BA%A7%E9%94%81"><span class="nav-number">2.2.3.</span> <span class="nav-text">页级锁</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8E%E5%AF%B9%E5%BE%85%E9%94%81%E7%9A%84%E6%80%81%E5%BA%A6%E5%88%92%E5%88%86%EF%BC%9A%E4%B9%90%E8%A7%82%E9%94%81%E3%80%81%E6%82%B2%E8%A7%82%E9%94%81"><span class="nav-number">2.3.</span> <span class="nav-text">从对待锁的态度划分：乐观锁、悲观锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%82%B2%E4%BC%A4%E9%94%81"><span class="nav-number">2.3.1.</span> <span class="nav-text">悲伤锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B9%90%E8%A7%82%E9%94%81"><span class="nav-number">2.3.2.</span> <span class="nav-text">乐观锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%A4%E7%A7%8D%E9%94%81%E7%9A%84%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">2.3.3.</span> <span class="nav-text">两种锁的适用场景</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%89%E5%8A%A0%E9%94%81%E7%9A%84%E6%96%B9%E5%BC%8F%E5%88%92%E5%88%86%EF%BC%9A%E9%9A%90%E5%BC%8F%E9%94%81%E5%92%8C%E6%98%BE%E5%BC%8F%E9%94%81"><span class="nav-number">2.4.</span> <span class="nav-text">按加锁的方式划分：隐式锁和显式锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9A%90%E5%BC%8F%E9%94%81"><span class="nav-number">2.4.1.</span> <span class="nav-text">隐式锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%98%BE%E5%BC%8F%E9%94%81"><span class="nav-number">2.4.2.</span> <span class="nav-text">显式锁</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E9%94%81%EF%BC%9A%E5%85%A8%E5%B1%80%E9%94%81"><span class="nav-number">2.5.</span> <span class="nav-text">其他锁：全局锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%A8%E5%B1%80%E9%94%81"><span class="nav-number">2.5.1.</span> <span class="nav-text">全局锁</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

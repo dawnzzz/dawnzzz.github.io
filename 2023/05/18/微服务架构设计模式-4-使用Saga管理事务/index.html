@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Saga 分布式事务Saga 是一种分布式事务实现方式，Saga 通过异步消息来协调一系列的本地事务，从而维护多个服务之间的数据一致性。  异步消息的一个重要好处就是确保 Saga 的所有步骤都被执行，即使一个或者多个 Saga 的参与方暂时不可用。  Saga 缺少了 ACID 事务中的隔离性。此外，因为每个本地事务都提交了更改，必须使用补偿事务（只有修改操作有补偿事务）回滚 Saga。 在 S">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务架构设计模式 (4) 使用Saga管理事务">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Saga 分布式事务Saga 是一种分布式事务实现方式，Saga 通过异步消息来协调一系列的本地事务，从而维护多个服务之间的数据一致性。  异步消息的一个重要好处就是确保 Saga 的所有步骤都被执行，即使一个或者多个 Saga 的参与方暂时不可用。  Saga 缺少了 ACID 事务中的隔离性。此外，因为每个本地事务都提交了更改，必须使用补偿事务（只有修改操作有补偿事务）回滚 Saga。 在 S">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-05-18T08:58:39.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.817Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务架构设计模式 (4) 使用Saga管理事务 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务架构设计模式 (4) 使用Saga管理事务
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-18 16:58:39" itemprop="dateCreated datePublished" datetime="2023-05-18T16:58:39+08:00">2023-05-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Saga-分布式事务"><a href="#Saga-分布式事务" class="headerlink" title="Saga 分布式事务"></a>Saga 分布式事务</h1><p>Saga 是一种分布式事务实现方式，Saga 通过<strong>异步消息</strong>来协调<strong>一系列的本地事务</strong>，从而维护多个服务之间的数据一致性。</p>
+<blockquote>
+<p>异步消息的一个重要好处就是<strong>确保 Saga 的所有步骤都被执行</strong>，即使一个或者多个 Saga 的参与方暂时不可用。</p>
+</blockquote>
+<p>Saga 缺少了 ACID 事务中的隔离性。此外，因为每个本地事务都提交了更改，必须使用<strong>补偿事务（只有修改操作有补偿事务）</strong>回滚 Saga。</p>
+<p>在 Saga 的一系列的步骤中，若前 N 个步骤后面跟着的步骤可能失败，称为<strong>可补偿性事务</strong>。第 N+1 个步骤后面全部都是不可能失败的步骤，称 N+1 步骤为<strong>关键性事务</strong>。关键性之后的步骤称之为<strong>可重复性事务</strong>。</p>
+<h2 id="Saga-的协调模式"><a href="#Saga-的协调模式" class="headerlink" title="Saga 的协调模式"></a>Saga 的协调模式</h2><p>Saga 由一些列本地事务组成，如何协调 Saga 中一系列的本地事务进行下一步操作还是执行补偿事务尤为关键，总共有两种方式：</p>
+<ul>
+<li><strong>协同式：</strong>把 Saga 的决策和执行顺序<strong>分布在 Saga 的每一个参与方中</strong>，它们通过交换事件的方式进行沟通。</li>
+<li><strong>编排式：</strong>将 Saga 的决策和执行顺序集中在一个<strong>集中的编排器</strong>中，编排器发送消息给各个Saga 参与方。</li>
+</ul>
+<span id="more"></span>
+
+<h3 id="协同式"><a href="#协同式" class="headerlink" title="协同式"></a>协同式</h3><p>在协同式的 Saga 中，参与 Saga 的每一个服务都独自进行决策并且决定下一个步骤的执行顺序，Saga 的参与方通过<strong>发布/订阅</strong>的方式进行交互。在实现基于协同的 Saga 时，必须考虑服务间通信的相关问题：</p>
+<ul>
+<li>确保更新数据库和发布消息作为数据库事务的一部分，在更新数据库数据成功的同时必须保证发送消息也同样成功，所以需要采用<strong>事务性消息</strong>。</li>
+<li><strong>确保收到的消息属于哪一个 Saga 事务</strong>，可以让 Saga 参与方发布包含<strong>相关性 ID</strong> 的事件，这个相关性 ID 使得其他参与方确定这个消息属于 Saga 事务。如在创建账单的 Saga 事务中，账单 ID 就可以作为相关性 ID。</li>
+</ul>
+<p>协同式 Saga 的<strong>好处</strong>在于：</p>
+<ul>
+<li>简单：没有一个集中的控制器去控制 Saga 的流程，结构简单。</li>
+</ul>
+<p><strong>弊端</strong>在于：</p>
+<ul>
+<li>难以理解：Saga 事务被分布在各个服务的实现当中，因为不在一个单一的地方定义，开发人员难以理解 Saga 事务的流程以及如何工作。</li>
+<li>服务之间的循环依赖：Saga 参与方订阅事件，可能会导致循环依赖。</li>
+<li>紧耦合的风险：每一个 Saga 参与方都需要订阅所有影响自己的事件。消息的订阅方和发布方需要在关于实现 Saga 的事件方面，应该是紧耦合的。</li>
+</ul>
+<blockquote>
+<p>通常使用<strong>编排</strong>式 Saga 事务。</p>
+</blockquote>
+<h3 id="编排式"><a href="#编排式" class="headerlink" title="编排式"></a>编排式</h3><p>在编排式 Saga 中，定义一个事务<strong>编排器</strong>用于管理 Saga 事务。编排器使用<strong>命令/异步响应</strong>的方式与 Saga 参与方进行通信。在每一个步骤中，Saga 编排器会给参与方发送命令式的消息，告诉参与方该做什么工作。当参与方完成曹州，会给编排器答复。编排器根据这个答复，决定下一步的 Saga 操作是什么。</p>
+<p>在编排式的 Saga 事务中，每一步骤也包括更新数据库和发布消息。和协同式一样，需要保证在更新数据库数据成功的同时必须保证发送消息也同样成功，所以需要采用<strong>事务性消息</strong>。</p>
+<p>编排式 Saga 的<strong>好处</strong>：</p>
+<ul>
+<li>更简单的依赖关系：不会引入循环依赖关系。Saga 编排器会调用 Saga 参与方，但是参与方不会调用编排器。</li>
+<li>较少的耦合：每一个服务实现供编排器调用的 API，不需要知道其他参与方发布的事件。</li>
+<li>简化业务逻辑：不需要了解服务参与的 Saga 流程。</li>
+</ul>
+<p><strong>弊端</strong>在于：</p>
+<ul>
+<li>编排器可能会存在过多的业务逻辑。</li>
+</ul>
+<h2 id="解决隔离问题"><a href="#解决隔离问题" class="headerlink" title="解决隔离问题"></a>解决隔离问题</h2><p>Saga 事务不满足 ACID 中的隔离性要求，<strong>因为本地事务一旦提交，其更改就会被其他事务看到</strong>。其他 Saga 可能在执行时更改该 Saga 所访问的数据，也可以在 Saga 完成之前读取到数据，这可能会导致不一致。</p>
+<p>可以使用以下对策来解决隔离问题。</p>
+<h3 id="语义锁"><a href="#语义锁" class="headerlink" title="语义锁"></a>语义锁</h3><p>在数据库表中设置一个<strong>标记</strong>，表示这一条记录<strong>未提交</strong>。这个标志可以阻止其他事务访问记录，相当于行锁。标志会被一个<strong>可重复性事务</strong>清除，表示 Saga 成功完成；也可以通过<strong>补偿性事务</strong>清除，表示 Saga 发生了回滚。</p>
+<blockquote>
+<p>当遇到语义锁时，可以直接返回失败，告诉客户端稍后再尝试（增加了客户端的复杂度，客户端需要加上重试机制）；也可以阻塞当前 Saga，当释放了语义锁之后再执行当前 Saga（增加了服务的复杂度，必须管理语义锁，检查语义锁是否死锁）。</p>
+</blockquote>
+<h3 id="交换式更新"><a href="#交换式更新" class="headerlink" title="交换式更新"></a>交换式更新</h3><p>将更新操作设计为<strong>可交换</strong>的（可以按任意的顺序执行），比如对于更新操作 <code>a = a+1</code> 就是可交换的，而 <code>a=2</code> 就是不可交换的。这样就<strong>避免了丢失更新（更新被覆盖）</strong>的问题，但是<strong>脏读</strong>问题无法避免。</p>
+<blockquote>
+<p><strong>简而言之</strong>，自加、自减、自除、自乘操作就是可交换的，而直接赋值的更新操作就是不可交换的。</p>
+</blockquote>
+<h3 id="悲观视图"><a href="#悲观视图" class="headerlink" title="悲观视图"></a>悲观视图</h3><p><strong>重新排序 Saga 步骤</strong>，以最大限度地降低由于<strong>脏读</strong>而导致的业务风险。</p>
+<h3 id="重读值"><a href="#重读值" class="headerlink" title="重读值"></a>重读值</h3><p>重读值是一种<strong>乐观锁</strong>策略，在进行操作之前<strong>重新读取记录，验证是否更改</strong>。如果记录已经更改，则终止 Saga 事务（可能重新启动）。</p>
+<h3 id="版本文件"><a href="#版本文件" class="headerlink" title="版本文件"></a>版本文件</h3><p><strong>记录了对数据执行的操作</strong>，以便对它们重新进行排序。这是<strong>将不可交换操作转换为可交换操作</strong>的一种方法。</p>
+<p>如有这样一个场景，信用卡授权服务负责用户的信用卡授权工作。对于信用卡授权、信用卡取消授权而言，这是不可交换的操作。但是信用卡授权服务可以在请求到达时记录操作，然后以正确的顺序执行。比如对同一个信用卡的取消授权在授权操作之前到达，会首先记录授权操作，当收到授权操作请求时，会注意到已经进行了取消授权操作，所以会<strong>跳过</strong>信用卡的授权。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/" rel="prev" title="微服务架构设计模式 (3) 进程间的通信">
+      <i class="fa fa-chevron-left"></i> 微服务架构设计模式 (3) 进程间的通信
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/" rel="next" title="微服务架构设计模式 (5) 微服务架构中的业务逻辑设计">
+      微服务架构设计模式 (5) 微服务架构中的业务逻辑设计 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Saga-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1"><span class="nav-number">1.</span> <span class="nav-text">Saga 分布式事务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Saga-%E7%9A%84%E5%8D%8F%E8%B0%83%E6%A8%A1%E5%BC%8F"><span class="nav-number">1.1.</span> <span class="nav-text">Saga 的协调模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%8F%E5%90%8C%E5%BC%8F"><span class="nav-number">1.1.1.</span> <span class="nav-text">协同式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BC%96%E6%8E%92%E5%BC%8F"><span class="nav-number">1.1.2.</span> <span class="nav-text">编排式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3%E9%9A%94%E7%A6%BB%E9%97%AE%E9%A2%98"><span class="nav-number">1.2.</span> <span class="nav-text">解决隔离问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%AD%E4%B9%89%E9%94%81"><span class="nav-number">1.2.1.</span> <span class="nav-text">语义锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%A4%E6%8D%A2%E5%BC%8F%E6%9B%B4%E6%96%B0"><span class="nav-number">1.2.2.</span> <span class="nav-text">交换式更新</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%82%B2%E8%A7%82%E8%A7%86%E5%9B%BE"><span class="nav-number">1.2.3.</span> <span class="nav-text">悲观视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%87%8D%E8%AF%BB%E5%80%BC"><span class="nav-number">1.2.4.</span> <span class="nav-text">重读值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%89%88%E6%9C%AC%E6%96%87%E4%BB%B6"><span class="nav-number">1.2.5.</span> <span class="nav-text">版本文件</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

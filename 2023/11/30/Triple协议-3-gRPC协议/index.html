@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="gRPC 是谷歌开源的一套 RPC 协议框架，基本上也是最为广泛使用的 RPC 协议。理解 gRPC 就要从两方面去理解：数据编码（序列化）和数据传输。 数据编码（序列化）数据编码顾名思义就是在将请求的内存对像转化成可以传输的字节流发给服务端，并将收到的字节流再转化成内存对像。gRPC 默认使用 Protobuf 进行序列化，也支持 Json 格式的序列化。 JsonJson 序列化的优点：  可">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triple协议 (3) gRPC协议">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="gRPC 是谷歌开源的一套 RPC 协议框架，基本上也是最为广泛使用的 RPC 协议。理解 gRPC 就要从两方面去理解：数据编码（序列化）和数据传输。 数据编码（序列化）数据编码顾名思义就是在将请求的内存对像转化成可以传输的字节流发给服务端，并将收到的字节流再转化成内存对像。gRPC 默认使用 Protobuf 进行序列化，也支持 Json 格式的序列化。 JsonJson 序列化的优点：  可">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/cb61f83b81734411aa983a0841650533.awebp">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/a4470a81562140cd8574ddd57d06fdc.awebp">
+<meta property="article:published_time" content="2023-11-30T02:57:38.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.792Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="dubbo-go - 云原生 - triple">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/cb61f83b81734411aa983a0841650533.awebp">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Triple协议 (3) gRPC协议 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Triple协议 (3) gRPC协议
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-11-30 10:57:38" itemprop="dateCreated datePublished" datetime="2023-11-30T10:57:38+08:00">2023-11-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>gRPC 是谷歌开源的一套 RPC 协议框架，基本上也是最为广泛使用的 RPC 协议。理解 gRPC 就要从两方面去理解：数据编码（序列化）和数据传输。</p>
+<h2 id="数据编码（序列化）"><a href="#数据编码（序列化）" class="headerlink" title="数据编码（序列化）"></a>数据编码（序列化）</h2><p>数据编码顾名思义就是在将请求的<strong>内存对像</strong>转化成可以传输的<strong>字节流</strong>发给服务端，并将收到的<strong>字节流</strong>再转化成<strong>内存对像</strong>。gRPC 默认使用 Protobuf 进行序列化，也支持 Json 格式的序列化。</p>
+<h2 id="Json"><a href="#Json" class="headerlink" title="Json"></a>Json</h2><p>Json 序列化的优点：</p>
+<ul>
+<li>可读性高。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>编码低效，是非二进制编码。</li>
+<li>信息冗余，对于同一个 Json 对象，需要传输 key。</li>
+</ul>
+<h2 id="Protobuf"><a href="#Protobuf" class="headerlink" title="Protobuf"></a>Protobuf</h2><p>Protobuf 序列化的优点：</p>
+<ul>
+<li>编码高效，是二进制编码，且会进行压缩。</li>
+<li>信息不存在冗余，给每一个字段一个编号，传输时只需要传输这个编号即可。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>人类不可读性。</li>
+</ul>
+<blockquote>
+<p><strong>Protobuf 需要 IDL 描述接口</strong>，使用 IDL 进行强约束<strong>有好处也有坏处</strong>。</p>
+<p><strong>好处</strong>就是对字段有了约束，只需要传输编号，避免信息冗余。<strong>坏处</strong>就是需要相关的工具链（protoc），为 IDL 生成代码。</p>
+</blockquote>
+<h1 id="数据传输"><a href="#数据传输" class="headerlink" title="数据传输"></a>数据传输</h1><p>gRPC 使用的是 HTTP/2 协议，可以简单的认为一个 gRPC 请求就是一个 HTTP 请求，这个 HTTP 请求用的是 POST 方法。</p>
+<h2 id="请求-Request"><a href="#请求-Request" class="headerlink" title="请求 Request"></a>请求 Request</h2><p>一个 gRPC 的请求报文如下，包括：</p>
+<ul>
+<li>HTTP Header</li>
+<li>HTTP Body：又分为 Length-Prefixed Message 和 Protobuf 消息。</li>
+</ul>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/cb61f83b81734411aa983a0841650533.awebp" alt="image2022-1-27_15-20-18"></p>
+<h3 id="HTTP-Header"><a href="#HTTP-Header" class="headerlink" title="HTTP Header"></a>HTTP Header</h3><p>一个 gRPC 定义包含三个部分，包名、服务名和接口名。在发起 HTTP 请求时，Path 路径如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/$&#123;包名&#125;.$&#123;服务名&#125;/$&#123;接口名&#125;</span><br></pre></td></tr></table></figure>
+
+<p>gRPC 协议规定Content-Type 的取值为 application/grpc（默认，使用 protobuf 编码）、application/grpc+proto（使用 protobuf 编码）、application/json（使用 json 编码）。</p>
+<h3 id="HTTP-Body"><a href="#HTTP-Body" class="headerlink" title="HTTP Body"></a>HTTP Body</h3><p>HTTP Body 并不会直接存放 Protobuf 消息，而是<strong>先添加 5 个字节的 Length-Prefixed Message 头部</strong>，其中用 4 个字节明确 Protobuf 消息的长度，1 字节表示消息是否被压缩过。</p>
+<p>为什么要多此一举呢？这是因为，<strong>gRPC 支持流式消息</strong>，即在 HTTP/2 的 1 条 Stream 中，<strong>通过 DATA 帧发送多个 gRPC 消息</strong>，而 Length-Prefixed Message 就可以将不同的消息分离开。</p>
+<blockquote>
+<p>因为 Length-Prefixed Message 的五个字节，<strong>导致 gRPC 只能是二进制协议</strong>，即使是 json 进行编码，<strong>curl 和浏览器（web）都不能原生的支持 gRPC</strong>，只能用专用的工具！</p>
+</blockquote>
+<h2 id="返回-Response"><a href="#返回-Response" class="headerlink" title="返回 Response"></a>返回 Response</h2><p>一个 gRPC 响应报文如下，包括：</p>
+<ul>
+<li>HTTP 头部：包括 Header 和 Tailer。</li>
+<li>HTTP Body：又分为 Length-Prefixed Message 和 Protobuf 消息。 </li>
+</ul>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/a4470a81562140cd8574ddd57d06fdc.awebp" alt="image2022-1-27_15-24-18"></p>
+<p>其中 HTTP 头部被分为 Header 和 Tailer。Tailer 中的 grpc-status 和 grpc-message 是在 DATA 帧的最后，这样就允许服务器在发送完消息后再给出错误码。</p>
+<p><strong>gRPC 中以 grpc-status 和 grpc-message 表示自己的返回状态和消息。</strong></p>
+<blockquote>
+<p>HTTP 2 中的 HEADER 帧和 DATA 帧是独立的，对于一个 gRPC 响应可以先发一个 HEADER 帧告知 HTTP 状态，再发送 DATA 帧传输 gRPC 消息，最后发送一个 HEADER 帧传输 grpc-status。</p>
+<p>一般都是先发 HEADER 再发 DATA，<strong>为什么 gRPC 需要在发完 DATA 之后才发 grpc-status 头呢</strong>？</p>
+<p>因为<strong>流</strong>式传输，在所有的流式消息没有传输完成之前，服务端也不知道要传什么 grpc-status。</p>
+</blockquote>
+<h1 id="gRPC-中的-Tailer-设计"><a href="#gRPC-中的-Tailer-设计" class="headerlink" title="gRPC 中的 Tailer 设计"></a>gRPC 中的 Tailer 设计</h1><h2 id="Tailer-介绍"><a href="#Tailer-介绍" class="headerlink" title="Tailer 介绍"></a>Tailer 介绍</h2><h3 id="H1-1-中的-Tailer"><a href="#H1-1-中的-Tailer" class="headerlink" title="H1.1 中的 Tailer"></a>H1.1 中的 Tailer</h3><p>HTTP 协议在返回数据的时候通常是先发送 Header 信息，再发送 Body 数据。<strong>但 Trailers 是一类特殊的 Header，它们是在 Body 传输结束后才发送给客户端的</strong>。因为发送顺序不同，所以，<strong>在 HTTP/1.1 中 Trailers 只能跟 chunked 传输编码配合使用</strong>。</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">HTTP/1.1</span> <span class="number">200</span> OK</span><br><span class="line"><span class="attribute">Content-Type</span><span class="punctuation">: </span>text/plain</span><br><span class="line"><span class="attribute">Transfer-Encoding</span><span class="punctuation">: </span>chunked</span><br><span class="line"><span class="attribute">Trailer</span><span class="punctuation">: </span>MD5</span><br><span class="line"></span><br><span class="line"><span class="taggerscript">7<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">Mozilla<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">9<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">Developer<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">7<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">Network<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">0<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">MD5: 68b329da9893e34099c7d8ad5cb9c940<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript"><span class="symbol">\r</span><span class="symbol">\n</span></span></span><br></pre></td></tr></table></figure>
+
+<p>Trailer 头里面表示数据传输结束后还有额外的 Header，Header 的名字为 MD5。可以指定多个，以逗号分隔。所以在分段数据之后又额外发送了所有数据的 MD5 值用作校验。<strong>因为 Body 的内容是动态生成的，不可能事先得到它的 MD5 值</strong>。只能是一边传输一边计算，等传完了也就计算好了，然后使用 Trailer 头「补发」给客户端。</p>
+<h3 id="H2-中的-Tailer"><a href="#H2-中的-Tailer" class="headerlink" title="H2 中的 Tailer"></a>H2 中的 Tailer</h3><p>到了 HTTP/2 时代，因为有了帧的概念，所以 Header 和 Body 可以并发传输，不再有先发 Header 再传 Body 的限制。因此，<strong>在 HTTP/2 中，Trailers 不需要依赖 chunked 传输编码，所有的响应都能发送 Trailers 信息</strong>。</p>
+<h2 id="gRPC-中的-Tailer"><a href="#gRPC-中的-Tailer" class="headerlink" title="gRPC 中的 Tailer"></a>gRPC 中的 Tailer</h2><p>gRPC 中为什么用到了 Tailer？原因就是流传输，在流式接口中因为一个帧可能携带多条数据，所以无法事先确定数据的长度（所以不可能使用 Content-Length 头）</p>
+<blockquote>
+<p>长度不确定，为什么不使用 chunked 传输？</p>
+<p>假如客户端跟服务器之前有一个代理，代理收到响应之后开始将数据转发给客户端。首先就是把 Header 部分发送给客户端，于是调用方确定本次的状态码为 200，成功了。然后逐段转发数据部分，如果代理在转发完第一段数据后服务端异常退出了，那代理需要给客户端发送什么信号呢？</p>
+<p>因为状态码已经发出去，所以没办法把 200 改成 5xx 了。也不能直接发送 <code>0\r\n</code> 来结束 chunked 传输，这样客户端没有办法得知服务器已经异常退出的信息。唯一能做的就是直接关闭对应的底层连接，但这样会因为客户端创建新的连接而消耗额外的资源。</p>
+<p>所以需要找一种尽量复用底层连接的条件下通知客户端服务器出错的办法，最终 gRPC 团队决定使用 Trailers 来传输，Tailer 中携带 grpc-status 来反应响应的状态。</p>
+</blockquote>
+<h3 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h3><p>Tailer 导致了不支持浏览器（Chrome 认为 Tailer 会导致安全问题），而 Length-Prefixed Message 同样导致无法直接用 curl + json 的方式来调试 gRPC 接口，必须使用专门的工具。</p>
+<blockquote>
+<p>然有了消息前缀，那完全可以把 Trailers 的职能转移到消息前缀里，比如可以设置一个特殊的前缀来传输 grpc-status 等字段。如果当初这样做的话，那么现在也就可以直接在浏览器调用 gRPC 接口了，可以惜木已成舟。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/dubbo-go-%E4%BA%91%E5%8E%9F%E7%94%9F-triple/" rel="tag"># dubbo-go - 云原生 - triple</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/11/29/Triple%E5%8D%8F%E8%AE%AE-2-HTTP2%E5%8D%8F%E8%AE%AE/" rel="prev" title="Triple协议 (2) HTTP2协议">
+      <i class="fa fa-chevron-left"></i> Triple协议 (2) HTTP2协议
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/" rel="next" title="Triple协议 (4) Triple实现之编码和压缩">
+      Triple协议 (4) Triple实现之编码和压缩 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BC%96%E7%A0%81%EF%BC%88%E5%BA%8F%E5%88%97%E5%8C%96%EF%BC%89"><span class="nav-number">1.</span> <span class="nav-text">数据编码（序列化）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Json"><span class="nav-number">2.</span> <span class="nav-text">Json</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Protobuf"><span class="nav-number">3.</span> <span class="nav-text">Protobuf</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E4%BC%A0%E8%BE%93"><span class="nav-number"></span> <span class="nav-text">数据传输</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%B7%E6%B1%82-Request"><span class="nav-number">1.</span> <span class="nav-text">请求 Request</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTP-Header"><span class="nav-number">1.1.</span> <span class="nav-text">HTTP Header</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTP-Body"><span class="nav-number">1.2.</span> <span class="nav-text">HTTP Body</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%94%E5%9B%9E-Response"><span class="nav-number">2.</span> <span class="nav-text">返回 Response</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#gRPC-%E4%B8%AD%E7%9A%84-Tailer-%E8%AE%BE%E8%AE%A1"><span class="nav-number"></span> <span class="nav-text">gRPC 中的 Tailer 设计</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Tailer-%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">Tailer 介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#H1-1-%E4%B8%AD%E7%9A%84-Tailer"><span class="nav-number">1.1.</span> <span class="nav-text">H1.1 中的 Tailer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#H2-%E4%B8%AD%E7%9A%84-Tailer"><span class="nav-number">1.2.</span> <span class="nav-text">H2 中的 Tailer</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#gRPC-%E4%B8%AD%E7%9A%84-Tailer"><span class="nav-number">2.</span> <span class="nav-text">gRPC 中的 Tailer</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%97%AE%E9%A2%98"><span class="nav-number">2.1.</span> <span class="nav-text">问题</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

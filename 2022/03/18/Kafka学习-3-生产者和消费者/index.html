@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="生产者选择Partition原则在kafka中，一个topic指定了多个partition，生产者选择partition的方式：  partition在写⼊的时候可以指定需要写⼊的partition，如果有指定，则写⼊对应的partition。 如果没有指定partition，但是设置了数据的key，则会根据key的值hash出⼀个partition。 如果既没指定partition，⼜没有设置k">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka学习 (3) 生产者和消费者">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="生产者选择Partition原则在kafka中，一个topic指定了多个partition，生产者选择partition的方式：  partition在写⼊的时候可以指定需要写⼊的partition，如果有指定，则写⼊对应的partition。 如果没有指定partition，但是设置了数据的key，则会根据key的值hash出⼀个partition。 如果既没指定partition，⼜没有设置k">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/1646903180288.png">
+<meta property="article:published_time" content="2022-03-18T06:15:24.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.771Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="kafka">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/1646903180288.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kafka学习 (3) 生产者和消费者 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kafka学习 (3) 生产者和消费者
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-18 14:15:24" itemprop="dateCreated datePublished" datetime="2022-03-18T14:15:24+08:00">2022-03-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kafka%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kafka学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="生产者"><a href="#生产者" class="headerlink" title="生产者"></a>生产者</h1><h2 id="选择Partition原则"><a href="#选择Partition原则" class="headerlink" title="选择Partition原则"></a>选择Partition原则</h2><p>在kafka中，一个topic指定了多个partition，生产者选择partition的方式：</p>
+<ol>
+<li>partition在写⼊的时候<strong>可以指定</strong>需要写⼊的partition，如果有指定，则写⼊对应的partition。</li>
+<li>如果没有指定partition，但是设置了数据的key，则会<strong>根据key的值hash</strong>出⼀个partition。</li>
+<li>如果既没指定partition，⼜没有设置key，则会采⽤<strong>轮询⽅式</strong>，即每次取⼀小段时间的数据写⼊某个partition，下⼀⼩段的时间写⼊下⼀个partition。</li>
+</ol>
+<h2 id="同步发送和异步发送"><a href="#同步发送和异步发送" class="headerlink" title="同步发送和异步发送"></a>同步发送和异步发送</h2><h3 id="同步发送"><a href="#同步发送" class="headerlink" title="同步发送"></a>同步发送</h3><p>⽣产者同步发消息，在收到kafka的ACK告知发送成功之前⼀直处于<strong>阻塞</strong>状态。</p>
+<h3 id="异步发送"><a href="#异步发送" class="headerlink" title="异步发送"></a>异步发送</h3><p>⽣产者发消息，发送完后<strong>不用等待</strong>broker给回复，直接执⾏下面的业务逻辑。</p>
+<p><strong>注意：</strong>异步发送可能会丢失消息。</p>
+<h2 id="生产者ACK机制"><a href="#生产者ACK机制" class="headerlink" title="生产者ACK机制"></a>生产者ACK机制</h2><p>同步发送的前提下，生产者向集群发送消息时，关于ACK应答机制有3个配置：</p>
+<ul>
+<li><code>0</code>代表producer往集群发送数据<strong>不需要等待集群的返回</strong>。也就是说，集群不需要任何broker收到消息，就立刻返回ACK给生产者。不确保消息发送成功。安全性最低但是效率最⾼。</li>
+<li><code>1</code>代表producer往集群发送数据<strong>只要leader应答</strong>（Leader将消息写入本地日志中）就可以发送下⼀条，只确保leader发送成功。<strong>默认</strong>选项。</li>
+<li><code>all</code>代表producer往集群发送数据<strong>需要所有的follower都完成从leader的同步才会发送下⼀条</strong>，确保leader发送成功和所有的副本都完成备份。安全性最⾼，但是效率最低。</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="生产者发送消息流程"><a href="#生产者发送消息流程" class="headerlink" title="生产者发送消息流程"></a>生产者发送消息流程</h2><p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/1646903180288.png" alt="生产者寻找Leader写入流程"></p>
+<ol>
+<li>⽣产者从Kafka集群获取分区leader信息</li>
+<li>⽣产者将消息发送给leader</li>
+<li>leader将消息写⼊本地磁盘</li>
+<li>follower从leader拉取消息数据</li>
+<li>follower将消息写⼊本地磁盘后向leader发送ACK</li>
+<li>leader收到所有的follower的ACK之后向⽣产者发送ACK（ACK为<code>all</code>时）</li>
+</ol>
+<h1 id="消费者"><a href="#消费者" class="headerlink" title="消费者"></a>消费者</h1><h2 id="消息消费模型"><a href="#消息消费模型" class="headerlink" title="消息消费模型"></a>消息消费模型</h2><p>消息的消费模型有两种：推送模型和拉取模型。</p>
+<h3 id="推送模型"><a href="#推送模型" class="headerlink" title="推送模型"></a>推送模型</h3><p>基于<strong>推送模型（push）</strong>的消息系统，由<strong>消息代理记录消费者的消费状态</strong>。消息代理在将消息推送到消费者后，标记这条消息已经消费，但这种方式无法很好地保证消费被处理。</p>
+<p>如果要保证消息被处理，消息代理发送完消息后，要设置状态为“已发送”，只要收到消费者的确认请求后才更新为“已消费”，这就需要代理中记录所有的消费状态。</p>
+<p>缺点：</p>
+<ul>
+<li><strong>标记为消费后，其他消费者则不可以再消费了。</strong></li>
+<li><strong>很难适应消费速率不同的消费者</strong>，因为消息发送速率是由broker决定的</li>
+</ul>
+<h3 id="拉取模型"><a href="#拉取模型" class="headerlink" title="拉取模型"></a>拉取模型</h3><p>基于<strong>拉取（pull）模型</strong>的消息系统，由<strong>消费者自己记录消费状态，每个消费者互相独立地顺序拉取每个分区的消息</strong>。</p>
+<p>优点：<strong>消费者可以按照任意的顺序消费消息。</strong></p>
+<p><strong>Kafka就是采用了拉取模型。</strong></p>
+<h2 id="消费者消费分区的策略"><a href="#消费者消费分区的策略" class="headerlink" title="消费者消费分区的策略"></a>消费者消费分区的策略</h2><p>如果<strong>没有显式</strong>的指明分区，消费者消费分区有3种策略：</p>
+<ul>
+<li>通过<strong>公式</strong>来计算消费者消费哪一个分区</li>
+<li>消费者<strong>轮询</strong>消费分区</li>
+<li>sticky：在触发rebalance机制后，在消费者消费的<strong>原分区不变</strong>的基础上进行调整</li>
+</ul>
+<h2 id="Rebalance机制"><a href="#Rebalance机制" class="headerlink" title="Rebalance机制"></a>Rebalance机制</h2><p><strong>消费者没有指明分区消费</strong>，当消费组⾥消费者和分区的关系发⽣变化，那么就会触发rebalance机制。</p>
+<p><strong>优点：</strong></p>
+<ul>
+<li>给消费者组带来了高可用性和伸缩性</li>
+</ul>
+<p><strong>缺点：</strong></p>
+<ul>
+<li><strong>再均衡期间消费者无法读取消息</strong>，整个群组有一小段时间不可用</li>
+<li>partition被重新分配给一个消费者时，消费者当前的读取状态会丢失</li>
+</ul>
+<h2 id="提交offset机制"><a href="#提交offset机制" class="headerlink" title="提交offset机制"></a>提交offset机制</h2><p>消费者无论是⾃动提交还是手动提交，都需要把<strong>所属的消费组+消费的某个主题+消费的某个分区及消费的偏移量</strong>，这样的信息提交到集群的_consumer_offsets主题⾥⾯。</p>
+<h3 id="自动提交"><a href="#自动提交" class="headerlink" title="自动提交"></a>自动提交</h3><p>消费者poll消息下来以后就会⾃动提交offset。</p>
+<p>自动提交<strong>可能会丢失消息</strong>。因为消费者在消费前提交offset，有可能提交完后还没消费时消费者就宕机了。</p>
+<h3 id="手动提交"><a href="#手动提交" class="headerlink" title="手动提交"></a>手动提交</h3><p>手动提交是指消费完成后提交offset，分为同步和异步的方式：</p>
+<ul>
+<li>同步：在集群返回ACK之前阻塞</li>
+<li>异步：提交offset后，不需要等待集群返回的ACK</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kafka/" rel="tag"># kafka</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-2-%E9%9B%86%E7%BE%A4/" rel="prev" title="Kafka学习 (2) 集群">
+      <i class="fa fa-chevron-left"></i> Kafka学习 (2) 集群
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-26/" rel="next" title="算法刷题笔记 (26) 用Rand7()实现Rand10() 和为K的子数组 课程表 每日温度">
+      算法刷题笔记 (26) 用Rand7()实现Rand10() 和为K的子数组 课程表 每日温度 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85"><span class="nav-number">1.</span> <span class="nav-text">生产者</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%80%89%E6%8B%A9Partition%E5%8E%9F%E5%88%99"><span class="nav-number">1.1.</span> <span class="nav-text">选择Partition原则</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%90%8C%E6%AD%A5%E5%8F%91%E9%80%81%E5%92%8C%E5%BC%82%E6%AD%A5%E5%8F%91%E9%80%81"><span class="nav-number">1.2.</span> <span class="nav-text">同步发送和异步发送</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%90%8C%E6%AD%A5%E5%8F%91%E9%80%81"><span class="nav-number">1.2.1.</span> <span class="nav-text">同步发送</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%82%E6%AD%A5%E5%8F%91%E9%80%81"><span class="nav-number">1.2.2.</span> <span class="nav-text">异步发送</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85ACK%E6%9C%BA%E5%88%B6"><span class="nav-number">1.3.</span> <span class="nav-text">生产者ACK机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF%E6%B5%81%E7%A8%8B"><span class="nav-number">1.4.</span> <span class="nav-text">生产者发送消息流程</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85"><span class="nav-number">2.</span> <span class="nav-text">消费者</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.</span> <span class="nav-text">消息消费模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A8%E9%80%81%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.1.</span> <span class="nav-text">推送模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8B%89%E5%8F%96%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.2.</span> <span class="nav-text">拉取模型</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E6%B6%88%E8%B4%B9%E5%88%86%E5%8C%BA%E7%9A%84%E7%AD%96%E7%95%A5"><span class="nav-number">2.2.</span> <span class="nav-text">消费者消费分区的策略</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Rebalance%E6%9C%BA%E5%88%B6"><span class="nav-number">2.3.</span> <span class="nav-text">Rebalance机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8F%90%E4%BA%A4offset%E6%9C%BA%E5%88%B6"><span class="nav-number">2.4.</span> <span class="nav-text">提交offset机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%8A%A8%E6%8F%90%E4%BA%A4"><span class="nav-number">2.4.1.</span> <span class="nav-text">自动提交</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%8B%E5%8A%A8%E6%8F%90%E4%BA%A4"><span class="nav-number">2.4.2.</span> <span class="nav-text">手动提交</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

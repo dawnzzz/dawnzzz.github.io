@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="BERT 介绍我们将一些不带标注的文章，先预训练，得到一个 Model，这个 Model 可以看作是能够理解文字内容。 接着用一些带标注的特殊语料，进行 Fine-tune（微调），训练出可以完成特殊任务的 Model。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="NLP学习笔记 (3) BERT及其家族">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/05/31/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="BERT 介绍我们将一些不带标注的文章，先预训练，得到一个 Model，这个 Model 可以看作是能够理解文字内容。 接着用一些带标注的特殊语料，进行 Fine-tune（微调），训练出可以完成特殊任务的 Model。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654002682379.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654003119300.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655029938185.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654004610192.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655030569629.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655030768954.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655031079052.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655038633809.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655038653636.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655031447582.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655031437694.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655038960186.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655039058283.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655039328059.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655039657440.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655041411271.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655041602612.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655041723547.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655042495541.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655042735129.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655043102981.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212223343.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212642721.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212831340.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212978829.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655213269137.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655214116262.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655213909674.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655214440846.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655715119065.png">
+<meta property="article:published_time" content="2022-05-31T08:51:03.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.783Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="深度学习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654002682379.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/05/31/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>NLP学习笔记 (3) BERT及其家族 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/31/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          NLP学习笔记 (3) BERT及其家族
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-31 16:51:03" itemprop="dateCreated datePublished" datetime="2022-05-31T16:51:03+08:00">2022-05-31</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">NLP学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="BERT-介绍"><a href="#BERT-介绍" class="headerlink" title="BERT 介绍"></a>BERT 介绍</h1><p>我们将一些不带标注的文章，先<strong>预训练</strong>，得到一个 Model，这个 Model 可以看作是能够理解文字内容。</p>
+<p>接着用一些带标注的特殊语料，进行 <strong>Fine-tune（微调）</strong>，训练出可以完成特殊任务的 Model。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654002682379.png" alt="1654002682379"></p>
+<span id="more"></span>
+
+<h2 id="什么是预训练"><a href="#什么是预训练" class="headerlink" title="什么是预训练"></a>什么是预训练</h2><h3 id="早期预训练模型"><a href="#早期预训练模型" class="headerlink" title="早期预训练模型"></a>早期预训练模型</h3><ul>
+<li>早期的预训练模型，可以看作是输入 token（一个英文字母为一个 token），输出为每一个 token 对应的<strong>词嵌入</strong>。如 <strong>Word2vec、Glove</strong>。</li>
+<li>或者输入一个英文单词的各个<strong>字母</strong>，输出一个词嵌入，这种情况下可以<strong>识别新词</strong>。如 <strong>FastText</strong>。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654003119300.png" alt="1654003119300"></p>
+<ul>
+<li>类似的对于中文，可以输入中文图片到 CNN 中，可以期待 CNN 学会中文的偏旁部首信息。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655029938185.png" alt="1655029938185"></p>
+<p>这种预训练模型的一个<strong>缺点</strong>就是，<strong>不考虑上下文</strong>。对于<strong>相同的 token</strong>，一定输出<strong>相同的词嵌入</strong>，尽管相同的 token 在不同的上下文中的含义可能有所不同。</p>
+<h3 id="Contextualized-词嵌入"><a href="#Contextualized-词嵌入" class="headerlink" title="Contextualized 词嵌入"></a>Contextualized 词嵌入</h3><p>可以训练<strong>考虑上下文的词嵌入</strong>，输入<strong>整个句子</strong>到一个深层网络中，输出为每一个 token 的词嵌入。网络架构可以是：</p>
+<ul>
+<li><strong>LSTM</strong></li>
+<li><strong>自注意力层</strong></li>
+<li><strong>Tree-based 模型（文法结构很清楚时可用）</strong></li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1654004610192.png" alt="1654004610192"></p>
+<h2 id="如何微调（fine-tune）"><a href="#如何微调（fine-tune）" class="headerlink" title="如何微调（fine-tune）"></a>如何微调（fine-tune）</h2><h3 id="NLP-任务分类"><a href="#NLP-任务分类" class="headerlink" title="NLP 任务分类"></a>NLP 任务分类</h3><ul>
+<li><p>根据<strong>输入</strong>：</p>
+<ul>
+<li>一个句子</li>
+<li>多个句子：句子之间用 <code>SEP</code> 分隔符分隔。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655030569629.png" alt="1655030569629"></p>
+</li>
+<li><p>根据<strong>输出</strong>：</p>
+<ul>
+<li>输出<strong>一个类别</strong> class：<ul>
+<li>输入时，第一个 token 为 <code>CLS</code>作为标记，表示<strong>输出与整个句子有关的词嵌入</strong>。 可以将与整个句子有关的词嵌入，放入另一个模型中。</li>
+<li>或者可以可以没有 <code>CLS</code>，将预训练模型的所有输出作为另一个模型的输入，这个模型只输出一个类别。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655030768954.png" alt="1655030768954"></p>
+<ul>
+<li><strong>每一个</strong> token 都输出一个<strong>类别</strong> class：第一个输入为 <code>CLS</code>，将每一个输出作为另一个模型的输入，这个模型为每一个输入都生成一个类别。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655031079052.png" alt="1655031079052"></p>
+<ul>
+<li><strong>复制</strong>输入的某部分作为输出：输出<strong>开始位置</strong>、<strong>结束位置</strong>。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655038633809.png" alt="1655038633809"></p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655038653636.png" alt="1655038653636"></p>
+<ul>
+<li><p><strong>生成</strong>一个句子：</p>
+<ul>
+<li>预训练模型作为 Encoder，再经过 Attention、Decoder 生成一个句子。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655031447582.png" alt="1655031447582"></p>
+<ul>
+<li>将输入的最后一个字符 <code>SEP</code> 在 Task Specific Model 中所对应生成的 token 作为新的输出。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655031437694.png" alt="1655031437694"></p>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="微调-fine-tune-的方法"><a href="#微调-fine-tune-的方法" class="headerlink" title="微调 fine-tune 的方法"></a>微调 fine-tune 的方法</h3><ul>
+<li>方案一：在微调时，将预训练模型的参数<strong>固定</strong>，只训练 Task Specific Model 的参数。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655038960186.png" alt="1655038960186"></p>
+<ul>
+<li>方案二：<strong>同时训练</strong>预训练模型和 Task Specific Model 的参数。（<strong>效果更好</strong>）</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655039058283.png" alt="1655039058283"></p>
+<hr>
+<p>方案二  同时训练预训练模型和 Task Specific Medel 的参数的<strong>问题</strong>：每一次微调都会产生一个完全新的模型。</p>
+<p>解决方法：<strong>Adapter</strong>，在预训练模型中加入一些 Layer，称为 Adapter。在微调时，<strong>只训练预训练模型中 Adapter 的参数</strong>。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655039328059.png" alt="1655039328059"></p>
+<hr>
+<h3 id="Weighted-Features"><a href="#Weighted-Features" class="headerlink" title="Weighted Features"></a>Weighted Features</h3><p>在上文中，只是将预训练模型中最后一层的输出作为 Task Specific Model 的输入。</p>
+<p>其实，在预训练模型中，每一层的信息可能是不一样的，所有可以将<strong>每一层的输出加权（权重可以训练或者固定）合并</strong>起来作为 Task Specific Model 的输入。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655039657440.png" alt="1655039657440"></p>
+<h2 id="如何预训练"><a href="#如何预训练" class="headerlink" title="如何预训练"></a>如何预训练</h2><p>可以将<strong>翻译</strong>作为预训练模型的任务，其中 <strong>Encoder</strong> 就是<strong>预训练模型</strong>。因为翻译需要尽可能的表示一句话中每一个单词的意思，所以 Encoder 生产的词嵌入可能会准确的表示每一个输入的意思。</p>
+<p>但是这样有一个<strong>问题</strong>，就是所有的训练数据都需要是<strong>有标注的</strong>。</p>
+<p>解决思路：<strong>自监督学习</strong>，通过无标注的数据自动生成输入和标签：</p>
+<ul>
+<li>预测下一个 token</li>
+<li>Masking Input（BERT的做法）</li>
+<li>XLNet</li>
+<li>MASS / BART</li>
+<li>UniLM</li>
+<li>Replace or Not</li>
+<li>Sentence Level</li>
+</ul>
+<h3 id="预测下一个-token（语言模型-LM）"><a href="#预测下一个-token（语言模型-LM）" class="headerlink" title="预测下一个 token（语言模型 LM）"></a>预测下一个 token（语言模型 LM）</h3><p>可以通过<strong>预测下一个 token</strong> 来进行预训练，需要<strong>注意</strong>的是：<strong>不能</strong>将一句话的<strong>所有 token 都同时输入</strong>，这样预训练模型可能会学习到，每一个 token 预测的输出为输入的下一个 token。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655041411271.png" alt="1655041411271"></p>
+<p>网络模型可以使用：</p>
+<ul>
+<li>LSTM：ELMo、ULMFiT</li>
+<li>Self-Attention：GPT、GPT-2</li>
+</ul>
+<p>需要注意的是，当使用 <strong>Self-Attention</strong> 时，是<strong>有限制</strong>（with constraint）的 Attention，即每一次只能 Attention 到<strong>之前的输入</strong>。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655041602612.png" alt="1655041602612"></p>
+<hr>
+<p><strong>ELMo</strong> 使用了<strong>双向的 LSTM</strong>，即从前向后、从后向前两个方向的结果拼接起来，得到词嵌入。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655041723547.png" alt="1655041723547"></p>
+<p>即使是双向的LSTM，<strong>依然有一个问题：</strong></p>
+<p><strong>正向 LSTM 没有考虑到后面的单词，反向 LSTM 没有考虑到前面的单词</strong>。由此引入 <strong>Masking Input</strong> 的方法。</p>
+<h3 id="Masking-Input"><a href="#Masking-Input" class="headerlink" title="Masking Input"></a>Masking Input</h3><p>Masking Input 就是“<strong>盖住</strong>”一部分输入，预测被盖住的 token。</p>
+<p><strong>盖住：</strong>可以用一个特殊的 token 替换；也可以替换为一个随机的 token。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655042495541.png" alt="1655042495541"></p>
+<p>Masking 的长度：</p>
+<ul>
+<li>**Whole Word Masking (WWM)**：不仅仅盖住一个 token，而是盖住整个单词/词语（一个单词/词语可能由多个 token 组成）</li>
+<li><strong>Phrase-level &amp; Entity-level</strong>：盖住短语，或者是一个实体。</li>
+<li><strong>SpanBert</strong>：随意的盖住一段范围内的 token，长度随机，长度越长，概率越小。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655042735129.png" alt="1655042735129"></p>
+<hr>
+<p>SpanBert 提出了 <strong>Span Boundary Objective（SBO）</strong>，是一个小型的 Model，根据 Masking 部分的<strong>前一个</strong>和<strong>后一个</strong>词嵌入预测 Masking 的第 x 个 token。</p>
+<p>SBO 期待一个 span 左右两边的 embeding 包含整个 span 的信息。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655043102981.png" alt="1655043102981"></p>
+<hr>
+<h3 id="XLNet"><a href="#XLNet" class="headerlink" title="XLNet"></a>XLNet</h3><p><strong>XLNet</strong>，即 Transformer-XL，它不想 BERT 输入 Masking 周围的所有 token，而是<strong>根据任意的 token（token的顺序也会被打乱）</strong>，来预测 Masking 的 token。</p>
+<p>这样做的<strong>目的</strong>是：可以更好的挖掘 token 之间的联系信息。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212223343.png" alt="1655212223343"></p>
+<h3 id="MASS-BART"><a href="#MASS-BART" class="headerlink" title="MASS / BART"></a>MASS / BART</h3><p>在 <strong>autoregressive model（从左到右依次生成句子）</strong> 中，BERT ”<strong>不善言辞</strong>“，不善于去做生成句子的任务，因为 BERT 会”看到“ Masking 前后的 token。</p>
+<p>MASS / BART 提出了解决方案，即通过输入<strong>被破坏</strong>（corrupted）的 token，<strong>输出是原来正确的句子</strong>，来训练一个 seq2seq 模型。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212642721.png" alt="1655212642721"></p>
+<p>关于<strong>如何 Corrupted</strong>，有如下方案：</p>
+<ul>
+<li>MASS：遮盖住一个 token</li>
+<li>Delete：删除一个 token</li>
+<li>Permutation：打乱句子间的顺序</li>
+<li>Rotation：对所有句子进行循环移位</li>
+<li>Text Infilling：随机插入 MASK、随机遮盖多个 token</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212831340.png" alt="1655212831340"></p>
+<p>最终 BART 得到结论：</p>
+<p>Permutation 和 Rotation 效果不好，Text Infilling 效果最好。</p>
+<h3 id="UniLM"><a href="#UniLM" class="headerlink" title="UniLM"></a>UniLM</h3><p><strong>UniLM</strong> 提出了一个方案，可以使得<strong>同一个 Model</strong>，同时是 <strong>Encoder、Decoder 和 Seq2seq</strong>。</p>
+<ul>
+<li><strong>当作为 Encoder 时</strong>，就是一个 BERT，会注意到<strong>所有的 token</strong>。</li>
+<li><strong>当作为 Decoder 时</strong>，就是一个 GPT，只会注意<strong>之前的 token</strong>。</li>
+<li><strong>当作为 Seq2seq 时</strong>，将 Model 分为<strong>两个部分</strong>，前一个部分是全连接会注意到<strong>第一部分所有的 token</strong>，后一个部分 只会注意到<strong>之前的 token</strong>。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655212978829.png" alt="1655212978829"></p>
+<h3 id="Replace-or-Not"><a href="#Replace-or-Not" class="headerlink" title="Replace or Not"></a>Replace or Not</h3><p>Efficiently Learning an Encoder that Classifies Token Replacements Accurately（<strong>ELECTRA</strong>）提出了一个新的预训练方法：<strong>判断输入中是否有 token 被替换</strong>。</p>
+<p>可以用一个 BERT 去生成一个被替换的 token。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655213269137.png" alt="1655213269137"></p>
+<h3 id="Sentence-Level"><a href="#Sentence-Level" class="headerlink" title="Sentence Level"></a>Sentence Level</h3><p>对于生成一整个句子的 embeding，有如下方法：</p>
+<ul>
+<li><strong>Skip Thought</strong>：Encoder 生成一个句子的 embeding，再放入 Decoder，生成下一个句子。对于 Decoder 生成两个相同句子 的输入，使他们的 embeding 越接近越好。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655214116262.png" alt="1655214116262"></p>
+<ul>
+<li><strong>Quick Thought</strong>：对于两个<strong>相邻</strong>的句子，使他们的 embeding 越接近越好。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655213909674.png" alt="1655213909674"></p>
+<ul>
+<li><strong>在 BETRT 中</strong>，就是对于整个句子的 embeding，放入一个二分类器中，使之输出 yes/no。可以分为两种任务：<ul>
+<li><strong>NSP（Next Sentence Prediction）</strong>：输入两个句子，若第二个句子可以接在第一个句子后，则输出 yes。</li>
+<li><strong>SOP（Sentence Order Prediction）</strong>：输入多个句子，若这些句子顺序正确，则输出 yes。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655214440846.png" alt="1655214440846"></p>
+<h1 id="Multi-lingual-BERT"><a href="#Multi-lingual-BERT" class="headerlink" title="Multi-lingual BERT"></a>Multi-lingual BERT</h1><p>多语言 BERT 模型，可以将各种语言都放入 model 中训练。</p>
+<p><strong>跨语言学习</strong>：可以拿多种语言进行<strong>预训练</strong>，再用中文或者英文的训练资料进行 <strong>fine-tune</strong>，微调后的 model 可以运行在中文语言上。（<strong>训练在一个语言上，测试在另一个语言上</strong>）</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/1655715119065.png" alt="1655715119065"></p>
+<hr>
+<p>这样的多语言模型，可以进行跨语言学习，实际上生成的 embedding 中是<strong>含有语言信息的</strong>：</p>
+<p>在 Multi-BERT 中，训练时是输入什么语言，输出什么语言的，不会混在一起。所以在 Multi-BERT 生成的 embedding 中，一定是含有语言信息的。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/" rel="tag"># 深度学习</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/05/30/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-NLP%E4%BB%BB%E5%8A%A1%E6%A6%82%E8%BF%B0/" rel="prev" title="NLP学习笔记 (2) NLP任务概述">
+      <i class="fa fa-chevron-left"></i> NLP学习笔记 (2) NLP任务概述
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/06/14/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/" rel="next" title="GO语言杂谈 (11) 依赖管理">
+      GO语言杂谈 (11) 依赖管理 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#BERT-%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">BERT 介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF%E9%A2%84%E8%AE%AD%E7%BB%83"><span class="nav-number">1.1.</span> <span class="nav-text">什么是预训练</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A9%E6%9C%9F%E9%A2%84%E8%AE%AD%E7%BB%83%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.1.</span> <span class="nav-text">早期预训练模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Contextualized-%E8%AF%8D%E5%B5%8C%E5%85%A5"><span class="nav-number">1.1.2.</span> <span class="nav-text">Contextualized 词嵌入</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%BE%AE%E8%B0%83%EF%BC%88fine-tune%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">如何微调（fine-tune）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#NLP-%E4%BB%BB%E5%8A%A1%E5%88%86%E7%B1%BB"><span class="nav-number">1.2.1.</span> <span class="nav-text">NLP 任务分类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BE%AE%E8%B0%83-fine-tune-%E7%9A%84%E6%96%B9%E6%B3%95"><span class="nav-number">1.2.2.</span> <span class="nav-text">微调 fine-tune 的方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Weighted-Features"><span class="nav-number">1.2.3.</span> <span class="nav-text">Weighted Features</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E9%A2%84%E8%AE%AD%E7%BB%83"><span class="nav-number">1.3.</span> <span class="nav-text">如何预训练</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A2%84%E6%B5%8B%E4%B8%8B%E4%B8%80%E4%B8%AA-token%EF%BC%88%E8%AF%AD%E8%A8%80%E6%A8%A1%E5%9E%8B-LM%EF%BC%89"><span class="nav-number">1.3.1.</span> <span class="nav-text">预测下一个 token（语言模型 LM）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Masking-Input"><span class="nav-number">1.3.2.</span> <span class="nav-text">Masking Input</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#XLNet"><span class="nav-number">1.3.3.</span> <span class="nav-text">XLNet</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MASS-BART"><span class="nav-number">1.3.4.</span> <span class="nav-text">MASS &#x2F; BART</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#UniLM"><span class="nav-number">1.3.5.</span> <span class="nav-text">UniLM</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Replace-or-Not"><span class="nav-number">1.3.6.</span> <span class="nav-text">Replace or Not</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Sentence-Level"><span class="nav-number">1.3.7.</span> <span class="nav-text">Sentence Level</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Multi-lingual-BERT"><span class="nav-number">2.</span> <span class="nav-text">Multi-lingual BERT</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

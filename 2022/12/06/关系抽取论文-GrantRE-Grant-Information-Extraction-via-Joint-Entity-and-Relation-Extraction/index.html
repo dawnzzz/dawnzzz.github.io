@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="GrantRel: Grant Information Extraction via Joint Entity and Relation Extraction 会议：ACL2021 作者：Junyi Bian, Li Huang 机构：School of Computer Science, Fudan University motivation：资助信息对于学术机构和资助机构都很重要。但是目前对">
+<meta property="og:type" content="article">
+<meta property="og:title" content="关系抽取论文 GrantRE: Grant Information Extraction via Joint Entity and Relation Extraction">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/12/06/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="GrantRel: Grant Information Extraction via Joint Entity and Relation Extraction 会议：ACL2021 作者：Junyi Bian, Li Huang 机构：School of Computer Science, Fudan University motivation：资助信息对于学术机构和资助机构都很重要。但是目前对">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206164118607.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206164808187.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206165451963.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206170246537.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206171357118.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206171628861.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206172035612.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206173728948.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206173750187.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206174134947.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206174154982.png">
+<meta property="article:published_time" content="2022-12-06T06:51:00.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.809Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="关系抽取">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206164118607.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/12/06/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>关系抽取论文 GrantRE: Grant Information Extraction via Joint Entity and Relation Extraction | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/06/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          关系抽取论文 GrantRE: Grant Information Extraction via Joint Entity and Relation Extraction
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-06 14:51:00" itemprop="dateCreated datePublished" datetime="2022-12-06T14:51:00+08:00">2022-12-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87/" itemprop="url" rel="index"><span itemprop="name">关系抽取论文</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p><strong>GrantRel: Grant Information Extraction via Joint Entity and Relation Extraction</strong></p>
+<p>会议：ACL2021</p>
+<p>作者：Junyi Bian, Li Huang</p>
+<p>机构：School of Computer Science, Fudan University</p>
+<p>motivation：资助信息对于学术机构和资助机构都很重要。但是目前对于这一主题的研究有两点挑战：</p>
+<ul>
+<li>没有高质量的数据集。</li>
+<li>提取资助者和 grantIDs 之间关系的负责性</li>
+</ul>
+<p>贡献：</p>
+<ul>
+<li>提出了<strong>一种 pipeline 的资助信息关系抽取框架 GrantRE</strong>，包含了两个部分 funding sentence classifier 和 joint entity and relation extractor。</li>
+<li>人工标注了两个数据集，Grant-SP 包含 1402 个句子用于训练 funding sentence classifier，Grant-RE 包含 3331 个句子用于 joint entity and relation extractor。</li>
+</ul>
+<p>GitHub：<a target="_blank" rel="noopener" href="https://github.com/Eulring/GrantRel">https://github.com/Eulring/GrantRel</a></p>
+</blockquote>
+<p>grant information 作为学术文章的一部分，包含了 funder name，grant number 和它们的关系。分别将 funder name（subject）和 GrantID（object）作为实体，将 grant information 抽取问题转为关系抽取问题。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206164118607.png" alt="image-20221206164118607"></p>
+<h1 id="模型结构"><a href="#模型结构" class="headerlink" title="模型结构"></a>模型结构</h1><p>下图的左侧为 GrantRE 的工作流：</p>
+<ul>
+<li><strong>Sentence Classification：</strong>用于挑选出可能包含资助信息的句子。</li>
+<li><strong>Relation Extraction：</strong>提取资助信息。</li>
+</ul>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206164808187.png" alt="image-20221206164808187"></p>
+<h2 id="Identification-of-funding-sentences"><a href="#Identification-of-funding-sentences" class="headerlink" title="Identification of funding sentences"></a>Identification of funding sentences</h2><p>使用 BioBERT 作为预训练模型，将句子输入到预训练模型中，使用 [CLS] 对应的 embedding（[CLS] 包含的句子的 embedding），获取这个句子包含资助信息的可能性。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206165451963.png" alt="image-20221206165451963"></p>
+<h2 id="Joint-entity-and-RE"><a href="#Joint-entity-and-RE" class="headerlink" title="Joint entity and RE"></a>Joint entity and RE</h2><p>一个资助关系包含<strong>一个 funder（subject）</strong>和<strong>一个 grantID（object）</strong>。</p>
+<h3 id="Funder-name-detection"><a href="#Funder-name-detection" class="headerlink" title="Funder name detection"></a>Funder name detection</h3><p>使用 BIO 去标记实体，将 BioBERT 的输出，送入线性层中去获取 BIO 标签的概率：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206170246537.png" alt="image-20221206170246537"></p>
+<h3 id="Grant-relation-detection"><a href="#Grant-relation-detection" class="headerlink" title="Grant relation detection"></a>Grant relation detection</h3><p>首先根据 funder name 的推理结果得到 funder name 的 embedding 表示。其中 u_fd 表示一个 funder name 实体的位置边界信息信息（起始位置和结束位置）。因为 funder name 的长度是不一致的，所以 f_fd 为<strong>平均池化</strong>操作。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206171357118.png" alt="image-20221206171357118"></p>
+<p>对于每一个 token 进行 BIO 标记以获取 funder name 对应的 GrantID，计算 BIO 标记概率的方法如下（e_gr 表示 grant relation feature，即模型结构图中的 addition feature）：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206171628861.png" alt="image-20221206171628861"></p>
+<h3 id="GrantID-detection"><a href="#GrantID-detection" class="headerlink" title="GrantID detection"></a>GrantID detection</h3><p>如果在前一步中未检测到一个资助者的名称，那么将会错过相应的 GrantID。此外，由于句子的分割问题 GrantID 可能会在句子中独立出现而没有相应的 funder。</p>
+<p>为了提取出完整的 GantID，使用了<strong>一个可训练的向量 e_hat 来表示所有的 funder name</strong>。这意味着句子中的所有 GrantID 都应该与这个特殊的 funder 相匹配。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206172035612.png" alt="image-20221206172035612"></p>
+<h2 id="Grant-relation-feature"><a href="#Grant-relation-feature" class="headerlink" title="Grant relation feature"></a>Grant relation feature</h2><p>为了正确的建立 funder name 和 GrantID 之间的关系，除了使用 funder representation e_fd 之外，还使用了 addition feature e_gr。这个 feature 描述了 token 与 funder 之间的关系，用<strong>位置向量</strong>和<strong>上下文信息</strong>生成。</p>
+<h3 id="Position-embedding"><a href="#Position-embedding" class="headerlink" title="Position embedding"></a>Position embedding</h3><p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206173728948.png" alt="image-20221206173728948"></p>
+<p>一些 funder name 的跨度相对较长，所以用一个数字来表示所有的距离是不准确的。我们将<strong>两个相对距离（与起始位置的距离和与结束位置的距离）的 embedding 作为我们最终的位置 embedding</strong>：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206173750187.png" alt="image-20221206173750187"></p>
+<h3 id="Context-embedding"><a href="#Context-embedding" class="headerlink" title="Context embedding"></a>Context embedding</h3><p>一个句子中除了 funder name 和当前的 token 之外的所有其他 token 为上下文，对上下文使用<strong>最大池化</strong>来获取 context embedding。</p>
+<h3 id="Adaptive-embedding"><a href="#Adaptive-embedding" class="headerlink" title="Adaptive embedding"></a>Adaptive embedding</h3><p>位置和上下文的两种嵌入的组合，可以使模型更加健壮。<strong>当上下文意义非常清晰时，论文期望所提出的模型可以更多地关注上下文信息</strong>。根据这一观点，提出了一种机制，可以平衡两种 embedding，以一种<strong>自适应</strong>的方式处理不同的情况：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206174134947.png" alt="image-20221206174134947"></p>
+<p>其中，α 是可训练的<strong>由上下文 embedding 决定</strong>的一个标量：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/image-20221206174154982.png" alt="image-20221206174154982"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96/" rel="tag"># 关系抽取</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/05/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/" rel="prev" title="关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/15/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-IPRE-a-Dataset-for-Inter-Personal-Relationship-Extraction/" rel="next" title="关系抽取论文 IPRE: a Dataset for Inter-Personal Relationship Extraction">
+      关系抽取论文 IPRE: a Dataset for Inter-Personal Relationship Extraction <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">模型结构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Identification-of-funding-sentences"><span class="nav-number">1.1.</span> <span class="nav-text">Identification of funding sentences</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Joint-entity-and-RE"><span class="nav-number">1.2.</span> <span class="nav-text">Joint entity and RE</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Funder-name-detection"><span class="nav-number">1.2.1.</span> <span class="nav-text">Funder name detection</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Grant-relation-detection"><span class="nav-number">1.2.2.</span> <span class="nav-text">Grant relation detection</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GrantID-detection"><span class="nav-number">1.2.3.</span> <span class="nav-text">GrantID detection</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Grant-relation-feature"><span class="nav-number">1.3.</span> <span class="nav-text">Grant relation feature</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Position-embedding"><span class="nav-number">1.3.1.</span> <span class="nav-text">Position embedding</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Context-embedding"><span class="nav-number">1.3.2.</span> <span class="nav-text">Context embedding</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Adaptive-embedding"><span class="nav-number">1.3.3.</span> <span class="nav-text">Adaptive embedding</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="sync.Poolsync.Pool 用于复用对象，sync.Pool 是可伸缩的，同时也是并发安全的，其大小仅受限于内存的大小。从 sync.Pool 中取出的值不一定每一次都会经过内存分配，可以复用之前已经创建过已有但是已经使用结束的对象。  简单来说，就是保存和复用临时对象，减少内存分配，降低 GC 压力。  sync.Pool 使用只需要知道三点即可：  声明对象池时，需要指定 New 函">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Go语言高性能编程 (5) 并发编程——Pool Once Cond">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="sync.Poolsync.Pool 用于复用对象，sync.Pool 是可伸缩的，同时也是并发安全的，其大小仅受限于内存的大小。从 sync.Pool 中取出的值不一定每一次都会经过内存分配，可以复用之前已经创建过已有但是已经使用结束的对象。  简单来说，就是保存和复用临时对象，减少内存分配，降低 GC 压力。  sync.Pool 使用只需要知道三点即可：  声明对象池时，需要指定 New 函">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/25577671-0d8eed7b3e65d54e.png">
+<meta property="article:published_time" content="2023-03-27T01:01:40.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.760Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/25577671-0d8eed7b3e65d54e.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Go语言高性能编程 (5) 并发编程——Pool Once Cond | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Go语言高性能编程 (5) 并发编程——Pool Once Cond
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-27 09:01:40" itemprop="dateCreated datePublished" datetime="2023-03-27T09:01:40+08:00">2023-03-27</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="sync-Pool"><a href="#sync-Pool" class="headerlink" title="sync.Pool"></a>sync.Pool</h1><p>sync.Pool 用于复用对象，sync.Pool 是<strong>可伸缩</strong>的，同时也是<strong>并发安全</strong>的，其大小仅受限于内存的大小。从 sync.Pool 中取出的值<strong>不一定每一次都会经过内存分配</strong>，可以<strong>复用之前已经创建过已有但是已经使用结束的对象</strong>。</p>
+<blockquote>
+<p>简单来说，就是<strong>保存和复用临时对象，减少内存分配，降低 GC 压力</strong>。</p>
+</blockquote>
+<p>sync.Pool 使用只需要知道三点即可：</p>
+<ul>
+<li>声明对象池时，需要<strong>指定 New 函数</strong>，对象池中没有对象时，将会调用 New 函数创建。</li>
+<li>Get 用于从对象池中<strong>获取</strong>一个对象，Put 用于向对象池内<strong>放回</strong>一个对象。</li>
+</ul>
+<p>如果在需要频繁创建对象的场景下，sync.Pool 有两个<strong>优点</strong>：</p>
+<ul>
+<li><strong>节省了对象初始化的时间</strong>，因为每一次都不一定是新的对象所以可以在一定程度上节省对象初始化时间，提升了效率。</li>
+<li><strong>节省内存分配</strong>，对象是可重用的，不必每一次都分配内存。</li>
+</ul>
+<h1 id="sync-Once"><a href="#sync-Once" class="headerlink" title="sync.Once"></a>sync.Once</h1><p>sync.Once 保证了<strong>只执行一次函数</strong>，常常用于<strong>单例模式</strong>，在前文中也可以用于关闭管道。sync.Once 仅提供了一个方法 Do，参数 f 是对象初始化函数：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o *Once)</span> <span class="title">Do</span><span class="params">(f <span class="keyword">func</span>()</span>)</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="原理实现"><a href="#原理实现" class="headerlink" title="原理实现"></a>原理实现</h2><p>从 sync.Once 的功能可以想到，用于实现它需要两个部分：</p>
+<ul>
+<li><strong>一个标志判断是否已经执行了 Do</strong>，如果没有执行过 Do 则执行对象初始化函数。</li>
+<li>线程安全，并发的判断是否已经执行了，如果没有则执行 Do 中定义的函数，所以需要<strong>互斥锁</strong>来实现。</li>
+</ul>
+<p>以下是 sync.Once 的源码实现，其中 Once 结构体包含两个字段：</p>
+<ul>
+<li>done 字段用于标记是否已经执行过。</li>
+<li>m 字段为互斥锁。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Once <span class="keyword">struct</span> &#123;</span><br><span class="line">    done <span class="keyword">uint32</span></span><br><span class="line">    m    Mutex</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o *Once)</span> <span class="title">Do</span><span class="params">(f <span class="keyword">func</span>()</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> atomic.LoadUint32(&amp;o.done) == <span class="number">0</span> &#123;</span><br><span class="line">        o.doSlow(f)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o *Once)</span> <span class="title">doSlow</span><span class="params">(f <span class="keyword">func</span>()</span>)</span> &#123;</span><br><span class="line">    o.m.Lock()</span><br><span class="line">    <span class="keyword">defer</span> o.m.Unlock()</span><br><span class="line">    <span class="keyword">if</span> o.done == <span class="number">0</span> &#123;</span><br><span class="line">        <span class="keyword">defer</span> atomic.StoreUint32(&amp;o.done, <span class="number">1</span>)</span><br><span class="line">        f()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<ol>
+<li><strong>热路径</strong> (hot path) 是程序非常频繁执行的一系列指令，sync.Once 绝大部分场景都会访问 <code>o.done</code>，在热路径上是比较好理解的，如果 hot path 编译后的机器码指令更少，更直接，必然是能够提升性能的。</li>
+<li><strong>为什么放在第一个字段就能够减少指令呢？</strong>因为<strong>结构体第一个字段的地址和结构体的指针是相同的</strong>，如果是第一个字段，<strong>直接对结构体的指针解引用即可</strong>。如果是其他的字段，除了结构体指针外，还需要计算与第一个值的偏移 (calculate offset)。在机器码中，偏移量是随指令传递的附加值，CPU 需要做一次偏移值与指针的加法运算，才能获取要访问的值的地址。因此，访问第一个字段的机器代码更紧凑，速度更快。</li>
+</ol>
+<h1 id="sync-Cond"><a href="#sync-Cond" class="headerlink" title="sync.Cond"></a>sync.Cond</h1><blockquote>
+<p><strong>sync.Cond 与互斥锁不用，它用于协程之间的同步。</strong>协调想要访问共享资源的那些 goroutine，当共享资源的状态发生变化的时候，它可以用来通知被互斥锁阻塞的 goroutine。</p>
+</blockquote>
+<p>sync.Cond 基于互斥锁/读写锁，那么它和互斥锁之间有什么区别？</p>
+<ul>
+<li>互斥锁通常用于保护临界区和共享资源，<strong>条件变量 sync.Cond 用来协调想要访问共享资源的 goroutine</strong>。</li>
+<li>sync.Cond 经常用在<strong>多个 goroutine 等待，一个 goroutine 通知</strong>（事件发生）的场景。</li>
+</ul>
+<h2 id="四个方法"><a href="#四个方法" class="headerlink" title="四个方法"></a>四个方法</h2><p>sync.Cond 有四个相关方法：</p>
+<ul>
+<li><strong>NewCond 创建实例：</strong>NewCond 创建 Cond 实例时<strong>，需要关联一个锁。</strong></li>
+<li><strong>Broadcast 广播唤醒所有：</strong>Broadcast 唤醒所有等待条件变量 c 的 goroutine，无需锁保护。</li>
+<li><strong>Signal 唤醒一个：</strong>Signal 只唤醒任意 1 个等待条件变量 c 的 goroutine，无需锁保护。</li>
+<li><strong>Wait 等待：</strong>调用 Cond.Wait 方法时必须加锁。</li>
+</ul>
+<blockquote>
+<p><strong>Cond.Wait 的使用需要参照以下模板：</strong></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">c.L.Lock()</span><br><span class="line"><span class="keyword">for</span> !condition() &#123;</span><br><span class="line">    c.Wait()</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// ... make use of condition ...</span></span><br><span class="line">c.L.Unlock()</span><br></pre></td></tr></table></figure>
+</blockquote>
+<h2 id="实现"><a href="#实现" class="headerlink" title="实现"></a>实现</h2><h3 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h3><p>sync.Cond 的定义如下：每一个 Cond 都会关联一个锁，<strong>当条件改变或者调用 Cond.Wait 方法时必须加锁</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Each Cond has an associated Locker L (often a *Mutex or *RWMutex),</span></span><br><span class="line"><span class="comment">// which must be held when changing the condition and</span></span><br><span class="line"><span class="comment">// when calling the Wait method.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// A Cond must not be copied after first use.</span></span><br><span class="line"><span class="keyword">type</span> Cond <span class="keyword">struct</span> &#123;</span><br><span class="line">	noCopy noCopy <span class="comment">// Cond使用后不允许拷贝</span></span><br><span class="line">    <span class="comment">// L is held while observing or changing the condition</span></span><br><span class="line">    L Locker</span><br><span class="line">    </span><br><span class="line">   <span class="comment">//通知列表调用wait()方法的goroutine会被放到notifyList中</span></span><br><span class="line">    notify  notifyList</span><br><span class="line">    checker copyChecker <span class="comment">//检查Cond实例是否被复制</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>而 notifyList 的定义如下，包含三类字段：</p>
+<ul>
+<li>wait 和 notify 两个无符号整型，分别表示了 Wait() 操作的次数和 goroutine 被唤醒的次数。</li>
+<li>lock 是系统内部运行时实现的一个简单版本的互斥锁。</li>
+<li>tail 和 head 维护了阻塞在当前 sync.Cond 上的 goroutine 链表。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> notifyList <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// wait is the ticket number of the next waiter. It is atomically</span></span><br><span class="line">    <span class="comment">// incremented outside the lock.</span></span><br><span class="line">    wait <span class="keyword">uint32</span> <span class="comment">// 等待goroutine操作的数量</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// notify is the ticket number of the next waiter to be notified. It can</span></span><br><span class="line">    <span class="comment">// be read outside the lock, but is only written to with lock held.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Both wait &amp; notify can wrap around, and such cases will be correctly</span></span><br><span class="line">    <span class="comment">// handled as long as their &quot;unwrapped&quot; difference is bounded by 2^31.</span></span><br><span class="line">    <span class="comment">// For this not to be the case, we&#x27;d need to have 2^31+ goroutines</span></span><br><span class="line">    <span class="comment">// blocked on the same condvar, which is currently not possible.</span></span><br><span class="line">    notify <span class="keyword">uint32</span> <span class="comment">// 唤醒goroutine操作的数量</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// List of parked waiters.</span></span><br><span class="line">    lock mutex</span><br><span class="line">    head *sudog</span><br><span class="line">    tail *sudog</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../images/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/25577671-0d8eed7b3e65d54e.png" alt="img"></p>
+<h3 id="Wait-实现"><a href="#Wait-实现" class="headerlink" title="Wait 实现"></a>Wait 实现</h3><p>至于调用 Cond.Wait 方法时必须加锁，就需要查看 Wait 的实现原理了。</p>
+<p>Cond.Wait 方法在<strong>挂起 goroutine 期间，会在 Wait 方法内部释放锁</strong>，所以需要在调用 Cond.Wait 方法时加锁。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Cond)</span> <span class="title">Wait</span><span class="params">()</span></span> &#123;</span><br><span class="line">  <span class="comment">//1. 检查cond是否被拷贝</span></span><br><span class="line">    c.checker.check()</span><br><span class="line">  <span class="comment">//2. notifyList.wait+1</span></span><br><span class="line">    t := runtime_notifyListAdd(&amp;c.notify)</span><br><span class="line">  <span class="comment">//3. 释放锁 让出资源给其他goroutine</span></span><br><span class="line">    c.L.Unlock()</span><br><span class="line">  <span class="comment">//4. 挂起goroutine</span></span><br><span class="line">    runtime_notifyListWait(&amp;c.notify, t)</span><br><span class="line">  <span class="comment">//5. 尝试获得锁</span></span><br><span class="line">    c.L.Lock()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/" rel="prev" title="Go语言高性能编程 (4) 并发编程——关闭通道">
+      <i class="fa fa-chevron-left"></i> Go语言高性能编程 (4) 并发编程——关闭通道
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-6-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E9%80%83%E9%80%B8%E5%88%86%E6%9E%90/" rel="next" title="Go语言高性能编程 (6) 编译优化——逃逸分析">
+      Go语言高性能编程 (6) 编译优化——逃逸分析 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#sync-Pool"><span class="nav-number">1.</span> <span class="nav-text">sync.Pool</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#sync-Once"><span class="nav-number">2.</span> <span class="nav-text">sync.Once</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.1.</span> <span class="nav-text">原理实现</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#sync-Cond"><span class="nav-number">3.</span> <span class="nav-text">sync.Cond</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E4%B8%AA%E6%96%B9%E6%B3%95"><span class="nav-number">3.1.</span> <span class="nav-text">四个方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.2.</span> <span class="nav-text">实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">3.2.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Wait-%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.2.2.</span> <span class="nav-text">Wait 实现</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

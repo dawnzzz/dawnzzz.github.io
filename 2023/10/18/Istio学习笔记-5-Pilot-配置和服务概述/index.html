@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="在 Istio 架构中，Pilot 属于最核心的组件，Pilot 的一个主要职责就是将服务信息和配置数据转换为 xDS 接口的标准数据结构，通过 Grpc stream 下发到数据平面的 Envoy。Polit 的输入来源主要有两个：  服务数据：来源于各个服务注册表（Service Registry），如 Kubernetes 和 Consul。 配置规则：各种配置规则，包括路由规则和流量管理等">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Istio学习笔记 (5) Pilot 配置和服务发现概述">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/10/18/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E9%85%8D%E7%BD%AE%E5%92%8C%E6%9C%8D%E5%8A%A1%E6%A6%82%E8%BF%B0/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="在 Istio 架构中，Pilot 属于最核心的组件，Pilot 的一个主要职责就是将服务信息和配置数据转换为 xDS 接口的标准数据结构，通过 Grpc stream 下发到数据平面的 Envoy。Polit 的输入来源主要有两个：  服务数据：来源于各个服务注册表（Service Registry），如 Kubernetes 和 Consul。 配置规则：各种配置规则，包括路由规则和流量管理等">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018112119194.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/pilot-discovery-struct.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018144618394.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018145100932.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018151458887.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018150822915.png">
+<meta property="article:published_time" content="2023-10-18T02:58:12.000Z">
+<meta property="article:modified_time" content="2024-02-26T08:20:16.375Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta property="article:tag" content="Istio">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018112119194.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/10/18/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E9%85%8D%E7%BD%AE%E5%92%8C%E6%9C%8D%E5%8A%A1%E6%A6%82%E8%BF%B0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Istio学习笔记 (5) Pilot 配置和服务发现概述 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/10/18/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E9%85%8D%E7%BD%AE%E5%92%8C%E6%9C%8D%E5%8A%A1%E6%A6%82%E8%BF%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Istio学习笔记 (5) Pilot 配置和服务发现概述
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-10-18 10:58:12" itemprop="dateCreated datePublished" datetime="2023-10-18T10:58:12+08:00">2023-10-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Istio学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>在 Istio 架构中，Pilot 属于最核心的组件，Pilot 的一个主要职责就是将<strong>服务信息和配置数据</strong>转换为 xDS 接口的标准数据结构，<strong>通过 Grpc stream 下发到数据平面</strong>的 Envoy。Polit 的输入来源主要有两个：</p>
+<ul>
+<li><strong>服务数据：</strong>来源于各个服务注册表（Service Registry），如 Kubernetes 和 Consul。</li>
+<li><strong>配置规则：</strong>各种配置规则，包括路由规则和流量管理等规则。</li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018112119194.png" alt="image-20231018112119194"></p>
+<p>Istio Pilot 代码分为 pilot-agent 和 pilot-discovery，其中 pilot-agent 主要在数据平面负责管理 Envoy 的生命周期，pilot-discovery 是控制平面组件，本节主要分析 pilot-discovery。</p>
+<span id="more"></span>
+
+<h1 id="Pilot-Discovery-代码结构"><a href="#Pilot-Discovery-代码结构" class="headerlink" title="Pilot-Discovery 代码结构"></a>Pilot-Discovery 代码结构</h1><p>下图是 pilot-discovery 的主要代码结构，Pilot-Discovery 的入口函数为 pilot/cmd/pilot-discovery/main.go 中的 main 方法。main 方法中创建了 Discovery Server，<strong>Discovery Server 主要包括三个部分：</strong></p>
+<ul>
+<li><strong>Config Controller</strong></li>
+<li><strong>Service Controller</strong></li>
+<li><strong>Xds Server</strong></li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/pilot-discovery-struct.png" alt="pilot-discovery-struct"></p>
+<h2 id="Config-Controller"><a href="#Config-Controller" class="headerlink" title="Config Controller"></a>Config Controller</h2><p>Config Controller用于<strong>管理各种配置数据</strong>，包括用户创建的流量管理规则和策略。Config Controller 包括：</p>
+<ul>
+<li><strong>Kubernetes</strong>：对接 Kubernetes CRD，从 kube-apiserver 中 watch VirtualService、DestinationRules 等配置信息，有则推送至 XdsServer。</li>
+<li><strong>MCP（Mesh Configuration Protocol）：</strong>使用 Kubernetes 来存储数据会导致 Istio 和 Kubernetes 的<strong>耦合</strong>，限制 Istio 在非 Kubernetes 环境下的使用。所以，Istio 提出了 MCP，MCP 定义了一个向 istio 控制平面下发配置数据的标准协议，<strong>istio pilot 作为 MCP Client，任何实现了 MCP 协议的 Server 都可以通过 MCP 协议向 istio 下发配置</strong>，从而解除了 istio 和 kubernetes 的耦合。</li>
+<li>Memory：内存实现，主要用于测试。</li>
+</ul>
+<p>istio 中的配置包括：VirtualService、DestinationRule、Gateway、ServiceEntry 等。</p>
+<h2 id="Service-Controller"><a href="#Service-Controller" class="headerlink" title="Service Controller"></a>Service Controller</h2><p>Service Controller 用于管理各种注册中心，包括：</p>
+<ul>
+<li><strong>Kubernetes：</strong>对接 Kubernetes，可以将 Kubernetes 定义的服务采集到 istio 中。</li>
+<li><strong>Consul：</strong>使用 Consul 作为注册中心。</li>
+<li><strong>ServiceEntryStore：</strong>描述的是集群外部的服务信息（ServiceEntry），将集群外部的服务信息同步到 istio 中，纳入网格统一进行流量控制和路由。</li>
+<li><strong>MCP：</strong>与具体的注册中心解耦，从 MCP Server 中获取服务注册信息。</li>
+<li>Mock：用于测试。</li>
+</ul>
+<h2 id="Discovery-Service"><a href="#Discovery-Service" class="headerlink" title="Discovery Service"></a>Discovery Service</h2><p>Discovery Service 中主要包含下述逻辑：</p>
+<ul>
+<li>启动 Grpc Server 并接收来自 Envoy 端的连接请求。</li>
+<li><strong>接收 Envoy 端的 xDS 请求</strong>，从 Config Controller 和 Service Controller 中获取<strong>配置和服务信息</strong>，<strong>生成响应消息发送给 Envoy</strong>。</li>
+<li><strong>监听</strong>来自 Config Controller 的<strong>配置变化消息</strong>和来自 Service Controller 的服务变化消息，并将配置和服务变化内容<strong>通过 xDS 接口推送到 Envoy</strong>。</li>
+</ul>
+<!--more-->
+
+<h1 id="Pilot-Discovery-业务流程"><a href="#Pilot-Discovery-业务流程" class="headerlink" title="Pilot-Discovery 业务流程"></a>Pilot-Discovery 业务流程</h1><p>pilot-discovery主要包括以下业务流程：</p>
+<h2 id="初始化组件"><a href="#初始化组件" class="headerlink" title="初始化组件"></a>初始化组件</h2><p>在 main 方法中，创建了 Pilot Server，Server 做了一些初始化的工作：</p>
+<ul>
+<li><p>创建并初始化 <strong>Config Controller</strong>。</p>
+</li>
+<li><p>创建并初始化 <strong>Service Controller</strong>。</p>
+</li>
+<li><p>创建并初始化 <strong>Discovery Server</strong>，pilot 创建了 Envoy v3 版本的 API 的 Grpc Discovery Server。</p>
+</li>
+<li><p><strong>将 Discovery Server 注册为 Config Controller 和 Service Controller 的 Event Handler</strong>，监听配置和服务变化消息。</p>
+</li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018144618394.png" alt="image-20231018144618394"></p>
+<h2 id="创建Grpc-Server-并接收-Envoy-连接请求"><a href="#创建Grpc-Server-并接收-Envoy-连接请求" class="headerlink" title="创建Grpc Server 并接收 Envoy 连接请求"></a>创建Grpc Server 并接收 Envoy 连接请求</h2><p>pilot 创建了一个 Grpc Server，用于<strong>监听和接受来自 Envoy 的 xDS 请求</strong>。ploit/pkg/xds/ads.go 中的 DiscoveryServer.StreamAggregatedResources 方法被注册为 Grpc Server 的服务处理方法。</p>
+<p>当 Grpc Server 收到 Envoy 的连接时：</p>
+<ul>
+<li>会<strong>调用 DiscoveryServer.StreamAggregatedResources 方法</strong>，在该方法中<strong>创建一个 xds.Connection 对象</strong>，并<strong>开启一个 goroutine 从该连接中接收客户端的 xDS 请求并处理</strong>。</li>
+<li>如果控制面的配置/服务注册信息发生变化，pilot 也会通过该 connection 把配置变化主动<strong>推送到 Envoy 端</strong>。</li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018145100932.png" alt="image-20231018145100932"></p>
+<h2 id="配置变化后向-Envoy-推送更新"><a href="#配置变化后向-Envoy-推送更新" class="headerlink" title="配置变化后向 Envoy 推送更新"></a>配置变化后向 Envoy 推送更新</h2><p>这是 pilot 中最为复杂的部分，因为采用了多个 channel 和 queue 对变化消息进行合并和转发。流程如下：</p>
+<ul>
+<li>Config Controller 和 Service Controller 在配置或者服务发生变化时通过<strong>回调</strong>方法通知 Discovery Server，<strong>Discovery Server 将变化的消息推至 Push Channel 中</strong>。</li>
+<li>Discovery Server 通过一个 goroutine <strong>从 Push Channel 中接收变化消息</strong>，将一段时间内连续发生的变化消息进行<strong>合并</strong>（debounce）。如果超过指定时间没有新的变化消息，则将合并后的消息<strong>加入到一个队列 Push Queue 中</strong>。</li>
+<li>另一个 goroutine <strong>从  Push Queue 中取出变化消息，生成 XdsEvent</strong>，发送到<strong>每个客户端连接的 Push Channel 中</strong>。</li>
+<li>（每一个 Grpc 客户端连接）在 DiscoveryServer.StreamAggregatedResources 方法中<strong>从 Push Channel 中取出 XdsEvent</strong>，然后根据上下文<strong>生成符合 xDS 接口规范的 DiscoveryResponse，通过 GRPC 推送给 Envoy</strong> 。</li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018151458887.png" alt="image-20231018151458887"></p>
+<h2 id="响应-Envoy-主动发起的-xDS-请求"><a href="#响应-Envoy-主动发起的-xDS-请求" class="headerlink" title="响应 Envoy 主动发起的 xDS 请求"></a>响应 Envoy 主动发起的 xDS 请求</h2><p>pilot 和 envoy 之间建立的是<strong>双向 stream grpc 连接</strong>，所以 pilot 可以在配置变化时向 envoy 推送，envoy 也可以<strong>主动发起 xDS 请求</strong>获取配置信息。Envoy 主动发起 xDS 请求的流程如下：</p>
+<ul>
+<li>Envoy 通过建立好的 Rrpc 连接<strong>发送一个 DiscoveryRequest</strong>。</li>
+<li>Discovery Server 通过一个 goroutine 从 xds.Connection 中接收来自 Envoy 的 DiscoveryRequest，并<strong>将请求发送到 ReqChannel 中</strong>。</li>
+<li>Discovery Server 通过另一个 goroutine 从 ReqChannel 中接收 DiscoveryRequest，根据上下文<strong>生成符合 xDS 规范的 DiscoveryResponse，返回给 envoy</strong>。</li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Pilot-%E6%A6%82%E8%BF%B0/image-20231018150822915.png" alt="image-20231018150822915"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/10/17/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%BD%92%E5%9B%A0%E8%A1%8C%E4%B8%BA%E6%95%B0%E6%8D%AE%E8%8E%B7%E5%8F%96/" rel="prev" title="用户增长 归因行为数据获取">
+      <i class="fa fa-chevron-left"></i> 用户增长 归因行为数据获取
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/10/18/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Pilot-%E9%85%8D%E7%BD%AE%E5%92%8C%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B%E6%A2%B3%E7%90%86/" rel="next" title="Istio学习笔记 (6) Pilot 配置和服务发现启动流程梳理">
+      Istio学习笔记 (6) Pilot 配置和服务发现启动流程梳理 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Pilot-Discovery-%E4%BB%A3%E7%A0%81%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">Pilot-Discovery 代码结构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Config-Controller"><span class="nav-number">1.1.</span> <span class="nav-text">Config Controller</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Service-Controller"><span class="nav-number">1.2.</span> <span class="nav-text">Service Controller</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Discovery-Service"><span class="nav-number">1.3.</span> <span class="nav-text">Discovery Service</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Pilot-Discovery-%E4%B8%9A%E5%8A%A1%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">Pilot-Discovery 业务流程</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96%E7%BB%84%E4%BB%B6"><span class="nav-number">2.1.</span> <span class="nav-text">初始化组件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9B%E5%BB%BAGrpc-Server-%E5%B9%B6%E6%8E%A5%E6%94%B6-Envoy-%E8%BF%9E%E6%8E%A5%E8%AF%B7%E6%B1%82"><span class="nav-number">2.2.</span> <span class="nav-text">创建Grpc Server 并接收 Envoy 连接请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E5%8F%98%E5%8C%96%E5%90%8E%E5%90%91-Envoy-%E6%8E%A8%E9%80%81%E6%9B%B4%E6%96%B0"><span class="nav-number">2.3.</span> <span class="nav-text">配置变化后向 Envoy 推送更新</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%93%8D%E5%BA%94-Envoy-%E4%B8%BB%E5%8A%A8%E5%8F%91%E8%B5%B7%E7%9A%84-xDS-%E8%AF%B7%E6%B1%82"><span class="nav-number">2.4.</span> <span class="nav-text">响应 Envoy 主动发起的 xDS 请求</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

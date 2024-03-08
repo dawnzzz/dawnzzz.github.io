@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="聚类非监督学习在非监督学习中，我们的数据没有附带任何标签，我们拿到的数据如下图。在这里我们有一系列点，却没有标签。  也就是说，在非监督学习中，我们需要将一系列无标签的训练数据，输入到一个算法中，然后我们告诉这个算法，快去为我们找找这个数据的内在结构给定数据。我们可能需要某种算法帮助我们寻找一种结构。图上的数据看起来可以分成两个分开的点集（称为簇），一个能够找到这些点集的算法，就被称为聚类算法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="机器学习基础 (8) 聚类和降维">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="聚类非监督学习在非监督学习中，我们的数据没有附带任何标签，我们拿到的数据如下图。在这里我们有一系列点，却没有标签。  也就是说，在非监督学习中，我们需要将一系列无标签的训练数据，输入到一个算法中，然后我们告诉这个算法，快去为我们找找这个数据的内在结构给定数据。我们可能需要某种算法帮助我们寻找一种结构。图上的数据看起来可以分成两个分开的点集（称为簇），一个能够找到这些点集的算法，就被称为聚类算法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/6709f5ca3cd2240d4e95dcc3d3e808d5.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649596278046.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649596357604.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649597687673.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649596357604.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/f3ddc6d751cab7aba7a6f8f44794e975.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/a93213474b35ce393320428996aeecd9.jpg">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/7e1389918ab9358d1432d20ed20f8142.png">
+<meta property="article:published_time" content="2022-04-10T12:47:08.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.821Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="机器学习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/6709f5ca3cd2240d4e95dcc3d3e808d5.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>机器学习基础 (8) 聚类和降维 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          机器学习基础 (8) 聚类和降维
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-10 20:47:08" itemprop="dateCreated datePublished" datetime="2022-04-10T20:47:08+08:00">2022-04-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="聚类"><a href="#聚类" class="headerlink" title="聚类"></a>聚类</h1><h2 id="非监督学习"><a href="#非监督学习" class="headerlink" title="非监督学习"></a>非监督学习</h2><p>在非监督学习中，我们的数据<strong>没有附带任何标签</strong>，我们拿到的数据如下图。在这里我们有一系列点，却没有标签。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/6709f5ca3cd2240d4e95dcc3d3e808d5.png" alt="img"></p>
+<p>也就是说，在非监督学习中，我们需要将一系列无标签的训练数据，输入到一个算法中，然后我们告诉这个算法，快去为我们找找这个数据的内在结构给定数据。我们可能需要某种算法帮助我们寻找一种结构。图上的数据看起来可以分成两个分开的点集（称为簇），一个能够找到这些点集的算法，就被称为<strong>聚类</strong>算法。</p>
+<p>当然，非监督算法不只是用来分簇，也可以为我们找到其他类型的结构或者其他的一些模式。</p>
+<span id="more"></span>
+
+<h2 id="K-均值算法"><a href="#K-均值算法" class="headerlink" title="K-均值算法"></a>K-均值算法</h2><p><strong>K-均值</strong>是最普及的聚类算法，算法接受一个未标记的数据集，然后将数据聚类成不同的组。</p>
+<h3 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h3><p>K-均值算法的输入为K（分簇的数量）以及训练集（n维向量，不使用x0=1）。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649596278046.png" alt="1649596278046"></p>
+<p>K-均值算法的流程如下：</p>
+<ol>
+<li>首先<strong>随机</strong>初始化K个聚类中心。</li>
+<li>对<strong>每一个样本</strong>，计算离它<strong>最近的聚类中心</strong>。</li>
+<li><strong>移动每一个聚类中心</strong>，将每一个聚类中心移动到这个<strong>簇所有点的均值处</strong>。如果一个聚类中心所对应的簇中，没有任何一个样本，可以直接<strong>移除</strong>这个簇，或者重新初始化这个聚类中心。</li>
+<li>重复步骤2和3，直到聚类中心不再变化。</li>
+</ol>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649596357604.png" alt="1649596357604"></p>
+<h3 id="优化目标"><a href="#优化目标" class="headerlink" title="优化目标"></a>优化目标</h3><p>K-均值最小化问题，是要<strong>最小化所有的数据点与其所关联的聚类中心点之间的距离之和</strong>，，因此 K-均值的代价函数（又称<strong>畸变函数</strong> <strong>Distortion function</strong>）为：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649597687673.png" alt="1649597687673"></p>
+<p>目标是找到使得代价函数最小的c和μ。在K-均值算法进行每一次迭代时：</p>
+<ul>
+<li>第一个循环就是<strong>簇分配</strong>，用于找到c最小化代价函数的过程</li>
+<li>第二个循环就是<strong>移动聚类中心</strong>，用于找到μ最小化代价函数的过程</li>
+</ul>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/1649596357604.png" alt="1649596357604"></p>
+<h3 id="随机初始化"><a href="#随机初始化" class="headerlink" title="随机初始化"></a>随机初始化</h3><p>在运行K-均值算法的之前，我们首先要随机初始化所有的聚类中心点：</p>
+<ul>
+<li>选择K&lt;m，级聚类中心的个数应该小于样本数量</li>
+<li>随机选择K个样本，令K个聚类中心与K个随机选择的样本相等</li>
+</ul>
+<p><strong>K-均值</strong>的一个<strong>问题</strong>在于，它有可能会停留在一个<strong>局部最小值</strong>处，而这取决于初始化的情况。</p>
+<p>为了解决这个问题，我们通常需要<strong>多次运行K-均值</strong>算法，每一次都重新进行随机初始化，最后再比较多次运行<strong>K-均值</strong>的结果，选择代价函数<strong>最小</strong>的结果。这种方法在在K较小（2~10）时是可行的，但是如果K较大，效果不明显。</p>
+<h3 id="选择聚类数量"><a href="#选择聚类数量" class="headerlink" title="选择聚类数量"></a>选择聚类数量</h3><p>通常通过人工方法，对聚类数量K进行选择。一个常用的方法是<strong>肘部法则</strong>：关于肘部法则，就是通过改变K值也就是聚类的类别数量，通过K-均值进行聚类，计算代价函数的大小：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/f3ddc6d751cab7aba7a6f8f44794e975.png" alt="img"></p>
+<p>如左图所示，可能会得到像一个人的肘部样式的曲线，到达肘点之前，畸变值下降的非常慢；但是在肘点之后，畸变值下降的非常缓慢。因此，可以选取肘点作为K值。</p>
+<p><strong>但是更通常的情况是</strong>，会得到一条平滑下降的曲线，如右图所示。一般来说，K值需要根据情况人工的去确定。</p>
+<h1 id="降维"><a href="#降维" class="headerlink" title="降维"></a>降维</h1><p>无监督学习的第二类问题，就是<strong>降维</strong>。</p>
+<h2 id="主成分分析"><a href="#主成分分析" class="headerlink" title="主成分分析"></a>主成分分析</h2><p><strong>主成分分析（Principal Component Analysis，PCA）</strong>是最常见的降维算法。</p>
+<p>以二维降至一维为例，在<strong>PCA</strong>中，我们要做的是找到一个方向向量（<strong>Vector direction</strong>），当我们把所有的数据都投射到该向量上时，我们希望投射误差能尽可能地小，<strong>投射误差</strong>是从特征向量向该方向向量作垂线的长度。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/a93213474b35ce393320428996aeecd9.jpg" alt="img"></p>
+<p>当需要将n维数据降至k维时，就需要找到k个向量，使得总的投射误差最小。</p>
+<hr>
+<p><strong>主成分分析 vs 线性回归：</strong></p>
+<p>主成分分析与线性回归是两种不同的算法。主成分分析最小化的是<strong>投射误差</strong>，而线性回归尝试的是最小化<strong>预测误差</strong>。下图中，左边是线性回归的误差（垂直于横轴），右图是主成分分析的误差（垂直于向量）。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/7e1389918ab9358d1432d20ed20f8142.png" alt="img"></p>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" rel="tag"># 机器学习</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-7-%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA/" rel="prev" title="机器学习基础 (7) 支持向量机">
+      <i class="fa fa-chevron-left"></i> 机器学习基础 (7) 支持向量机
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/04/13/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-31/" rel="next" title="算法刷题笔记 (31) 整数反转">
+      算法刷题笔记 (31) 整数反转 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%81%9A%E7%B1%BB"><span class="nav-number">1.</span> <span class="nav-text">聚类</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9D%9E%E7%9B%91%E7%9D%A3%E5%AD%A6%E4%B9%A0"><span class="nav-number">1.1.</span> <span class="nav-text">非监督学习</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#K-%E5%9D%87%E5%80%BC%E7%AE%97%E6%B3%95"><span class="nav-number">1.2.</span> <span class="nav-text">K-均值算法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%81%E7%A8%8B"><span class="nav-number">1.2.1.</span> <span class="nav-text">流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%98%E5%8C%96%E7%9B%AE%E6%A0%87"><span class="nav-number">1.2.2.</span> <span class="nav-text">优化目标</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9A%8F%E6%9C%BA%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">1.2.3.</span> <span class="nav-text">随机初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%89%E6%8B%A9%E8%81%9A%E7%B1%BB%E6%95%B0%E9%87%8F"><span class="nav-number">1.2.4.</span> <span class="nav-text">选择聚类数量</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%99%8D%E7%BB%B4"><span class="nav-number">2.</span> <span class="nav-text">降维</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BB%E6%88%90%E5%88%86%E5%88%86%E6%9E%90"><span class="nav-number">2.1.</span> <span class="nav-text">主成分分析</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

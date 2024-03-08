@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="代码来源：https:&#x2F;&#x2F;github.com&#x2F;RMSnow&#x2F;KG-Course，代码目录结构如下： 123456789101112131415161718- EventExtraction&#x2F;	- data&#x2F;		- preprocess&#x2F;（数据预处理）			- CEC&#x2F;（原数据文件）			- dataset.json(实验数据集)			- preprocess.ipynb(预处理、数据分析的代码)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="事件抽取模型复现之DMCNN (1) 数据预处理">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-1-%E6%95%B0%E6%8D%AE%E9%A2%84%E5%A4%84%E7%90%86/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="代码来源：https:&#x2F;&#x2F;github.com&#x2F;RMSnow&#x2F;KG-Course，代码目录结构如下： 123456789101112131415161718- EventExtraction&#x2F;	- data&#x2F;		- preprocess&#x2F;（数据预处理）			- CEC&#x2F;（原数据文件）			- dataset.json(实验数据集)			- preprocess.ipynb(预处理、数据分析的代码)">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-10-05T01:16:22.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.798Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="深度学习">
+<meta property="article:tag" content="事件抽取">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-1-%E6%95%B0%E6%8D%AE%E9%A2%84%E5%A4%84%E7%90%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>事件抽取模型复现之DMCNN (1) 数据预处理 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-1-%E6%95%B0%E6%8D%AE%E9%A2%84%E5%A4%84%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          事件抽取模型复现之DMCNN (1) 数据预处理
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-10-05 09:16:22" itemprop="dateCreated datePublished" datetime="2022-10-05T09:16:22+08:00">2022-10-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">事件抽取模型复现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>代码来源：<a target="_blank" rel="noopener" href="https://github.com/RMSnow/KG-Course%EF%BC%8C%E4%BB%A3%E7%A0%81%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9E%84%E5%A6%82%E4%B8%8B%EF%BC%9A">https://github.com/RMSnow/KG-Course，代码目录结构如下：</a></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">- EventExtraction/</span><br><span class="line">	- data/</span><br><span class="line">		- preprocess/（数据预处理）</span><br><span class="line">			- CEC/（原数据文件）</span><br><span class="line">			- dataset.json(实验数据集)</span><br><span class="line">			- preprocess.ipynb(预处理、数据分析的代码)</span><br><span class="line">		- data_load.ipynb(制作模型所需要的各项输入、输出矩阵)</span><br><span class="line">		- *.npy(模型的输入与输出)</span><br><span class="line">	- model/</span><br><span class="line">		- img/(由keras自动生成的模型架构图)</span><br><span class="line">		- model/（训练好的模型参数文件）</span><br><span class="line">		- predict/（模型预测输出的矩阵）</span><br><span class="line">		- dataset_split.py（训练集/测试集划分）</span><br><span class="line">		- DMCNN.py（DMCNN模型与CNN模型）</span><br><span class="line">		- TextCNN.py（TextCNN模型）</span><br><span class="line">		- train.py（训练、预测所需的各项函数）</span><br><span class="line">		- *.ipynb（训练过程、模型预测、性能结果等）</span><br><span class="line">	- readme.md</span><br></pre></td></tr></table></figure>
+
+<p>数据格式为 XML 格式，如下。其中 Event 记录了每一个标签，在 Event 标签下 Denoter 标签为触发词</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">Body</span>&gt;</span> </span><br><span class="line">	<span class="tag">&lt;<span class="name">Title</span>&gt;</span>澳大利亚2014年火灾:高温致一夜间发生几百起火灾<span class="tag">&lt;/<span class="name">Title</span>&gt;</span>  </span><br><span class="line">	<span class="tag">&lt;<span class="name">ReportTime</span> <span class="attr">type</span>=<span class="string">&quot;absTime&quot;</span>&gt;</span>2014年1月15日<span class="tag">&lt;/<span class="name">ReportTime</span>&gt;</span>  </span><br><span class="line">	<span class="tag">&lt;<span class="name">Content</span>&gt;</span> </span><br><span class="line">		<span class="tag">&lt;<span class="name">Paragraph</span>&gt;</span> </span><br><span class="line">			<span class="tag">&lt;<span class="name">Sentence</span>&gt;</span> </span><br><span class="line">				<span class="tag">&lt;<span class="name">Event</span> <span class="attr">eid</span>=<span class="string">&quot;e1&quot;</span> <span class="attr">type</span>=<span class="string">&quot;thoughtevent&quot;</span>&gt;</span> </span><br><span class="line">					<span class="tag">&lt;<span class="name">Time</span> <span class="attr">tid</span>=<span class="string">&quot;t1&quot;</span> <span class="attr">type</span>=<span class="string">&quot;relTime&quot;</span>&gt;</span>1月15日，<span class="tag">&lt;/<span class="name">Time</span>&gt;</span> 据外媒 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Participant</span> <span class="attr">sid</span>=<span class="string">&quot;s1&quot;</span>&gt;</span>《俄罗斯报》<span class="tag">&lt;/<span class="name">Participant</span>&gt;</span> 报道 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Denoter</span> <span class="attr">type</span>=<span class="string">&quot;statement&quot;</span> <span class="attr">did</span>=<span class="string">&quot;d1&quot;</span>&gt;</span>称<span class="tag">&lt;/<span class="name">Denoter</span>&gt;</span>，</span><br><span class="line">				<span class="tag">&lt;/<span class="name">Event</span>&gt;</span>  </span><br><span class="line">				<span class="tag">&lt;<span class="name">Event</span> <span class="attr">eid</span>=<span class="string">&quot;e2&quot;</span>&gt;</span>位于 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Location</span> <span class="attr">lid</span>=<span class="string">&quot;l2&quot;</span>&gt;</span>北半球<span class="tag">&lt;/<span class="name">Location</span>&gt;</span>的 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Participant</span> <span class="attr">sid</span>=<span class="string">&quot;s2&quot;</span>&gt;</span>澳大利亚<span class="tag">&lt;/<span class="name">Participant</span>&gt;</span> 现在正 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Denoter</span> <span class="attr">did</span>=<span class="string">&quot;d2&quot;</span> <span class="attr">type</span>=<span class="string">&quot;movement&quot;</span>&gt;</span>处于<span class="tag">&lt;/<span class="name">Denoter</span>&gt;</span>  </span><br><span class="line">					<span class="tag">&lt;<span class="name">Object</span> <span class="attr">oid</span>=<span class="string">&quot;o2&quot;</span>&gt;</span>炎热的夏季<span class="tag">&lt;/<span class="name">Object</span>&gt;</span>，</span><br><span class="line">				<span class="tag">&lt;/<span class="name">Event</span>&gt;</span>  </span><br><span class="line">				<span class="tag">&lt;<span class="name">Event</span> <span class="attr">eid</span>=<span class="string">&quot;e3&quot;</span>&gt;</span>而近日也到了高温酷暑的时候，当地时间 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Time</span> <span class="attr">tid</span>=<span class="string">&quot;t3&quot;</span> <span class="attr">type</span>=<span class="string">&quot;relTime&quot;</span>&gt;</span>1月14日晚<span class="tag">&lt;/<span class="name">Time</span>&gt;</span>， </span><br><span class="line">					<span class="tag">&lt;<span class="name">Location</span> <span class="attr">lid</span>=<span class="string">&quot;l3&quot;</span>&gt;</span>澳大利亚南部<span class="tag">&lt;/<span class="name">Location</span>&gt;</span> 一夜间发生至少250起 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Denoter</span> <span class="attr">type</span>=<span class="string">&quot;emergency&quot;</span> <span class="attr">did</span>=<span class="string">&quot;d3&quot;</span>&gt;</span>火灾<span class="tag">&lt;/<span class="name">Denoter</span>&gt;</span>。</span><br><span class="line">				<span class="tag">&lt;/<span class="name">Event</span>&gt;</span> </span><br><span class="line">			<span class="tag">&lt;/<span class="name">Sentence</span>&gt;</span>  </span><br><span class="line">			<span class="tag">&lt;<span class="name">Sentence</span>&gt;</span>受炎热天气及雷雨天气影响， </span><br><span class="line">				<span class="tag">&lt;<span class="name">Event</span> <span class="attr">eid</span>=<span class="string">&quot;e4&quot;</span>&gt;</span> </span><br><span class="line">					<span class="tag">&lt;<span class="name">Location</span> <span class="attr">lid</span>=<span class="string">&quot;l4&quot;</span>&gt;</span>澳大利亚南部<span class="tag">&lt;/<span class="name">Location</span>&gt;</span>一夜间发生至少250起 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Denoter</span> <span class="attr">did</span>=<span class="string">&quot;d4&quot;</span> <span class="attr">type</span>=<span class="string">&quot;emergency&quot;</span>&gt;</span>火灾<span class="tag">&lt;/<span class="name">Denoter</span>&gt;</span>，灾情多集中在维多利亚州。</span><br><span class="line">				<span class="tag">&lt;/<span class="name">Event</span>&gt;</span> </span><br><span class="line">			<span class="tag">&lt;/<span class="name">Sentence</span>&gt;</span>  </span><br><span class="line">			<span class="tag">&lt;<span class="name">Sentence</span>&gt;</span> </span><br><span class="line">				<span class="tag">&lt;<span class="name">Event</span> <span class="attr">eid</span>=<span class="string">&quot;e5&quot;</span>&gt;</span>火灾发生后， </span><br><span class="line">					<span class="tag">&lt;<span class="name">Participant</span> <span class="attr">sid</span>=<span class="string">&quot;s5&quot;</span>&gt;</span>救援人员<span class="tag">&lt;/<span class="name">Participant</span>&gt;</span> 立即 </span><br><span class="line">					<span class="tag">&lt;<span class="name">Denoter</span> <span class="attr">did</span>=<span class="string">&quot;d5&quot;</span> <span class="attr">type</span>=<span class="string">&quot;operation&quot;</span>&gt;</span>展开<span class="tag">&lt;/<span class="name">Denoter</span>&gt;</span>  </span><br><span class="line">					<span class="tag">&lt;<span class="name">Object</span> <span class="attr">oid</span>=<span class="string">&quot;o5&quot;</span>&gt;</span>救灾行动<span class="tag">&lt;/<span class="name">Object</span>&gt;</span>。</span><br><span class="line">				<span class="tag">&lt;/<span class="name">Event</span>&gt;</span> </span><br><span class="line">			<span class="tag">&lt;/<span class="name">Sentence</span>&gt;</span>  </span><br><span class="line">			<span class="tag">&lt;<span class="name">Sentence</span>&gt;</span>目前，大部分起火点火势已被控制。<span class="tag">&lt;/<span class="name">Sentence</span>&gt;</span> </span><br><span class="line">		<span class="tag">&lt;/<span class="name">Paragraph</span>&gt;</span> </span><br><span class="line">	<span class="tag">&lt;/<span class="name">Content</span>&gt;</span>  </span><br><span class="line">	<span class="tag">&lt;<span class="name">eRelation</span> <span class="attr">relType</span>=<span class="string">&quot;Thoughtcontent&quot;</span> <span class="attr">thoughtevent_eid</span>=<span class="string">&quot;e1&quot;</span> <span class="attr">thoughtcontent_eids</span>=<span class="string">&quot;e2-e5&quot;</span>/&gt;</span>  </span><br><span class="line">	<span class="tag">&lt;<span class="name">eRelation</span> <span class="attr">relType</span>=<span class="string">&quot;Follow&quot;</span> <span class="attr">bevent_eid</span>=<span class="string">&quot;e4&quot;</span> <span class="attr">aevent_eid</span>=<span class="string">&quot;e5&quot;</span>/&gt;</span> </span><br><span class="line"><span class="tag">&lt;/<span class="name">Body</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h1 id="XML-格式转为-Json"><a href="#XML-格式转为-Json" class="headerlink" title="XML 格式转为 Json"></a>XML 格式转为 Json</h1><h2 id="parse-xml-string-函数"><a href="#parse-xml-string-函数" class="headerlink" title="parse_xml_string 函数"></a>parse_xml_string 函数</h2><p><code>parse_xml_string</code> 函数提取 xml 文件中的所有的句子，首先用 bs 解析并找到所有的 sentence 标签，再将其中的内容全部提取出来，组成一个列表。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> xmltodict</span><br><span class="line"><span class="keyword">import</span> json</span><br><span class="line"><span class="keyword">import</span> collections</span><br><span class="line"><span class="keyword">import</span> re</span><br><span class="line"><span class="keyword">from</span> bs4 <span class="keyword">import</span> BeautifulSoup <span class="keyword">as</span> BS</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> os</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">parse_xml_string</span>(<span class="params">file_path</span>):</span> </span><br><span class="line">    <span class="keyword">with</span> <span class="built_in">open</span>(file_path, <span class="string">&#x27;r&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">        doc_string = f.read()</span><br><span class="line">        </span><br><span class="line">    soup = BS(doc_string)	<span class="comment"># 送入beautifulsoup 处理，解析xml格式字符串</span></span><br><span class="line">    sentence_elements = soup.find_all(<span class="string">&#x27;sentence&#x27;</span>)	<span class="comment"># 找到所有的 sentence 标签</span></span><br><span class="line">    </span><br><span class="line">    sentences = []</span><br><span class="line">    <span class="keyword">for</span> i, elem <span class="keyword">in</span> <span class="built_in">enumerate</span>(sentence_elements):</span><br><span class="line">        elem = <span class="built_in">str</span>(elem)</span><br><span class="line">        <span class="comment"># 用于提取新闻内容</span></span><br><span class="line">        elem = elem.replace(<span class="string">&#x27;\n&#x27;</span>, <span class="string">&#x27;&#x27;</span>).replace(<span class="string">&#x27;\t&#x27;</span>, <span class="string">&#x27;&#x27;</span>).replace(<span class="string">&#x27;\r&#x27;</span>, <span class="string">&#x27;&#x27;</span>)</span><br><span class="line">        </span><br><span class="line">        pattern = re.<span class="built_in">compile</span>(<span class="string">&#x27;&gt;[\u4e00-\u9fa50-9A-Za-z.，。！？：；“”&quot;（）《》]+&lt;&#x27;</span>)</span><br><span class="line">        sentence = <span class="string">&#x27; &#x27;</span>.join([x.replace(<span class="string">&#x27;&lt;&#x27;</span>, <span class="string">&#x27;&#x27;</span>).replace(<span class="string">&#x27;&gt;&#x27;</span>, <span class="string">&#x27;&#x27;</span>) <span class="keyword">for</span> x <span class="keyword">in</span> pattern.findall(elem)])</span><br><span class="line">        </span><br><span class="line">        sentences.append(sentence)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> sentences</span><br></pre></td></tr></table></figure>
+
+<h2 id="parse-xml-函数"><a href="#parse-xml-函数" class="headerlink" title="parse_xml 函数"></a>parse_xml 函数</h2><p>parse_xml 函数用于将 xml 格式的数据转为 json 格式的数据，并保存下来。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">parse_xml</span>(<span class="params">file_path, save_dir</span>):</span></span><br><span class="line">    json_sentences = []</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># 读取文件</span></span><br><span class="line">    <span class="keyword">with</span> <span class="built_in">open</span>(file_path, <span class="string">&#x27;r&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">        doc_string = f.read()</span><br><span class="line">    <span class="comment"># 将 xml 格式的字符串转为dict</span></span><br><span class="line">    doc = xmltodict.parse(doc_string)</span><br><span class="line">    paragraphs = doc[<span class="string">&#x27;Body&#x27;</span>][<span class="string">&#x27;Content&#x27;</span>][<span class="string">&#x27;Paragraph&#x27;</span>]</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">type</span>(paragraphs) != <span class="built_in">list</span>:</span><br><span class="line">        paragraphs = collections.OrderedDict(paragraphs)</span><br><span class="line">        <span class="keyword">assert</span> <span class="built_in">type</span>(paragraphs) == collections.OrderedDict</span><br><span class="line">        paragraphs = [paragraphs]</span><br><span class="line">	</span><br><span class="line">    <span class="comment"># 遍历每个段落</span></span><br><span class="line">    <span class="keyword">for</span> i, paragraph <span class="keyword">in</span> <span class="built_in">enumerate</span>(paragraphs):</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            sentences = paragraph[<span class="string">&#x27;Sentence&#x27;</span>]</span><br><span class="line">        <span class="keyword">except</span>:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">		</span><br><span class="line">        <span class="keyword">if</span> <span class="built_in">type</span>(sentences) != <span class="built_in">list</span>:</span><br><span class="line">            sentences = [sentences]</span><br><span class="line">		</span><br><span class="line">        <span class="comment"># 遍历段落中的每一个句子</span></span><br><span class="line">        <span class="keyword">for</span> j, sentence <span class="keyword">in</span> <span class="built_in">enumerate</span>(sentences):</span><br><span class="line">            json_sentence = collections.OrderedDict()</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">try</span>:</span><br><span class="line">                events = sentence[<span class="string">&#x27;Event&#x27;</span>]	<span class="comment"># 提取句子中的事件</span></span><br><span class="line">            <span class="keyword">except</span>:</span><br><span class="line">                <span class="comment"># 若没有事件，则句子只是一句话（字符串）</span></span><br><span class="line">                <span class="keyword">assert</span> <span class="built_in">type</span>(sentence) == <span class="built_in">str</span></span><br><span class="line">                json_sentences.append(json_sentence)</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> <span class="built_in">type</span>(events) != <span class="built_in">list</span>:</span><br><span class="line">                events = collections.OrderedDict(events)</span><br><span class="line">                <span class="keyword">assert</span> <span class="built_in">type</span>(events) == collections.OrderedDict</span><br><span class="line">                events = [events]</span><br><span class="line">            </span><br><span class="line">            <span class="comment"># 遍历句子中的每一个事件</span></span><br><span class="line">            <span class="keyword">for</span> e, event <span class="keyword">in</span> <span class="built_in">enumerate</span>(events):</span><br><span class="line">                json_event = collections.OrderedDict()</span><br><span class="line">                </span><br><span class="line">                <span class="keyword">for</span> k, v <span class="keyword">in</span> event.items():</span><br><span class="line">                    <span class="keyword">if</span> k <span class="keyword">in</span> [<span class="string">&#x27;@eid&#x27;</span>, <span class="string">&#x27;#text&#x27;</span>]:</span><br><span class="line">                        <span class="keyword">continue</span></span><br><span class="line">                        </span><br><span class="line">                    <span class="keyword">if</span> <span class="built_in">type</span>(v) == collections.OrderedDict <span class="keyword">or</span> <span class="built_in">type</span>(v) == <span class="built_in">dict</span>:</span><br><span class="line">                        <span class="keyword">if</span> k == <span class="string">&#x27;Denoter&#x27;</span>:</span><br><span class="line">                            <span class="comment"># 触发词</span></span><br><span class="line">                            json_event[k] = v</span><br><span class="line">                        <span class="keyword">else</span>:</span><br><span class="line">                            <span class="keyword">try</span>:</span><br><span class="line">                                <span class="comment"># 论元</span></span><br><span class="line">                                json_event[k] = v[<span class="string">&#x27;#text&#x27;</span>]</span><br><span class="line">                            <span class="keyword">except</span>:</span><br><span class="line">                                <span class="keyword">continue</span></span><br><span class="line">                                </span><br><span class="line">                    <span class="keyword">else</span>:</span><br><span class="line">                        json_event[k] = v</span><br><span class="line">                </span><br><span class="line">                json_sentence[<span class="string">&#x27;event&#123;&#125;&#x27;</span>.<span class="built_in">format</span>(e)] = json_event</span><br><span class="line">                </span><br><span class="line">            json_sentences.append(json_sentence)</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># 提取出新闻中的所有句子</span></span><br><span class="line">    raw_sentences = parse_xml_string(file_path)</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        <span class="keyword">assert</span> <span class="built_in">len</span>(raw_sentences) == <span class="built_in">len</span>(json_sentences)</span><br><span class="line">    <span class="keyword">except</span>:</span><br><span class="line">        <span class="keyword">assert</span> file_path == <span class="string">&#x27;./CEC/食物中毒/印度发生假酒集体中毒事件.xml&#x27;</span> <span class="keyword">or</span> file_path == <span class="string">&#x27;./CEC/食物中毒\印度发生假酒集体中毒事件.xml&#x27;</span></span><br><span class="line">        <span class="keyword">del</span> raw_sentences[<span class="number">3</span>]</span><br><span class="line">        <span class="keyword">assert</span> <span class="built_in">len</span>(raw_sentences) == <span class="built_in">len</span>(json_sentences)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> i, json_sentence <span class="keyword">in</span> <span class="built_in">enumerate</span>(json_sentences):</span><br><span class="line">        json_sentence[<span class="string">&#x27;sentence&#x27;</span>] = raw_sentences[i]</span><br><span class="line">    </span><br><span class="line">    file_name = file_path.split(<span class="string">&#x27;/&#x27;</span>)[-<span class="number">1</span>].split(<span class="string">&#x27;.xml&#x27;</span>)[<span class="number">0</span>]</span><br><span class="line">    dir_path, _ = os.path.split(os.path.join(save_dir, <span class="string">&quot;&#123;&#125;.json&quot;</span>.<span class="built_in">format</span>(file_name)))</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> os.path.exists(dir_path):</span><br><span class="line">        os.makedirs(dir_path)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;&#123;&#125;/&#123;&#125;.json&#x27;</span>.<span class="built_in">format</span>(save_dir, file_name), <span class="string">&#x27;w&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">        json.dump(json_sentences, f, indent=<span class="number">4</span>, ensure_ascii=<span class="literal">False</span>, sort_keys=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">        </span><br><span class="line">xml_files = []</span><br><span class="line"><span class="keyword">for</span> path, dir_list, file_list <span class="keyword">in</span> os.walk(<span class="string">&#x27;./CEC/&#x27;</span>):</span><br><span class="line">    <span class="keyword">for</span> file_name <span class="keyword">in</span> file_list:</span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;.xml&#x27;</span> <span class="keyword">in</span> file_name:</span><br><span class="line">            xml_files.append(os.path.join(path, file_name))</span><br><span class="line"><span class="built_in">len</span>(xml_files)	<span class="comment"># 332</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> xml_file <span class="keyword">in</span> xml_files:</span><br><span class="line">    parse_xml(xml_file, save_dir=<span class="string">&#x27;./CEC-xml2json/&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<p>xml 转为 json 后的数据格式如下：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;event0&quot;</span>: &#123;</span><br><span class="line">            <span class="attr">&quot;@type&quot;</span>: <span class="string">&quot;thoughtevent&quot;</span>,</span><br><span class="line">            <span class="attr">&quot;Denoter&quot;</span>: &#123;</span><br><span class="line">                <span class="attr">&quot;#text&quot;</span>: <span class="string">&quot;称&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@did&quot;</span>: <span class="string">&quot;d1&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@type&quot;</span>: <span class="string">&quot;statement&quot;</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">&quot;Participant&quot;</span>: <span class="string">&quot;《俄罗斯报》&quot;</span>,</span><br><span class="line">            <span class="attr">&quot;Time&quot;</span>: <span class="string">&quot;1月15日，&quot;</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">&quot;event1&quot;</span>: &#123;</span><br><span class="line">            <span class="attr">&quot;Denoter&quot;</span>: &#123;</span><br><span class="line">                <span class="attr">&quot;#text&quot;</span>: <span class="string">&quot;处于&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@did&quot;</span>: <span class="string">&quot;d2&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@type&quot;</span>: <span class="string">&quot;movement&quot;</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">&quot;Location&quot;</span>: <span class="string">&quot;北半球&quot;</span>,</span><br><span class="line">            <span class="attr">&quot;Object&quot;</span>: <span class="string">&quot;炎热的夏季&quot;</span>,</span><br><span class="line">            <span class="attr">&quot;Participant&quot;</span>: <span class="string">&quot;澳大利亚&quot;</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">&quot;event2&quot;</span>: &#123;</span><br><span class="line">            <span class="attr">&quot;Denoter&quot;</span>: &#123;</span><br><span class="line">                <span class="attr">&quot;#text&quot;</span>: <span class="string">&quot;火灾&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@did&quot;</span>: <span class="string">&quot;d3&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@type&quot;</span>: <span class="string">&quot;emergency&quot;</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">&quot;Location&quot;</span>: <span class="string">&quot;澳大利亚南部&quot;</span>,</span><br><span class="line">            <span class="attr">&quot;Time&quot;</span>: <span class="string">&quot;1月14日晚&quot;</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">&quot;sentence&quot;</span>: <span class="string">&quot;1月15日， 《俄罗斯报》 称 ， 北半球 澳大利亚 处于 炎热的夏季 ， 1月14日晚 澳大利亚南部 火灾 。&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;event0&quot;</span>: &#123;</span><br><span class="line">            <span class="attr">&quot;Denoter&quot;</span>: &#123;</span><br><span class="line">                <span class="attr">&quot;#text&quot;</span>: <span class="string">&quot;火灾&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@did&quot;</span>: <span class="string">&quot;d4&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@type&quot;</span>: <span class="string">&quot;emergency&quot;</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">&quot;Location&quot;</span>: <span class="string">&quot;澳大利亚南部&quot;</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">&quot;sentence&quot;</span>: <span class="string">&quot;澳大利亚南部 火灾 ，灾情多集中在维多利亚州。&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;event0&quot;</span>: &#123;</span><br><span class="line">            <span class="attr">&quot;Denoter&quot;</span>: &#123;</span><br><span class="line">                <span class="attr">&quot;#text&quot;</span>: <span class="string">&quot;展开&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@did&quot;</span>: <span class="string">&quot;d5&quot;</span>,</span><br><span class="line">                <span class="attr">&quot;@type&quot;</span>: <span class="string">&quot;operation&quot;</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">&quot;Object&quot;</span>: <span class="string">&quot;救灾行动&quot;</span>,</span><br><span class="line">            <span class="attr">&quot;Participant&quot;</span>: <span class="string">&quot;救援人员&quot;</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">&quot;sentence&quot;</span>: <span class="string">&quot;救援人员 展开 救灾行动 。&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;sentence&quot;</span>: <span class="string">&quot;目前，大部分起火点火势已被控制。&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<h1 id="筛选可用句子构造-Event-Extraction-数据集"><a href="#筛选可用句子构造-Event-Extraction-数据集" class="headerlink" title="筛选可用句子构造 Event Extraction 数据集"></a>筛选可用句子构造 Event Extraction 数据集</h1><p>首先获取所有的 json 格式文件，将每一个 json 文件的每一个句子保存至 sentences 列表中：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> json</span><br><span class="line"><span class="keyword">import</span> pandas <span class="keyword">as</span> pd</span><br><span class="line"><span class="keyword">import</span> os</span><br><span class="line"><span class="keyword">import</span> jieba</span><br><span class="line"><span class="keyword">import</span> random</span><br><span class="line"></span><br><span class="line"><span class="comment"># 获取所有的 json 格式文件</span></span><br><span class="line">json_files = []</span><br><span class="line"><span class="keyword">for</span> path, dir_list, file_list <span class="keyword">in</span> os.walk(<span class="string">&#x27;./CEC-xml2json/&#x27;</span>):</span><br><span class="line">    <span class="keyword">for</span> file_name <span class="keyword">in</span> file_list:</span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;.json&#x27;</span> <span class="keyword">in</span> file_name:</span><br><span class="line">            json_files.append(os.path.join(path, file_name))</span><br><span class="line"><span class="built_in">len</span>(json_files)		<span class="comment"># 332</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 将 json 文件中的内容保存在 sentences 中</span></span><br><span class="line">sentences = []</span><br><span class="line"><span class="keyword">for</span> json_file <span class="keyword">in</span> json_files:</span><br><span class="line">    <span class="keyword">with</span> <span class="built_in">open</span>(json_file, <span class="string">&#x27;r&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">        sentences += json.load(f)</span><br><span class="line"><span class="built_in">len</span>(sentences)	<span class="comment"># 2207</span></span><br></pre></td></tr></table></figure>
+
+<p><code>cut_sentence</code> 函数用于对句子进行分词，分词结果用<strong>空格</strong>隔开。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">cut_sentence</span>(<span class="params">text</span>):</span></span><br><span class="line">    cut_text = <span class="string">&#x27;&#x27;</span></span><br><span class="line"></span><br><span class="line">    texts = text.split()</span><br><span class="line">    <span class="keyword">for</span> t <span class="keyword">in</span> texts:</span><br><span class="line">        cut_text += <span class="string">&#x27; &#x27;</span>.join(<span class="built_in">list</span>(jieba.cut(t))) + <span class="string">&#x27; &#x27;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> cut_text[:-<span class="number">1</span>]</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(sentences[<span class="number">2</span>][<span class="string">&#x27;sentence&#x27;</span>])</span><br><span class="line"><span class="comment"># output: 据 了解 ， 事发客车 涉嫌 超载 ， 农用车司机 已被 警方 带走 讯问 。</span></span><br><span class="line">cut_sentence(sentences[<span class="number">2</span>][<span class="string">&#x27;sentence&#x27;</span>])</span><br><span class="line"><span class="comment"># output: 据 了解 ， 事发 客车 涉嫌 超载 ， 农用车 司机 已 被 警方 带走 讯问 。</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="筛选可用句子"><a href="#筛选可用句子" class="headerlink" title="筛选可用句子"></a>筛选可用句子</h2><p>下面开始筛选可用的句子，主要保存的是触发词以及对应的事件类型、论元（只保存 Participant 或者 Object ，并且 Participant 优先，在 Participant 没有时选取 Object，二者统一被称为 event_arguments）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br></pre></td><td class="code"><pre><span class="line">valid_sentences = []	<span class="comment"># 可用的句子列表</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 遍历每一个句子</span></span><br><span class="line"><span class="keyword">for</span> sentence <span class="keyword">in</span> sentences:</span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(sentence) == <span class="number">1</span>:</span><br><span class="line">        <span class="comment"># 跳过没有事件的</span></span><br><span class="line">        <span class="keyword">continue</span></span><br><span class="line">    </span><br><span class="line">    valid_sentence = <span class="built_in">dict</span>()</span><br><span class="line">    </span><br><span class="line">    text = sentence[<span class="string">&#x27;sentence&#x27;</span>]</span><br><span class="line">    cut_text = cut_sentence(text)</span><br><span class="line">    words = cut_text.split()</span><br><span class="line">    valid_sentence[<span class="string">&#x27;sentence&#x27;</span>] = text</span><br><span class="line">    valid_sentence[<span class="string">&#x27;sentence_words&#x27;</span>] = cut_text</span><br><span class="line">    </span><br><span class="line">    triggers = []	<span class="comment"># 保存触发词</span></span><br><span class="line">    <span class="keyword">for</span> key, value <span class="keyword">in</span> sentence.items():</span><br><span class="line">        <span class="comment"># 没有event字段（句子中没有事件），直接跳过</span></span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;event&#x27;</span> <span class="keyword">not</span> <span class="keyword">in</span> key:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">            </span><br><span class="line">        trigger = <span class="built_in">dict</span>()</span><br><span class="line">        </span><br><span class="line">        <span class="comment"># event trigger: Denoter 字段</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            trigger[<span class="string">&#x27;event&#x27;</span>] = value[<span class="string">&#x27;Denoter&#x27;</span>][<span class="string">&#x27;@type&#x27;</span>]	<span class="comment"># 事件类型</span></span><br><span class="line">            <span class="comment"># 去掉 thoughtevent 的事件</span></span><br><span class="line">            <span class="keyword">if</span> trigger[<span class="string">&#x27;event&#x27;</span>] == <span class="string">&#x27;thoughtevent&#x27;</span>:</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            trigger[<span class="string">&#x27;event_trigger&#x27;</span>] = value[<span class="string">&#x27;Denoter&#x27;</span>][<span class="string">&#x27;#text&#x27;</span>]	<span class="comment"># 触发词</span></span><br><span class="line">        <span class="keyword">except</span>:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">## check trigger word ##</span></span><br><span class="line">        <span class="keyword">if</span> trigger[<span class="string">&#x27;event_trigger&#x27;</span>] <span class="keyword">not</span> <span class="keyword">in</span> words:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line"></span><br><span class="line">        <span class="comment"># event arguments: Participant/Object 字段</span></span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;Participant&#x27;</span> <span class="keyword">in</span> value.keys():</span><br><span class="line">            participants = value[<span class="string">&#x27;Participant&#x27;</span>]</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> <span class="built_in">type</span>(participants) == <span class="built_in">list</span>:</span><br><span class="line">                <span class="comment">## check arguments word ##</span></span><br><span class="line">                <span class="keyword">for</span> participant <span class="keyword">in</span> participants:</span><br><span class="line">                    <span class="keyword">if</span> participant <span class="keyword">not</span> <span class="keyword">in</span> words:</span><br><span class="line">                        <span class="keyword">continue</span></span><br><span class="line">                    </span><br><span class="line">                    <span class="keyword">if</span> <span class="string">&#x27;event_arguments&#x27;</span> <span class="keyword">not</span> <span class="keyword">in</span> trigger.keys():</span><br><span class="line">                        trigger[<span class="string">&#x27;event_arguments&#x27;</span>] = [participant]</span><br><span class="line">                    <span class="keyword">else</span>:</span><br><span class="line">                        trigger[<span class="string">&#x27;event_arguments&#x27;</span>].append(participant)</span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">                <span class="keyword">assert</span> <span class="built_in">type</span>(participants) == <span class="built_in">str</span></span><br><span class="line">                </span><br><span class="line">                <span class="comment">## check arguments word ##</span></span><br><span class="line">                <span class="keyword">if</span> participants <span class="keyword">not</span> <span class="keyword">in</span> words:</span><br><span class="line">                    <span class="keyword">continue</span></span><br><span class="line">                    </span><br><span class="line">                trigger[<span class="string">&#x27;event_arguments&#x27;</span>] = [participants]</span><br><span class="line"></span><br><span class="line">        <span class="keyword">elif</span> <span class="string">&#x27;Object&#x27;</span> <span class="keyword">in</span> value.keys():</span><br><span class="line">            participants = value[<span class="string">&#x27;Object&#x27;</span>]</span><br><span class="line">            </span><br><span class="line">            <span class="comment">## check arguments word ##</span></span><br><span class="line">            <span class="keyword">if</span> participants <span class="keyword">not</span> <span class="keyword">in</span> words:</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">                    </span><br><span class="line">            trigger[<span class="string">&#x27;event_arguments&#x27;</span>] = [participants]</span><br><span class="line">            </span><br><span class="line"></span><br><span class="line">        triggers.append(trigger)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(triggers) == <span class="number">0</span>:</span><br><span class="line">        <span class="keyword">continue</span></span><br><span class="line">        </span><br><span class="line">    valid_sentence[<span class="string">&#x27;triggers&#x27;</span>] = triggers</span><br><span class="line">    valid_sentences.append(valid_sentence)</span><br><span class="line"></span><br><span class="line">    </span><br><span class="line"><span class="built_in">len</span>(sentences), <span class="built_in">len</span>(valid_sentences)</span><br><span class="line"><span class="comment"># output: (2207, 1665)</span></span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;./dataset.json&#x27;</span>, <span class="string">&#x27;w&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    json.dump(valid_sentences, f, sort_keys=<span class="literal">True</span>, indent=<span class="number">4</span>, ensure_ascii=<span class="literal">False</span>)</span><br></pre></td></tr></table></figure>
+
+<p>一个合法的句子格式如下：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    &#x27;sentence&#x27;: &#x27;到 晚上<span class="number">9</span>时左右 ， 事故现场 基本 清理 完毕 ， <span class="number">104</span>国道小溪岭段 恢复了 通车 。&#x27;,</span><br><span class="line">    &#x27;sentence_words&#x27;: &#x27;到 晚上 <span class="number">9</span> 时 左右 ， 事故现场 基本 清理 完毕 ， <span class="number">104</span> 国道 小溪 岭段 恢复 了 通车 。&#x27;,</span><br><span class="line">    &#x27;triggers&#x27;: [</span><br><span class="line">        &#123;</span><br><span class="line">            &#x27;event&#x27;: &#x27;operation&#x27;,</span><br><span class="line">            &#x27;event_trigger&#x27;: &#x27;清理&#x27;,</span><br><span class="line">            &#x27;event_arguments&#x27;: [&#x27;事故现场&#x27;]</span><br><span class="line">        &#125;,</span><br><span class="line">        &#123;</span><br><span class="line">            &#x27;event&#x27;: &#x27;stateChange&#x27;, </span><br><span class="line">            &#x27;event_trigger&#x27;: &#x27;通车&#x27;</span><br><span class="line">        &#125;</span><br><span class="line">    ]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="数据统计"><a href="#数据统计" class="headerlink" title="数据统计"></a>数据统计</h1><p>读取数据集中的数据：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> json</span><br><span class="line"><span class="keyword">import</span> pandas <span class="keyword">as</span> pd</span><br><span class="line"></span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;./dataset.json&#x27;</span>, <span class="string">&#x27;r&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    sentences = json.load(f)</span><br><span class="line"><span class="built_in">len</span>(sentences)</span><br><span class="line"><span class="comment"># output: 1665 </span></span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="句子中-Trigger-数量统计"><a href="#句子中-Trigger-数量统计" class="headerlink" title="句子中 Trigger 数量统计"></a>句子中 Trigger 数量统计</h2><p>triggers_num 记录了每一个句子中的触发词数量，转为 DataFrame，可以看到平均每个句子中有 2 个触发词，最少 1 个触发词，最多 8 个触发词。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">triggers_num = [<span class="built_in">len</span>(s[<span class="string">&#x27;triggers&#x27;</span>]) <span class="keyword">for</span> s <span class="keyword">in</span> sentences]	<span class="comment"># 记录每个句子中的trigger数量</span></span><br><span class="line"><span class="built_in">len</span>(triggers_num)</span><br><span class="line"><span class="comment"># output: 1665，这是句子数量</span></span><br><span class="line"></span><br><span class="line">triggers_df = pd.DataFrame(&#123;<span class="string">&#x27;triggers_num&#x27;</span>: triggers_num&#125;)</span><br><span class="line">triggers_df.describe()</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th align="center"></th>
+<th align="center">triggers_num</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">count</td>
+<td align="center">1665.000000</td>
+</tr>
+<tr>
+<td align="center">mean</td>
+<td align="center">2.045646</td>
+</tr>
+<tr>
+<td align="center">std</td>
+<td align="center">1.298235</td>
+</tr>
+<tr>
+<td align="center">min</td>
+<td align="center">1.000000</td>
+</tr>
+<tr>
+<td align="center">25%</td>
+<td align="center">1.000000</td>
+</tr>
+<tr>
+<td align="center">50%</td>
+<td align="center">2.000000</td>
+</tr>
+<tr>
+<td align="center">75%</td>
+<td align="center">3.000000</td>
+</tr>
+<tr>
+<td align="center">max</td>
+<td align="center">8.000000</td>
+</tr>
+</tbody></table>
+<h3 id="1-1-比例（句子中只有一个事件）"><a href="#1-1-比例（句子中只有一个事件）" class="headerlink" title="1/1 比例（句子中只有一个事件）"></a>1/1 比例（句子中只有一个事件）</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">len</span>(triggers_df[triggers_df[<span class="string">&#x27;triggers_num&#x27;</span>] == <span class="number">1</span>])</span><br><span class="line"><span class="comment"># 765</span></span><br><span class="line"><span class="built_in">len</span>(triggers_df[triggers_df[<span class="string">&#x27;triggers_num&#x27;</span>] == <span class="number">1</span>]) / <span class="built_in">len</span>(triggers_df)</span><br><span class="line"><span class="comment"># 0.4594594594594595</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="1-N-比例"><a href="#1-N-比例" class="headerlink" title="1/N 比例"></a>1/N 比例</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">len</span>(triggers_df[triggers_df[<span class="string">&#x27;triggers_num&#x27;</span>] &gt; <span class="number">1</span>])</span><br><span class="line"><span class="comment"># 900</span></span><br><span class="line"><span class="built_in">len</span>(triggers_df[triggers_df[<span class="string">&#x27;triggers_num&#x27;</span>] &gt; <span class="number">1</span>]) / <span class="built_in">len</span>(triggers_df)</span><br><span class="line"><span class="comment"># 0.5405405405405406</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Event-类型统计-7"><a href="#Event-类型统计-7" class="headerlink" title="Event 类型统计 - 7"></a>Event 类型统计 - 7</h2><p>统计事件类型的数量为 7，并且统计了每一种事件的出现次数。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">event_type = <span class="built_in">dict</span>()</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> sent <span class="keyword">in</span> sentences:</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> sent[<span class="string">&#x27;triggers&#x27;</span>]:</span><br><span class="line">        t = trigger[<span class="string">&#x27;event&#x27;</span>]</span><br><span class="line">        <span class="keyword">if</span> t <span class="keyword">not</span> <span class="keyword">in</span> event_type.keys():</span><br><span class="line">            event_type[t] = <span class="number">1</span></span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            event_type[t] += <span class="number">1</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">len</span>(event_type)</span><br><span class="line"><span class="comment"># 7</span></span><br><span class="line"></span><br><span class="line">event_type</span><br><span class="line"><span class="comment"># &#123;</span></span><br><span class="line"><span class="comment">#     &#x27;emergency&#x27;: 599,</span></span><br><span class="line"><span class="comment">#     &#x27;movement&#x27;: 302,</span></span><br><span class="line"><span class="comment">#     &#x27;operation&#x27;: 764,</span></span><br><span class="line"><span class="comment">#     &#x27;statement&#x27;: 485,</span></span><br><span class="line"><span class="comment">#     &#x27;action&#x27;: 639,</span></span><br><span class="line"><span class="comment">#     &#x27;stateChange&#x27;: 415,</span></span><br><span class="line"><span class="comment">#     &#x27;perception&#x27;: 202</span></span><br><span class="line"><span class="comment"># &#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Argument-数量统计"><a href="#Argument-数量统计" class="headerlink" title="Argument 数量统计"></a>Argument 数量统计</h2><p>arguments_num 保存了每一个触发词对应的论元数量。将之转为 DataFrame，可以看到每一个论元平均有 0.4495 个论元。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">arguments_num = []	<span class="comment"># 保存每个触发词的论元数量</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> sent <span class="keyword">in</span> sentences:</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> sent[<span class="string">&#x27;triggers&#x27;</span>]:</span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;event_arguments&#x27;</span> <span class="keyword">not</span> <span class="keyword">in</span> trigger.keys():</span><br><span class="line">            arguments_num.append(<span class="number">0</span>)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            arguments_num.append(<span class="built_in">len</span>(trigger[<span class="string">&#x27;event_arguments&#x27;</span>]))</span><br><span class="line"></span><br><span class="line"><span class="built_in">len</span>(arguments_num)</span><br><span class="line"><span class="comment"># 3406，这个是触发词的总数</span></span><br><span class="line"></span><br><span class="line">arguments_df = pd.DataFrame(&#123;<span class="string">&#x27;num&#x27;</span>: arguments_num&#125;)</span><br><span class="line">arguments_df.describe()</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th align="center"></th>
+<th align="center">num</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">count</td>
+<td align="center">3406.000000</td>
+</tr>
+<tr>
+<td align="center">mean</td>
+<td align="center">0.449501</td>
+</tr>
+<tr>
+<td align="center">std</td>
+<td align="center">0.497516</td>
+</tr>
+<tr>
+<td align="center">min</td>
+<td align="center">0.000000</td>
+</tr>
+<tr>
+<td align="center">25%</td>
+<td align="center">0.000000</td>
+</tr>
+<tr>
+<td align="center">50%</td>
+<td align="center">0.000000</td>
+</tr>
+<tr>
+<td align="center">75%</td>
+<td align="center">1.000000</td>
+</tr>
+<tr>
+<td align="center">max</td>
+<td align="center">1.000000</td>
+</tr>
+</tbody></table>
+<p>统计数量，其中有一个论元的触发词个数为 1531；没有论元的触发词个数为 1875</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">arguments_df[<span class="string">&#x27;num&#x27;</span>].value_counts()</span><br><span class="line"><span class="comment"># 0    1875</span></span><br><span class="line"><span class="comment"># 1    1531</span></span><br><span class="line"><span class="comment"># Name: num, dtype: int64</span></span><br></pre></td></tr></table></figure>
+
+<p>因为所有的触发词中，论元至多只有一个，所以将 event argument 的类型由 list 转为 str：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 把 event arguments 的类型，由list -&gt; str</span></span><br><span class="line"><span class="keyword">for</span> sent <span class="keyword">in</span> sentences:</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> sent[<span class="string">&#x27;triggers&#x27;</span>]:</span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;event_arguments&#x27;</span> <span class="keyword">in</span> trigger.keys():</span><br><span class="line">            trigger[<span class="string">&#x27;event_arguments&#x27;</span>] = trigger[<span class="string">&#x27;event_arguments&#x27;</span>][<span class="number">0</span>]</span><br><span class="line">    </span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;./dataset.json&#x27;</span>, <span class="string">&#x27;w&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    json.dump(sentences, f, sort_keys=<span class="literal">True</span>, indent=<span class="number">4</span>, ensure_ascii=<span class="literal">False</span>)</span><br></pre></td></tr></table></figure>
+
+<h2 id="句子的最大长度-85"><a href="#句子的最大长度-85" class="headerlink" title="句子的最大长度 - 85"></a>句子的最大长度 - 85</h2><p>统计句子的最大长度，得到最大长度为 85 （单位：词）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">nums = []</span><br><span class="line"><span class="keyword">for</span> piece <span class="keyword">in</span> sentences:</span><br><span class="line">    nums.append(<span class="built_in">len</span>(piece[<span class="string">&#x27;sentence_words&#x27;</span>].split()))</span><br><span class="line">   </span><br><span class="line"><span class="built_in">max</span>(nums), nums.index(<span class="built_in">max</span>(nums))</span><br><span class="line"><span class="comment"># (85, 96)</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="Train-Test-划分"><a href="#Train-Test-划分" class="headerlink" title="Train / Test 划分"></a>Train / Test 划分</h1><p>triggers_num 为每个句子中的触发词数量，y 为下标。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> json</span><br><span class="line"><span class="keyword">from</span> sklearn.model_selection <span class="keyword">import</span> train_test_split</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"></span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;./dataset.json&#x27;</span>, <span class="string">&#x27;r&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    dataset = json.load(f)</span><br><span class="line">    </span><br><span class="line"><span class="built_in">len</span>(dataset)	<span class="comment"># 1665</span></span><br><span class="line"></span><br><span class="line">triggers_num = [<span class="built_in">len</span>(p[<span class="string">&#x27;triggers&#x27;</span>]) <span class="keyword">for</span> p <span class="keyword">in</span> dataset]</span><br><span class="line"></span><br><span class="line">y = np.arange(<span class="built_in">len</span>(dataset))</span><br><span class="line">y.shape		<span class="comment"># (1665,)</span></span><br></pre></td></tr></table></figure>
+
+<p>用 train_test_split 函数对数据集进行分割，测试集占比 0.2</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">train_index, test_index = train_test_split(y, test_size=<span class="number">0.2</span>, stratify=triggers_num, random_state=<span class="number">0</span>)</span><br><span class="line">train_index.shape, test_index.shape</span><br><span class="line"><span class="comment"># ((1332,), (333,))</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>train_test_split 函数中 stratify 参数的作用：保持测试集与整个数据集里result的数据分类比例一致。</p>
+</blockquote>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">check_triggers_num</span>(<span class="params">indexes</span>):</span></span><br><span class="line">    num = np.array(triggers_num)</span><br><span class="line">    </span><br><span class="line">    chosen_num = num[indexes]</span><br><span class="line">    events = <span class="built_in">list</span>(<span class="built_in">set</span>(chosen_num))</span><br><span class="line">    events.sort()</span><br><span class="line">    </span><br><span class="line">    num2len = <span class="built_in">dict</span>()</span><br><span class="line">    <span class="keyword">for</span> e <span class="keyword">in</span> events:</span><br><span class="line">        num2len[e] = <span class="built_in">len</span>(chosen_num[chosen_num==e])</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">print</span>(num2len)</span><br><span class="line">    </span><br><span class="line">check_triggers_num(y)</span><br><span class="line">&#123;<span class="number">1</span>: <span class="number">765</span>, <span class="number">2</span>: <span class="number">429</span>, <span class="number">3</span>: <span class="number">249</span>, <span class="number">4</span>: <span class="number">131</span>, <span class="number">5</span>: <span class="number">55</span>, <span class="number">6</span>: <span class="number">20</span>, <span class="number">7</span>: <span class="number">11</span>, <span class="number">8</span>: <span class="number">5</span>&#125;</span><br><span class="line">check_triggers_num(train_index)</span><br><span class="line">&#123;<span class="number">1</span>: <span class="number">612</span>, <span class="number">2</span>: <span class="number">343</span>, <span class="number">3</span>: <span class="number">199</span>, <span class="number">4</span>: <span class="number">105</span>, <span class="number">5</span>: <span class="number">44</span>, <span class="number">6</span>: <span class="number">16</span>, <span class="number">7</span>: <span class="number">9</span>, <span class="number">8</span>: <span class="number">4</span>&#125;</span><br><span class="line">check_triggers_num(test_index)</span><br><span class="line">&#123;<span class="number">1</span>: <span class="number">153</span>, <span class="number">2</span>: <span class="number">86</span>, <span class="number">3</span>: <span class="number">50</span>, <span class="number">4</span>: <span class="number">26</span>, <span class="number">5</span>: <span class="number">11</span>, <span class="number">6</span>: <span class="number">4</span>, <span class="number">7</span>: <span class="number">2</span>, <span class="number">8</span>: <span class="number">1</span>&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/" rel="tag"># 深度学习</a>
+              <a href="/tags/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96/" rel="tag"># 事件抽取</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/19/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/" rel="prev" title="go-micro基础 (2) go-micro基本介绍">
+      <i class="fa fa-chevron-left"></i> go-micro基础 (2) go-micro基本介绍
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-2-%E5%88%B6%E4%BD%9C%E6%A8%A1%E5%9E%8B%E6%89%80%E9%9C%80%E8%A6%81%E7%9A%84%E5%90%84%E9%A1%B9%E8%BE%93%E5%85%A5-%E8%BE%93%E5%87%BA%E7%9F%A9%E9%98%B5/" rel="next" title="事件抽取模型复现之DMCNN (2) 制作模型所需要的各项输入/输出矩阵">
+      事件抽取模型复现之DMCNN (2) 制作模型所需要的各项输入/输出矩阵 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#XML-%E6%A0%BC%E5%BC%8F%E8%BD%AC%E4%B8%BA-Json"><span class="nav-number">1.</span> <span class="nav-text">XML 格式转为 Json</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#parse-xml-string-%E5%87%BD%E6%95%B0"><span class="nav-number">1.1.</span> <span class="nav-text">parse_xml_string 函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#parse-xml-%E5%87%BD%E6%95%B0"><span class="nav-number">1.2.</span> <span class="nav-text">parse_xml 函数</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%AD%9B%E9%80%89%E5%8F%AF%E7%94%A8%E5%8F%A5%E5%AD%90%E6%9E%84%E9%80%A0-Event-Extraction-%E6%95%B0%E6%8D%AE%E9%9B%86"><span class="nav-number">2.</span> <span class="nav-text">筛选可用句子构造 Event Extraction 数据集</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AD%9B%E9%80%89%E5%8F%AF%E7%94%A8%E5%8F%A5%E5%AD%90"><span class="nav-number">2.1.</span> <span class="nav-text">筛选可用句子</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%9F%E8%AE%A1"><span class="nav-number">3.</span> <span class="nav-text">数据统计</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%A5%E5%AD%90%E4%B8%AD-Trigger-%E6%95%B0%E9%87%8F%E7%BB%9F%E8%AE%A1"><span class="nav-number">3.1.</span> <span class="nav-text">句子中 Trigger 数量统计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%AF%94%E4%BE%8B%EF%BC%88%E5%8F%A5%E5%AD%90%E4%B8%AD%E5%8F%AA%E6%9C%89%E4%B8%80%E4%B8%AA%E4%BA%8B%E4%BB%B6%EF%BC%89"><span class="nav-number">3.1.1.</span> <span class="nav-text">1&#x2F;1 比例（句子中只有一个事件）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-N-%E6%AF%94%E4%BE%8B"><span class="nav-number">3.1.2.</span> <span class="nav-text">1&#x2F;N 比例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Event-%E7%B1%BB%E5%9E%8B%E7%BB%9F%E8%AE%A1-7"><span class="nav-number">3.2.</span> <span class="nav-text">Event 类型统计 - 7</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Argument-%E6%95%B0%E9%87%8F%E7%BB%9F%E8%AE%A1"><span class="nav-number">3.3.</span> <span class="nav-text">Argument 数量统计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%A5%E5%AD%90%E7%9A%84%E6%9C%80%E5%A4%A7%E9%95%BF%E5%BA%A6-85"><span class="nav-number">3.4.</span> <span class="nav-text">句子的最大长度 - 85</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Train-Test-%E5%88%92%E5%88%86"><span class="nav-number">4.</span> <span class="nav-text">Train &#x2F; Test 划分</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

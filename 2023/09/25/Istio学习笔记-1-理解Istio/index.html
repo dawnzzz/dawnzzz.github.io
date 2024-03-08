@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Istio 介绍服务网格服务网格（Service mesh），作为服务间通信的基础设施层。与应用部署一起，但对应用透明。应用作为服务的发起方，只需要用最简单的方式将请求发送给本地的服务网格代理，然后网格代理会进行后续的操作，如服务发现，负载均衡，最后将请求转发给目标服务。 服务网格目的是解决系统架构微服务化后的服务间通信和治理问题。服务网格由 Sidecar 节点组成，实现了数据面和控制面的解耦。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Istio学习笔记 (1) 理解Istio">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Istio 介绍服务网格服务网格（Service mesh），作为服务间通信的基础设施层。与应用部署一起，但对应用透明。应用作为服务的发起方，只需要用最简单的方式将请求发送给本地的服务网格代理，然后网格代理会进行后续的操作，如服务发现，负载均衡，最后将请求转发给目标服务。 服务网格目的是解决系统架构微服务化后的服务间通信和治理问题。服务网格由 Sidecar 节点组成，实现了数据面和控制面的解耦。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/istio-architecture.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/7394697e49594884bb2444d0ca15adff.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/c323ab40bc68439abbfc8145406dc107.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/92fae8101f4b4b6089c464ef5e158efb.png">
+<meta property="article:published_time" content="2023-09-25T11:53:06.000Z">
+<meta property="article:modified_time" content="2024-02-26T08:20:16.356Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta property="article:tag" content="Istio">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/istio-architecture.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Istio学习笔记 (1) 理解Istio | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Istio学习笔记 (1) 理解Istio
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-25 19:53:06" itemprop="dateCreated datePublished" datetime="2023-09-25T19:53:06+08:00">2023-09-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Istio学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Istio-介绍"><a href="#Istio-介绍" class="headerlink" title="Istio 介绍"></a>Istio 介绍</h1><h2 id="服务网格"><a href="#服务网格" class="headerlink" title="服务网格"></a>服务网格</h2><p>服务网格（Service mesh），作为<strong>服务间通信的基础设施层</strong>。与应用部署一起，但对应用<strong>透明</strong>。应用作为服务的发起方，只需要用最简单的方式将请求<strong>发送给本地的服务网格代理</strong>，然后网格代理会进行后续的操作，如服务发现，负载均衡，最后将请求转发给目标服务。</p>
+<p><strong>服务网格目的是解决系统架构微服务化后的服务间通信和治理问题。</strong>服务网格由 Sidecar 节点组成，实现了数据面和控制面的解耦。服务网格的功能旨在实现以下方面：</p>
+<ul>
+<li><strong>流量控制：</strong>包括两个方面：<ul>
+<li>流量管理：服务发现、服务注册、负载均衡、路由等。</li>
+<li>弹性：超时、重试、熔断等。</li>
+</ul>
+</li>
+<li><strong>可观测性：</strong>指标、分布式追踪、日志。</li>
+<li><strong>安全性：</strong>服务间访问控制、加密通信。</li>
+</ul>
+<h2 id="Istio-是什么"><a href="#Istio-是什么" class="headerlink" title="Istio 是什么"></a>Istio 是什么</h2><p>Istio 是由谷歌、IBM 和 Lyft 创建的服务网格开源实现，以透明的方式向服务架构中添加流量控制、可观测性、安全性。Istio 由一个控制平面和基于 Envoy 的数据平面组成。</p>
+<blockquote>
+<p><strong>服务网格与 SOA 中企业服务总线（ESB）之间的关系：</strong></p>
+<p>相同点：在架构中，不论是服务网格还是 ESB，对于应用来说都是透明的，应用程序不应该感知到。并且，ESB 与服务网格之间功能重合，如都提供重试、超时、熔断、服务发现、负载均衡。</p>
+<p>不同点：</p>
+<ul>
+<li>ESB 非常集中化的部署，而服务网格是分布式的部署，sidecar 与应用程序一起被分布式的部署在集群中。</li>
+<li>ESB 非常复杂，提供了业务转换、服务编排等不属于服务网格的职责，也就是 ESB 基于复杂的专有供应商软件。</li>
+</ul>
+<p><strong>服务网格和 API 网关之间的关系：</strong></p>
+<p>相同点：都具有服务发现、可见性、安全、流量管理等特性（二者之间的用途有重叠）。</p>
+<p>不同点：</p>
+<ul>
+<li>API Gateway 主要的作用是暴露 API 给外部，API 通过调用下游的组合或者单个微服务的方式，来提供业务逻辑。</li>
+<li>而服务网格仅仅是服务之间的基础设施，不了解应用中的业务逻辑。</li>
+</ul>
+<p><strong>所以，可以将 API Gateway 和 Service Mesh 一起部署</strong>。API Gateway 负责应用逻辑，Service Mesh 负责服务发现、可见性等服务基础设施（可能会影响性能，多了本地连接的时间，但是可以通过水平扩展来弥补）。</p>
+</blockquote>
+<p><strong>数据平面</strong>通过<strong>代理（Envoy）</strong>拦截微服务架构集群中的所有网络流量，<strong>与每个服务一起部署</strong>，提供流量管理、可观测性等功能。</p>
+<p><strong>控制平面</strong>提供 API 供运维人员配置数据平面，<strong>动态</strong>的对数据平面进行配置。</p>
+<h2 id="基本特性"><a href="#基本特性" class="headerlink" title="基本特性"></a>基本特性</h2><p>Istio 透明的为微服务之间提供了三个特性，流量管理、可观测性、安全性。</p>
+<h3 id="流量管理"><a href="#流量管理" class="headerlink" title="流量管理"></a>流量管理</h3><ul>
+<li><strong>流量管理：</strong><ul>
+<li><strong>路由规则：</strong>Istio 提供流量路由规则，可以控制服务之间的流量和 API 调用。</li>
+<li><strong>简化服务级别属性的配置：</strong>提供熔断器、超时、重试机制，透明的为服务增加<strong>弹性</strong>。</li>
+<li><strong>可设置重要任务：</strong>可以进行 A/B 测试、canary 部署和基于百分比流量分割的分阶段部署。</li>
+<li><strong>开箱即用的故障恢复</strong>：使得应用更<strong>健壮</strong>地应对网络或者服务故障。</li>
+</ul>
+</li>
+</ul>
+<h3 id="可观测性"><a href="#可观测性" class="headerlink" title="可观测性"></a>可观测性</h3><ul>
+<li><strong>可观测性：</strong>为服务网格内的所有通信生成详细的<strong>遥测数据</strong>。这种遥测技术提供了服务行为的可观测性，使开发者能够排除故障、维护和优化其应用。 更好的是，它对于服务来说是<strong>透明</strong>的，不会为开发带来负担。</li>
+</ul>
+<blockquote>
+<p>Istio 的遥测技术包括详细的<strong>指标</strong>、<strong>分布式跟踪</strong>和完整的访问<strong>日志</strong>。</p>
+</blockquote>
+<h3 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h3><ul>
+<li><strong>安全性：</strong>包括全面的安全解决方案，Istio 提供了强大的身份、强大的策略、透明的 TLS 加密，以及验证、授权和审计（AAA）工具来保护服务和数据。</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h2><p>Istio 分为数据平面和控制平面，数据平面为 Proxy，控制平面为 istiod：</p>
+<ul>
+<li><strong>Proxy：</strong>位于数据平面，即<strong>边车代理</strong>，与应用服务以 Sidecar 方式部署在同一个 Pod 中。实际上包括 istio-proxy 和 pilot-agent 两部分，它们以两个<strong>不同的进程</strong>部署在同一个容器 istio/proxy 中。<ul>
+<li><strong>istio-proxy：</strong>是 Istio 基于 Envoy 新增的一些<strong>扩展</strong>，istio 默认使用 Envoy。</li>
+<li><strong>polit-agent：</strong>负责<strong>管理 istio-proxy 的整个生命周期</strong>，具体包括 istio-proxy 的启动参数和配置文件，负责管理 istio-proxy 的启动过程、运行状态监控以及重启等。poilt-agent 将会以子进程的方式启动 istio-proxy，并监控 istio-proxy 的运行状态。</li>
+</ul>
+</li>
+<li><strong>Istiod：</strong>自 Istio 1.5 版本开始，控制平面由原来分散、独立部署的三个组件（Pilot、Citadel、Galley）<strong>整合为一个独立的 istiod</strong>，变成了一个<strong>单进程、多模块</strong>的组织形态，极大的降低了原来部署的复杂度。<ul>
+<li><strong>Pilot：</strong>负责 Istio 数据平面的 xDS 配置管理（实际上指的是 polit-discovery）。</li>
+<li><strong>Citadel：</strong>负责安全证书的管理和发放，可以实现<strong>授权和认证</strong>等操作。</li>
+<li><strong>Galley：</strong>是 istio 1.1 版本引入的<strong>配置管理</strong>组件，主要负责配置的验证、提取和处理等功能。其目的是将 Istio 和底层平台（如 Kubernetes）进行解耦。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/istio-architecture.png" alt="Istio架构图"></p>
+<h1 id="补充-服务发布策略"><a href="#补充-服务发布策略" class="headerlink" title="补充 - 服务发布策略"></a>补充 - 服务发布策略</h1><p>上文提到了 A/B 测试、canary（金丝雀）发布，本节说一说常用的发布策略，包括蓝绿发布、金丝雀发布。</p>
+<p>A/B 测试是效果测试，如测试不同功能的实际效果（如转化率、订单情况），这些功能有差异但是没有新旧之分。</p>
+<h2 id="蓝绿发布"><a href="#蓝绿发布" class="headerlink" title="蓝绿发布"></a>蓝绿发布</h2><p>蓝绿发布需要对服务的新版本进行<strong>冗余部署</strong>，一般新版本的机器规格和数量与旧版本保持<strong>一致</strong>，相当于该服务<strong>有两套完全相同的部署环境</strong>，新版本作为热备。</p>
+<p>服务版本升级时，只需将流量全部切换到新版本即可，旧版本作为热备。</p>
+<p>如果新版本上线后出现严重的程序 BUG，那么只需将流量全部切回至旧版本，大大缩短故障恢复的时间。待新版本完成 BUG 修复并重新部署之后，再将旧版本的流量切换到新版本。</p>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/7394697e49594884bb2444d0ca15adff.png" alt="img"></p>
+<h2 id="金丝雀发布"><a href="#金丝雀发布" class="headerlink" title="金丝雀发布"></a>金丝雀发布</h2><p>金丝雀发布的思想则是<strong>将少量的请求引流到新版本上</strong>。验证新版本符合预期后，逐步<strong>调整流量权重比例</strong>，使得流量慢慢从老版本迁移至新版本，对新版本服务进行<strong>扩容</strong>，同时对老版本服务进行<strong>缩容</strong>，使得底层资源得到最大化利用。</p>
+<blockquote>
+<p>金丝雀发布的流量选择有多种<strong>策略</strong>：随机样本策略（随机引入）、狗粮策略（就是内部用户或员工先尝鲜）、分区策略（不同区域用户使用不同版本）、用户特征策略（根据用户特征选择版本）。</p>
+</blockquote>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/c323ab40bc68439abbfc8145406dc107.png" alt="img"></p>
+<h2 id="A-B-测试"><a href="#A-B-测试" class="headerlink" title="A/B 测试"></a>A/B 测试</h2><p>A/B 测试与发布没什么关系，A/B测试是<strong>效果测试</strong>，如测试不同功能的实际效果（如转化率、订单情况），这些功能有差异但是没有新旧之分。</p>
+<p>A/B测试时，线上同时运行多个版本的服务，这些服务通常会有一些体验上的差异，譬如说页面样式、颜色、操作流程不同。</p>
+<p>A/B 测试基于<strong>用户请求的元信息</strong>将流量路由到新版本，<strong>基于请求内容匹配</strong>。只有匹配特定规则的请求才会被引流到特定版本，常见的做法包括基于 Http Header 和 Cookie。</p>
+<blockquote>
+<p>基于 Http Header 方式的例子，例如 User-Agent 的值为 Android 的请求可以访问一个版本，其他系统仍然访问另一个版本。</p>
+<p>基于 Cookie 方式的例子，例如普通用户可以访问一个版本，VIP 用户仍然访问另一个版本。</p>
+</blockquote>
+<p><strong>相关人员通过分析各个版本服务的实际效果，选出效果最好的版本</strong>。</p>
+<blockquote>
+<p>A/B 测试中，<strong>需要预估中匹配特定规则的请求规模</strong>，然后<strong>按需</strong>为新版本分配<strong>额外</strong>的机器资源。</p>
+</blockquote>
+<p><img src="/../images/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/92fae8101f4b4b6089c464ef5e158efb.png" alt="img"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/09/21/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/" rel="prev" title="阅读dubbo-kubernetes的启发 (4) Envoy">
+      <i class="fa fa-chevron-left"></i> 阅读dubbo-kubernetes的启发 (4) Envoy
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/09/26/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E6%B5%81%E9%87%8F%E7%AE%A1%E7%90%86/" rel="next" title="Istio学习笔记 (2) 流量管理">
+      Istio学习笔记 (2) 流量管理 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Istio-%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">Istio 介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E7%BD%91%E6%A0%BC"><span class="nav-number">1.1.</span> <span class="nav-text">服务网格</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Istio-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="nav-number">1.2.</span> <span class="nav-text">Istio 是什么</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E7%89%B9%E6%80%A7"><span class="nav-number">1.3.</span> <span class="nav-text">基本特性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%81%E9%87%8F%E7%AE%A1%E7%90%86"><span class="nav-number">1.3.1.</span> <span class="nav-text">流量管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7"><span class="nav-number">1.3.2.</span> <span class="nav-text">可观测性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%89%E5%85%A8%E6%80%A7"><span class="nav-number">1.3.3.</span> <span class="nav-text">安全性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84"><span class="nav-number">1.4.</span> <span class="nav-text">架构</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%A1%A5%E5%85%85-%E6%9C%8D%E5%8A%A1%E5%8F%91%E5%B8%83%E7%AD%96%E7%95%A5"><span class="nav-number">2.</span> <span class="nav-text">补充 - 服务发布策略</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%93%9D%E7%BB%BF%E5%8F%91%E5%B8%83"><span class="nav-number">2.1.</span> <span class="nav-text">蓝绿发布</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%87%91%E4%B8%9D%E9%9B%80%E5%8F%91%E5%B8%83"><span class="nav-number">2.2.</span> <span class="nav-text">金丝雀发布</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#A-B-%E6%B5%8B%E8%AF%95"><span class="nav-number">2.3.</span> <span class="nav-text">A&#x2F;B 测试</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

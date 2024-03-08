@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="n9e server judge引擎主要用于产生告警信息。 Server judge引擎启动 judge 引擎时，主要有启动了 4 个 goroutine，代表了 n9e 告警引擎的四个职责：  loopConsume 用于消费告警事件（包括告警事件和已经恢复的告警事件），填写历史告警信息，发送提醒。 loopFilterRules 首先从所有的告警规则中，通过集群+对规则 ID 应用一致性哈希的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="夜莺监控系统学习笔记 (3) server judge引擎">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/12/23/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-server-judge%E5%BC%95%E6%93%8E/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="n9e server judge引擎主要用于产生告警信息。 Server judge引擎启动 judge 引擎时，主要有启动了 4 个 goroutine，代表了 n9e 告警引擎的四个职责：  loopConsume 用于消费告警事件（包括告警事件和已经恢复的告警事件），填写历史告警信息，发送提醒。 loopFilterRules 首先从所有的告警规则中，通过集群+对规则 ID 应用一致性哈希的">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-12-23T09:49:51.000Z">
+<meta property="article:modified_time" content="2023-12-15T03:33:50.305Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta property="article:tag" content="监控系统">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/12/23/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-server-judge%E5%BC%95%E6%93%8E/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>夜莺监控系统学习笔记 (3) server judge引擎 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/23/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-server-judge%E5%BC%95%E6%93%8E/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          夜莺监控系统学习笔记 (3) server judge引擎
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-23 17:49:51" itemprop="dateCreated datePublished" datetime="2022-12-23T17:49:51+08:00">2022-12-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 11:33:50" itemprop="dateModified" datetime="2023-12-15T11:33:50+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">夜莺监控系统学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>n9e server judge引擎主要用于<strong>产生告警信息</strong>。</p>
+<h1 id="Server-judge引擎"><a href="#Server-judge引擎" class="headerlink" title="Server judge引擎"></a>Server judge引擎</h1><p>启动 judge 引擎时，主要有启动了 4 个 goroutine，代表了 n9e 告警引擎的四个职责：</p>
+<ul>
+<li>loopConsume 用于<strong>消费</strong>告警事件（包括告警事件和已经恢复的告警事件），填写历史告警信息，发送提醒。</li>
+<li>loopFilterRules 首先从所有的告警规则中，通过<strong>集群+对规则 ID 应用一致性哈希</strong>的方式<strong>过滤</strong>出需要本节点监控的告警规则。然后对每一个自己负责的规则启动 worker，<strong>作为生产者生成告警事件</strong>。</li>
+<li>reportQueueSize 向时序数据库推送数据，报告告警队列长度。</li>
+<li>sender.StartEmailSender 定期消费邮件提醒，用于在一个长连接内，批量发送邮件，减少与邮件服务器建立连接的次数。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Start</span><span class="params">(ctx context.Context)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">   err := initTpls()</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> err</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// start loop consumer</span></span><br><span class="line">   <span class="keyword">go</span> loopConsume(ctx)</span><br><span class="line"></span><br><span class="line">   <span class="comment">// filter my rules and start worker</span></span><br><span class="line">   <span class="keyword">go</span> loopFilterRules(ctx)</span><br><span class="line"></span><br><span class="line">   <span class="keyword">go</span> reportQueueSize()</span><br><span class="line"></span><br><span class="line">   <span class="keyword">go</span> sender.StartEmailSender()</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<p><strong>新版本</strong>中，<code>Start</code> 函数有了一些微调，主要的变化在于：</p>
+<ul>
+<li>在开始 judge 引擎时，首先调用 <code>reloadTpls</code> 函数加载告警模板文件。</li>
+<li>启动了一个 Reporter 协程，用于<strong>批量</strong>向<strong>管理员</strong>发送 n9e 的错误信息 <code>notifyToMaintainer(title, msg)</code>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Start</span><span class="params">(ctx context.Context)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	err := reloadTpls()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// start loop consumer</span></span><br><span class="line">	<span class="keyword">go</span> loopConsume(ctx)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// filter my rules and start worker</span></span><br><span class="line">	<span class="keyword">go</span> loopFilterRules(ctx)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">go</span> reportQueueSize()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">go</span> sender.StartEmailSender()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">go</span> initReporter(<span class="function"><span class="keyword">func</span><span class="params">(em <span class="keyword">map</span>[ErrorType]<span class="keyword">uint64</span>)</span></span> &#123;</span><br><span class="line">		<span class="keyword">if</span> <span class="built_in">len</span>(em) == <span class="number">0</span> &#123;</span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line">		&#125;</span><br><span class="line">		title := fmt.Sprintf(<span class="string">&quot;server %s has some errors, please check server logs for detail&quot;</span>, config.C.Heartbeat.IP)</span><br><span class="line">		msg := <span class="string">&quot;&quot;</span></span><br><span class="line">		<span class="keyword">for</span> k, v := <span class="keyword">range</span> em &#123;</span><br><span class="line">			msg += fmt.Sprintf(<span class="string">&quot;error: %s, count: %d\n&quot;</span>, k, v)</span><br><span class="line">		&#125;</span><br><span class="line">		notifyToMaintainer(title, msg)</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>reporter 结构体、初始化函数如下。<strong>其中 reporter.em 用于批量的保存错误信息</strong>，key 为错误类型，value 为出现错误的次数。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> reporter <span class="keyword">struct</span> &#123;</span><br><span class="line">	sync.Mutex</span><br><span class="line">	em <span class="keyword">map</span>[ErrorType]<span class="keyword">uint64</span></span><br><span class="line">	cb <span class="function"><span class="keyword">func</span><span class="params">(em <span class="keyword">map</span>[ErrorType]<span class="keyword">uint64</span>)</span></span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> rp reporter</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initReporter</span><span class="params">(cb <span class="keyword">func</span>(em <span class="keyword">map</span>[ErrorType]<span class="keyword">uint64</span>)</span>)</span> &#123;</span><br><span class="line">	rp = reporter&#123;cb: cb, em: <span class="built_in">make</span>(<span class="keyword">map</span>[ErrorType]<span class="keyword">uint64</span>)&#125;</span><br><span class="line">	rp.Start()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>rp.Start()</code> 函数中，<strong>每过一分钟检查一次</strong>是否需要向管理员报告错误信息，若需要则调用 <code>r.cb()</code> 进行报告。 告警分为两种：</p>
+<ul>
+<li>内置 builtin 告警：如 dingding、飞书、企业微信、邮件。</li>
+<li>插件 plugin 告警：插件需要实现特定的接口（包括向管理员通知、普通的通知方法），通过 plugin 包加载 so 镜像后，lookup 插件内部的变量，通过类型断言转为接口类型，进而实现插件的告警调用（go plugin 包不支持 Windows）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *reporter)</span> <span class="title">Start</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-time.After(time.Minute):</span><br><span class="line">			cur := r.reset()</span><br><span class="line">			<span class="keyword">if</span> cur != <span class="literal">nil</span> &#123;</span><br><span class="line">				r.cb(cur)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</blockquote>
+<h2 id="loopConsume"><a href="#loopConsume" class="headerlink" title="loopConsume"></a>loopConsume</h2><p>loopConsume主要用于<strong>定期消费 EventQueue 中的事件</strong>（通过<strong>信号量机制，底层是一个 channel</strong>，用来限制并发消费告警事件的数量），包括消费告警事件和已经恢复的告警事件。</p>
+<p>主要逻辑在 <code>consumeOne</code> 函数中：</p>
+<ul>
+<li>首先调用 <code>event.ParseRuleNote</code> 函数来解析 RuleNote 字段。</li>
+</ul>
+<blockquote>
+<p>字段的解析使用 go-template 实现。</p>
+<p>在二次开发中，新增了对 rule name 字段的解析。</p>
+</blockquote>
+<ul>
+<li><p><code>persist</code> 函数用于<strong>持久化</strong>。将当前告警加入到历史告警记录中，然后将当前事件加入到 AlertCurEvent 表（当前告警）中（根据告警信息的 hash 来判断是否已经在表中，如果在当前告警表中已经存在则先删除，如果已经恢复则不插入到当前告警表中）。</p>
+</li>
+<li><p><strong>被恢复的告警事件到此为止结束消费，下面是告警事件的后需消费流程。</strong></p>
+</li>
+<li><p><code>fileUsers</code> 函数用于在 event 中填写需要通知告警的 user （和需要被电话通知的 user，这部分是 imon 中的功能）。</p>
+<ul>
+<li>事件中记录了需要被提醒的用户组 ID，在内存缓冲中的用户组信息。</li>
+<li>用户组信息中记录了用户 ID 和 oncall ID，根据 oncall ID 在缓存中查询 oncall 信息，判断用户是否应该被 oncall。</li>
+<li>根据 用户 ID 在缓存中查询用户信息，填写需要被通知的用户和需要被 oncall 的用户。</li>
+</ul>
+</li>
+<li><p><code>callback</code> 函数用于发送url回调（post方式）。</p>
+</li>
+<li><p><code>notify</code> 函数就是用于通知告警信息的。</p>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">consumeOne</span><span class="params">(event *models.AlertCurEvent)</span></span> &#123;</span><br><span class="line">   LogEvent(event, <span class="string">&quot;consume&quot;</span>)</span><br><span class="line">	 </span><br><span class="line">   <span class="comment">// 解析规则</span></span><br><span class="line">   <span class="keyword">if</span> err := event.ParseRuleNote(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">      event.RuleNote = fmt.Sprintf(<span class="string">&quot;failed to parse rule note: %v&quot;</span>, err)</span><br><span class="line">   &#125;</span><br><span class="line">   </span><br><span class="line">   <span class="comment">// 持久化，插入到历史告警表，可能插入当前告警表</span></span><br><span class="line">   persist(event)</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> event.IsRecovered &amp;&amp; event.NotifyRecovered == <span class="number">0</span> &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   fillUsers(event)</span><br><span class="line">   callback(event)</span><br><span class="line">   notify(event)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="notify-发送告警信息"><a href="#notify-发送告警信息" class="headerlink" title="notify 发送告警信息"></a>notify 发送告警信息</h3><p><code>notify</code> 中首先调用 RedisPub 和 Webhook 方式进行告警，然后调用 <code>handleNotice(notice, stdinBytes)</code> 运行其他的方式。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">alertingRedisPub(stdinBytes)</span><br><span class="line">alertingWebhook(event)</span><br><span class="line"></span><br><span class="line">handleNotice(notice, stdinBytes)</span><br><span class="line"></span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p><code>handleNotice</code>函数中，首先执行 CallScript 和 CallPlugin 的方式，接着执行内置的发送逻辑：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">alertingCallScript(bs)</span><br><span class="line"></span><br><span class="line">alertingCallPlugin(bs)</span><br><span class="line"></span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<h2 id="loopFilterRules"><a href="#loopFilterRules" class="headerlink" title="loopFilterRules"></a>loopFilterRules</h2><p>启动/停止相应的 Worker（一个 Worker 对应一个告警规则，启动一个 goroutine），用于过滤规则将告警信息推入消费队列。</p>
+<ul>
+<li>filterRules 用于根据规则 ID 在 n9e server 集群组成的一致性哈希环上选择某个 server，如果是当前的 server 则 build worker 用于监控是否发生了报警信息，如果发现则将告警事件推送至事件队列进行消费。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">loopFilterRules</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">   <span class="comment">// wait for samples</span></span><br><span class="line">   time.Sleep(time.Duration(config.C.EngineDelay) * time.Second)</span><br><span class="line"></span><br><span class="line">   duration := time.Duration(<span class="number">9000</span>) * time.Millisecond</span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      <span class="keyword">select</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      <span class="keyword">case</span> &lt;-time.After(duration):</span><br><span class="line">         filterRules()</span><br><span class="line">         filterRecordingRules()</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里以 <code>filterRules</code> 为例进行说明。</p>
+<p><code>filterRules</code> 函数中，最重要的就是 Build Workers：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">filterRules</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="comment">// 获取所有的规则id</span></span><br><span class="line">   ids := memsto.AlertRuleCache.GetRuleIds()</span><br><span class="line">   logger.Debugf(<span class="string">&quot;AlertRuleCache.GetRuleIds success，ids.len: %d&quot;</span>, <span class="built_in">len</span>(ids))</span><br><span class="line"></span><br><span class="line">   count := <span class="built_in">len</span>(ids)</span><br><span class="line">   mines := <span class="built_in">make</span>([]<span class="keyword">int64</span>, <span class="number">0</span>, count)</span><br><span class="line"></span><br><span class="line">   <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; count; i++ &#123;</span><br><span class="line">      <span class="comment">// 在一致性哈希环上选择server节点</span></span><br><span class="line">      node, err := naming.HashRing.GetNode(fmt.Sprint(ids[i]))</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         logger.Warning(<span class="string">&quot;failed to get node from hashring:&quot;</span>, err)</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line">      </span><br><span class="line">      <span class="comment">// 加入当前节点的规则</span></span><br><span class="line">      <span class="keyword">if</span> node == config.C.Heartbeat.Endpoint &#123;</span><br><span class="line">         mines = <span class="built_in">append</span>(mines, ids[i])</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="comment">// build workers用于监控告警信息</span></span><br><span class="line">   Workers.Build(mines)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="workers-Build"><a href="#workers-Build" class="headerlink" title="workers.Build"></a>workers.Build</h3><p>在 <code>workers.Build</code> 函数中的流程为：</p>
+<ul>
+<li><p>首先根据 ID，<strong>在 memsto 缓存中读取全部的 AlertRule</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">rules := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*models.AlertRule)</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="built_in">len</span>(rids); i++ &#123;</span><br><span class="line">   rule := memsto.AlertRuleCache.Get(rids[i])</span><br><span class="line">   <span class="keyword">if</span> rule == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">continue</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   hash := str.MD5(fmt.Sprintf(<span class="string">&quot;%d_%d_%s&quot;</span>,</span><br><span class="line">      rule.Id,</span><br><span class="line">      rule.PromEvalInterval,</span><br><span class="line">      rule.PromQl,</span><br><span class="line">   ))</span><br><span class="line"></span><br><span class="line">   rules[hash] = rule</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<li><p>然后<strong>结束不需要的 worker</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// stop old</span></span><br><span class="line"><span class="keyword">for</span> hash := <span class="keyword">range</span> Workers.rules &#123;</span><br><span class="line">   <span class="keyword">if</span> _, has := rules[hash]; !has &#123;</span><br><span class="line">      Workers.rules[hash].Stop()</span><br><span class="line">      <span class="built_in">delete</span>(Workers.rules, hash)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<li><p>最后使用 <code>go re.Start()</code> 开启<strong>所需要的新的 worker</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// start new</span></span><br><span class="line"><span class="keyword">for</span> hash := <span class="keyword">range</span> rules &#123;</span><br><span class="line">   <span class="keyword">if</span> _, has := Workers.rules[hash]; has &#123;</span><br><span class="line">      <span class="comment">// already exists</span></span><br><span class="line">      <span class="keyword">continue</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   elst, err := models.AlertCurEventGetByRule(rules[hash].Id)</span><br><span class="line">   </span><br><span class="line">   <span class="comment">// ...</span></span><br><span class="line">	</span><br><span class="line">   <span class="comment">// 开启新的 worker</span></span><br><span class="line">   re := RuleEval&#123;</span><br><span class="line">      rule:     rules[hash],</span><br><span class="line">      quit:     <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;),</span><br><span class="line">      fires:    firemap,</span><br><span class="line">      pendings: <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*models.AlertCurEvent),</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">go</span> re.Start()</span><br><span class="line">   Workers.rules[hash] = re</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="judge"><a href="#judge" class="headerlink" title="judge"></a>judge</h3><p>Worker 开启后，就会定时的从 Prometheus 中查询告警规则中定义的信息（如 promQL）。</p>
+<blockquote>
+<p>在扩展时，这里可以添加多个不同的告警监控数据源。</p>
+</blockquote>
+<p>查询出数据后，<strong>利用 judge 判断是否需要告警，是否需要恢复。</strong></p>
+<ul>
+<li><code>MakeNewEvent</code> 函数用于判断是否需要告警。</li>
+<li><code>recoverRule</code> 函数用于告警事件恢复。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *RuleEval)</span> <span class="title">Judge</span><span class="params">(clusterName <span class="keyword">string</span>, vectors []conv.Vector)</span></span> &#123;</span><br><span class="line">   now := time.Now().Unix()</span><br><span class="line"></span><br><span class="line">   alertingKeys, ruleExists := r.MakeNewEvent(<span class="string">&quot;inner&quot;</span>, now, clusterName, vectors)</span><br><span class="line">   <span class="keyword">if</span> !ruleExists &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// handle recovered events</span></span><br><span class="line">   r.recoverRule(alertingKeys, now)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="MakeNewEvent"><a href="#MakeNewEvent" class="headerlink" title="MakeNewEvent"></a>MakeNewEvent</h4><p>首先从 memsto 中查询 AlertRule：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">curRule := memsto.AlertRuleCache.Get(r.rule.Id)</span><br><span class="line"><span class="keyword">if</span> curRule == <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">r.rule = curRule</span><br></pre></td></tr></table></figure>
+
+<p>接着就是创建 AlertCurEvent，并且根据从内存中查询到的数据填写 AlertCurEvent：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">event := &amp;models.AlertCurEvent&#123;</span><br><span class="line">   TriggerTime: vectors[i].Timestamp,</span><br><span class="line">   TagsMap:     tagsMap,</span><br><span class="line">   GroupId:     r.rule.GroupId,</span><br><span class="line">   RuleName:    r.rule.Name,</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ...</span></span><br><span class="line">event.Cluster = r.rule.Cluster</span><br><span class="line">event.Hash = hash</span><br><span class="line">event.RuleId = r.rule.Id</span><br><span class="line"><span class="comment">// ...</span></span><br><span class="line">event.IsRecovered = <span class="literal">false</span></span><br><span class="line">event.LastEvalTime = now</span><br></pre></td></tr></table></figure>
+
+<p>最后调用 <code>r.handleNewEvent(event)</code> 去决定这个 AlertCurEvent 是否要推入队列中被消费（告警），根据<strong>告警间隔、最大告警次数</strong>信息来判断。</p>
+<h4 id="recoverRule"><a href="#recoverRule" class="headerlink" title="recoverRule"></a>recoverRule</h4><p>在调用 r.MakeNewEvent 后，会返回所有正在告警的 key：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">alertingKeys, ruleExists := r.MakeNewEvent(<span class="string">&quot;inner&quot;</span>, now, clusterName, vectors)</span><br><span class="line">	<span class="keyword">if</span> !ruleExists &#123;</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// handle recovered events</span></span><br><span class="line">r.recoverRule(alertingKeys, now)</span><br></pre></td></tr></table></figure>
+
+<p>根据正在告警的 key 来处理是否有恢复的告警，如果有就将恢复的告警信息推入消费队列中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *RuleEval)</span> <span class="title">recoverRule</span><span class="params">(alertingKeys <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;, now <span class="keyword">int64</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> _, hash := <span class="keyword">range</span> r.pendings.Keys() &#123;</span><br><span class="line">		<span class="keyword">if</span> _, has := alertingKeys[hash]; has &#123;</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line">		r.pendings.Delete(hash)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> hash, event := <span class="keyword">range</span> r.fires.GetAll() &#123;</span><br><span class="line">		<span class="keyword">if</span> _, has := alertingKeys[hash]; has &#123;</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		r.recoverEvent(hash, event, now)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="reportQueueSize"><a href="#reportQueueSize" class="headerlink" title="reportQueueSize"></a>reportQueueSize</h2><p>在 Prometheus 中记录 event 队列的长度。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">reportQueueSize</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		time.Sleep(time.Second)</span><br><span class="line"></span><br><span class="line">		promstat.GaugeAlertQueueSize.Set(<span class="keyword">float64</span>(EventQueue.Len()))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="sender-StartEmailSender"><a href="#sender-StartEmailSender" class="headerlink" title="sender.StartEmailSender"></a>sender.StartEmailSender</h2><p>启动 SMTP 协议发送告警信息的发送器。</p>
+<p>为了减少与邮件服务器建立连接的次数，<strong>如果需要发送邮件，则会与邮件服务器建立 30 秒的长连接，在这段长连接中可以持续的批量发送邮件</strong>。<strong>每 30 秒</strong>或者<strong>超出批量发送的数量</strong>时，刷新一次连接，若没有邮件需要发送则不与邮件服务器建立连接。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">	<span class="keyword">select</span> &#123;</span><br><span class="line">	<span class="keyword">case</span> m, ok := &lt;-mailch:</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> !open &#123;</span><br><span class="line">			s = dialSmtp(d)</span><br><span class="line">			open = <span class="literal">true</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> err := gomail.Send(s, m); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			logger.Errorf(<span class="string">&quot;email_sender: failed to send: %s&quot;</span>, err)</span><br><span class="line"></span><br><span class="line">			<span class="comment">// close and retry</span></span><br><span class="line">			<span class="keyword">if</span> err := s.Close(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logger.Warningf(<span class="string">&quot;email_sender: failed to close smtp connection: %s&quot;</span>, err)</span><br><span class="line">			&#125;</span><br><span class="line"></span><br><span class="line">			s = dialSmtp(d)</span><br><span class="line">			open = <span class="literal">true</span></span><br><span class="line"></span><br><span class="line">			<span class="keyword">if</span> err := gomail.Send(s, m); err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logger.Errorf(<span class="string">&quot;email_sender: failed to retry send: %s&quot;</span>, err)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			logger.Infof(<span class="string">&quot;email_sender: result=succ subject=%v to=%v&quot;</span>, m.GetHeader(<span class="string">&quot;Subject&quot;</span>), m.GetHeader(<span class="string">&quot;To&quot;</span>))</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		size++</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> size &gt;= conf.Batch &#123;</span><br><span class="line">			<span class="keyword">if</span> err := s.Close(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logger.Warningf(<span class="string">&quot;email_sender: failed to close smtp connection: %s&quot;</span>, err)</span><br><span class="line">			&#125;</span><br><span class="line">			open = <span class="literal">false</span></span><br><span class="line">			size = <span class="number">0</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Close the connection to the SMTP server if no email was sent in</span></span><br><span class="line">	<span class="comment">// the last 30 seconds.</span></span><br><span class="line">	<span class="keyword">case</span> &lt;-time.After(<span class="number">30</span> * time.Second):</span><br><span class="line">		<span class="keyword">if</span> open &#123;</span><br><span class="line">			<span class="keyword">if</span> err := s.Close(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logger.Warningf(<span class="string">&quot;email_sender: failed to close smtp connection: %s&quot;</span>, err)</span><br><span class="line">			&#125;</span><br><span class="line">			open = <span class="literal">false</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="告警配置"><a href="#告警配置" class="headerlink" title="告警配置"></a>告警配置</h1><h2 id="webapi-conf"><a href="#webapi-conf" class="headerlink" title="webapi.conf"></a>webapi.conf</h2><p>NotifyChannels 是个数组，可以写多个，告警规则配置页面，展示的通知媒介，就是读取的这个配置文件的内容。</p>
+<p>ContactKeys 也是个数组，用于控制用户的联系方式的配置，在个人中心编辑用户信息的时候，除了手机号、邮箱，还可以为用户配置多种联系方式，多种联系方式也是可以自定义的，就是通过上面的配置来控制。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">[[NotifyChannels]]</span><br><span class="line">Label = <span class="string">&quot;邮箱&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;email&quot;</span></span><br><span class="line"></span><br><span class="line">[[NotifyChannels]]</span><br><span class="line">Label = <span class="string">&quot;电话&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;phone&quot;</span></span><br><span class="line"></span><br><span class="line">[[NotifyChannels]]</span><br><span class="line">Label = <span class="string">&quot;企微机器人&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;wecom&quot;</span></span><br><span class="line"></span><br><span class="line">[[NotifyChannels]]</span><br><span class="line">Label = <span class="string">&quot;飞书机器人&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;feishu&quot;</span></span><br><span class="line"></span><br><span class="line">[[ContactKeys]]</span><br><span class="line">Label = <span class="string">&quot;Wecom Robot Token&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;wecom_robot_token&quot;</span></span><br><span class="line"></span><br><span class="line">[[ContactKeys]]</span><br><span class="line">Label = <span class="string">&quot;Dingtalk Robot Token&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;dingtalk_robot_token&quot;</span></span><br><span class="line"></span><br><span class="line">[[ContactKeys]]</span><br><span class="line">Label = <span class="string">&quot;Feishu Robot Token&quot;</span></span><br><span class="line"><span class="comment"># do not change Key</span></span><br><span class="line">Key = <span class="string">&quot;feishu_robot_token&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="server-conf"><a href="#server-conf" class="headerlink" title="server.conf"></a>server.conf</h2><ul>
+<li>TemplatesDir 指定<strong>模板文件的目录</strong>，这个目录下有多个模板文件，遵从 Go Template 语法，可以控制告警发送的消息的格式。</li>
+<li>NotifyConcurrency 表示<strong>并发度</strong>，可以维持默认，处理不过来了，有事件堆积了再调大。</li>
+<li>NotifyBuiltinChannels 是配置 Go 代码内置的通知媒介，默认 4 个通知媒介都让 Go 代码来做，如果某些通知媒介想做一些自定义，可以从这个数组中删除对应的通知媒介，Go 代码就不处理那个通知媒介了。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[Alerting]</span><br><span class="line">TemplatesDir = <span class="string">&quot;./etc/template&quot;</span></span><br><span class="line">NotifyConcurrency = 10</span><br><span class="line"><span class="comment"># use builtin go code notify</span></span><br><span class="line">NotifyBuiltinChannels = [<span class="string">&quot;email&quot;</span>, <span class="string">&quot;phone&quot;</span>, <span class="string">&quot;wecom&quot;</span>, <span class="string">&quot;feishu&quot;</span>]</span><br></pre></td></tr></table></figure>
+
+<h3 id="CallScript"><a href="#CallScript" class="headerlink" title="CallScript"></a>CallScript</h3><p>如果内置的发送逻辑搞不定了，比如想支持短信、电话等通知方式，就可以启用 CallScript，夜莺发现这里的 <code>Enable=true</code> 且指定了一个脚本，就会去执行这个脚本，把告警事件的内容发给这个脚本，由这个脚本做后续处理。</p>
+<p>系统会把告警事件的内容 encode 成 json，然后通过 stdin 的方式传给 notify.py。notify.py 从 stdin 拿到内容， <code>json.load</code> 之后就得到了告警的内容，然后就可以进行后续的处理了。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[Alerting.CallScript]</span><br><span class="line"><span class="comment"># built in sending capability in go code</span></span><br><span class="line"><span class="comment"># so, no need enable script sender</span></span><br><span class="line">Enable = <span class="literal">false</span></span><br><span class="line">ScriptPath = <span class="string">&quot;./etc/script/notify.py&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="CallPlugin"><a href="#CallPlugin" class="headerlink" title="CallPlugin"></a>CallPlugin</h3><p>CallPlugin 是动态链接库的方式加载外部逻辑，</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">[Alerting.CallPlugin]</span><br><span class="line">Enable = <span class="literal">false</span></span><br><span class="line"><span class="comment"># use a plugin via `go build -buildmode=plugin -o notify.so`</span></span><br><span class="line">PluginPath = <span class="string">&quot;./etc/script/notify.so&quot;</span></span><br><span class="line">Caller = <span class="string">&quot;n9eCaller&quot;</span></span><br><span class="line">package main</span><br><span class="line"><span class="built_in">type</span> inter interface &#123;</span><br><span class="line">        Descript() string        </span><br><span class="line">        Notify([]byte)</span><br><span class="line">&#125;</span><br><span class="line">// 0、Descript 可用于该插件在 server 中的描述</span><br><span class="line">// 1、在 Notify 方法中实现要处理的自定义逻辑</span><br></pre></td></tr></table></figure>
+
+<p>实现以上接口的 <code>struct</code> 实例即为合法 <code>plugin</code>，编译后生成一个<code>notify.so</code> 链接文件，放到 n9e 对应项目位置即可。</p>
+<h3 id="RedisPub"><a href="#RedisPub" class="headerlink" title="RedisPub"></a>RedisPub</h3><p>这个配置如果开启，n9e-server 会把生成的告警事件 publish 给 redis。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[Alerting.RedisPub]</span><br><span class="line">Enable = <span class="literal">false</span></span><br><span class="line"><span class="comment"># complete redis key: $&#123;ChannelPrefix&#125; + $&#123;Cluster&#125;</span></span><br><span class="line">ChannelPrefix = <span class="string">&quot;/alerts/&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Webhook"><a href="#Webhook" class="headerlink" title="Webhook"></a>Webhook</h3><p>如果下面的配置启用，n9e-server 生成告警事件之后，就会回调这个 Url。告警事件的内容会 encode 成 json，放到 HTTP request body 中，POST 给这个 Url，也可以自定义 Header，即 Headers 配置，Headers 是个数组，必须是偶数个，Key1, Value1, Key2, Value2 这个写法。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[Alerting.Webhook]</span><br><span class="line">Enable = <span class="literal">false</span></span><br><span class="line">Url = <span class="string">&quot;http://a.com/n9e/callback&quot;</span></span><br><span class="line">BasicAuthUser = <span class="string">&quot;&quot;</span></span><br><span class="line">BasicAuthPass = <span class="string">&quot;&quot;</span></span><br><span class="line">Timeout = <span class="string">&quot;5s&quot;</span></span><br><span class="line">Headers = [<span class="string">&quot;Content-Type&quot;</span>, <span class="string">&quot;application/json&quot;</span>, <span class="string">&quot;X-From&quot;</span>, <span class="string">&quot;N9E&quot;</span>]</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+              <a href="/tags/%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F/" rel="tag"># 监控系统</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/23/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-server%E5%88%9D%E5%A7%8B%E5%8C%96%E5%92%8C%E5%BF%83%E8%B7%B3%E6%9C%BA%E5%88%B6/" rel="prev" title="夜莺监控系统学习笔记 (2) server初始化和心跳机制">
+      <i class="fa fa-chevron-left"></i> 夜莺监控系统学习笔记 (2) server初始化和心跳机制
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/26/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-5-%E6%9C%8D%E5%8A%A1%E5%99%A8%E6%8E%A8%E9%80%81%E5%92%8C%E4%BC%98%E9%9B%85%E7%9A%84%E9%80%80%E5%87%BA/" rel="next" title="Gin基本使用 (5) 服务器推送和优雅的退出">
+      Gin基本使用 (5) 服务器推送和优雅的退出 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Server-judge%E5%BC%95%E6%93%8E"><span class="nav-number">1.</span> <span class="nav-text">Server judge引擎</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#loopConsume"><span class="nav-number">1.1.</span> <span class="nav-text">loopConsume</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#notify-%E5%8F%91%E9%80%81%E5%91%8A%E8%AD%A6%E4%BF%A1%E6%81%AF"><span class="nav-number">1.1.1.</span> <span class="nav-text">notify 发送告警信息</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#loopFilterRules"><span class="nav-number">1.2.</span> <span class="nav-text">loopFilterRules</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#workers-Build"><span class="nav-number">1.2.1.</span> <span class="nav-text">workers.Build</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#judge"><span class="nav-number">1.2.2.</span> <span class="nav-text">judge</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#MakeNewEvent"><span class="nav-number">1.2.2.1.</span> <span class="nav-text">MakeNewEvent</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#recoverRule"><span class="nav-number">1.2.2.2.</span> <span class="nav-text">recoverRule</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reportQueueSize"><span class="nav-number">1.3.</span> <span class="nav-text">reportQueueSize</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#sender-StartEmailSender"><span class="nav-number">1.4.</span> <span class="nav-text">sender.StartEmailSender</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%91%8A%E8%AD%A6%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">告警配置</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#webapi-conf"><span class="nav-number">2.1.</span> <span class="nav-text">webapi.conf</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#server-conf"><span class="nav-number">2.2.</span> <span class="nav-text">server.conf</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CallScript"><span class="nav-number">2.2.1.</span> <span class="nav-text">CallScript</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CallPlugin"><span class="nav-number">2.2.2.</span> <span class="nav-text">CallPlugin</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RedisPub"><span class="nav-number">2.2.3.</span> <span class="nav-text">RedisPub</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Webhook"><span class="nav-number">2.2.4.</span> <span class="nav-text">Webhook</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

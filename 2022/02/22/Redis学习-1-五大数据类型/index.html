@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Redis概述介绍Redis是一个高性能的key-value数据库，默认端口号6379 Redis有以下特点：  Redis支持数据持久化，可以将内存中的数据保存在磁盘中 Redis支持的类型更丰富，包括string(字符串)、list(链表)、set(集合)、zset(sorted set –有序集合)和hash（哈希类型） Redis支持数据的备份，master-slave(主从)同步   R">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis学习 (1) 五大数据类型">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/22/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Redis概述介绍Redis是一个高性能的key-value数据库，默认端口号6379 Redis有以下特点：  Redis支持数据持久化，可以将内存中的数据保存在磁盘中 Redis支持的类型更丰富，包括string(字符串)、list(链表)、set(集合)、zset(sorted set –有序集合)和hash（哈希类型） Redis支持数据的备份，master-slave(主从)同步   R">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645499478008.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645500862703.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645506005021.png">
+<meta property="article:published_time" content="2022-02-22T04:30:35.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.785Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645499478008.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/22/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Redis学习 (1) 五大数据类型 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/22/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Redis学习 (1) 五大数据类型
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-22 12:30:35" itemprop="dateCreated datePublished" datetime="2022-02-22T12:30:35+08:00">2022-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Redis概述"><a href="#Redis概述" class="headerlink" title="Redis概述"></a>Redis概述</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>Redis是一个高性能的<strong>key-value</strong>数据库，默认端口号6379</p>
+<p>Redis有以下特点：</p>
+<ul>
+<li>Redis支持<strong>数据持久化</strong>，可以将内存中的数据保存在磁盘中</li>
+<li>Redis支持的<strong>类型更丰富</strong>，包括s<strong>tring(字符串)<strong>、</strong>list(链表)<strong>、</strong>set(集合)<strong>、</strong>zset(sorted set –有序集合)<strong>和</strong>hash（哈希类型）</strong></li>
+<li>Redis支持<strong>数据的备份</strong>，master-slave(主从)同步</li>
+</ul>
+<blockquote>
+<p>Redis 和memcache有三点不同：</p>
+<ul>
+<li>支持多数据类型。</li>
+<li>支持持久化。</li>
+<li>单线程+多路IO复用（memcache为多线程）</li>
+</ul>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="基本操作"><a href="#基本操作" class="headerlink" title="基本操作"></a>基本操作</h2><p><code>select db号</code>：选择数据库</p>
+<p><code>flushdb</code>：清空当前库</p>
+<p><code>flushall</code>：清空所有库</p>
+<h3 id="key操作"><a href="#key操作" class="headerlink" title="key操作"></a>key操作</h3><p><code>keys *</code>：查看当前库所有key ，<code>*</code>为匹配模式</p>
+<p><code>exists key</code>：判断某个key是否存在</p>
+<p><code>type key</code>：查看key为什么类型</p>
+<p><code>del key</code>：删除指定key的数据</p>
+<p><code>unlink key</code>：根据value选择非阻塞删除，仅将keys从keyspace元数据中删除，真正的删除会在后续异步操作</p>
+<p><code>expire key time</code>：为key设置过期时间为time秒</p>
+<p><code>ttl key</code>：查看还有多少秒过期，-1表示永不过期，-2表示已过期</p>
+<h3 id="数据库操作"><a href="#数据库操作" class="headerlink" title="数据库操作"></a>数据库操作</h3><p><code>select index</code>：切换数据库，默认16个数据库，下标从0开始，默认使用0号库</p>
+<p><code>dbsize</code>：查看当前数据库的key的数量</p>
+<p><code>flushdb</code>：清空当前库</p>
+<p><code>flushall</code>：通杀全部库</p>
+<h1 id="Redis数据类型"><a href="#Redis数据类型" class="headerlink" title="Redis数据类型"></a>Redis数据类型</h1><h2 id="字符串string"><a href="#字符串string" class="headerlink" title="字符串string"></a>字符串string</h2><p>string类型是Redis中最基本的数据类型，一个Redis字符串的value<strong>最多是512MB</strong></p>
+<p>string是<strong>二进制安全</strong>的，也就是说string类型可以包含任何二进制数据</p>
+<h3 id="基本命令"><a href="#基本命令" class="headerlink" title="基本命令"></a>基本命令</h3><ul>
+<li><code>set &lt;key&gt; &lt;value&gt;</code>：添加键值对</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">set key value [EX seconds] [PX milliseconds] [NX|XX]</span><br><span class="line"></span><br><span class="line">NX: 当数据库中key不存在时，可以将key-value添加数据库</span><br><span class="line">XX: 数据库中key存在时，可以将key-value添加数据库，与NX互斥</span><br><span class="line">EX: key的超时秒数</span><br><span class="line">PX: key的超时毫秒数，与EX互斥</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>get &lt;key&gt;</code>：查询对应键值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; get k1</span><br><span class="line">&quot;v1100&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>append &lt;key&gt; &lt;value&gt;</code>：将给定的value增加到原值的末尾</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; set k2 hello</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; append k2 world</span><br><span class="line">(integer) 10</span><br><span class="line">127.0.0.1:6379&gt; get k2</span><br><span class="line">&quot;helloworld&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>strlen &lt;key&gt;</code>：获得值的长度</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; get k2</span><br><span class="line">&quot;helloworld&quot;</span><br><span class="line">127.0.0.1:6379&gt; strlen k2</span><br><span class="line">(integer) 10</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>setnx &lt;key&gt; &lt;value&gt;</code>：使用NX参数，只有在key不存在时，设置key值</p>
+</li>
+<li><p><code>setex  &lt;key&gt; &lt;过期时间(秒)&gt; &lt;value&gt;</code>：设置键值的同时，设置过期时间</p>
+</li>
+<li><p><code>mset &lt;key1&gt; &lt;value1&gt; &lt;key2&gt; &lt;value2&gt;  ...</code>：同时设置一个或多个key-value对</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; mset k6 smith k7 marry k8 jack</span><br><span class="line">OK</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>mget &lt;key1&gt; &lt;key2&gt; &lt;key3&gt; ...</code>：同时获取一个或多个value</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; mget k6 k7 k8</span><br><span class="line">1) &quot;smith&quot;</span><br><span class="line">2) &quot;marry&quot;</span><br><span class="line">3) &quot;jack&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>msetnx &lt;key1&gt; &lt;value1&gt; &lt;key2&gt; &lt;value2&gt; ...</code>：同时设置一个或多个 key-value 对，当且仅当所有给定key都不存在</p>
+</li>
+<li><p><code>getset &lt;key&gt; &lt;value&gt;</code>：设置了新值同时获得旧值</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; getset k8 john</span><br><span class="line">&quot;jack&quot;</span><br><span class="line">127.0.0.1:6379&gt; get k8</span><br><span class="line">&quot;john&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>incr &lt;key&gt;</code>：将 key 中储存的数字值增1，只能对数字值操作，如果为空，新增值为1</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; set k3 10</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; incr k3</span><br><span class="line">(integer) 11</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>decr &lt;key&gt;</code>：将 key 中储存的数字值减1，只能对数字值操作，如果为空，新增值为-1</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; set k4 20</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; decr k4</span><br><span class="line">(integer) 19</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>incrby/decrby &lt;key&gt; &lt;步长&gt;</code>：将key中储存的数字值增减，自定义步长</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; set k5 100</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; incrby k5 50</span><br><span class="line">(integer) 150</span><br></pre></td></tr></table></figure>
+
+<p><code>getrange &lt;key&gt; &lt;起始位置&gt; &lt;结束位置&gt;</code>：获取[起始位置，结束位置]范围内的值，索引从0开始</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; set name dawnzzz</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; getrange name 0 3</span><br><span class="line">&quot;dawn&quot;</span><br></pre></td></tr></table></figure>
+
+<p><code>setrange &lt;key&gt; &lt;起始位置&gt; &lt;value&gt;</code>：用value覆盖key所存储的字符串，索引从0开始</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; set name dawnzzzz</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; setrange name 4 hello</span><br><span class="line">(integer) 9</span><br><span class="line">127.0.0.1:6379&gt; get name</span><br><span class="line">&quot;dawnhello&quot;</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h3><p>string内部使用字符串数组作为数据结构，可以看作一个结构体，其中不仅包括<strong>指向数据存储空间的指针</strong>，还包括<strong>容量capability</strong>和<strong>实际长度len</strong>。采用<strong>预分配冗余空间</strong>的方式来减少内存的频繁分配。</p>
+<p><strong>capability为字符串的容量，len为字符串的实际长度</strong>。当字符串长度小于1MB时，扩容都是<strong>加倍</strong>现有的空间，如果超过1MB，扩容时一次只会<strong>多扩1MB</strong>的空间。字符串的最大长度为512MB：</p>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645499478008.png" alt="string内部数据结构"></p>
+<h2 id="列表list"><a href="#列表list" class="headerlink" title="列表list"></a>列表list</h2><p>list类型是简单的<strong>字符串列表</strong>，按照<strong>插入顺序排序</strong>。可以添加一个元素到列表的头部（左边）或者尾部（右边）。</p>
+<p>它的底层实际是个<strong>双向链表</strong>，对<strong>两端的操作性能很高</strong>，通过索引下标的操作中间的节点性能会较差。</p>
+<h3 id="基本命令-1"><a href="#基本命令-1" class="headerlink" title="基本命令"></a>基本命令</h3><ul>
+<li><code>lpush/rpush &lt;key&gt; &lt;value1&gt; &lt;value2&gt; &lt;value3&gt; ...</code>：从左边/右边插入一个或多个值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; lpush k1 v1 v2 v3</span><br><span class="line">(integer) 3</span><br><span class="line">127.0.0.1:6379&gt; lrange k1 0 -1</span><br><span class="line">1) &quot;v3&quot;</span><br><span class="line">2) &quot;v2&quot;</span><br><span class="line">3) &quot;v1&quot;</span><br><span class="line"></span><br><span class="line">127.0.0.1:6379&gt; rpush k2 v1 v2 v3</span><br><span class="line">(integer) 3</span><br><span class="line">127.0.0.1:6379&gt; lrange k2 0 -1</span><br><span class="line">1) &quot;v1&quot;</span><br><span class="line">2) &quot;v2&quot;</span><br><span class="line">3) &quot;v3&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>lpop/rpop &lt;key&gt;</code>：从左边/右边弹出一个值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; lpop k1</span><br><span class="line">&quot;v3&quot;</span><br><span class="line">127.0.0.1:6379&gt; lrange k1 0 -1</span><br><span class="line">1) &quot;v2&quot;</span><br><span class="line">2) &quot;v1&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>rpoplpush &lt;key1&gt; &lt;key2&gt;</code>：从k1列表的右边弹出一个值，插入key2列表的左边</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; rpoplpush k1 k2</span><br><span class="line">&quot;v1&quot;</span><br><span class="line">127.0.0.1:6379&gt; lrange k1 0 -1</span><br><span class="line">1) &quot;v2&quot;</span><br><span class="line">127.0.0.1:6379&gt; lrange k2 0 -1</span><br><span class="line">1) &quot;v1&quot;</span><br><span class="line">2) &quot;v1&quot;</span><br><span class="line">3) &quot;v2&quot;</span><br><span class="line">4) &quot;v3&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>lrange &lt;key&gt; &lt;start&gt; &lt;stop&gt;</code>：按照索引下标获得元素</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; lrange k2 0 2</span><br><span class="line">1) &quot;v1&quot;</span><br><span class="line">2) &quot;v1&quot;</span><br><span class="line">3) &quot;v2&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>lindex &lt;key&gt; &lt;index&gt;</code>：按照索引下标获得元素</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; lindex k2 0</span><br><span class="line">&quot;v1&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>llen &lt;key&gt;</code>：获得列表长度 </li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; llen k2</span><br><span class="line">(integer) 4</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>linsert &lt;key&gt;  before/after &lt;value&gt; &lt;newvalue&gt;</code>：在value前面/后面插入newvalue</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; linsert k2 before v2 newV2</span><br><span class="line">(integer) 5</span><br><span class="line">127.0.0.1:6379&gt; lrange k2 0 -1</span><br><span class="line">1) &quot;v1&quot;</span><br><span class="line">2) &quot;v1&quot;</span><br><span class="line">3) &quot;newV2&quot;</span><br><span class="line">4) &quot;v2&quot;</span><br><span class="line">5) &quot;v3&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>lrem &lt;key&gt; &lt;n&gt; &lt;value&gt;</code>：从左边删除n个value</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; lrem k2 2 v1</span><br><span class="line">(integer) 2</span><br><span class="line">127.0.0.1:6379&gt; lrange k2 0 -1</span><br><span class="line">1) &quot;newV2&quot;</span><br><span class="line">2) &quot;v2&quot;</span><br><span class="line">3) &quot;v3&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>lset &lt;key&gt; &lt;index&gt; &lt;value&gt;</code>：将列表key下标为index的值替换成value</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; lrange k2 0 -1</span><br><span class="line">1) &quot;newV2&quot;</span><br><span class="line">2) &quot;v2&quot;</span><br><span class="line">3) &quot;newV3&quot;</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据结构-1"><a href="#数据结构-1" class="headerlink" title="数据结构"></a>数据结构</h3><p>list底层的数据结构为<strong>快速链表</strong>quicklist：</p>
+<ul>
+<li>在列表<strong>元素较少</strong>的情况下会使用<strong>一块连续的内存存储</strong>，这个结构是<strong>ziplist</strong>，也即是压缩列表。它将所有的元素紧挨着一起存储，分配的是一块<strong>连续的内存</strong>。</li>
+<li>当<strong>数据量比较多</strong>的时候才会改成<strong>quicklist</strong>，即将ziplist通过指针链接起来组成<strong>双向链表</strong>。</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645500862703.png" alt="list底层数据结构"></p>
+<h2 id="集合set"><a href="#集合set" class="headerlink" title="集合set"></a>集合set</h2><p>set类型可以<strong>自动去重</strong>，当你需要存储一个列表数据，又不希望出现重复数据时，set是一个很好的选择，并且set提供了<strong>判断某个成员是否在一个set集合内</strong>的重要接口，这个也是list所不能提供的。</p>
+<p>Redis中set是string类型的<strong>无序集合</strong>，它<strong>底层其实是一个value为null的hash表</strong>，所以添加/删除，查找的**复杂度都是O(1)**。</p>
+<h3 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h3><ul>
+<li><code>sadd &lt;key&gt; &lt;value1&gt; &lt;value2&gt; ...</code>：将一个或多个元素加入到集合key中</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; sadd k1 men1 men2 men3</span><br><span class="line">(integer) 3</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>smembers &lt;key&gt;</code>：取出该集合的所有值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; smembers k1</span><br><span class="line">1) &quot;men3&quot;</span><br><span class="line">2) &quot;men1&quot;</span><br><span class="line">3) &quot;men2&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>sismember &lt;key&gt; &lt;value&gt;</code>：判断集合key是否为含有该value值，有1，没有0</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; sismember k1 men2</span><br><span class="line">(integer) 1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>scard &lt;key&gt;</code>：返回该集合的元素个数</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; scard k1</span><br><span class="line">(integer) 3</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>srem &lt;key&gt; &lt;value1&gt; &lt;value2&gt;</code>：删除集合中的某个元素</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; srem k1 men1</span><br><span class="line">(integer) 1</span><br><span class="line">127.0.0.1:6379&gt; smembers k1</span><br><span class="line">1) &quot;men3&quot;</span><br><span class="line">2) &quot;men2&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>spop &lt;key&gt;</code>：随机从集合中弹出一个值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; spop k1</span><br><span class="line">&quot;men3&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>srandmember &lt;key&gt; &lt;n&gt;</code>：随机从该集合中取出n个值，不会从集合中删除</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; srandmember k1 3</span><br><span class="line">1) &quot;men5&quot;</span><br><span class="line">2) &quot;men4&quot;</span><br><span class="line">3) &quot;men6&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>smove &lt;source&gt; &lt;destination&gt; &lt;value&gt;</code>：把集合中一个值从一个集合移动到另一个集合</p>
+</li>
+<li><p><code>sinter &lt;key1&gt; &lt;key2&gt;</code>：返回两个集合的交集元素</p>
+</li>
+<li><p><code>sunion &lt;key1&gt; &lt;key2&gt;</code>：返回两个集合的并集元素</p>
+</li>
+<li><p><code>sdiff &lt;key1&gt; &lt;key2&gt;</code>：两个集合的<strong>差集</strong>元素（集合key-集合key2）</p>
+</li>
+</ul>
+<h3 id="数据结构-2"><a href="#数据结构-2" class="headerlink" title="数据结构"></a>数据结构</h3><p>Set数据结构是dict字典，字典是用<strong>哈希表</strong>实现的，所有的value都指向同一个内部值（集合中元素不重复）。</p>
+<h2 id="哈希hash"><a href="#哈希hash" class="headerlink" title="哈希hash"></a>哈希hash</h2><p>hash类型是一个string类型的<strong>field</strong>和<strong>value</strong>的<strong>映射表</strong>，hash特别适合用于存储对象</p>
+<h3 id="常用命令-1"><a href="#常用命令-1" class="headerlink" title="常用命令"></a>常用命令</h3><ul>
+<li><code>hset &lt;key&gt; &lt;field&gt; &lt;value&gt;</code>：给key集合中的field键赋值value</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; hset user1 name dawn</span><br><span class="line">(integer) 1</span><br><span class="line">127.0.0.1:6379&gt; hset user1 age 22</span><br><span class="line">(integer) 1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>hsetnx &lt;key&gt; &lt;field&gt; &lt;value&gt;</code>：当且仅当域field不存在时，将哈希表 key 中的域field的值设置为value</li>
+<li><code>hget &lt;key1&gt; &lt;field&gt;</code>：从field中取出值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; hget user1 name</span><br><span class="line">&quot;dawn&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>hmset &lt;key1&gt; &lt;field1&gt; &lt;value1&gt; &lt;field2&gt; &lt;value2&gt;</code>：批量设置hash的值</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; hmset user1 university bupt major cs</span><br><span class="line">OK</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>hexists &lt;key1&gt; &lt;field&gt;</code>：查看哈希表 key 中，给定域field是否存在</p>
+</li>
+<li><p><code>hkeys &lt;key&gt;</code>：列出该hash集合的所有field</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; hkeys user1</span><br><span class="line">1) &quot;name&quot;</span><br><span class="line">2) &quot;age&quot;</span><br><span class="line">3) &quot;university&quot;</span><br><span class="line">4) &quot;major&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>hvals &lt;key&gt;</code>：列出该hash集合的所有value</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; hvals user1</span><br><span class="line">1) &quot;dawn&quot;</span><br><span class="line">2) &quot;22&quot;</span><br><span class="line">3) &quot;bupt&quot;</span><br><span class="line">4) &quot;cs&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>hincrby &lt;key&gt; &lt;field&gt; &lt;increment&gt;</code>：为哈希表key中的域 field 的值加上增量</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; hincrby user1 age 2</span><br><span class="line">(integer) 24</span><br><span class="line">127.0.0.1:6379&gt; hget user1 age</span><br><span class="line">&quot;24&quot;</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据结构-3"><a href="#数据结构-3" class="headerlink" title="数据结构"></a>数据结构</h3><p>hash类型对应的数据结构是两种：ziplist（压缩列表），hashtable（哈希表）。当field-value长度较短且个数较少时，使用ziplist，否则使用hashtable。</p>
+<h2 id="有序集合zset"><a href="#有序集合zset" class="headerlink" title="有序集合zset"></a>有序集合zset</h2><p>zset与普通集合类似，不同的是zset的每个成员都关联了一个<strong>评分（score）</strong>，这个评分<strong>被用来按照从最低分到最高分的方式排序</strong>集合中的成员。集合的成员是唯一的，但是评分可以是重复的。</p>
+<h3 id="常用命令-2"><a href="#常用命令-2" class="headerlink" title="常用命令"></a>常用命令</h3><ul>
+<li><code>zadd  &lt;key&gt; &lt;score1&gt; &lt;value1&gt; &lt;score2&gt; &lt;value2&gt;</code>：将一个或多个元素加入到有序集合key中</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; zadd topn 100 C++ 200 Python 300 Java 150 MySQL 250 Redis</span><br><span class="line">(integer) 5</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>zrange &lt;key&gt; &lt;start&gt; &lt;stop&gt;  [WITHSCORES]</code>：返回有序集 key 中，下标在[start, stop]之间的元素，带WITHSCORES，可以让分数一起和值返回到结果集</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; zrange topn 0 -1 withscores</span><br><span class="line"> 1) &quot;C++&quot;</span><br><span class="line"> 2) &quot;100&quot;</span><br><span class="line"> 3) &quot;MySQL&quot;</span><br><span class="line"> 4) &quot;150&quot;</span><br><span class="line"> 5) &quot;Python&quot;</span><br><span class="line"> 6) &quot;200&quot;</span><br><span class="line"> 7) &quot;Redis&quot;</span><br><span class="line"> 8) &quot;250&quot;</span><br><span class="line"> 9) &quot;Java&quot;</span><br><span class="line">10) &quot;300&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>zrangebyscore key min max [withscores] [limit offset count]</code>：返回有序集 key 中，所有 score 值介于 min 和 max 之间（包括等于 min 或 max）的成员。有序集成员按 score 值<strong>从小到大</strong>min max次序排列</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; zrangebyscore topn 200 500 withscores</span><br><span class="line">1) &quot;Python&quot;</span><br><span class="line">2) &quot;200&quot;</span><br><span class="line">3) &quot;Redis&quot;</span><br><span class="line">4) &quot;250&quot;</span><br><span class="line">5) &quot;Java&quot;</span><br><span class="line">6) &quot;300&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>zrevrangebyscore key max min [withscores] [limit offset count]</code>：返回有序集 key 中，所有 score 值介于 min 和 max 之间（包括等于 min 或 max）的成员。有序集成员按 score 值<strong>从大到小</strong>max min次序排列</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; zrevrangebyscore topn 500 200 withscores</span><br><span class="line">1) &quot;Java&quot;</span><br><span class="line">2) &quot;300&quot;</span><br><span class="line">3) &quot;Redis&quot;</span><br><span class="line">4) &quot;250&quot;</span><br><span class="line">5) &quot;Python&quot;</span><br><span class="line">6) &quot;200&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>zincrby &lt;key&gt; &lt;increment&gt; &lt;value&gt;</code>：为元素的score加上增量</p>
+</li>
+<li><p><code>zrem &lt;key&gt; &lt;value&gt;</code>：删除该集合下，指定值的元素</p>
+</li>
+<li><p><code>zcount &lt;key&gt; &lt;min&gt; &lt;max&gt;</code>：统计该集合中，[min, max]内的元素个数</p>
+</li>
+<li><p><code>zrank &lt;key&gt; &lt;value&gt;</code>：返回该值在集合中的排名，从0开始</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; zrank topn Redis</span><br><span class="line">(integer) 3</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据结构-4"><a href="#数据结构-4" class="headerlink" title="数据结构"></a>数据结构</h3><p>zset底层使用了两个数据结构：</p>
+<ul>
+<li><p>hash表，<strong>hash的作用就是关联元素value和权重score</strong>，保障元素value的唯一性，可以通过元素value找到相应的score值。</p>
+</li>
+<li><p>跳跃表，<strong>跳跃表的目的在于给元素value排序</strong>，根据score的范围获取元素列表</p>
+</li>
+</ul>
+<p>跳跃表就是链表+多级索引（越靠近上层的索引，索引项越少，上层索引是下层索引的索引）结构：</p>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645506005021.png" alt="跳跃表"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis/" rel="tag"># Redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/20/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-20/" rel="prev" title="算法刷题笔记 (20) 螺旋矩阵II 单词搜索 旋转图像 零钱兑换">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (20) 螺旋矩阵II 单词搜索 旋转图像 零钱兑换
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/22/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/" rel="next" title="MySQL高级 (8) 事务基础">
+      MySQL高级 (8) 事务基础 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Redis%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">Redis概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.1.</span> <span class="nav-text">介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E6%93%8D%E4%BD%9C"><span class="nav-number">1.2.</span> <span class="nav-text">基本操作</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#key%E6%93%8D%E4%BD%9C"><span class="nav-number">1.2.1.</span> <span class="nav-text">key操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%BA%93%E6%93%8D%E4%BD%9C"><span class="nav-number">1.2.2.</span> <span class="nav-text">数据库操作</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Redis%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">Redis数据类型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AD%97%E7%AC%A6%E4%B8%B2string"><span class="nav-number">2.1.</span> <span class="nav-text">字符串string</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E5%91%BD%E4%BB%A4"><span class="nav-number">2.1.1.</span> <span class="nav-text">基本命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.2.</span> <span class="nav-text">数据结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%97%E8%A1%A8list"><span class="nav-number">2.2.</span> <span class="nav-text">列表list</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E5%91%BD%E4%BB%A4-1"><span class="nav-number">2.2.1.</span> <span class="nav-text">基本命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-1"><span class="nav-number">2.2.2.</span> <span class="nav-text">数据结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9B%86%E5%90%88set"><span class="nav-number">2.3.</span> <span class="nav-text">集合set</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4"><span class="nav-number">2.3.1.</span> <span class="nav-text">常用命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-2"><span class="nav-number">2.3.2.</span> <span class="nav-text">数据结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%93%88%E5%B8%8Chash"><span class="nav-number">2.4.</span> <span class="nav-text">哈希hash</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4-1"><span class="nav-number">2.4.1.</span> <span class="nav-text">常用命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-3"><span class="nav-number">2.4.2.</span> <span class="nav-text">数据结构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%89%E5%BA%8F%E9%9B%86%E5%90%88zset"><span class="nav-number">2.5.</span> <span class="nav-text">有序集合zset</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4-2"><span class="nav-number">2.5.1.</span> <span class="nav-text">常用命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-4"><span class="nav-number">2.5.2.</span> <span class="nav-text">数据结构</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

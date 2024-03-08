@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Pilot 的 xDS 服务器功能由 DiscoveryServer 实现，由于 pilot 与 envoy 之间的 Grpc 连接是双向 stream，所以 pilot 可以主动向 envoy 推送更新，或者 envoy 也可以主动发起 xDS 请求。 在 DiscoveryServer 开始时，会启动几个协程，其中最重要的是：  handleUpdates：用于从 pushChannel 中取">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Istio学习笔记 (8) Pilot xDS异步分发">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/10/23/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-Pilot-xDS%E5%BC%82%E6%AD%A5%E5%88%86%E5%8F%91/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Pilot 的 xDS 服务器功能由 DiscoveryServer 实现，由于 pilot 与 envoy 之间的 Grpc 连接是双向 stream，所以 pilot 可以主动向 envoy 推送更新，或者 envoy 也可以主动发起 xDS 请求。 在 DiscoveryServer 开始时，会启动几个协程，其中最重要的是：  handleUpdates：用于从 pushChannel 中取">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-10-23T04:08:59.000Z">
+<meta property="article:modified_time" content="2024-02-26T08:20:16.391Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta property="article:tag" content="Istio">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/10/23/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-Pilot-xDS%E5%BC%82%E6%AD%A5%E5%88%86%E5%8F%91/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Istio学习笔记 (8) Pilot xDS异步分发 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/10/23/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-Pilot-xDS%E5%BC%82%E6%AD%A5%E5%88%86%E5%8F%91/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Istio学习笔记 (8) Pilot xDS异步分发
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-10-23 12:08:59" itemprop="dateCreated datePublished" datetime="2023-10-23T12:08:59+08:00">2023-10-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Istio学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><strong>Pilot 的 xDS 服务器功能由 DiscoveryServer 实现</strong>，由于 pilot 与 envoy 之间的 Grpc 连接是<strong>双向 stream</strong>，所以 pilot 可以主动向 envoy 推送更新，或者 envoy 也可以主动发起 xDS 请求。</p>
+<p>在 DiscoveryServer 开始时，会启动几个协程，其中最重要的是：</p>
+<ul>
+<li><strong>handleUpdates：</strong>用于<strong>从 pushChannel 中取出推送消息</strong>，并<strong>进行 debounce 后送入 pushQueue</strong>。</li>
+<li><strong>sendPushes：</strong>用于<strong>从 pushQueue 中 取出消息</strong>，生成 xDS 消息，并<strong>发送到客户端的 pushChannel 中</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *DiscoveryServer)</span> <span class="title">Start</span><span class="params">(stopCh &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">    <span class="keyword">go</span> s.WorkloadEntryController.Run(stopCh)</span><br><span class="line">    <span class="keyword">go</span> s.handleUpdates(stopCh)</span><br><span class="line">    <span class="keyword">go</span> s.periodicRefreshMetrics(stopCh)</span><br><span class="line">    <span class="keyword">go</span> s.sendPushes(stopCh)</span><br><span class="line">    <span class="keyword">go</span> s.Cache.Run(stopCh)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="向-Envoy-推送更新"><a href="#向-Envoy-推送更新" class="headerlink" title="向 Envoy 推送更新"></a>向 Envoy 推送更新</h1><p>向 Envoy 推送更新的流程如下：</p>
+<ul>
+<li>Config Controller 和 Service Controller 在配置或者服务发生变化时通过<strong>回调</strong>方法通知 Discovery Server，<strong>Discovery Server 将变化的消息推至 Push Channel 中</strong>。</li>
+<li>Discovery Server 通过一个 goroutine <strong>从 Push Channel 中接收变化消息</strong>，将一段时间内连续发生的变化消息进行<strong>合并</strong>（debounce）。如果超过指定时间没有新的变化消息，则将合并后的消息<strong>加入到一个队列 Push Queue 中</strong>。</li>
+<li>另一个 goroutine <strong>从  Push Queue 中取出变化消息，生成 XdsEvent</strong>，发送到<strong>每个客户端连接的 Push Channel 中</strong>。</li>
+<li>（每一个 Grpc 客户端连接）在 DiscoveryServer.StreamAggregatedResources 方法中<strong>从 Push Channel 中取出 XdsEvent</strong>，然后根据上下文<strong>生成符合 xDS 接口规范的 DiscoveryResponse，通过 GRPC 推送给 Envoy</strong> 。</li>
+</ul>
+<span id="more"></span>s
+
+<h2 id="推送消息至-pushChannel"><a href="#推送消息至-pushChannel" class="headerlink" title="推送消息至 pushChannel"></a>推送消息至 pushChannel</h2><p>当服务或者配置发生变化后，会调用 DiscoveryServer.ConfigUpdate 方法，将推送请求推送至 pushChannel 中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ConfigUpdate implements ConfigUpdater interface, used to request pushes.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *DiscoveryServer)</span> <span class="title">ConfigUpdate</span><span class="params">(req *model.PushRequest)</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(model.ConfigsOfKind(req.ConfigsUpdated, kind.Address)) &gt; <span class="number">0</span> &#123;</span><br><span class="line">       <span class="comment">// This is a bit like clearing EDS cache on EndpointShard update. Because Address</span></span><br><span class="line">       <span class="comment">// types are fetched dynamically, they are not part of the same protections, so we need to clear</span></span><br><span class="line">       <span class="comment">// the cache.</span></span><br><span class="line">       s.Cache.ClearAll()</span><br><span class="line">    &#125;</span><br><span class="line">    inboundConfigUpdates.Increment()</span><br><span class="line">    s.InboundUpdates.Inc()</span><br><span class="line">    s.pushChannel &lt;- req</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="读取-pushChannel-进行-debounce"><a href="#读取-pushChannel-进行-debounce" class="headerlink" title="读取 pushChannel 进行 debounce"></a>读取 pushChannel 进行 debounce</h2><h3 id="什么是-debounce"><a href="#什么是-debounce" class="headerlink" title="什么是 debounce"></a>什么是 debounce</h3><p>debounce 即防抖，作用就是合并一段时间内的 xDS 推送请求，防止 xDS 推送过多影响网络性能占用带宽。</p>
+<p>debounce 有两个关键<strong>时间概念</strong>：</p>
+<ul>
+<li>静默时间：静默时间就是，从上一个请求的时间开始，没有新的请求时间。</li>
+<li>最大延迟时间：最大延迟时间就是，从第一个被合并的请求开始，等待的最大时间。</li>
+</ul>
+<p>当等待时间大于最大延迟时间，或者大于静默时间时，就结束一次 debounce 发送一个 xDS 请求。</p>
+<h3 id="debounce-逻辑"><a href="#debounce-逻辑" class="headerlink" title="debounce 逻辑"></a>debounce 逻辑</h3><p>在 istio 中，debounce 的主要逻辑如下：</p>
+<ul>
+<li>当收到 freeCh 信号时，说明此时上一个 PushRequest 请求已经送入到了 pushQueue 中。所以，调用 pushWorker 尝试将 PushRequest 送入到 pushQueue 中，如果已经<strong>超过了最大延迟时间或者静默时间</strong>，则将 PushRequest 送入 pushQueue；否则<strong>设置静默时间的定时器</strong>。</li>
+</ul>
+<blockquote>
+<p>pushWorker 的作用就是检查是否已经超过了<strong>超过了最大延迟时间或者静默时间</strong>，如果符合则将 PushRequest 送入 pushQueue。否则重制静默时间定时器。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">push := <span class="function"><span class="keyword">func</span><span class="params">(req *model.PushRequest, debouncedEvents <span class="keyword">int</span>, startDebounce time.Time)</span></span> &#123;</span><br><span class="line">    pushFn(req)</span><br><span class="line">    updateSent.Add(<span class="keyword">int64</span>(debouncedEvents))</span><br><span class="line">    debounceTime.Record(time.Since(startDebounce).Seconds())</span><br><span class="line">    freeCh &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">pushWorker := <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">    eventDelay := time.Since(startDebounce)</span><br><span class="line">    quietTime := time.Since(lastConfigUpdateTime)</span><br><span class="line">    <span class="comment">// it has been too long or quiet enough</span></span><br><span class="line">    <span class="keyword">if</span> eventDelay &gt;= opts.debounceMax || quietTime &gt;= opts.debounceAfter &#123;</span><br><span class="line">       <span class="keyword">if</span> req != <span class="literal">nil</span> &#123;</span><br><span class="line">          pushCounter++</span><br><span class="line">          <span class="keyword">if</span> req.ConfigsUpdated == <span class="literal">nil</span> &#123;</span><br><span class="line">             log.Infof(<span class="string">&quot;Push debounce stable[%d] %d for reason %s: %v since last change, %v since last push, full=%v&quot;</span>,</span><br><span class="line">                pushCounter, debouncedEvents, reasonsUpdated(req),</span><br><span class="line">                quietTime, eventDelay, req.Full)</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">             log.Infof(<span class="string">&quot;Push debounce stable[%d] %d for config %s: %v since last change, %v since last push, full=%v&quot;</span>,</span><br><span class="line">                pushCounter, debouncedEvents, configsUpdated(req),</span><br><span class="line">                quietTime, eventDelay, req.Full)</span><br><span class="line">          &#125;</span><br><span class="line">          free = <span class="literal">false</span></span><br><span class="line">          <span class="keyword">go</span> push(req, debouncedEvents, startDebounce)</span><br><span class="line">          req = <span class="literal">nil</span></span><br><span class="line">          debouncedEvents = <span class="number">0</span></span><br><span class="line">       &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">     	 <span class="comment">// 重制静默时间定时器时间</span></span><br><span class="line">       timeChan = time.After(opts.debounceAfter - quietTime)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</blockquote>
+<ul>
+<li>当 ch 收到<strong>新的 PushRequest 推送请求时</strong>，调用 Merge 方法进行<strong>合并请求</strong>（debounce）。</li>
+<li>当收到 timeChan 信号时，说明<strong>静默时间已经到达</strong>，  调用 pushWorker 尝试将 PushRequest 送入到 pushQueue 中（或者期间有新的请求到达时，重制静默时间定时器）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">    <span class="keyword">select</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> &lt;-freeCh:</span><br><span class="line">       free = <span class="literal">true</span></span><br><span class="line">       pushWorker()</span><br><span class="line">    <span class="keyword">case</span> r := &lt;-ch:</span><br><span class="line">       <span class="comment">// If reason is not set, record it as an unknown reason</span></span><br><span class="line">       <span class="keyword">if</span> <span class="built_in">len</span>(r.Reason) == <span class="number">0</span> &#123;</span><br><span class="line">          r.Reason = model.NewReasonStats(model.UnknownTrigger)</span><br><span class="line">       &#125;</span><br><span class="line">       <span class="keyword">if</span> !opts.enableEDSDebounce &amp;&amp; !r.Full &#123;</span><br><span class="line">          <span class="comment">// trigger push now, just for EDS</span></span><br><span class="line">          <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(req *model.PushRequest)</span></span> &#123;</span><br><span class="line">             pushFn(req)</span><br><span class="line">             updateSent.Inc()</span><br><span class="line">          &#125;(r)</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       lastConfigUpdateTime = time.Now()</span><br><span class="line">       <span class="keyword">if</span> debouncedEvents == <span class="number">0</span> &#123;</span><br><span class="line">          timeChan = time.After(opts.debounceAfter)</span><br><span class="line">          startDebounce = lastConfigUpdateTime</span><br><span class="line">       &#125;</span><br><span class="line">       debouncedEvents++</span><br><span class="line"></span><br><span class="line">       req = req.Merge(r)</span><br><span class="line">    <span class="keyword">case</span> &lt;-timeChan:</span><br><span class="line">       <span class="keyword">if</span> free &#123;</span><br><span class="line">          pushWorker()</span><br><span class="line">       &#125;</span><br><span class="line">    <span class="keyword">case</span> &lt;-stopCh:</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="推送至-pushQueue"><a href="#推送至-pushQueue" class="headerlink" title="推送至 pushQueue"></a>推送至 pushQueue</h2><p>Push 方法就是真正的将 PushRequest 推送至 pushQueue 的函数，首先会判断是否是全量推送：</p>
+<ul>
+<li>如果<strong>不是全量推送</strong>（EDS 更新不需要全量推送，只增量推送），获取了全局 PushContext 后就直接处理了。</li>
+<li>如果是全量推送，则会将<strong>全局 PushContext 附带在 PushRequest（用于生成 xDS 推送消息）</strong>，并<strong>重置</strong> PushContext。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Push is called to push changes on config updates using ADS.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *DiscoveryServer)</span> <span class="title">Push</span><span class="params">(req *model.PushRequest)</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> !req.Full &#123;</span><br><span class="line">       req.Push = s.globalPushContext()</span><br><span class="line">       s.dropCacheForRequest(req)</span><br><span class="line">       s.AdsPushAll(req)</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// Reset the status during the push.</span></span><br><span class="line">    oldPushContext := s.globalPushContext()</span><br><span class="line">    <span class="keyword">if</span> oldPushContext != <span class="literal">nil</span> &#123;</span><br><span class="line">       oldPushContext.OnConfigChange()</span><br><span class="line">       <span class="comment">// Push the previous push Envoy metrics.</span></span><br><span class="line">       envoyfilter.RecordMetrics()</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// PushContext is reset after a config change. Previous status is</span></span><br><span class="line">    <span class="comment">// saved.</span></span><br><span class="line">    t0 := time.Now()</span><br><span class="line">    versionLocal := s.NextVersion()</span><br><span class="line">    push, err := s.initPushContext(req, oldPushContext, versionLocal)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    initContextTime := time.Since(t0)</span><br><span class="line">    log.Debugf(<span class="string">&quot;InitContext %v for push took %s&quot;</span>, versionLocal, initContextTime)</span><br><span class="line">    pushContextInitTime.Record(initContextTime.Seconds())</span><br><span class="line"></span><br><span class="line">    req.Push = push</span><br><span class="line">    s.AdsPushAll(req)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="AdsPushAll-将消息推送至-pushQueue"><a href="#AdsPushAll-将消息推送至-pushQueue" class="headerlink" title="AdsPushAll 将消息推送至 pushQueue"></a>AdsPushAll 将消息推送至 pushQueue</h3><p>在 Push 方法中，最后调用了 AdsPushAll 方法向所有的客户端发送更新推送（即调用 pushQueue.Enqueue 方法，<strong>将 PushRequest 和对应的客户端入队 pushQueue</strong>）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// AdsPushAll will send updates to all nodes, for a full config or incremental EDS.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *DiscoveryServer)</span> <span class="title">AdsPushAll</span><span class="params">(req *model.PushRequest)</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> !req.Full &#123;</span><br><span class="line">       log.Infof(<span class="string">&quot;XDS: Incremental Pushing ConnectedEndpoints:%d Version:%s&quot;</span>,</span><br><span class="line">          s.adsClientCount(), req.Push.PushVersion)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       totalService := <span class="built_in">len</span>(req.Push.GetAllServices())</span><br><span class="line">       log.Infof(<span class="string">&quot;XDS: Pushing Services:%d ConnectedEndpoints:%d Version:%s&quot;</span>,</span><br><span class="line">          totalService, s.adsClientCount(), req.Push.PushVersion)</span><br><span class="line">       monServices.Record(<span class="keyword">float64</span>(totalService))</span><br><span class="line"></span><br><span class="line">       <span class="comment">// Make sure the ConfigsUpdated map exists</span></span><br><span class="line">       <span class="keyword">if</span> req.ConfigsUpdated == <span class="literal">nil</span> &#123;</span><br><span class="line">          req.ConfigsUpdated = <span class="built_in">make</span>(sets.Set[model.ConfigKey])</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    s.startPush(req)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Send a signal to all connections, with a push event.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *DiscoveryServer)</span> <span class="title">startPush</span><span class="params">(req *model.PushRequest)</span></span> &#123;</span><br><span class="line">    <span class="comment">// Push config changes, iterating over connected envoys.</span></span><br><span class="line">    <span class="keyword">if</span> log.DebugEnabled() &#123;</span><br><span class="line">       currentlyPending := s.pushQueue.Pending()</span><br><span class="line">       <span class="keyword">if</span> currentlyPending != <span class="number">0</span> &#123;</span><br><span class="line">          log.Debugf(<span class="string">&quot;Starting new push while %v were still pending&quot;</span>, currentlyPending)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    req.Start = time.Now()</span><br><span class="line">    <span class="keyword">for</span> _, p := <span class="keyword">range</span> s.AllClients() &#123;</span><br><span class="line">       s.pushQueue.Enqueue(p, req)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="接收-pushQueue-将消息推送至客户端的-pushChannel"><a href="#接收-pushQueue-将消息推送至客户端的-pushChannel" class="headerlink" title="接收 pushQueue 将消息推送至客户端的 pushChannel"></a>接收 pushQueue 将消息推送至客户端的 pushChannel</h2><p>DiscoveryServer 会另外开启一个协程 sendPushes 用于<strong>接收 pushQueue 中的请求</strong>，并<strong>将推送请求发送至客户端的 pushChannel</strong>。</p>
+<p>其中：</p>
+<ul>
+<li>semaphore 用于<strong>控制发送速率</strong>。</li>
+<li>将推送消息<strong>推送至 client.pushChannel</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">doSendPushes</span><span class="params">(stopCh &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;, semaphore <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;, queue *PushQueue)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">       <span class="keyword">select</span> &#123;</span><br><span class="line">       <span class="keyword">case</span> &lt;-stopCh:</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       <span class="keyword">default</span>:</span><br><span class="line">          <span class="comment">// We can send to it until it is full, then it will block until a pushes finishes and reads from it.</span></span><br><span class="line">          <span class="comment">// This limits the number of pushes that can happen concurrently</span></span><br><span class="line">          semaphore &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line"></span><br><span class="line">          <span class="comment">// Get the next proxy to push. This will block if there are no updates required.</span></span><br><span class="line">          client, push, shuttingdown := queue.Dequeue()</span><br><span class="line">          <span class="keyword">if</span> shuttingdown &#123;</span><br><span class="line">             <span class="keyword">return</span></span><br><span class="line">          &#125;</span><br><span class="line">          recordPushTriggers(push.Reason)</span><br><span class="line">          <span class="comment">// Signals that a push is done by reading from the semaphore, allowing another send on it.</span></span><br><span class="line">          doneFunc := <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">             queue.MarkDone(client)</span><br><span class="line">             &lt;-semaphore</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          proxiesQueueTime.Record(time.Since(push.Start).Seconds())</span><br><span class="line">          <span class="keyword">var</span> closed &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">          <span class="keyword">if</span> client.stream != <span class="literal">nil</span> &#123;</span><br><span class="line">             closed = client.stream.Context().Done()</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">             closed = client.deltaStream.Context().Done()</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">             pushEv := &amp;Event&#123;</span><br><span class="line">                pushRequest: push,</span><br><span class="line">                done:        doneFunc,</span><br><span class="line">             &#125;</span><br><span class="line"></span><br><span class="line">             <span class="keyword">select</span> &#123;</span><br><span class="line">             <span class="keyword">case</span> client.pushChannel &lt;- pushEv:</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line">             <span class="keyword">case</span> &lt;-closed: <span class="comment">// grpc stream was closed</span></span><br><span class="line">                doneFunc()</span><br><span class="line">                log.Infof(<span class="string">&quot;Client closed connection %v&quot;</span>, client.conID)</span><br><span class="line">             &#125;</span><br><span class="line">          &#125;()</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="将-xDS-消息推送至-Envoy"><a href="#将-xDS-消息推送至-Envoy" class="headerlink" title="将 xDS 消息推送至 Envoy"></a>将 xDS 消息推送至 Envoy</h2><p>客户端在连接到 xDS Server 后，在 Handler 方法中会监听客户端连接的 pushChannel，并<strong>调用 pushConnection 方法利用 PushContext 生成 xDS 推送消息并发送给客户端</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> pushEv := &lt;-con.pushChannel:</span><br><span class="line">    err := s.pushConnection(con, pushEv)</span><br><span class="line">    pushEv.done()</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> err</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="pushConnection"><a href="#pushConnection" class="headerlink" title="pushConnection"></a>pushConnection</h3><p>在 pushConnection 方法中，对于<strong>每一种 xDS</strong>，都会调用 pushXds 推送给客户端。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Send pushes to all generators</span></span><br><span class="line"><span class="comment">// Each Generator is responsible for determining if the push event requires a push</span></span><br><span class="line">wrl, ignoreEvents := con.pushDetails()</span><br><span class="line"><span class="keyword">for</span> _, w := <span class="keyword">range</span> wrl &#123;</span><br><span class="line">    <span class="keyword">if</span> err := s.pushXds(con, w, pushRequest); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> err</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="响应-Envoy-主动发起的-xDS-请求"><a href="#响应-Envoy-主动发起的-xDS-请求" class="headerlink" title="响应 Envoy 主动发起的 xDS 请求"></a>响应 Envoy 主动发起的 xDS 请求</h1><p>在 Envoy 连接后，会开启一个协程用于响应 Envoy 主动发起的 xDS 请求。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Do not call: defer close(con.pushChannel). The push channel will be garbage collected</span></span><br><span class="line"><span class="comment">// when the connection is no longer used. Closing the channel can cause subtle race conditions</span></span><br><span class="line"><span class="comment">// with push. According to the spec: &quot;It&#x27;s only necessary to close a channel when it is important</span></span><br><span class="line"><span class="comment">// to tell the receiving goroutines that all data have been sent.&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Block until either a request is received or a push is triggered.</span></span><br><span class="line"><span class="comment">// We need 2 go routines because &#x27;read&#x27; blocks in Recv().</span></span><br><span class="line"><span class="keyword">go</span> s.receive(con, ids)</span><br></pre></td></tr></table></figure>
+
+<p>receive 方法部分如下，接收到 Envoy 主动发起的 xDS 请求后，会<strong>将请求推送至客户端连接的 reqChan 中</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line">firstRequest := <span class="literal">true</span></span><br><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">    req, err := con.stream.Recv()</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">if</span> istiogrpc.IsExpectedGRPCError(err) &#123;</span><br><span class="line">          log.Infof(<span class="string">&quot;ADS: %q %s terminated&quot;</span>, con.peerAddr, con.conID)</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       &#125;</span><br><span class="line">       con.errorChan &lt;- err</span><br><span class="line">       log.Errorf(<span class="string">&quot;ADS: %q %s terminated with error: %v&quot;</span>, con.peerAddr, con.conID, err)</span><br><span class="line">       totalXDSInternalErrors.Increment()</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// This should be only set for the first request. The node id may not be set - for example malicious clients.</span></span><br><span class="line">    <span class="keyword">if</span> firstRequest &#123;</span><br><span class="line">       <span class="comment">// probe happens before envoy sends first xDS request</span></span><br><span class="line">       <span class="keyword">if</span> req.TypeUrl == v3.HealthInfoType &#123;</span><br><span class="line">          log.Warnf(<span class="string">&quot;ADS: %q %s send health check probe before normal xDS request&quot;</span>, con.peerAddr, con.conID)</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line">       firstRequest = <span class="literal">false</span></span><br><span class="line">       <span class="keyword">if</span> req.Node == <span class="literal">nil</span> || req.Node.Id == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">          con.errorChan &lt;- status.New(codes.InvalidArgument, <span class="string">&quot;missing node information&quot;</span>).Err()</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       &#125;</span><br><span class="line">       <span class="keyword">if</span> err := s.initConnection(req.Node, con, identities); err != <span class="literal">nil</span> &#123;</span><br><span class="line">          con.errorChan &lt;- err</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       &#125;</span><br><span class="line">       <span class="keyword">defer</span> s.closeConnection(con)</span><br><span class="line">       log.Infof(<span class="string">&quot;ADS: new connection for node:%s&quot;</span>, con.conID)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">select</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> con.reqChan &lt;- req:</span><br><span class="line">    <span class="keyword">case</span> &lt;-con.stream.Context().Done():</span><br><span class="line">       log.Infof(<span class="string">&quot;ADS: %q %s terminated with stream closed&quot;</span>, con.peerAddr, con.conID)</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="客户端监听-reqChan-响应-Envoy"><a href="#客户端监听-reqChan-响应-Envoy" class="headerlink" title="客户端监听 reqChan 响应 Envoy"></a>客户端监听 reqChan 响应 Envoy</h2><p>客户端会<strong>监听 reqChan</strong>，并调用 precessRequest 响应 Envoy 的主动请求。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">select</span> &#123;</span><br><span class="line"><span class="keyword">case</span> req, ok := &lt;-con.reqChan:</span><br><span class="line">    <span class="keyword">if</span> ok &#123;</span><br><span class="line">       <span class="keyword">if</span> err := s.processRequest(req, con); err != <span class="literal">nil</span> &#123;</span><br><span class="line">          <span class="keyword">return</span> err</span><br><span class="line">       &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       <span class="comment">// Remote side closed connection or error processing the request.</span></span><br><span class="line">       <span class="keyword">return</span> &lt;-con.errorChan</span><br><span class="line">    &#125;</span><br><span class="line"><span class="keyword">case</span> &lt;-con.stop:</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line"><span class="keyword">default</span>:</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="processRequest-响应客户端"><a href="#processRequest-响应客户端" class="headerlink" title="processRequest 响应客户端"></a>processRequest 响应客户端</h3><p>在 processRequest 的最后，<strong>调用 pushXds 方法响应客户端</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// processRequest handles one discovery request. This is currently called from the &#x27;main&#x27; thread, which also</span></span><br><span class="line"><span class="comment">// handles &#x27;push&#x27; requests and close - the code will eventually call the &#x27;push&#x27; code, and it needs more mutex</span></span><br><span class="line"><span class="comment">// protection. Original code avoided the mutexes by doing both &#x27;push&#x27; and &#x27;process requests&#x27; in same thread.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *DiscoveryServer)</span> <span class="title">processRequest</span><span class="params">(req *discovery.DiscoveryRequest, con *Connection)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    stype := v3.GetShortType(req.TypeUrl)</span><br><span class="line">    log.Debugf(<span class="string">&quot;ADS:%s: REQ %s resources:%d nonce:%s version:%s &quot;</span>, stype,</span><br><span class="line">       con.conID, <span class="built_in">len</span>(req.ResourceNames), req.ResponseNonce, req.VersionInfo)</span><br><span class="line">    <span class="keyword">if</span> req.TypeUrl == v3.HealthInfoType &#123;</span><br><span class="line">       s.handleWorkloadHealthcheck(con.proxy, req)</span><br><span class="line">       <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// For now, don&#x27;t let xDS piggyback debug requests start watchers.</span></span><br><span class="line">    <span class="keyword">if</span> strings.HasPrefix(req.TypeUrl, v3.DebugType) &#123;</span><br><span class="line">       <span class="keyword">return</span> s.pushXds(con,</span><br><span class="line">          &amp;model.WatchedResource&#123;TypeUrl: req.TypeUrl, ResourceNames: req.ResourceNames&#125;,</span><br><span class="line">          &amp;model.PushRequest&#123;Full: <span class="literal">true</span>, Push: con.proxy.LastPushContext&#125;)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> s.StatusReporter != <span class="literal">nil</span> &#123;</span><br><span class="line">       s.StatusReporter.RegisterEvent(con.conID, req.TypeUrl, req.ResponseNonce)</span><br><span class="line">    &#125;</span><br><span class="line">    shouldRespond, delta := s.shouldRespond(con, req)</span><br><span class="line">    <span class="keyword">if</span> !shouldRespond &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    request := &amp;model.PushRequest&#123;</span><br><span class="line">       Full:   <span class="literal">true</span>,</span><br><span class="line">       Push:   con.proxy.LastPushContext,</span><br><span class="line">       Reason: model.NewReasonStats(model.ProxyRequest),</span><br><span class="line"></span><br><span class="line">       <span class="comment">// The usage of LastPushTime (rather than time.Now()), is critical here for correctness; This time</span></span><br><span class="line">       <span class="comment">// is used by the XDS cache to determine if a entry is stale. If we use Now() with an old push context,</span></span><br><span class="line">       <span class="comment">// we may end up overriding active cache entries with stale ones.</span></span><br><span class="line">       Start: con.proxy.LastPushTime,</span><br><span class="line">       Delta: delta,</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// SidecarScope for the proxy may not have been updated based on this pushContext.</span></span><br><span class="line">    <span class="comment">// It can happen when `processRequest` comes after push context has been updated(s.initPushContext),</span></span><br><span class="line">    <span class="comment">// but proxy&#x27;s SidecarScope has been updated(s.computeProxyState -&gt; SetSidecarScope) due to optimizations that skip sidecar scope</span></span><br><span class="line">    <span class="comment">// computation.</span></span><br><span class="line">    <span class="keyword">if</span> con.proxy.SidecarScope != <span class="literal">nil</span> &amp;&amp; con.proxy.SidecarScope.Version != request.Push.PushVersion &#123;</span><br><span class="line">       s.computeProxyState(con.proxy, request)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> s.pushXds(con, con.Watched(req.TypeUrl), request)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/10/20/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Pilot-%E6%B3%A8%E5%86%8C%E9%85%8D%E7%BD%AE%E5%92%8C%E6%9C%8D%E5%8A%A1%E5%8F%98%E5%8C%96Handler/" rel="prev" title="Istio学习笔记 (7) Pilot 注册配置和服务变化Handler">
+      <i class="fa fa-chevron-left"></i> Istio学习笔记 (7) Pilot 注册配置和服务变化Handler
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/10/30/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/" rel="next" title="模型是如何部署在线上的">
+      模型是如何部署在线上的 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%90%91-Envoy-%E6%8E%A8%E9%80%81%E6%9B%B4%E6%96%B0"><span class="nav-number">1.</span> <span class="nav-text">向 Envoy 推送更新</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A8%E9%80%81%E6%B6%88%E6%81%AF%E8%87%B3-pushChannel"><span class="nav-number">1.1.</span> <span class="nav-text">推送消息至 pushChannel</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%BB%E5%8F%96-pushChannel-%E8%BF%9B%E8%A1%8C-debounce"><span class="nav-number">1.2.</span> <span class="nav-text">读取 pushChannel 进行 debounce</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF-debounce"><span class="nav-number">1.2.1.</span> <span class="nav-text">什么是 debounce</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#debounce-%E9%80%BB%E8%BE%91"><span class="nav-number">1.2.2.</span> <span class="nav-text">debounce 逻辑</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A8%E9%80%81%E8%87%B3-pushQueue"><span class="nav-number">1.3.</span> <span class="nav-text">推送至 pushQueue</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#AdsPushAll-%E5%B0%86%E6%B6%88%E6%81%AF%E6%8E%A8%E9%80%81%E8%87%B3-pushQueue"><span class="nav-number">1.3.1.</span> <span class="nav-text">AdsPushAll 将消息推送至 pushQueue</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A5%E6%94%B6-pushQueue-%E5%B0%86%E6%B6%88%E6%81%AF%E6%8E%A8%E9%80%81%E8%87%B3%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%9A%84-pushChannel"><span class="nav-number">1.4.</span> <span class="nav-text">接收 pushQueue 将消息推送至客户端的 pushChannel</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B0%86-xDS-%E6%B6%88%E6%81%AF%E6%8E%A8%E9%80%81%E8%87%B3-Envoy"><span class="nav-number">1.5.</span> <span class="nav-text">将 xDS 消息推送至 Envoy</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#pushConnection"><span class="nav-number">1.5.1.</span> <span class="nav-text">pushConnection</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%93%8D%E5%BA%94-Envoy-%E4%B8%BB%E5%8A%A8%E5%8F%91%E8%B5%B7%E7%9A%84-xDS-%E8%AF%B7%E6%B1%82"><span class="nav-number">2.</span> <span class="nav-text">响应 Envoy 主动发起的 xDS 请求</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%9B%91%E5%90%AC-reqChan-%E5%93%8D%E5%BA%94-Envoy"><span class="nav-number">2.1.</span> <span class="nav-text">客户端监听 reqChan 响应 Envoy</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#processRequest-%E5%93%8D%E5%BA%94%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">2.1.1.</span> <span class="nav-text">processRequest 响应客户端</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

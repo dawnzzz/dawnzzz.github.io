@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="文件系统抽象在 dubbo-kubernetes 中，利用 golang 提供的 fs 抽象接口，实现了多种不同文件系统。各种文件系统的实现在 app&#x2F;dubboctl&#x2F;internal&#x2F;filesystem 文件夹下，首先定义了一个 Filesystem 接口： 12345type Filesystem interface &amp;#123;	fs.ReadDirFS	fs.StatFS	Readli">
+<meta property="og:type" content="article">
+<meta property="og:title" content="阅读dubbo-kubernetes的启发 (1) 抽象文件系统">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="文件系统抽象在 dubbo-kubernetes 中，利用 golang 提供的 fs 抽象接口，实现了多种不同文件系统。各种文件系统的实现在 app&#x2F;dubboctl&#x2F;internal&#x2F;filesystem 文件夹下，首先定义了一个 Filesystem 接口： 12345type Filesystem interface &amp;#123;	fs.ReadDirFS	fs.StatFS	Readli">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-09-20T03:12:46.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.834Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta property="article:tag" content="dubbo - 微服务">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>阅读dubbo-kubernetes的启发 (1) 抽象文件系统 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          阅读dubbo-kubernetes的启发 (1) 抽象文件系统
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-20 11:12:46" itemprop="dateCreated datePublished" datetime="2023-09-20T11:12:46+08:00">2023-09-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="文件系统抽象"><a href="#文件系统抽象" class="headerlink" title="文件系统抽象"></a>文件系统抽象</h1><p>在 dubbo-kubernetes 中，利用 golang 提供的 fs 抽象接口，实现了多种不同文件系统。各种文件系统的实现在 <code>app/dubboctl/internal/filesystem</code> 文件夹下，首先定义了一个 Filesystem 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Filesystem <span class="keyword">interface</span> &#123;</span><br><span class="line">	fs.ReadDirFS</span><br><span class="line">	fs.StatFS</span><br><span class="line">	Readlink(link <span class="keyword">string</span>) (<span class="keyword">string</span>, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Filesystem 接口将访问 template 文件（至于什么是模版，可以不知道）的各种实现差异，封装到这个接口中。Filesystem 接口的实现包括以下：</p>
+<ul>
+<li><strong>zipFS：</strong>用于<strong>对 zip 压缩文件</strong>的读写，将 zip 压缩文件作为一个文件系统，压缩文件中的一个个被压缩的文件或者文件夹就是文件系统中的文件。</li>
+<li><strong>billyFS：</strong>表示 git repo 中的文件系统，用于访问在<strong>远程 git 仓库</strong>中的 template。</li>
+<li><strong>osFilesystem：</strong>由操作系统支持的文件系统，用于访问 template。</li>
+<li><strong>subFS：</strong>表示 Filesystem 中的<strong>子目录</strong>，单独作为一个文件系统。</li>
+<li><strong>maskingFS：</strong>基于 Filesystem，用于<strong>屏蔽</strong>某些文件的文件系统。</li>
+</ul>
+<blockquote>
+<p>Golang 提供了 io.Reader 和 io.Writer 接口，抽象出对文件、字节流、socket 的读写。至于问什么提出这样的接口，将对象看作是文件一样读写，可以在 Linux 中找到启发：<strong>Linux 中，一切皆是文件</strong>。</p>
+<p>在 1.6 中提供了 fs.FS 抽象文件系统抽象，既然很多对象可以被看作是对象，那么这些抽象的文件聚集起来，就可以抽象出文件系统。</p>
+</blockquote>
+<span id="more"></span>
+
+<h1 id="实现细节"><a href="#实现细节" class="headerlink" title="实现细节"></a>实现细节</h1><h2 id="zipFS"><a href="#zipFS" class="headerlink" title="zipFS"></a>zipFS</h2><p>zipFS 结构体内部定义了一个 zip.Reader 类型的 archive，而 zip.Reader 已经实现了 fs.FS 接口。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> zipFS <span class="keyword">struct</span> &#123;</span><br><span class="line">    archive *zip.Reader</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="billyFilesystem"><a href="#billyFilesystem" class="headerlink" title="billyFilesystem"></a>billyFilesystem</h2><p>基于 go-git/go-bill 文件系统，用于访问远程 git 仓库，将远程 git 仓库作为一个文件系统抽象出来。</p>
+<p>Github地址：<a target="_blank" rel="noopener" href="https://github.com/go-git/go-billy">https://github.com/go-git/go-billy</a></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// BillyFilesystem is a template file accessor backed by a billy FS</span></span><br><span class="line"><span class="keyword">type</span> BillyFilesystem <span class="keyword">struct</span>&#123; fs billy.Filesystem &#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="osFilesystem"><a href="#osFilesystem" class="headerlink" title="osFilesystem"></a>osFilesystem</h2><p>osFilesystem 的定义如下，以<strong>当前操作系统中的 root 路径为 osFilesystem 的根目录</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// osFilesystem is a template file accessor backed by the os.</span></span><br><span class="line"><span class="keyword">type</span> osFilesystem <span class="keyword">struct</span>&#123; root <span class="keyword">string</span> &#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 Open 方法中，使用 name 是以 root 为根目录相对路径：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o osFilesystem)</span> <span class="title">Open</span><span class="params">(name <span class="keyword">string</span>)</span> <span class="params">(fs.File, error)</span></span> &#123;</span><br><span class="line">    name = filepath.FromSlash(name)</span><br><span class="line">    <span class="keyword">return</span> os.Open(filepath.Join(o.root, name))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="subFS"><a href="#subFS" class="headerlink" title="subFS"></a>subFS</h2><p>进一步的，subFS 表示 Filesystem 接口的子目录，并且以 Filesystem 的子目录为根目录。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// subFS exposes subdirectory of underlying FS, this is similar to `chroot`.</span></span><br><span class="line"><span class="keyword">type</span> subFS <span class="keyword">struct</span> &#123;</span><br><span class="line">    root <span class="keyword">string</span></span><br><span class="line">    fs   Filesystem</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Open 的实现如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o subFS)</span> <span class="title">Open</span><span class="params">(name <span class="keyword">string</span>)</span> <span class="params">(fs.File, error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> o.fs.Open(path.Join(o.root, name))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="maskingFS"><a href="#maskingFS" class="headerlink" title="maskingFS"></a>maskingFS</h2><p>maskingFS 表示 Filesystem 文件系统中，屏蔽某些文件的文件系统。其中，masked 函数用于根据文件名判断是否屏蔽。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> maskingFS <span class="keyword">struct</span> &#123;</span><br><span class="line">	masked <span class="function"><span class="keyword">func</span><span class="params">(path <span class="keyword">string</span>)</span> <span class="title">bool</span></span></span><br><span class="line">	fs     Filesystem</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Open 的实现如下，在打开文件之前，会首先调用 masked 方法判断文件是否被屏蔽：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m maskingFS)</span> <span class="title">Open</span><span class="params">(name <span class="keyword">string</span>)</span> <span class="params">(fs.File, error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> m.masked(name) &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="literal">nil</span>, &amp;fs.PathError&#123;Op: <span class="string">&quot;open&quot;</span>, Path: name, Err: fs.ErrNotExist&#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> m.fs.Open(name)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+              <a href="/tags/dubbo-%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># dubbo - 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/" rel="prev" title="用户增长-实时归因">
+      <i class="fa fa-chevron-left"></i> 用户增长-实时归因
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/" rel="next" title="阅读dubbo-kubernetes的启发 (2) dubboctl客户端Client与Repository Runtime Template">
+      阅读dubbo-kubernetes的启发 (2) dubboctl客户端Client与Repository Runtime Template <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%8A%BD%E8%B1%A1"><span class="nav-number">1.</span> <span class="nav-text">文件系统抽象</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E7%BB%86%E8%8A%82"><span class="nav-number">2.</span> <span class="nav-text">实现细节</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#zipFS"><span class="nav-number">2.1.</span> <span class="nav-text">zipFS</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#billyFilesystem"><span class="nav-number">2.2.</span> <span class="nav-text">billyFilesystem</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#osFilesystem"><span class="nav-number">2.3.</span> <span class="nav-text">osFilesystem</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#subFS"><span class="nav-number">2.4.</span> <span class="nav-text">subFS</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#maskingFS"><span class="nav-number">2.5.</span> <span class="nav-text">maskingFS</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="语音识别介绍语言识别包括输入（一段语音，长度为 T，d 维向量）、语音识别模型、输出（一段文字，长度为 N，有 V 个不同的 token）：  token下面介绍不同种的 token：  Phoneme：最小的语音单元，比如音标、拼音。缺点是需要一个词典，来对应单词与 phonemes 的关系。  Grapheme：最小的书写单元，比如 26 个英文字母 + 标点 + 空格、汉字 + 标点。  W">
+<meta property="og:type" content="article">
+<meta property="og:title" content="NLP学习笔记 (1) 语音识别">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/05/26/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="语音识别介绍语言识别包括输入（一段语音，长度为 T，d 维向量）、语音识别模型、输出（一段文字，长度为 N，有 V 个不同的 token）：  token下面介绍不同种的 token：  Phoneme：最小的语音单元，比如音标、拼音。缺点是需要一个词典，来对应单词与 phonemes 的关系。  Grapheme：最小的书写单元，比如 26 个英文字母 + 标点 + 空格、汉字 + 标点。  W">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653558659336.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653559523976.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653643788556.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653644644946.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653644660175.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653644976903.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645003003.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645351315.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645422970.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645510853.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645522104.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645919177.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653646113105.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653732739737.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653733593764.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653734265058.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653734553646.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653734963426.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653735252849.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653735282867.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653735323174.png">
+<meta property="article:published_time" content="2022-05-26T09:48:41.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.782Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="深度学习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653558659336.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/05/26/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>NLP学习笔记 (1) 语音识别 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/26/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          NLP学习笔记 (1) 语音识别
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-26 17:48:41" itemprop="dateCreated datePublished" datetime="2022-05-26T17:48:41+08:00">2022-05-26</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">NLP学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="语音识别介绍"><a href="#语音识别介绍" class="headerlink" title="语音识别介绍"></a>语音识别介绍</h1><p>语言识别包括<strong>输入</strong>（一段语音，<strong>长度为 T，d 维向量</strong>）、<strong>语音识别</strong>模型、<strong>输出</strong>（一段文字，<strong>长度为 N，有 V 个不同的 token</strong>）：</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653558659336.png" alt="1653558659336"></p>
+<h2 id="token"><a href="#token" class="headerlink" title="token"></a>token</h2><p>下面介绍不同种的 token：</p>
+<ul>
+<li><p><strong>Phoneme</strong>：最小的语音单元，比如音标、拼音。<strong>缺点</strong>是需要一个<strong>词典</strong>，来对应单词与 phonemes 的关系。</p>
+</li>
+<li><p><strong>Grapheme</strong>：最小的书写单元，比如 26 个英文字母 + 标点 + 空格、汉字 + 标点。</p>
+</li>
+<li><p><strong>Word</strong>：单词，对于一些语言而言单词太多了（V 很长）。</p>
+</li>
+<li><p><strong>Morpheme</strong>：最小的有意义的单元，如英文中的前后缀以及中心词。</p>
+</li>
+<li><p><strong>Bytes</strong>：字节，如 UTF-8 中的每一个字节。好处是可以<strong>不依赖于具体的语言</strong>，不同语言的文字都可以用 UTF-8 表示。</p>
+</li>
+</ul>
+<h2 id="输入"><a href="#输入" class="headerlink" title="输入"></a>输入</h2><p>语言识别的输入是长度为 T，维度为 d 的向量。如何将语言信号转换为向量，一般取 <strong>25ms</strong> 为一个 <strong>窗口</strong>，窗口每次<strong>向后</strong>移动 <strong>10ms</strong>，每一次窗口内的语音信号对应一列向量。</p>
+<p>关于如何将一个窗口内的语音信号转换为向量，一般有如下方法：</p>
+<ul>
+<li><strong>400 次采样</strong>：每一个窗口采样 400 次，将 400 次采样结果直接进行拼接，形成一列向量。</li>
+<li><strong>MFCC</strong>：形成 39 维的向量。</li>
+<li><strong>Filter Bank Output</strong>：形成 80 维的向量（最为常用）。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653559523976.png" alt="1653559523976"></p>
+<hr>
+<p>下面说明以下几种模型：</p>
+<ul>
+<li>Listen，Attend and Spell（LAS）</li>
+<li>Connectionist Temporal Classification（CTC）</li>
+<li>RNN Transducer（RNN-T）</li>
+<li>Neural Transducer</li>
+<li>Monotonic Chunkwise Attention（MoChA）</li>
+</ul>
+<hr>
+<h1 id="LAS"><a href="#LAS" class="headerlink" title="LAS"></a>LAS</h1><p>Listen，Attend and Spell</p>
+<h2 id="Listen"><a href="#Listen" class="headerlink" title="Listen"></a>Listen</h2><p>Listen的<strong>输入</strong>为语音特征（acoustic features），经过 <strong>Encoder</strong> 后<strong>输出</strong>一组高级表示法的向量：</p>
+<ul>
+<li>用于提取语音内容信息</li>
+<li>降低方差和噪声</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653643788556.png" alt="1653643788556"></p>
+<h3 id="Encoder"><a href="#Encoder" class="headerlink" title="Encoder"></a>Encoder</h3><p>其中，Encoder 可以是：</p>
+<ul>
+<li>RNN</li>
+<li>CNN（RNN+CNN 的组合更为常见）</li>
+<li>Self-Attention Layers</li>
+</ul>
+<h3 id="Down-Sampling"><a href="#Down-Sampling" class="headerlink" title="Down Sampling"></a>Down Sampling</h3><p>输入太长导致运算量很大，需要 <strong>Down Sampling</strong>：</p>
+<ul>
+<li><strong>Pyramid RNN</strong></li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653644644946.png" alt="1653644644946"></p>
+<ul>
+<li><strong>Pooling over time</strong></li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653644660175.png" alt="1653644660175"></p>
+<ul>
+<li><strong>Time-delay DNN（TDNN）</strong>或者 <strong>Dilated CNN</strong>：只考虑第一个和最后一个向量。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653644976903.png" alt="1653644976903"></p>
+<ul>
+<li><strong>Truncated Self-Attention</strong>：在一定范围内 Attention，超出范围不予考虑。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645003003.png" alt="1653645003003"></p>
+<h2 id="Attention"><a href="#Attention" class="headerlink" title="Attention"></a>Attention</h2><p>Attention 首先会进入 <strong>match</strong> 函数，match 以 Encoder 的输出 h 向量 和 z 作为输入，输出为向量 <strong>α</strong>。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645351315.png" alt="1653645351315"></p>
+<p>接着 α 进入 <strong>softmax</strong> 层，最后得到 <strong>c（Attend 的输出）</strong>，作为 Spell（也就是 RNN）的输入。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645422970.png" alt="1653645422970"></p>
+<h3 id="match"><a href="#match" class="headerlink" title="match"></a>match</h3><p>match 函数是可以替换的，如：</p>
+<ul>
+<li><strong>Dot-product Attention</strong>：</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645510853.png" alt="1653645510853"></p>
+<ul>
+<li><strong>Additive Attention</strong>：</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645522104.png" alt="1653645522104"></p>
+<h2 id="Spell"><a href="#Spell" class="headerlink" title="Spell"></a>Spell</h2><p>c0 作为 Spell 的输入，得到各个 token 的概率，取最大的作为输出：</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653645919177.png" alt="1653645919177"></p>
+<p>z1 作为 match 的输入，得到 c1，c1 再作为 Spell 的输入；以此类推，得到语音识别的 token 序列：</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653646113105.png" alt="1653646113105"></p>
+<h3 id="Beam-Search"><a href="#Beam-Search" class="headerlink" title="Beam Search"></a>Beam Search</h3><p>最后选择 token 时，都是选择概率最大的，也就是<strong>贪心</strong>的选择当前概率最大的 token。但是贪心的选择，有可能进入<strong>局部最优</strong>，而不是全局最优。</p>
+<p><strong>Beam Search</strong> 要求每次<strong>选择 B（Beam Size）个</strong>概率最大的token，显然这会增加运算量，但是更容易得到全局最优。</p>
+<hr>
+<p>LAS 在<strong>训练</strong>时需要<strong>强制学习</strong>（忽略学习出的结果，而是使用正确结果）。</p>
+<p>LAS 无法在线输出语音识别结果，必须一句话说完之后再输出结果。</p>
+<hr>
+<h1 id="CTC"><a href="#CTC" class="headerlink" title="CTC"></a>CTC</h1><p>Connectionist Temporal Classification，CTC</p>
+<h2 id="结构"><a href="#结构" class="headerlink" title="结构"></a>结构</h2><p>CTC 结构比较简单，只有一个 <strong>Encoder</strong>（如果使用 RNN，必须是<strong>单向 RNN</strong>，因为 CTC 可以<strong>在线输出</strong>语音识别），Decoder 部分是一个<strong>线性分类</strong>（softmax）。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653732739737.png" alt="1653732739737"></p>
+<p>CTC （在没有 down sampling 的情况下）有 T 个语音特征输入，就会有 T 个输出。</p>
+<p>但是多个语音特征可能对应一个 token，所以输出包括了 Ø，表示什么也不输出。最终合并相邻并且相同的 token，忽略 Ø。</p>
+<h2 id="训练"><a href="#训练" class="headerlink" title="训练"></a>训练</h2><p>在训练时，比如一段语音有四个输入，标签是 你好。因为引入了 Ø，所以对应了以下输出：</p>
+<p>你你好好、Ø你Ø好、你你Ø好 ……</p>
+<p>那么到底需要选择哪一个作为训练的正确标签呢？CTC 在训练时，选择将这些<strong>全部考虑（穷举）</strong>在内。</p>
+<h1 id="RNN-T"><a href="#RNN-T" class="headerlink" title="RNN-T"></a>RNN-T</h1><p>RNN Transducer，RNN-T</p>
+<h2 id="RNA-–-CTC-到-RNN-T-之间的过渡"><a href="#RNA-–-CTC-到-RNN-T-之间的过渡" class="headerlink" title="RNA – CTC 到 RNN-T 之间的过渡"></a>RNA – CTC 到 RNN-T 之间的过渡</h2><p><strong>RNA</strong>，Recurrent Neural Aligner，就是将 CTC 中<strong>线性选择器</strong>的部分<strong>替换为 LSTM（RNN）</strong>，使当前输出考虑前面的输出。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653733593764.png" alt="1653733593764"></p>
+<h2 id="RNN-T-结构"><a href="#RNN-T-结构" class="headerlink" title="RNN-T 结构"></a>RNN-T 结构</h2><p>对于 RNA 而言，有可能一个输入对应多个 token，如 th。此时需要引入 RNN-T。</p>
+<p>RNN-T 会<strong>重复输入</strong>，直到输出了 Ø（表示可以输入下一个语音特征）。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653734265058.png" alt="1653734265058"></p>
+<h2 id="特别之处"><a href="#特别之处" class="headerlink" title="特别之处"></a>特别之处</h2><p>因为输出依然包括了 Ø，所以需要自定义标签的生成，依然可以选择与 CTC 一样的处理方式，即选择所有可能的标签。</p>
+<p>但是，RNN-T 有自己的特别之处，在输出 token 后，<strong>将 token 送入另一个 RNN 中</strong>，并且这个 RNN 会<strong>忽略 Ø 的输出</strong>。</p>
+<p><strong>这样做的好处是</strong>，这个 RNN 网络<strong>只看前面产生的非空 token</strong>，至于中见有没有 Ø、Ø的顺序，并不关心这个问题。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653734553646.png" alt="1653734553646"></p>
+<h1 id="Neural-Transducer"><a href="#Neural-Transducer" class="headerlink" title="Neural Transducer"></a>Neural Transducer</h1><h2 id="结构-1"><a href="#结构-1" class="headerlink" title="结构"></a>结构</h2><p>Neural Tansducer 与之前 RNN-T 的<strong>不同</strong>之处在于：<strong>一次性读入多个声音特征</strong>作为一个 <strong>chunk</strong>，先做 <strong>Attention</strong>。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653734963426.png" alt="1653734963426"></p>
+<h1 id="MoChA"><a href="#MoChA" class="headerlink" title="MoChA"></a>MoChA</h1><p>Monotonic Chunkwise Attention，MoChA</p>
+<h2 id="结构-2"><a href="#结构-2" class="headerlink" title="结构"></a>结构</h2><p>MoChA 可以<strong>自己决定 chunk 的大小</strong>：</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653735252849.png" alt="1653735252849"></p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653735282867.png" alt="1653735282867"></p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB/1653735323174.png" alt="1653735323174"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/" rel="tag"># 深度学习</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/05/26/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-7-%E9%94%99%E8%AF%AF%E6%81%A2%E5%A4%8D/" rel="prev" title="从零实现一个Web框架 (7) 错误恢复">
+      <i class="fa fa-chevron-left"></i> 从零实现一个Web框架 (7) 错误恢复
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/05/26/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-1-LRU%E7%AD%96%E7%95%A5/" rel="next" title="从零实现分布式缓存 (1) LRU策略">
+      从零实现分布式缓存 (1) LRU策略 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">语音识别介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#token"><span class="nav-number">1.1.</span> <span class="nav-text">token</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BE%93%E5%85%A5"><span class="nav-number">1.2.</span> <span class="nav-text">输入</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#LAS"><span class="nav-number">2.</span> <span class="nav-text">LAS</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Listen"><span class="nav-number">2.1.</span> <span class="nav-text">Listen</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Encoder"><span class="nav-number">2.1.1.</span> <span class="nav-text">Encoder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Down-Sampling"><span class="nav-number">2.1.2.</span> <span class="nav-text">Down Sampling</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Attention"><span class="nav-number">2.2.</span> <span class="nav-text">Attention</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#match"><span class="nav-number">2.2.1.</span> <span class="nav-text">match</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Spell"><span class="nav-number">2.3.</span> <span class="nav-text">Spell</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Beam-Search"><span class="nav-number">2.3.1.</span> <span class="nav-text">Beam Search</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#CTC"><span class="nav-number">3.</span> <span class="nav-text">CTC</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%93%E6%9E%84"><span class="nav-number">3.1.</span> <span class="nav-text">结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%AD%E7%BB%83"><span class="nav-number">3.2.</span> <span class="nav-text">训练</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#RNN-T"><span class="nav-number">4.</span> <span class="nav-text">RNN-T</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#RNA-%E2%80%93-CTC-%E5%88%B0-RNN-T-%E4%B9%8B%E9%97%B4%E7%9A%84%E8%BF%87%E6%B8%A1"><span class="nav-number">4.1.</span> <span class="nav-text">RNA – CTC 到 RNN-T 之间的过渡</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RNN-T-%E7%BB%93%E6%9E%84"><span class="nav-number">4.2.</span> <span class="nav-text">RNN-T 结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%B9%E5%88%AB%E4%B9%8B%E5%A4%84"><span class="nav-number">4.3.</span> <span class="nav-text">特别之处</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Neural-Transducer"><span class="nav-number">5.</span> <span class="nav-text">Neural Transducer</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%93%E6%9E%84-1"><span class="nav-number">5.1.</span> <span class="nav-text">结构</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#MoChA"><span class="nav-number">6.</span> <span class="nav-text">MoChA</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%93%E6%9E%84-2"><span class="nav-number">6.1.</span> <span class="nav-text">结构</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">7.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

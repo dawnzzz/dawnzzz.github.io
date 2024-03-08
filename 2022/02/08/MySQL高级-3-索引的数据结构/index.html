@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="索引概述索引是用于MySQL高效获取数据的数据结构，用于快速查找 优点 提高数据检索效率，降低磁盘IO 通过创建唯一索引，可以保证数据库表中每一行数据的唯一性 在实现数据的参考完整性方面，可以加速表和表之间的连接 可以减少查询中分组和排序的时间  缺点： 创建和维护索引需要耗费时间，且随着数据量的增加，所耗费的时间也会增加 索引需要占用磁盘空间 虽然索引提高了查询速度，但会同时降低更新表的速度。当">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (3) 索引的数据结构">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/08/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="索引概述索引是用于MySQL高效获取数据的数据结构，用于快速查找 优点 提高数据检索效率，降低磁盘IO 通过创建唯一索引，可以保证数据库表中每一行数据的唯一性 在实现数据的参考完整性方面，可以加速表和表之间的连接 可以减少查询中分组和排序的时间  缺点： 创建和维护索引需要耗费时间，且随着数据量的增加，所耗费的时间也会增加 索引需要占用磁盘空间 虽然索引提高了查询速度，但会同时降低更新表的速度。当">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644380902854.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644381857402.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644481952668.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644482487734.png">
+<meta property="article:published_time" content="2022-02-08T07:02:57.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.780Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644380902854.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/08/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (3) 索引的数据结构 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/08/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (3) 索引的数据结构
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-08 15:02:57" itemprop="dateCreated datePublished" datetime="2022-02-08T15:02:57+08:00">2022-02-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="索引概述"><a href="#索引概述" class="headerlink" title="索引概述"></a>索引概述</h1><p>索引是用于MySQL高效获取数据的数据结构，用于快速查找</p>
+<h2 id="优点"><a href="#优点" class="headerlink" title="优点"></a>优点</h2><ul>
+<li>提高数据检索效率，<strong>降低磁盘IO</strong></li>
+<li>通过创建<strong>唯一索引</strong>，可以保证数据库表中每一行<strong>数据的唯一性</strong></li>
+<li>在实现数据的<strong>参考完整性</strong>方面，可以<strong>加速表和表之间的连接</strong></li>
+<li>可以减少查询中<strong>分组和排序</strong>的时间</li>
+</ul>
+<h2 id="缺点："><a href="#缺点：" class="headerlink" title="缺点："></a>缺点：</h2><ul>
+<li>创建和维护索引需要<strong>耗费时间</strong>，且随着数据量的增加，所耗费的时间也会增加</li>
+<li>索引需要占用<strong>磁盘空间</strong></li>
+<li>虽然索引提高了查询速度，但会同时<strong>降低更新表的速度</strong>。当对表进行增删改数据的时候，索引也需要动态的维护（保持数据的有序性）</li>
+</ul>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644380902854.png" alt="典型的索引结构"></p>
+<hr>
+<p>如果需要频繁的更新表，<strong>最好的方法就是</strong>，先删除索引，更新完数据后，最后再创建索引。</p>
+<span id="more"></span>
+
+<h2 id="常见索引概念"><a href="#常见索引概念" class="headerlink" title="常见索引概念"></a>常见索引概念</h2><p>索引可以分为两种：聚簇索引和非聚簇索引（也称二级索引、辅助索引）。</p>
+<h3 id="聚簇索引"><a href="#聚簇索引" class="headerlink" title="聚簇索引"></a>聚簇索引</h3><p>聚簇索引中，根据<strong>主键顺序</strong>建立索引，所有的用户记录都存储在了叶子节点中。索引即数据，数据即索引，二者合一</p>
+<p><strong>特点：</strong></p>
+<ul>
+<li>根据记录主键值的大小，进行记录和页的排序<ul>
+<li>一个<strong>页内</strong>的记录按照逐渐的大小顺序排成一个<strong>单向链表</strong></li>
+<li>各个存放用户记录的页顺序排成<strong>双向链表</strong></li>
+<li>存放目录项记录的页<strong>分为不同层次</strong>，在同一层次中的页也是根据页中目录项记录的主键大小顺序排成一个<strong>双向链表</strong></li>
+</ul>
+</li>
+<li>B+树的<strong>叶子节点</strong>存储的是<strong>完整的用户记录</strong></li>
+</ul>
+<p><strong>优点：</strong></p>
+<ul>
+<li><strong>数据访问更快</strong>，因为聚簇索引将<strong>索引和数据保存在同一个B+树</strong>中，比非聚簇索引查询效率更高</li>
+<li>聚簇索引对于<strong>主键的排序和范围查找速度块</strong></li>
+<li>按照聚簇索引排列顺序，<strong>查询显示一定范围数据的时候，由于数据都是紧密相连</strong>，数据库不用从多个数据块中提取数据，所以<strong>节省大量得IO操作</strong></li>
+</ul>
+<p><strong>缺点：</strong></p>
+<ul>
+<li><strong>插入速度严重依赖于插入顺序</strong>，按照<strong>主键的顺序插入是最快的方式</strong>，否则将会出现页分裂，严重影响性能。因此，对于InnoDB表，我们一般都会定义一个<strong>自增的ID列为主键</strong></li>
+<li><strong>更新主键代价很高</strong>，因为将会导致被更新的行移动。因此，对于InnoDB表，我们一般定义<strong>主键为不可更新</strong></li>
+<li><strong>二级索引访问需要两次索引查找</strong>，第一次找到主键值，第二次根据主键值找到行数据（回表）</li>
+</ul>
+<hr>
+<p><strong>注意：</strong></p>
+<ul>
+<li>InnoDB会<strong>自动</strong>的创建聚簇索引，MyISAM不支持聚簇索引</li>
+<li>每个MySQL表中<strong>只有一个</strong>聚簇索引，一般为表的主键</li>
+<li>如果没有定义主键，InnoDB会选择<strong>非空的唯一索引</strong>代替。如果依然没有这样的字段，InnoDB会<strong>隐式的定义</strong>一个主键来作为聚簇索引</li>
+<li>InnoDB表尽量使用递增有序的ID作为主键</li>
+</ul>
+<h3 id="非聚簇索引（二级索引、辅助索引）"><a href="#非聚簇索引（二级索引、辅助索引）" class="headerlink" title="非聚簇索引（二级索引、辅助索引）"></a>非聚簇索引（二级索引、辅助索引）</h3><p>可以以其他非主键的字段，建立非聚簇索引。在非聚簇索引中，叶子节点只<strong>记录需要建立非聚簇索引的字段值</strong>以及<strong>主键</strong></p>
+<p>所以在查找非聚簇索引时，<strong>需要两次查找索引</strong>。首先找到主键值，然后根据主键值在聚簇索引中找到<strong>完整</strong>的用户记录，这个过程称为<strong>回表</strong>。</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644381857402.png" alt="1644381857402"></p>
+<p><strong>联合索引：</strong>同时为多个列建立索引，<strong>本质上也是二级索引</strong>。比如按照c1列进行排序，当c1相同时，按照c2进行排序</p>
+<h2 id="InnoDB的B-树注意事项"><a href="#InnoDB的B-树注意事项" class="headerlink" title="InnoDB的B+树注意事项"></a>InnoDB的B+树注意事项</h2><ul>
+<li><p><strong>根页面位置万年不动</strong>：自上而下构建B+树</p>
+</li>
+<li><p><strong>内节点中目录项记录的唯一性</strong>：在二级索引中，把<strong>主键值</strong>也添加到二级索引内节点的目录项中，保证唯一性</p>
+</li>
+<li><p><strong>一个页面最少存储2条记录</strong></p>
+</li>
+</ul>
+<h2 id="InnoDB和MyISAM的对比"><a href="#InnoDB和MyISAM的对比" class="headerlink" title="InnoDB和MyISAM的对比"></a>InnoDB和MyISAM的对比</h2><p>二者<strong>区别</strong>如下：</p>
+<ul>
+<li>InnoDB中有<strong>1个聚簇索引</strong>；MyISAM的索引<strong>都是非聚簇的</strong></li>
+<li>InnoDB的<strong>数据文件本身就是索引文件</strong>；而MyISAM索引<strong>文件和数据文件是分离的</strong>，索引文件中仅仅记录数据记录的地址</li>
+<li>InnoDB的非聚簇索引记录的是<strong>主键值</strong>；而MyISAM索引记录的是<strong>地址</strong></li>
+<li>MyISAM的<strong>回表操作十分快速</strong>，因为得到的是<strong>地址</strong>（文件偏移量）；而InnoDB需要<strong>通过主键再次在聚簇索引中查找</strong></li>
+<li>InnoDB要求表<strong>必须有主键</strong>。如果没有指定主键，MySQL会自动选择一个<strong>非空唯一</strong>的字段作为主键。如果依然不存在这种队列，MySQL会自动为InnoDB表生成一个<strong>隐含字段</strong>作为列，长度为6字节，类型为长整型</li>
+</ul>
+<h1 id="索引的其他结构"><a href="#索引的其他结构" class="headerlink" title="索引的其他结构"></a>索引的其他结构</h1><h2 id="Hash索引"><a href="#Hash索引" class="headerlink" title="Hash索引"></a>Hash索引</h2><p>MySQL中的Memory引擎支持Hash索引</p>
+<h3 id="缺陷"><a href="#缺陷" class="headerlink" title="缺陷"></a>缺陷</h3><p>Hash索引查找效率高，为何MySQL索引结构设计成树形结构？</p>
+<ol>
+<li>Hash索引进能够满足=、&lt;&gt;和IN查询，效率较高。如果进行<strong>范围查询</strong>，Hash索引的时间复杂度会退化为<code>O(n)</code></li>
+<li>Hash索引中，数据的存储是<strong>没有顺序</strong>的，ORDER BY时需要对数据重新排序</li>
+<li>对于联合索引的情况，Hash值是将联合索引键合并后计算的，无法对单独的键进行查询</li>
+<li>如果Hash索引列的<strong>重复值较多，查询效率会降低</strong></li>
+</ol>
+<h3 id="自适应Hash索引"><a href="#自适应Hash索引" class="headerlink" title="自适应Hash索引"></a>自适应Hash索引</h3><p>InnoDB不支持Hash索引，但是提供自适应Hash索引。</p>
+<p>如果某个数据经常被访问，当满足一定条件后，会将这个数据页的地址存放到Hash表中。在下次查询时，可以直接找到这个页面的位置</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644481952668.png" alt="自适应Hash索引"></p>
+<h2 id="B树"><a href="#B树" class="headerlink" title="B树"></a>B树</h2><p>B树是一种多路平衡搜索树</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-3-%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/1644482487734.png" alt="1644482487734"></p>
+<p>B树与B+树的主要<strong>区别</strong>：</p>
+<ol>
+<li>B树数据记录不仅在叶子节点中，也同样在分支节点中，所有节点内的数据没有冗余；B+树的数据记录仅仅存放在叶子节点中，分支节点与叶子节点有冗余数据</li>
+<li>B树每个节点内存放M个键值和M+1个指针；B+树的每个节点存放M个键值和M个指针</li>
+<li>B+树的叶子节点通过链表顺序连接起来，支持顺序查找</li>
+</ol>
+<hr>
+<p><strong>B+树的分支节点不直接存储数据，为什么？</strong></p>
+<ul>
+<li><strong>B+树查询效率更加稳定</strong>。B+树的数据记录只存在于叶子节点中</li>
+<li><strong>B+树的查询效率更高</strong>。分支节点仅仅存放索引信息，不存放数据记录。与B树相比，<strong>数据页可以存放更多的关键字</strong></li>
+<li><strong>在范围查询上，B+树的效率更高</strong>。所有数据都在叶子节点上，叶子节点用过链表相互连接并且有序，所以范围查询的效率更高</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/08/MySQL%E9%AB%98%E7%BA%A7-2-%E9%80%BB%E8%BE%91%E6%9E%B6%E6%9E%84/" rel="prev" title="MySQL高级-2-逻辑架构">
+      <i class="fa fa-chevron-left"></i> MySQL高级-2-逻辑架构
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-13/" rel="next" title="算法刷题笔记 (13) 多数元素 在排序数组中查找元素的第一个和最后一个位置 只出现一次的数字 比较版本号 对称二叉树">
+      算法刷题笔记 (13) 多数元素 在排序数组中查找元素的第一个和最后一个位置 只出现一次的数字 比较版本号 对称二叉树 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">索引概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BC%98%E7%82%B9"><span class="nav-number">1.1.</span> <span class="nav-text">优点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%BA%E7%82%B9%EF%BC%9A"><span class="nav-number">1.2.</span> <span class="nav-text">缺点：</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B8%B8%E8%A7%81%E7%B4%A2%E5%BC%95%E6%A6%82%E5%BF%B5"><span class="nav-number">1.3.</span> <span class="nav-text">常见索引概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%81%9A%E7%B0%87%E7%B4%A2%E5%BC%95"><span class="nav-number">1.3.1.</span> <span class="nav-text">聚簇索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9D%9E%E8%81%9A%E7%B0%87%E7%B4%A2%E5%BC%95%EF%BC%88%E4%BA%8C%E7%BA%A7%E7%B4%A2%E5%BC%95%E3%80%81%E8%BE%85%E5%8A%A9%E7%B4%A2%E5%BC%95%EF%BC%89"><span class="nav-number">1.3.2.</span> <span class="nav-text">非聚簇索引（二级索引、辅助索引）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#InnoDB%E7%9A%84B-%E6%A0%91%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="nav-number">1.4.</span> <span class="nav-text">InnoDB的B+树注意事项</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#InnoDB%E5%92%8CMyISAM%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-number">1.5.</span> <span class="nav-text">InnoDB和MyISAM的对比</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E7%9A%84%E5%85%B6%E4%BB%96%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">索引的其他结构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Hash%E7%B4%A2%E5%BC%95"><span class="nav-number">2.1.</span> <span class="nav-text">Hash索引</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BC%BA%E9%99%B7"><span class="nav-number">2.1.1.</span> <span class="nav-text">缺陷</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E9%80%82%E5%BA%94Hash%E7%B4%A2%E5%BC%95"><span class="nav-number">2.1.2.</span> <span class="nav-text">自适应Hash索引</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#B%E6%A0%91"><span class="nav-number">2.2.</span> <span class="nav-text">B树</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

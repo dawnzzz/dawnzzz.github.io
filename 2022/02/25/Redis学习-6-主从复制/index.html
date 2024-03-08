@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="概述主从复制就是，主机数据更新后，自动同步到备机的master&#x2F;slaver机制，master以写为主，slaver以读为主。 好处：  读写分离 容灾快速恢复（一台服务器宕机了，转到其他服务器）   123456# 在从机上使用slaveof命令加入主机，host为主机地址，port为主机端口# slaveof是异步操作，不论成功与否，直接返回OK，然后在后台异步与主机连接slaveof hos">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis学习 (6) 主从复制和哨兵模式">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="概述主从复制就是，主机数据更新后，自动同步到备机的master&#x2F;slaver机制，master以写为主，slaver以读为主。 好处：  读写分离 容灾快速恢复（一台服务器宕机了，转到其他服务器）   123456# 在从机上使用slaveof命令加入主机，host为主机地址，port为主机端口# slaveof是异步操作，不论成功与否，直接返回OK，然后在后台异步与主机连接slaveof hos">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646618358482.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646619328260.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646619589136.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646620998460.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/image-20221229103327100.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/%E9%80%89%E4%B8%BB%E8%BF%87%E7%A8%8B.webp">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/%E5%93%A8%E5%85%B5%E9%A2%91%E9%81%93.webp">
+<meta property="article:published_time" content="2022-02-25T09:47:09.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.787Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646618358482.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Redis学习 (6) 主从复制和哨兵模式 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Redis学习 (6) 主从复制和哨兵模式
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-25 17:47:09" itemprop="dateCreated datePublished" datetime="2022-02-25T17:47:09+08:00">2022-02-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>主从复制就是，主机数据更新后，自动同步到备机的<strong>master/slaver机制，master以写为主，slaver以读为主</strong>。</p>
+<p><strong>好处：</strong></p>
+<ul>
+<li>读写分离</li>
+<li>容灾快速恢复（一台服务器宕机了，转到其他服务器）</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646618358482.png" alt="主从复制"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"># 在从机上使用slaveof命令加入主机，host为主机地址，port为主机端口</span><br><span class="line"># slaveof是异步操作，不论成功与否，直接返回OK，然后在后台异步与主机连接</span><br><span class="line">slaveof host port</span><br><span class="line"></span><br><span class="line"># 查看主从状态</span><br><span class="line">info replication</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>当从服务器首次连接上主服务器后（<strong>全量复制</strong>）：</p>
+<ol>
+<li>当从服务器连接上主服务器后，向主服务器发生数据同步消息</li>
+<li>主服务器接到从服务器发送过来的同步消息，首先主服务器进行<strong>数据持久化</strong>，将数据保存到rdb文件中，再<strong>把rdb文件发送给从服务器</strong></li>
+<li>从服务器拿到rdb文件进行读取、同步</li>
+</ol>
+<p>每次主服务器进行写操作后（<strong>增量复制</strong>）：</p>
+<ol>
+<li>主服务器主动将写命令依次传给从服务器，完成同步</li>
+</ol>
+<p>当从服务器网络断开后（<strong>增量复制或者全量复制</strong>）：</p>
+<ol>
+<li>主服务器会维护一个缓冲区，缓冲近期的命令。</li>
+<li>从节点断开重连后，如果从节点发送的 offset 落在缓冲区内，就进行增量复制；否则进行全量复制。</li>
+</ol>
+<h1 id="常用搭建方式"><a href="#常用搭建方式" class="headerlink" title="常用搭建方式"></a>常用搭建方式</h1><h2 id="一主二（多）从"><a href="#一主二（多）从" class="headerlink" title="一主二（多）从"></a>一主二（多）从</h2><p><strong>一个主机，两个从机</strong>。</p>
+<ul>
+<li>从服务器宕机后恢复，<strong>需要重新设置</strong>主服务器</li>
+<li>主服务器宕机后恢复，<strong>无需重新设置</strong>从服务器</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646619328260.png" alt="一主二从"></p>
+<h2 id="薪火相传"><a href="#薪火相传" class="headerlink" title="薪火相传"></a>薪火相传</h2><p>上一个slave可以是写一个slave的master。</p>
+<p><strong>好处：</strong></p>
+<ul>
+<li>主服务器只需要同步一台从服务器，剩下的从服务器的同步由下一个从服务器完成同步，有效的<strong>降低了主服务器的压力</strong></li>
+</ul>
+<p><strong>缺点：</strong></p>
+<ul>
+<li>链上的某个从服务器宕机，后面的从服务器无法同步</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646619589136.png" alt="薪火相传"></p>
+<h2 id="反客为主"><a href="#反客为主" class="headerlink" title="反客为主"></a>反客为主</h2><p>当一个master宕机后，后面的slave可以立刻升为master，其后面的slave不用做任何修改。</p>
+<p><code>slaveof on one</code> 可以将从服务器变为主服务器，原来同步的数据不会丢失。</p>
+<p>缺点：需要<strong>手动</strong>操作。</p>
+<h1 id="哨兵模式"><a href="#哨兵模式" class="headerlink" title="哨兵模式"></a>哨兵模式</h1><p><strong>哨兵模式是反客为主的自动版</strong>，能够后台监控主机是否故障，如果故障了根据投票数自动将从服务器转换为主服务器。</p>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646620998460.png" alt="哨兵模式"></p>
+<p>切换工作方式如下：</p>
+<ul>
+<li>优先级：在 redis.conf 中设置，slave-priority 100，<strong>值越小优先级越高</strong></li>
+<li>偏移量：偏移量是指获得原主机<strong>数据最全</strong>的</li>
+<li>runid：每个redis实例<strong>启动后都会随机生成</strong>一个40位的runid</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/image-20221229103327100.png" alt="image-20221229103327100"></p>
+<h2 id="搭建方法"><a href="#搭建方法" class="headerlink" title="搭建方法"></a>搭建方法</h2><ul>
+<li><p>首先编写哨兵配置文件 <code>sentinel.conf</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sentinel monitor [为监控对象起的服务器名称] [主服务器IP] [主服务器端口] [至少需要有多少个哨兵同意迁移]</span><br><span class="line"><span class="comment"># sentinel monitor &lt;master-name&gt; &lt;ip&gt; &lt;redis-port&gt; &lt;quorum&gt; </span></span><br><span class="line">如：</span><br><span class="line">sentinel monitor mymaster 127.0.0.1 6379 1</span><br></pre></td></tr></table></figure></li>
+<li><p>启动哨兵：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">redis-sentinel sentinel.conf路径</span><br></pre></td></tr></table></figure></li>
+</ul>
+<blockquote>
+<ul>
+<li><strong>哨兵之间如何相互发现？</strong></li>
+</ul>
+<p><strong>哨兵节点之间是通过 Redis 的发布者/订阅者机制来相互发现的</strong>。在主从集群中，主节点上有一个名为 <code>__sentinel__:hello</code> 的频道，不同哨兵就是通过它来相互发现，实现互相通信的。</p>
+<ul>
+<li><strong>哨兵如何知道从节点的信息？</strong></li>
+</ul>
+<p>主节点知道所有从节点的信息，所以哨兵会每 10 秒一次的频率向主节点<strong>发送 INFO 命令来获取所有从节点的信息</strong>。</p>
+</blockquote>
+<h2 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h2><p>哨兵sentinel有三个作用：</p>
+<ul>
+<li><strong>监控：</strong>sentinel会不断地检查你的主服务器和从服务器是否运作正常</li>
+<li><strong>通知：</strong>把新主节点的相关信息通知给从节点和客户端。</li>
+<li><strong>自动故障迁移</strong>：当一个主服务器不能正常工作时，sentinel会开始一次自动故障迁移操作， 它会将失效主服务器的其中一个从服务器升级为新的主服务器， 并让失效主服务器的其他从服务器改为复制新的主服务器； 当客户端试图连接失效的主服务器时， 集群也会向客户端返回新主服务器的地址， 使得集群可以使用新主服务器代替失效服务器。</li>
+</ul>
+<h2 id="工作方式"><a href="#工作方式" class="headerlink" title="工作方式"></a>工作方式</h2><ol>
+<li>每个哨兵sentinel进程以<strong>每秒钟一次</strong>的频率向整个集群中的master、slaver以及其他sentinel发送PING命令。</li>
+<li>如果一个实例在发送PING命令后超时，那么这个实例会被这个哨兵标记为<strong>主观下线。</strong></li>
+<li>如果一个master被标记为主观下线，则正在监视这个master的<strong>所有sentinel</strong>要以每秒一次的频率确认master服务器是否真的进入了主观下线</li>
+<li>当足够数量的sentinel在指定的时间范围内确认master进入了主观下线状态，那么master会被标记为<strong>客观下线。</strong></li>
+<li>在一般情况下， 每个sentinel会以每10秒一次的频率向集群中的所有master和slaver发送INFO命令。当master被sentinel标记为<strong>客观下线</strong>时，sentinel向master治下的所有slaver发送的INFO命令会从10秒一次改为1秒一次。</li>
+<li>当master被标记为客观下线后，sentinel之间会进行一次<strong>投票</strong>，选举出一个sentinel进行<strong>自动故障迁移</strong>操作。</li>
+</ol>
+<p>上述流程涉及到三个方面：</p>
+<ul>
+<li><strong>如何判断主节点下线？</strong></li>
+<li><strong>由哪个哨兵进行故障转移？</strong></li>
+<li><strong>故障转移的流程？</strong></li>
+</ul>
+<h3 id="如何判断主节点下线"><a href="#如何判断主节点下线" class="headerlink" title="如何判断主节点下线"></a>如何判断主节点下线</h3><p>判断主节点下线分为两步：判断<strong>主观下线</strong>，判断<strong>客观下线</strong>。</p>
+<ul>
+<li>哨兵会每隔 1 秒给所有<strong>主从节点</strong>发送 PING 命令，如果在一定的时间内没有收到响应，则会被标记为<strong>主观下线</strong>。</li>
+</ul>
+<blockquote>
+<p>有可能主节点其实并没有故障，可能只是因为主节点的系统压力比较大或者网络发送了拥塞，导致主节点没有在规定时间内响应哨兵的 PING 命令。所以，为了减少误判的情况，哨兵在部署的时候不会只部署一个节点，而是用多个节点部署成<strong>哨兵集群</strong>，<strong>通过多个哨兵节点一起判断，就可以就可以避免单个哨兵因为自身网络状况不好，而误判主节点下线的情况</strong>。</p>
+</blockquote>
+<ul>
+<li>当一个哨兵判断主节点为主观下线后，就会向其他哨兵发起命令，<strong>其他哨兵赞成投票或者拒绝投票</strong>。当这个哨兵的赞同票数达到哨兵配置文件中的 quorum 配置项设定的值后，这时主节点就会被该哨兵标记为<strong>客观下线</strong>。</li>
+</ul>
+<h3 id="由哪个哨兵进行故障转移"><a href="#由哪个哨兵进行故障转移" class="headerlink" title="由哪个哨兵进行故障转移"></a>由哪个哨兵进行故障转移</h3><p><strong>哨兵是以哨兵集群的方式存在的</strong>，由哨兵集群中的哪个节点进行主从故障转移呢？所以这时候，还需要在哨兵集群中<strong>选出一个 leader</strong>，让 leader 来执行主从切换故障转移。哨兵 leader 选举分为两步：确定候选者，选举 leader。</p>
+<ul>
+<li><strong>确定候选者：</strong>哪个哨兵判断主节点为<strong>客观下线</strong>，哪个哨兵就是候选者（同一时段内可能多个哨兵判断客观下线，所以有多个候选者）。</li>
+<li><strong>选举 leader：</strong>候选者会向其他哨兵发送命令，让其他哨兵进行<strong>投票</strong>。每个哨兵只有一次投票机会，如果用完后就不能参与投票了。需要<strong>拿到半数以上的选票</strong>，并且<strong>拿到的票数同时还需要大于等于哨兵配置文件中的 quorum 值</strong>，才可以成为 leader。</li>
+</ul>
+<h3 id="故障转移流程"><a href="#故障转移流程" class="headerlink" title="故障转移流程"></a>故障转移流程</h3><p>主从故障转移操作包含以下<strong>四个步骤：</strong></p>
+<ul>
+<li>第一步：在已下线主节点属下的所有从节点里面，<strong>挑选出一个从节点，并将其转换为主节点</strong>。</li>
+<li>第二步：让已下线主节点属下的<strong>所有从节点修改复制目标</strong>，修改为复制新主节点；</li>
+<li>第三步：将新主节点的 IP 地址和信息，通过<strong>发布/订阅</strong>机制<strong>通知客户端</strong>；</li>
+<li>第四步：继续<strong>监视旧主节点</strong>，当这个旧主节点重新上线时，将它<strong>设置为新主节点的从节点</strong>。</li>
+</ul>
+<h4 id="选出新的主节点"><a href="#选出新的主节点" class="headerlink" title="选出新的主节点"></a>选出新的主节点</h4><p>选新的节点熟悉过滤掉网络不好的从节点（如果<strong>发生断连的次数超过了 10 次</strong>，就说明这个从节点的网络状况不好，不适合作为新主节点），接着按照以下条件进行筛选：</p>
+<ul>
+<li>优先级：在 redis.conf 中设置，slave-priority 100，<strong>值越小优先级越高</strong></li>
+<li>偏移量：偏移量是指获得原主机<strong>数据最全</strong>的</li>
+<li>runid：每个redis实例<strong>启动后都会随机生成</strong>一个40位的runid，选择最小的从节点。</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/%E9%80%89%E4%B8%BB%E8%BF%87%E7%A8%8B.webp" alt="img"></p>
+<p>哨兵 leader 向被选中的从节点发送 <code>SLAVEOF no one</code> 命令，将该从节点升级为新主节点。在发送 <code>SLAVEOF no one</code> 命令之后，哨兵 leader 会以<strong>每秒一次</strong>的频率向被升级的从节点发送 <code>INFO</code> 命令（没进行故障转移之前，<code>INFO</code> 命令的频率是每十秒一次），并观察命令回复中的角色信息，当被升级节点的角色信息从原来的 slave 变为 master 时，哨兵 leader 就知道被选中的从节点已经顺利升级为主节点了。</p>
+<h4 id="从节点指向新的主节点"><a href="#从节点指向新的主节点" class="headerlink" title="从节点指向新的主节点"></a>从节点指向新的主节点</h4><p>哨兵 leader 像所有从节点发送 <code>SLAVEOF &lt;new_ip&gt; &lt;new_port&gt;</code> 命令，让所有从节点指向新的主节点。</p>
+<h4 id="通知客户端"><a href="#通知客户端" class="headerlink" title="通知客户端"></a>通知客户端</h4><p>每个哨兵节点提供<strong>发布/订阅</strong>机制，<strong>客户端可以从哨兵订阅消息</strong>。哨兵提供的消息订阅频道有很多，不同频道包含了主从节点切换过程中的不同关键事件，几个常见的事件如下：</p>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/%E5%93%A8%E5%85%B5%E9%A2%91%E9%81%93.webp" alt="img"></p>
+<p>客户端和哨兵建立连接后，客户端会订阅哨兵提供的频道。<strong>主从切换完成后，哨兵就会向 <code>+switch-master</code> 频道发布新主节点的 IP 地址和端口的消息，这个时候客户端就可以收到这条信息，然后用这里面的新主节点的 IP 地址和端口进行通信了</strong>。</p>
+<h4 id="旧的主节点变为从节点"><a href="#旧的主节点变为从节点" class="headerlink" title="旧的主节点变为从节点"></a>旧的主节点变为从节点</h4><p>故障转移操作最后要做的是，<strong>继续监视旧主节点</strong>，当旧主节点重新上线时，哨兵集群就会向它发送 <code>SLAVEOF</code> 命令，让它成为新主节点的从节点。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis/" rel="tag"># Redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/" rel="prev" title="算法刷题笔记 (22) 零钱兑换II 打家劫舍 奇偶链表 Pow(x,n) 二叉搜索树中第K小的元素">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (22) 零钱兑换II 打家劫舍 奇偶链表 Pow(x,n) 二叉搜索树中第K小的元素
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/06/MySQL%E9%AB%98%E7%BA%A7-11-%E5%A4%9A%E7%89%88%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6/" rel="next" title="MySQL高级 (11) 多版本并发控制">
+      MySQL高级 (11) 多版本并发控制 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E7%90%86"><span class="nav-number">1.1.</span> <span class="nav-text">原理</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E6%90%AD%E5%BB%BA%E6%96%B9%E5%BC%8F"><span class="nav-number">2.</span> <span class="nav-text">常用搭建方式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E4%B8%BB%E4%BA%8C%EF%BC%88%E5%A4%9A%EF%BC%89%E4%BB%8E"><span class="nav-number">2.1.</span> <span class="nav-text">一主二（多）从</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%96%AA%E7%81%AB%E7%9B%B8%E4%BC%A0"><span class="nav-number">2.2.</span> <span class="nav-text">薪火相传</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%8D%E5%AE%A2%E4%B8%BA%E4%B8%BB"><span class="nav-number">2.3.</span> <span class="nav-text">反客为主</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%93%A8%E5%85%B5%E6%A8%A1%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">哨兵模式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%90%AD%E5%BB%BA%E6%96%B9%E6%B3%95"><span class="nav-number">3.1.</span> <span class="nav-text">搭建方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%9C%E7%94%A8"><span class="nav-number">3.2.</span> <span class="nav-text">作用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E6%96%B9%E5%BC%8F"><span class="nav-number">3.3.</span> <span class="nav-text">工作方式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%88%A4%E6%96%AD%E4%B8%BB%E8%8A%82%E7%82%B9%E4%B8%8B%E7%BA%BF"><span class="nav-number">3.3.1.</span> <span class="nav-text">如何判断主节点下线</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%B1%E5%93%AA%E4%B8%AA%E5%93%A8%E5%85%B5%E8%BF%9B%E8%A1%8C%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB"><span class="nav-number">3.3.2.</span> <span class="nav-text">由哪个哨兵进行故障转移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB%E6%B5%81%E7%A8%8B"><span class="nav-number">3.3.3.</span> <span class="nav-text">故障转移流程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%80%89%E5%87%BA%E6%96%B0%E7%9A%84%E4%B8%BB%E8%8A%82%E7%82%B9"><span class="nav-number">3.3.3.1.</span> <span class="nav-text">选出新的主节点</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BB%8E%E8%8A%82%E7%82%B9%E6%8C%87%E5%90%91%E6%96%B0%E7%9A%84%E4%B8%BB%E8%8A%82%E7%82%B9"><span class="nav-number">3.3.3.2.</span> <span class="nav-text">从节点指向新的主节点</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%80%9A%E7%9F%A5%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">3.3.3.3.</span> <span class="nav-text">通知客户端</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%97%A7%E7%9A%84%E4%B8%BB%E8%8A%82%E7%82%B9%E5%8F%98%E4%B8%BA%E4%BB%8E%E8%8A%82%E7%82%B9"><span class="nav-number">3.3.3.4.</span> <span class="nav-text">旧的主节点变为从节点</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

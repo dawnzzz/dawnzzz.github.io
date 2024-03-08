@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="字符串拼接常见拼接方式在 Golang 中，字符串拼接有以下几种拼接方式：  +：使用 + 直接对两个字符串进行拼接操作。 fmt.Sprintf：使用 fmt.Sprintf(&quot;&quot;%v%v&quot;, s1, s2) 进行字符串的拼接。 strings.Builder：使用 strings.Builder.WriteString  方法进行拼接。 bytes.Buffer：">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Go语言高性能编程 (1) 常用数据结构——字符串拼接和slice性能">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="字符串拼接常见拼接方式在 Golang 中，字符串拼接有以下几种拼接方式：  +：使用 + 直接对两个字符串进行拼接操作。 fmt.Sprintf：使用 fmt.Sprintf(&quot;&quot;%v%v&quot;, s1, s2) 进行字符串的拼接。 strings.Builder：使用 strings.Builder.WriteString  方法进行拼接。 bytes.Buffer：">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-03-22T09:27:56.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.759Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Go语言高性能编程 (1) 常用数据结构——字符串拼接和slice性能 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Go语言高性能编程 (1) 常用数据结构——字符串拼接和slice性能
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-22 17:27:56" itemprop="dateCreated datePublished" datetime="2023-03-22T17:27:56+08:00">2023-03-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="字符串拼接"><a href="#字符串拼接" class="headerlink" title="字符串拼接"></a>字符串拼接</h1><h2 id="常见拼接方式"><a href="#常见拼接方式" class="headerlink" title="常见拼接方式"></a>常见拼接方式</h2><p>在 Golang 中，字符串拼接有以下几种拼接方式：</p>
+<ul>
+<li><strong>+：</strong>使用 + 直接对两个字符串进行拼接操作。</li>
+<li><strong>fmt.Sprintf：</strong>使用 <code>fmt.Sprintf(&quot;&quot;%v%v&quot;, s1, s2)</code> 进行字符串的拼接。</li>
+<li><strong>strings.Builder：</strong>使用 strings.Builder.WriteString  方法进行拼接。</li>
+<li><strong>bytes.Buffer：</strong>使用 bytes.Bufer.WriteString 方法进行拼接。</li>
+<li><strong>[]byte：</strong>使用 []byte，利用 append 函数进行拼接（可以预先分配空间）。</li>
+</ul>
+<h3 id="性能比较"><a href="#性能比较" class="headerlink" title="性能比较"></a>性能比较</h3><p>利用 benchmark 基准测试进行性能比较，结果如下：</p>
+<ul>
+<li><code>+</code> 和 <code>fmt.Sprintf</code> 的<strong>效率是最低</strong>的，和其余的方式相比，性能相差约 1000 倍，而且消耗了超过 1000 倍的内存。</li>
+<li><code>strings.Builder</code>、<code>bytes.Buffer</code> 和 <code>[]byte</code> 的性能<strong>差距不大</strong>，而且消耗的内存也十分接近，性能最好且消耗内存最小的是 <code>preByteConcat</code>，这种方式预分配了内存，在字符串拼接的过程中，不需要进行字符串的拷贝，也不需要分配新的内存，因此性能最好，且内存消耗最小。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkPlusConcat-8         19      56 ms/op   530 MB/op   10026 allocs/op</span><br><span class="line">BenchmarkSprintfConcat-8      10     112 ms/op   835 MB/op   37435 allocs/op</span><br><span class="line">BenchmarkBuilderConcat-8    8901    0.13 ms/op   0.5 MB/op      23 allocs/op</span><br><span class="line">BenchmarkBufferConcat-8     8130    0.14 ms/op   0.4 MB/op      13 allocs/op</span><br><span class="line">BenchmarkByteConcat-8       8984    0.12 ms/op   0.6 MB/op      24 allocs/op</span><br><span class="line">BenchmarkPreByteConcat-8   17379    0.07 ms/op   0.2 MB/op       2 allocs/op</span><br></pre></td></tr></table></figure>
+
+<h3 id="使用建议"><a href="#使用建议" class="headerlink" title="使用建议"></a>使用建议</h3><p>在进行字符串拼接时，推荐使用 strings.Builder 进行拼接字符串，<strong>并且 strings.Builder 也提供了预分配内存的方法 Grow</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">builderConcat</span><span class="params">(n <span class="keyword">int</span>, str <span class="keyword">string</span>)</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="keyword">var</span> builder strings.Builder</span><br><span class="line">	builder.Grow(n * <span class="built_in">len</span>(str))</span><br><span class="line">	<span class="keyword">for</span> i := <span class="number">0</span>; i &lt; n; i++ &#123;</span><br><span class="line">		builder.WriteString(str)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> builder.String()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<p><strong>使用 Grow 优化后</strong>，和预分配内存的字节切片方式相比<strong>更快</strong>，因为省去了字节切片和字符串之间的转换，而且内存分配次数还少了一次。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkBuilderConcat-8   16855    0.07 ns/op   0.1 MB/op       1 allocs/op</span><br><span class="line">BenchmarkPreByteConcat-8   17379    0.07 ms/op   0.2 MB/op       2 allocs/op</span><br></pre></td></tr></table></figure>
+
+<h2 id="原理分析"><a href="#原理分析" class="headerlink" title="原理分析"></a>原理分析</h2><h3 id="方法"><a href="#方法" class="headerlink" title="+ 方法"></a>+ 方法</h3><p>因为 Golang 中，<strong>字符串为不可变类型</strong>，所以每一次用加号拼接字符串都会<strong>重新申请一块新的空间</strong>，将拼接后的结果<strong>复制</strong>到这段空间中。</p>
+<p>导致加号拼接字符串<strong>效率低</strong>，并且<strong>内存消耗大</strong>。</p>
+<h3 id="strings-Builder-方法"><a href="#strings-Builder-方法" class="headerlink" title="strings.Builder 方法"></a>strings.Builder 方法</h3><p><strong>strings.Builder 底层维护一个字节切片</strong>，所以在用 Builder 写入字符串时不用每一次都申请空间，仅当底层字节切片不够用时才会重新申请一片更大的空间。</p>
+<p>而 <code>strings.Builder</code>，<code>bytes.Buffer</code>，包括切片 <code>[]byte</code> 的内存是以<strong>倍数</strong>申请的。例如，初始大小为 0，当第一次写入大小为 10 byte 的字符串时，则会申请大小为 16 byte 的内存（恰好大于 10 byte 的 2 的指数），第二次写入 10 byte 时，内存不够，则申请 32 byte 的内存，以此类推。</p>
+<ul>
+<li><strong>strings.Builder 底层切片长度在超过 2048 之后，以 640 递增</strong>。</li>
+<li>切片长度超过 1024 时，以 1.25 倍的长度进行申请。</li>
+</ul>
+<h3 id="strings-Buffer-方法"><a href="#strings-Buffer-方法" class="headerlink" title="strings.Buffer 方法"></a>strings.Buffer 方法</h3><p><code>strings.Builder</code> 和 <code>bytes.Buffer</code> 底层都是 <code>[]byte</code> 数组，但 <code>strings.Builder</code> 性能更好。</p>
+<p>因为 <code>bytes.Buffer</code> 转化为字符串时重新申请了一块空间，存放生成的字符串变量，而 <code>strings.Builder</code> 直接将底层的 <code>[]byte</code> 转换成了字符串类型返回。</p>
+<ul>
+<li>bytes.Buffer：<strong>重新申请一片空间</strong>，用来存放字符串。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *Buffer)</span> <span class="title">String</span><span class="params">()</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> b == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// Special case, useful in debugging.</span></span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&lt;nil&gt;&quot;</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="keyword">string</span>(b.buf[b.off:])</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>strings.Builder：<strong>将底层数组直接转为字符串</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(b *Builder)</span> <span class="title">String</span><span class="params">()</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> *(*<span class="keyword">string</span>)(unsafe.Pointer(&amp;b.buf))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="slice-性能"><a href="#slice-性能" class="headerlink" title="slice 性能"></a>slice 性能</h1><blockquote>
+<p>在使用 slice 时，主要注意它的扩容策略：</p>
+<ul>
+<li>当长度小于 1024 时，就加倍容量。</li>
+<li>当长度超过 1024 时，则扩容为原来的 1.25 倍。</li>
+</ul>
+</blockquote>
+<h2 id="性能陷阱"><a href="#性能陷阱" class="headerlink" title="性能陷阱"></a>性能陷阱</h2><p>在已有切片的基础上进行切片，<strong>不会创建新的底层数组</strong>。因为原来的底层数组没有发生变化，内存会一直占用，直到没有变量引用该数组。</p>
+<p>因此很可能出现这么一种情况，原切片由大量的元素构成，但是我们在原切片的基础上切片，<strong>虽然只使用了很小一段，但底层数组在内存中仍然占据了大量空间，得不到释放</strong>。</p>
+<p>如果在切片时只用了原切片的很小一段，可以<strong>使用 copy 来代替直接切片操作</strong>。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/22/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/" rel="prev" title="关系抽取论文 A Unified Multi-Task Learning Framework for Joint Extraction of Entities and Relations">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 A Unified Multi-Task Learning Framework for Joint Extraction of Entities and Relations
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/" rel="next" title="Go语言高性能编程 (2) 常用数据结构——for range的性能与反射的性能">
+      Go语言高性能编程 (2) 常用数据结构——for range的性能与反射的性能 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5"><span class="nav-number">1.</span> <span class="nav-text">字符串拼接</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B8%B8%E8%A7%81%E6%8B%BC%E6%8E%A5%E6%96%B9%E5%BC%8F"><span class="nav-number">1.1.</span> <span class="nav-text">常见拼接方式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E6%AF%94%E8%BE%83"><span class="nav-number">1.1.1.</span> <span class="nav-text">性能比较</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE"><span class="nav-number">1.1.2.</span> <span class="nav-text">使用建议</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90"><span class="nav-number">1.2.</span> <span class="nav-text">原理分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E6%B3%95"><span class="nav-number">1.2.1.</span> <span class="nav-text">+ 方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#strings-Builder-%E6%96%B9%E6%B3%95"><span class="nav-number">1.2.2.</span> <span class="nav-text">strings.Builder 方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#strings-Buffer-%E6%96%B9%E6%B3%95"><span class="nav-number">1.2.3.</span> <span class="nav-text">strings.Buffer 方法</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#slice-%E6%80%A7%E8%83%BD"><span class="nav-number">2.</span> <span class="nav-text">slice 性能</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E9%99%B7%E9%98%B1"><span class="nav-number">2.1.</span> <span class="nav-text">性能陷阱</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

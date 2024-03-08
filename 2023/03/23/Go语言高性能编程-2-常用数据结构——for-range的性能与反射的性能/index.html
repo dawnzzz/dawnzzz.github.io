@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="for range 性能 range 会拷贝遍历对象。  range 实现原理slice遍历 slice 前会先获取 slice 的长度 len_temp 作为循环次数。获取被遍历对象的拷贝，作为 for_temp。 循环体中，每次循环会先获取元素值 value_temp，以及下标 index_temp 进行赋值。  注意，在循环开始前就已经确定了循环次数、并且已经将遍历对象保存了下来。  123">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Go语言高性能编程 (2) 常用数据结构——for range的性能与反射的性能">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="for range 性能 range 会拷贝遍历对象。  range 实现原理slice遍历 slice 前会先获取 slice 的长度 len_temp 作为循环次数。获取被遍历对象的拷贝，作为 for_temp。 循环体中，每次循环会先获取元素值 value_temp，以及下标 index_temp 进行赋值。  注意，在循环开始前就已经确定了循环次数、并且已经将遍历对象保存了下来。  123">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-03-23T01:06:10.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.759Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Go语言高性能编程 (2) 常用数据结构——for range的性能与反射的性能 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Go语言高性能编程 (2) 常用数据结构——for range的性能与反射的性能
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-23 09:06:10" itemprop="dateCreated datePublished" datetime="2023-03-23T09:06:10+08:00">2023-03-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="for-range-性能"><a href="#for-range-性能" class="headerlink" title="for range 性能"></a>for range 性能</h1><blockquote>
+<p><strong>range 会拷贝遍历对象。</strong></p>
+</blockquote>
+<h2 id="range-实现原理"><a href="#range-实现原理" class="headerlink" title="range 实现原理"></a>range 实现原理</h2><h3 id="slice"><a href="#slice" class="headerlink" title="slice"></a>slice</h3><p><strong>遍历 slice 前</strong>会先<strong>获取 slice 的长度 len_temp 作为循环次数。获取被遍历对象的拷贝，作为 for_temp</strong>。</p>
+<p>循环体中，每次循环会先获取元素值 value_temp，以及下标 index_temp 进行赋值。</p>
+<blockquote>
+<p>注意，在循环开始前就已经<strong>确定了循环次数</strong>、并且已经<strong>将遍历对象保存了下来</strong>。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// The loop we generate:</span></span><br><span class="line"><span class="comment">//   for_temp := range</span></span><br><span class="line"><span class="comment">//   len_temp := len(for_temp)</span></span><br><span class="line"><span class="comment">//   for index_temp = 0; index_temp &lt; len_temp; index_temp++ &#123;</span></span><br><span class="line"><span class="comment">//           value_temp = for_temp[index_temp]</span></span><br><span class="line"><span class="comment">//           index = index_temp</span></span><br><span class="line"><span class="comment">//           value = value_temp</span></span><br><span class="line"><span class="comment">//           original body</span></span><br><span class="line"><span class="comment">//   &#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="map"><a href="#map" class="headerlink" title="map"></a>map</h3><p>遍历 map 时没有指定循环次数，只是<strong>移动遍历指针 hiter</strong>，当遍历指针的 key 为 nil 时则停止循环。</p>
+<blockquote>
+<p>map 底层使用 hash 表实现，<strong>插入数据位置是随机的</strong>，所以遍历过程中新插入的数据不能保证遍历到。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// The loop we generate:</span></span><br><span class="line"><span class="comment">//   var hiter map_iteration_struct</span></span><br><span class="line"><span class="comment">//   for mapiterinit(type, range, &amp;hiter); hiter.key != nil; mapiternext(&amp;hiter) &#123;</span></span><br><span class="line"><span class="comment">//           index_temp = *hiter.key</span></span><br><span class="line"><span class="comment">//           value_temp = *hiter.val</span></span><br><span class="line"><span class="comment">//           index = index_temp</span></span><br><span class="line"><span class="comment">//           value = value_temp</span></span><br><span class="line"><span class="comment">//           original body</span></span><br><span class="line"><span class="comment">//   &#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="channel"><a href="#channel" class="headerlink" title="channel"></a>channel</h3><p>channe l遍历是依次从 channel 中读取数据，读取前是不知道里面有多少个元素的。</p>
+<p>如果 channel 中没有元素，则会阻塞等待，如果 channel 已被关闭，则会解除阻塞并退出循环。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// The loop we generate:</span></span><br><span class="line"><span class="comment">//   for &#123;</span></span><br><span class="line"><span class="comment">//           index_temp, ok_temp = &lt;-range</span></span><br><span class="line"><span class="comment">//           if !ok_temp &#123;</span></span><br><span class="line"><span class="comment">//                   break</span></span><br><span class="line"><span class="comment">//           &#125;</span></span><br><span class="line"><span class="comment">//           index = index_temp</span></span><br><span class="line"><span class="comment">//           original body</span></span><br><span class="line"><span class="comment">//   &#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="性能分析"><a href="#性能分析" class="headerlink" title="性能分析"></a>性能分析</h2><p>因为 range 会拷贝遍历对象，所以 for 和 range 的性能比较如下：</p>
+<ul>
+<li>每次迭代的元素的<strong>内存占用很低</strong>，<strong>那么 for 和 range 的性能几乎是一样</strong>。</li>
+<li>如果迭代的元素<strong>内存占用较高</strong>，<strong>那么 for 的性能将显著地高于 range</strong>，因为 range 会拷贝迭代对象。可以考虑<strong>只迭代下标</strong>，这样和 for 的性能是<strong>一样</strong>的。</li>
+<li>如果想使用 range 同时迭代<strong>下标和值</strong>，则可以将<strong>迭代元素修改为指针</strong>。</li>
+</ul>
+<span id="more"></span>
+
+<h1 id="反射的性能"><a href="#反射的性能" class="headerlink" title="反射的性能"></a>反射的性能</h1><h2 id="反射的性能-1"><a href="#反射的性能-1" class="headerlink" title="反射的性能"></a>反射的性能</h2><h3 id="创建对象"><a href="#创建对象" class="headerlink" title="创建对象"></a>创建对象</h3><p>使用反射创建对象的<strong>步骤</strong>如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">(typ Type)</span> <span class="title">Value</span></span></span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>在使用反射创建对象时，<strong>使用 relect.New 方法</strong>返回一个 Value 类型值，该值持有一个<strong>指向类型为 typ 的新申请的零值的指针</strong>。</li>
+<li>接着<strong>调用 Value.Interface 方法</strong>，返回持有的当前值，保存在 interface{} 类型中。</li>
+<li>最后使用<strong>类型断言</strong>，将 interface{} 类型转换为目标类型。</li>
+</ol>
+<p>对比 <code>x= new(X)</code> 创建对象，以及通过反射 <code>x, _ = reflect.New(XTypeOf).Interface().(*X)</code> 创建对象，其 benchmark 测试如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkNew-8                  26478909                40.9 ns/op</span><br><span class="line">BenchmarkReflectNew-8           18983700                62.1 ns/op</span><br></pre></td></tr></table></figure>
+
+<p>通过反射创建对象的耗时约为 <code>new</code> 的 1.5 倍，<strong>相差不是特别大</strong>。</p>
+<h3 id="修改字段的值"><a href="#修改字段的值" class="headerlink" title="修改字段的值"></a>修改字段的值</h3><p>通过反射获取结构体的字段有<strong>两种</strong>方式：</p>
+<ul>
+<li>一种是 FieldByName（根据<strong>字段名字</strong>）。</li>
+<li>另一种是 Field（根据<strong>下标</strong>）。</li>
+</ul>
+<p>接着<strong>通过 Field.SetXxx 方法</strong>就可以修改属性了。</p>
+<p>直接修改、通过 Field 方法获取属性修改、通过 FieldByName 获取属性修改的性能测试如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkSet<span class="number">-8</span>                          <span class="number">1000000000</span>               <span class="number">0.302</span> ns/op</span><br><span class="line">BenchmarkReflect_FieldSet<span class="number">-8</span>             <span class="number">33913672</span>                <span class="number">34.5</span> ns/op</span><br><span class="line">BenchmarkReflect_FieldByNameSet<span class="number">-8</span>        <span class="number">3775234</span>               <span class="number">316</span> ns/op</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>可以看到<strong>使用反射修改字段值比正常修改的性能降低了非常多</strong>（在本例中降低了 100 - 1000 倍）。</li>
+<li>而<strong>使用 FieldByName 又比 Field 性能降低了很多</strong>。</li>
+</ul>
+<h3 id="FieldByName-和-Field-性能差距"><a href="#FieldByName-和-Field-性能差距" class="headerlink" title="FieldByName 和 Field 性能差距"></a>FieldByName 和 Field 性能差距</h3><p>FieldByName 为什么比 Field 的效率差这么多呢？首先看看 FieldByName 的调用链条：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(v Value) FieldByName -&gt; (t *rtype) FieldByName -&gt; (t *structType) FieldByName</span><br></pre></td></tr></table></figure>
+
+<p>核心在于 <code>(t *structType) FieldByName</code> 方法内，使用 for 循环，<strong>逐个字段查找</strong>，字段名匹配时返回。</p>
+<p><strong>因此</strong>，使用 Field 利用下标查询效率为 <code>O(1)</code>，而使用 FieldByName 按照字段名字查询的效率为 <code>O(n)</code>。</p>
+<h2 id="使用说明"><a href="#使用说明" class="headerlink" title="使用说明"></a>使用说明</h2><h3 id="避免使用反射"><a href="#避免使用反射" class="headerlink" title="避免使用反射"></a>避免使用反射</h3><p>在实际应用过程中，应该尽量避免使用反射，因为<strong>反射效率低下</strong>。</p>
+<p>在使用 json 序列化和反序列化时，应该<strong>避免使用 Go 语言自带的 json.Marshal 和 json.Unmarshal 方法</strong>，因为标准库中的 json 序列化和反序列化是利用反射实现的。可选的替代方案有 <a target="_blank" rel="noopener" href="https://github.com/mailru/easyjson">easyjson</a>，在大部分场景下，相比标准库，<strong>有 5 倍左右的性能提升</strong>。</p>
+<h3 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h3><p><strong>FieldByName 和 Field 有非常巨大的效率差距</strong>，那在实际的应用中，就要<strong>避免直接调用 FieldByName</strong>。</p>
+<p>可以将<strong>利用 map 将字段名字和下标映射起来</strong>，避免在 FieldByName 中顺序查找。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/" rel="prev" title="Go语言高性能编程 (1) 常用数据结构——字符串拼接和slice性能">
+      <i class="fa fa-chevron-left"></i> Go语言高性能编程 (1) 常用数据结构——字符串拼接和slice性能
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/" rel="next" title="Go语言高性能编程 (3) 常用数据结构——空结构体和内存对齐">
+      Go语言高性能编程 (3) 常用数据结构——空结构体和内存对齐 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#for-range-%E6%80%A7%E8%83%BD"><span class="nav-number">1.</span> <span class="nav-text">for range 性能</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#range-%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86"><span class="nav-number">1.1.</span> <span class="nav-text">range 实现原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#slice"><span class="nav-number">1.1.1.</span> <span class="nav-text">slice</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#map"><span class="nav-number">1.1.2.</span> <span class="nav-text">map</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#channel"><span class="nav-number">1.1.3.</span> <span class="nav-text">channel</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90"><span class="nav-number">1.2.</span> <span class="nav-text">性能分析</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD"><span class="nav-number">2.</span> <span class="nav-text">反射的性能</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD-1"><span class="nav-number">2.1.</span> <span class="nav-text">反射的性能</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E5%AF%B9%E8%B1%A1"><span class="nav-number">2.1.1.</span> <span class="nav-text">创建对象</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BF%AE%E6%94%B9%E5%AD%97%E6%AE%B5%E7%9A%84%E5%80%BC"><span class="nav-number">2.1.2.</span> <span class="nav-text">修改字段的值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#FieldByName-%E5%92%8C-Field-%E6%80%A7%E8%83%BD%E5%B7%AE%E8%B7%9D"><span class="nav-number">2.1.3.</span> <span class="nav-text">FieldByName 和 Field 性能差距</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E"><span class="nav-number">2.2.</span> <span class="nav-text">使用说明</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%81%BF%E5%85%8D%E4%BD%BF%E7%94%A8%E5%8F%8D%E5%B0%84"><span class="nav-number">2.2.1.</span> <span class="nav-text">避免使用反射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BC%93%E5%AD%98"><span class="nav-number">2.2.2.</span> <span class="nav-text">缓存</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="事务概述事务定义Redis事务是一个单独的隔离操作：事务中的所有命令都会序列化、按顺序地执行。事务在执行的过程中，不会被其他客户端发送来的命令请求所打断。 Redis事务的主要作用就是串联多个命令防止别的命令插队。 multi exec discard命令从输入multi命令开始，输入的命令都会依次进入命令队列中，但不会执行，直到输入exec后，Redis会将之前的命令队列中的命令依次执行。 组队">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis学习 (4) 事务">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="事务概述事务定义Redis事务是一个单独的隔离操作：事务中的所有命令都会序列化、按顺序地执行。事务在执行的过程中，不会被其他客户端发送来的命令请求所打断。 Redis事务的主要作用就是串联多个命令防止别的命令插队。 multi exec discard命令从输入multi命令开始，输入的命令都会依次进入命令队列中，但不会执行，直到输入exec后，Redis会将之前的命令队列中的命令依次执行。 组队">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645589712817.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645590057774.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645590075709.png">
+<meta property="article:published_time" content="2022-02-23T04:11:39.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.786Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645589712817.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Redis学习 (4) 事务 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Redis学习 (4) 事务
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-23 12:11:39" itemprop="dateCreated datePublished" datetime="2022-02-23T12:11:39+08:00">2022-02-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="事务概述"><a href="#事务概述" class="headerlink" title="事务概述"></a>事务概述</h1><h2 id="事务定义"><a href="#事务定义" class="headerlink" title="事务定义"></a>事务定义</h2><p>Redis事务是一个<strong>单独的隔离操作</strong>：事务中的所有命令都会<strong>序列化、按顺序</strong>地执行。事务在执行的过程中，不会被其他客户端发送来的命令请求所打断。</p>
+<p>Redis事务的主要作用就是<strong>串联多个命令</strong>防止别的命令插队。</p>
+<h2 id="multi-exec-discard命令"><a href="#multi-exec-discard命令" class="headerlink" title="multi exec discard命令"></a>multi exec discard命令</h2><p>从输入<code>multi</code>命令开始，输入的命令都会<strong>依次进入命令队列</strong>中，但不会执行，直到输入<code>exec</code>后，Redis会将之前的命令队列中的命令<strong>依次执行</strong>。</p>
+<p>组队的过程中可以通过<code>discard</code>来<strong>放弃组队</strong>。</p>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645589712817.png" alt="Multi Exec discard"></p>
+<span id="more"></span>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; multi</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; set k1 v1</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; set k2 v2</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; exec</span><br><span class="line">1) OK</span><br><span class="line">2) OK</span><br></pre></td></tr></table></figure>
+
+<h2 id="事务的错误处理"><a href="#事务的错误处理" class="headerlink" title="事务的错误处理"></a>事务的错误处理</h2><ul>
+<li><strong>组队</strong>过程中，某个命令出现错误，执行时<strong>整个的所有队列都会被取消</strong></li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645590057774.png" alt="组队过程中出现错误"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; multi</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; set k1 v1</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; set k2		# 组队时失败</span><br><span class="line">(error) ERR wrong number of arguments for &#x27;set&#x27; command</span><br><span class="line">127.0.0.1:6379&gt; exec</span><br><span class="line">(error) EXECABORT Transaction discarded because of previous errors.</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>执行</strong>过程中，某个命令出现错误，则<strong>只有报错的命令不会被执行</strong>，而其他的命令都会执行，不会回滚</li>
+</ul>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645590075709.png" alt="执行过程中出现错误"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; multi</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; set k1 v1</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; set k2 v2</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; incr k2		# 执行时会失败</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; set k3 v3</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; exec</span><br><span class="line">1) OK</span><br><span class="line">2) OK</span><br><span class="line">3) (error) ERR value is not an integer or out of range</span><br><span class="line">4) OK</span><br></pre></td></tr></table></figure>
+
+<h1 id="事务冲突的解决"><a href="#事务冲突的解决" class="headerlink" title="事务冲突的解决"></a>事务冲突的解决</h1><h2 id="悲伤锁"><a href="#悲伤锁" class="headerlink" title="悲伤锁"></a>悲伤锁</h2><p><strong>悲观锁</strong>，即每次拿数据时都认为其他人会修改数据，所以<strong>每次在拿数据的时候都会上锁</strong>，其他人想要读取这个数据必须等待，直到它拿到锁为止。</p>
+<p><strong>传统的关系型数据库里边就用到了很多这种锁机制</strong>，比如<strong>行锁</strong>，<strong>表锁</strong>等，<strong>读锁</strong>，<strong>写锁</strong>等，都是在做操作之前先上锁。</p>
+<h2 id="乐观锁"><a href="#乐观锁" class="headerlink" title="乐观锁"></a>乐观锁</h2><p><strong>乐观锁</strong>，即每次拿数据时都认为其他人不会修改数据，所以<strong>不会上锁</strong>，但是在更新的时候会判断一下在此期间别人有没有去更新这个数据，可以使用版本号等机制。</p>
+<p><strong>乐观锁适用于多读的应用类型，这样可以提高吞吐量</strong>。</p>
+<p>Redis利用这种<strong>check-and-set(CAS)<strong>机制实现事务，在修改数据之前</strong>对数据库版本号和当前取到数据的版本号</strong>做出<strong>比较</strong>，若版本号不一致，则不能进行操作。</p>
+<h3 id="乐观锁的使用"><a href="#乐观锁的使用" class="headerlink" title="乐观锁的使用"></a>乐观锁的使用</h3><ul>
+<li>在执行<code>multi</code>之前，先执行<code>watch key1 [key2]</code>，可以<strong>监视</strong>一个(或多个) key ，如果在事务<strong>执行之前这个(或这些) key 被其他命令所改动，那么事务将被打断。</strong></li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; watch balance	# balance=500</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; multi</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; incrby balance 50	# 此时balance被其他事务修改为510</span><br><span class="line">QUEUED</span><br><span class="line">127.0.0.1:6379&gt; exec</span><br><span class="line">(nil)							# 500 != 510，执行失败</span><br><span class="line">127.0.0.1:6379&gt; get balance</span><br><span class="line">&quot;510&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>unwatch</code>取消<code>watch</code>命令对所有的key的监视。如果在执行<code>watch</code>之后，<code>exec</code>和<code>discard</code>命令先被执行了的话，那么就不需要再执行<code>unwatch</code>了</li>
+</ul>
+<h1 id="Redis事务三特性"><a href="#Redis事务三特性" class="headerlink" title="Redis事务三特性"></a>Redis事务三特性</h1><ul>
+<li><strong>单独的隔离操作：</strong>事务中的所有命令都会序列化、按顺序地执行。事务在执行的过程中，不会被其他客户端发送来的命令请求所打断。</li>
+<li><strong>没有隔离级别的概念：</strong>队列中的命令没有提交之前都不会实际被执行</li>
+<li><strong>不保证原子性：</strong>事务中如果有一条命令执行失败，其后的命令仍然会被执行，没有回滚</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis/" rel="tag"># Redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-3-%E6%96%B0%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/" rel="prev" title="Redis学习 (3) 新数据类型">
+      <i class="fa fa-chevron-left"></i> Redis学习 (3) 新数据类型
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/23/MySQL%E9%AB%98%E7%BA%A7-9-%E4%BA%8B%E5%8A%A1%E6%97%A5%E5%BF%97/" rel="next" title="MySQL高级 (9) 事务日志">
+      MySQL高级 (9) 事务日志 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">事务概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E5%AE%9A%E4%B9%89"><span class="nav-number">1.1.</span> <span class="nav-text">事务定义</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#multi-exec-discard%E5%91%BD%E4%BB%A4"><span class="nav-number">1.2.</span> <span class="nav-text">multi exec discard命令</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84%E9%94%99%E8%AF%AF%E5%A4%84%E7%90%86"><span class="nav-number">1.3.</span> <span class="nav-text">事务的错误处理</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E5%86%B2%E7%AA%81%E7%9A%84%E8%A7%A3%E5%86%B3"><span class="nav-number">2.</span> <span class="nav-text">事务冲突的解决</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%82%B2%E4%BC%A4%E9%94%81"><span class="nav-number">2.1.</span> <span class="nav-text">悲伤锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%90%E8%A7%82%E9%94%81"><span class="nav-number">2.2.</span> <span class="nav-text">乐观锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B9%90%E8%A7%82%E9%94%81%E7%9A%84%E4%BD%BF%E7%94%A8"><span class="nav-number">2.2.1.</span> <span class="nav-text">乐观锁的使用</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Redis%E4%BA%8B%E5%8A%A1%E4%B8%89%E7%89%B9%E6%80%A7"><span class="nav-number">3.</span> <span class="nav-text">Redis事务三特性</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

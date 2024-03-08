@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="下面主要介绍 MySQL 中的一些实现，包括 Redo Log、Undo Log。 Redo Log一个事务如果要修改一张表中的多条记录，记录都分布在不同的 Page 中。如果事务每一次都直接写磁盘，相当于随机 I&#x2F;O，性能非常差。 所以先写日志，再把内存中的数据异步的刷到磁盘中。日志是顺序追加的，所以写日志是顺序 I&#x2F;O，所以性能相比于随机 I&#x2F;O 有很大的提升。 异步刷盘策略在 MySQL I">
+<meta property="og:type" content="article">
+<meta property="og:title" content="软件架构设计读书笔记 (3) 数据库">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="下面主要介绍 MySQL 中的一些实现，包括 Redo Log、Undo Log。 Redo Log一个事务如果要修改一张表中的多条记录，记录都分布在不同的 Page 中。如果事务每一次都直接写磁盘，相当于随机 I&#x2F;O，性能非常差。 所以先写日志，再把内存中的数据异步的刷到磁盘中。日志是顺序追加的，所以写日志是顺序 I&#x2F;O，所以性能相比于随机 I&#x2F;O 有很大的提升。 异步刷盘策略在 MySQL I">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230625210354820.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230627130751462.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230627132311549.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230627140415349.png">
+<meta property="article:published_time" content="2023-06-25T12:22:44.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.834Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230625210354820.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>软件架构设计读书笔记 (3) 数据库 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          软件架构设计读书笔记 (3) 数据库
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-25 20:22:44" itemprop="dateCreated datePublished" datetime="2023-06-25T20:22:44+08:00">2023-06-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>下面主要介绍 MySQL 中的一些实现，包括 Redo Log、Undo Log。</p>
+<h1 id="Redo-Log"><a href="#Redo-Log" class="headerlink" title="Redo Log"></a>Redo Log</h1><p>一个事务如果要修改一张表中的多条记录，记录都分布在不同的 Page 中。如果事务每一次都直接写磁盘，相当于随机 I/O，性能非常差。</p>
+<p>所以先写日志，再把内存中的数据异步的刷到磁盘中。日志是顺序追加的，所以写日志是顺序 I/O，所以性能相比于随机 I/O 有很大的提升。</p>
+<h2 id="异步刷盘策略"><a href="#异步刷盘策略" class="headerlink" title="异步刷盘策略"></a>异步刷盘策略</h2><p>在 MySQL InnoDB 中，不光数据写入到磁盘是异步的，而且<strong>从内存写入到 Redo Log 也是异步的</strong>。MySQL innodb_flush_log_at_trx_commit 参数可以控制 Redo Log 的刷盘策略，分别是：</p>
+<ul>
+<li><strong>0：每秒钟</strong>刷一次盘（<strong>默认</strong>）。</li>
+<li><strong>1：每次提交事务</strong>都会将内存中的数据刷到 Redo Log 中。</li>
+<li><strong>2：不刷盘</strong>，根据 innodb_flush_log_at_timeout 决定刷盘频率。</li>
+</ul>
+<blockquote>
+<p><strong>1 是最安全的，却也是性能最低的</strong>。InnoDB 选择 0 作为默认值，就是安全性和性能之间做出一个平衡。</p>
+</blockquote>
+<h2 id="物理结构"><a href="#物理结构" class="headerlink" title="物理结构"></a>物理结构</h2><p>因为磁盘是按块设备，所以 MySQL 日志也是按照<strong>块（Log Block）</strong>去读写的。每一个 Log Block 都是固定大小，即 512 字节。</p>
+<p>而且因为日志可以看作是无限增长的文件，所以在具体实现时，Redo Log 是<strong>固定大小</strong>的（可以看作是一个循环队列，后面的块会覆盖最前面的块）。</p>
+<h3 id="Physiological-Logging"><a href="#Physiological-Logging" class="headerlink" title="Physiological Logging"></a>Physiological Logging</h3><p>在 Log Block 中的日志采用何种方式去存储呢？这也是一个问题。</p>
+<p>MySQL 中采用的<strong>是物理和逻辑相结合</strong>的方式。<strong>以 Page 为单位记录日志，每一个日志里面再采取逻辑记法</strong>（记录 Page 中的哪一行被修改了），这种<strong>叫做 Physiological Logging</strong>。</p>
+<blockquote>
+<p>纯逻辑和物理记法的<strong>缺点</strong>。</p>
+<ul>
+<li><strong>纯逻辑记法：</strong>就是直接<strong>将 SQL 语句记录在日志中</strong>。而需要修改的记录可能被分散在多个 Page 中，如果<strong>涉及到多个 Page 的修改</strong>，修改到一半系统<strong>宕机</strong>。那么<strong>恢复的时候很难知道哪个 Page 写成功了，哪个写失败了</strong>。</li>
+<li><strong>纯物理记法：</strong>就是记录<strong>每一个 Page 在哪一个字节被修改了什么</strong>。因为 InnoDB 中采用 B+ 树存储数据，如果增加一条记录就需要修改前后指针，会<strong>产生多条物理日志</strong>。</li>
+</ul>
+</blockquote>
+<span id="more"></span>
+
+<h3 id="Redo-Log-Block"><a href="#Redo-Log-Block" class="headerlink" title="Redo Log Block"></a>Redo Log Block</h3><p>每一个 Log Block 都包含头部、数据部分、Check sum 三部分。所以每一个 Log Block 只能存储 496 字节的数据。</p>
+<p>字段解释如下：</p>
+<ul>
+<li>Block No：每一个 Log Block 的唯一编号，可以由 LSN 换算得到。</li>
+<li>Data Len：日志的实际大小。</li>
+<li>First Rec Group：第一条日志的起始位置，可能上一条日志非常大导致上一个 Log Block 没有存下，日志的部分数据到了当前 Block。</li>
+<li>Checkpoint No：当前 Block 进行 Check point 时对应的 LSN。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230625210354820.png" alt="image-20230625210354820"></p>
+<blockquote>
+<p>在一个<strong>事务</strong>中（<strong>以 TxID 作为唯一标识</strong>），可能有多条 SQL 语句，每一个语句是一个<strong>逻辑事务</strong>。逻辑事务由<strong>多个物理事务</strong>组成（<strong>同一个 Page 上的修改作为一个物理事务</strong>，一个物理事务构成一条日志，<strong>以 LSN 作为编号</strong>）。</p>
+<p>用一个事务中的 LSN 日志也会通过<strong>链表</strong>连接起来，并且会<strong>标识这个 LSN 日志属于哪一个 TxID</strong>。</p>
+</blockquote>
+<h2 id="ARIES-算法"><a href="#ARIES-算法" class="headerlink" title="ARIES 算法"></a>ARIES 算法</h2><p>由于并发的特性，所以在多个事务同时存在时写入的 LSN日志条目，在 Redo Log 中是<strong>交替存在</strong>的，这意味着未提交的的事务也在 Redo Log 中。</p>
+<p>ARIES 算法分为三个阶段：</p>
+<ul>
+<li><strong>分析阶段：</strong>确定哪些数据页是<strong>脏页</strong>，确定哪些事务<strong>未提交</strong>。</li>
+<li><strong>进行 Redo：</strong>重放 Redo Log 中的日志，将为刷盘的日志输入磁盘中。</li>
+<li><strong>进行 Undo：</strong>将未提交的事务进行回滚。</li>
+</ul>
+<h3 id="分析阶段"><a href="#分析阶段" class="headerlink" title="分析阶段"></a>分析阶段</h3><p>分析阶段有两个目标，确定哪些数据页是<strong>脏页</strong>，确定哪些事务<strong>未提交</strong>。</p>
+<h4 id="Fuzzy-Checkpoint"><a href="#Fuzzy-Checkpoint" class="headerlink" title="Fuzzy Checkpoint"></a>Fuzzy Checkpoint</h4><p>ARIES 的 Checkpoint 机制，就是每隔一段事件将内存中的数据生成一个快照。因为请求是一直发生的，但是不能阻塞住系统，不接受客户端的请求（这种方法叫做 Sharp Checkpoint），一次性将数据全部刷入磁盘。</p>
+<p>所以<strong>需要用到 Fuzzy Checkpoint</strong>，即维护两个表：活跃事务表和脏页表。</p>
+<ul>
+<li><strong>活跃事务表</strong>记录<strong>当前所有未提交的事务集合</strong>，每一个事务维护了一个关键变量 lastLSN，即该事务产生的最后一条日志 LSN。</li>
+<li><strong>脏页表</strong>记录当前<strong>所有未刷盘的 Page 集合</strong>（包括提交和未提交的事务），维护了一个关键变量 recoveryLSN，即导致该页为脏页的最早 LSN。</li>
+</ul>
+<p><strong>每一次 Fuzzy Checkpoint 都将生成活跃事务表和脏页表的快照</strong>，形成<strong>一条 Checkpoint 日志</strong>记入 Redo Log。</p>
+<h4 id="确定脏页"><a href="#确定脏页" class="headerlink" title="确定脏页"></a>确定脏页</h4><p>从 Redo Log 的最后一个 Checkpoint 开始扫描，维护一个<strong>脏页集合</strong>。</p>
+<p><strong>遇到 Redo 日志操作的是一个新的 Page</strong>，就把它<strong>加入</strong>到脏页集合中。脏页集合是<strong>只增不减</strong>的。</p>
+<blockquote>
+<p>可能脏页集合中的有一些 Page 已经不是脏页了，但因为 Redo Log 是<strong>幂等</strong>的，所以重复执行是没有关系的。</p>
+</blockquote>
+<h4 id="确定未提交事务"><a href="#确定未提交事务" class="headerlink" title="确定未提交事务"></a>确定未提交事务</h4><p>从 Redo Log 的最后一个 Checkpoint 开始扫描，维护一个<strong>未提交事务集合</strong>。</p>
+<p>当扫描到<strong>事务结束的标志</strong>时，从未提交事务集合中<strong>移出</strong>事务。</p>
+<p>当扫描到<strong>新的事务</strong>开始时，<strong>加入</strong>未提交事务集合。</p>
+<h3 id="进行-Redo"><a href="#进行-Redo" class="headerlink" title="进行 Redo"></a>进行 Redo</h3><p>取所有脏页的 recoveryLSN 最小值为 firstLSN，从 firstLSN 开始一直到 Redo Log 末尾，进行<strong>重放日志并且刷入磁盘</strong>。</p>
+<h4 id="Redo-Log-的幂等性"><a href="#Redo-Log-的幂等性" class="headerlink" title="Redo Log 的幂等性"></a>Redo Log 的幂等性</h4><p><strong>如何使得 Redo Log 是幂等的？</strong></p>
+<p>方法<strong>就是 Page 有一个字段是 pageLSN</strong>，记录了<strong>最后一次修改对应的 LSN</strong>。在重放日志的时候，只有<strong>当日志 LSN 大于 pageLSN 时</strong>，才进行<strong>重放</strong>，否则会直接跳过。</p>
+<h3 id="进行-Undo"><a href="#进行-Undo" class="headerlink" title="进行 Undo"></a>进行 Undo</h3><p>因为已经有了未提交事务的集合，所以从 Redo Log 从后向前扫描，找到未提交日志的所有 LSN（每一条日志都有一个 prevLSN 字段，方便从后向前扫描）。</p>
+<p>对于未提交事务的日志，都生成一条<strong>逆向的 SQL 语句</strong>来执行，<strong>追加到 Redo Log 尾部</strong>。所以所有的回滚，实际上都是反向操作的提交。</p>
+<h1 id="Undo-Log"><a href="#Undo-Log" class="headerlink" title="Undo Log"></a>Undo Log</h1><p>Page 刷盘分为两个维度，四种策略：</p>
+<ul>
+<li><strong>FORCE 和 NO-FORCE：</strong>指的是事务的实际写入发生在<strong>提交之后</strong>。当事务提交后，要求数据必须<strong>同时完成写入则称为 FORCE</strong>，如果<strong>不强制</strong>数据必须<strong>同时完成写入则称为 NO-FORCE</strong>。现实中绝大多数数据库采用的都是 NO-FORCE 策略，因为只要有了日志，变动数据随时可以持久化，从优化磁盘 I/O 性能考虑，没有必要强制数据写入立即进行。</li>
+<li><strong>STEAL 和 NO-STEAL：</strong>在事务提交前，允许数据<strong>提前写入则称为 STEAL</strong>，<strong>不允许则称为 NO-STEAL</strong>。从优化磁盘 I/O 性能考虑，允许数据提前写入，有利于利用空闲 I/O 资源，也有利于节省数据库缓存区的内存。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230627130751462.png" alt="image-20230627130751462"></p>
+<h2 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h2><p>MVCC 多版本并发控制是一种<strong>读优化</strong>策略，MVCC 的基本思路是对数据库的任何修改都不会直接覆盖之前的数据，而是产生一个新版副本与老版本共存，以此达到读取时可以完全不加锁的目的。</p>
+<ul>
+<li>如果隔离级别是<strong>可重复读</strong>：读取小于等于当前事务 ID 的最大版本。</li>
+<li>如果隔离级别是<strong>读已提交</strong>：读取最新版本。</li>
+</ul>
+<blockquote>
+<p>读未提交直接修改原始数据即可，不需要版本。</p>
+</blockquote>
+<p><strong>MVCC 拷贝出来的记录是记录在 Undo Log 中的</strong>。因为事务有唯一的 ID 并且从小到大依次递增，Undo Log 中维护了事务从旧到新的每一个版本，版本之间通过链表连接。</p>
+<blockquote>
+<p>MySQL 中正常的不加锁查询语句为<strong>快照读</strong>；加锁的语句为<strong>当前读</strong>，读取的是最新的版本。</p>
+</blockquote>
+<h2 id="Undo-Log-结构"><a href="#Undo-Log-结构" class="headerlink" title="Undo Log 结构"></a>Undo Log 结构</h2><p>Undo Log 维护了记录的<strong>历史版本</strong>，当事务提交之后就可以就可以删除了。<strong>在 Page 中有一个 rollback_ptr 字段，用于指向历史版本</strong>。历史版本可以通过 rollback_ptr 字段，相互的串联起来。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230627132311549.png" alt="image-20230627132311549"></p>
+<h2 id="将-Undo-Log-写入-Redo-Log"><a href="#将-Undo-Log-写入-Redo-Log" class="headerlink" title="将 Undo Log 写入 Redo Log"></a>将 Undo Log 写入 Redo Log</h2><p>对于一个事务来说，可能会修改多个数据，因此会产生多个 Undo Log。</p>
+<p>可以<strong>将 Undo Log 也当作数据写入到 Redo Log 中</strong>，以此实现 Undo Log 的异步刷盘写入操作，并且还支持 Undo Log 的错误恢复。</p>
+<h1 id="Bin-Log"><a href="#Bin-Log" class="headerlink" title="Bin Log"></a>Bin Log</h1><p>Bin Log 也用于记录日志，<strong>但是 Bin Log 是 MySQL Server 层面的</strong>（Redo Log 和 Undo Log 都是 InnoDB 层级的）。</p>
+<p>Bin Log 主要用于<strong>主从复制</strong>，它有以下<strong>特点</strong>：</p>
+<ul>
+<li>并发事务对于 Bin Log 的写入是<strong>串行互斥</strong>的。</li>
+<li>Bin Log 中记录的日志是<strong>逻辑 SQL 语句</strong>。</li>
+<li>Bin Log 中记录的日志<strong>只有已经提交的事务</strong>（如果在写入 Bin Log 时宕机则截断不完整的部分）。</li>
+<li>Bin Log 中，同一事务中的日志是<strong>连续</strong>的（在事务提交时，将所有的日志记录到 Bin Log 中）。</li>
+</ul>
+<blockquote>
+<p>MySQL 中的事务是否成功提交，<strong>以 Bin Log 为主，先记录 Bin Log 再记录 Redo Log</strong>。</p>
+<p>Bin Log 中的事务已经提交，则认为这个事务提交（如果 Redo Log 中该事务没有提交，则补全提交命令）。</p>
+</blockquote>
+<h2 id="主从复制方式"><a href="#主从复制方式" class="headerlink" title="主从复制方式"></a>主从复制方式</h2><p>MySQL 中有三种主从复制方式：同步复制、异步复制、半同步复制。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/image-20230627140415349.png" alt="image-20230627140415349"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/" rel="prev" title="软件架构设计读书笔记 (2) HTTP HTTPS QUIC">
+      <i class="fa fa-chevron-left"></i> 软件架构设计读书笔记 (2) HTTP HTTPS QUIC
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/" rel="next" title="软件架构设计读书笔记 (4) 高并发">
+      软件架构设计读书笔记 (4) 高并发 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Redo-Log"><span class="nav-number">1.</span> <span class="nav-text">Redo Log</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%82%E6%AD%A5%E5%88%B7%E7%9B%98%E7%AD%96%E7%95%A5"><span class="nav-number">1.1.</span> <span class="nav-text">异步刷盘策略</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%A9%E7%90%86%E7%BB%93%E6%9E%84"><span class="nav-number">1.2.</span> <span class="nav-text">物理结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Physiological-Logging"><span class="nav-number">1.2.1.</span> <span class="nav-text">Physiological Logging</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Redo-Log-Block"><span class="nav-number">1.2.2.</span> <span class="nav-text">Redo Log Block</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ARIES-%E7%AE%97%E6%B3%95"><span class="nav-number">1.3.</span> <span class="nav-text">ARIES 算法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90%E9%98%B6%E6%AE%B5"><span class="nav-number">1.3.1.</span> <span class="nav-text">分析阶段</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Fuzzy-Checkpoint"><span class="nav-number">1.3.1.1.</span> <span class="nav-text">Fuzzy Checkpoint</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A1%AE%E5%AE%9A%E8%84%8F%E9%A1%B5"><span class="nav-number">1.3.1.2.</span> <span class="nav-text">确定脏页</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A1%AE%E5%AE%9A%E6%9C%AA%E6%8F%90%E4%BA%A4%E4%BA%8B%E5%8A%A1"><span class="nav-number">1.3.1.3.</span> <span class="nav-text">确定未提交事务</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%9B%E8%A1%8C-Redo"><span class="nav-number">1.3.2.</span> <span class="nav-text">进行 Redo</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Redo-Log-%E7%9A%84%E5%B9%82%E7%AD%89%E6%80%A7"><span class="nav-number">1.3.2.1.</span> <span class="nav-text">Redo Log 的幂等性</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%9B%E8%A1%8C-Undo"><span class="nav-number">1.3.3.</span> <span class="nav-text">进行 Undo</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Undo-Log"><span class="nav-number">2.</span> <span class="nav-text">Undo Log</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#MVCC"><span class="nav-number">2.1.</span> <span class="nav-text">MVCC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Undo-Log-%E7%BB%93%E6%9E%84"><span class="nav-number">2.2.</span> <span class="nav-text">Undo Log 结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B0%86-Undo-Log-%E5%86%99%E5%85%A5-Redo-Log"><span class="nav-number">2.3.</span> <span class="nav-text">将 Undo Log 写入 Redo Log</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Bin-Log"><span class="nav-number">3.</span> <span class="nav-text">Bin Log</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%E6%96%B9%E5%BC%8F"><span class="nav-number">3.1.</span> <span class="nav-text">主从复制方式</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

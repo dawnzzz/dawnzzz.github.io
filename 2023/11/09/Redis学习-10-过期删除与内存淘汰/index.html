@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="过期删除Redis 可以设置 key 的过期时间，对于过期的 key，Redis 需要进行清理。 过期时间当对一个 key 设置了过期时间，Redis 会把该 key 带上过期时间存储到一个过期字典（哈希表）中，过期字典保存了所有 key 的过期时间。所以在访问一个 key 时，可以在常数级时间复杂度查找 key 是否过期：  不在过期字典中，说明没有设置过期时间。 在过期字典中，获取过期时间，与">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis学习 (10) 过期删除与内存淘汰">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/11/09/Redis%E5%AD%A6%E4%B9%A0-10-%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="过期删除Redis 可以设置 key 的过期时间，对于过期的 key，Redis 需要进行清理。 过期时间当对一个 key 设置了过期时间，Redis 会把该 key 带上过期时间存储到一个过期字典（哈希表）中，过期字典保存了所有 key 的过期时间。所以在访问一个 key 时，可以在常数级时间复杂度查找 key 是否过期：  不在过期字典中，说明没有设置过期时间。 在过期字典中，获取过期时间，与">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-10-%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0/lru%E5%AD%97%E6%AE%B5.png">
+<meta property="article:published_time" content="2023-11-09T09:11:05.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.785Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Redis%E5%AD%A6%E4%B9%A0-10-%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0/lru%E5%AD%97%E6%AE%B5.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/11/09/Redis%E5%AD%A6%E4%B9%A0-10-%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Redis学习 (10) 过期删除与内存淘汰 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/11/09/Redis%E5%AD%A6%E4%B9%A0-10-%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Redis学习 (10) 过期删除与内存淘汰
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-11-09 17:11:05" itemprop="dateCreated datePublished" datetime="2023-11-09T17:11:05+08:00">2023-11-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="过期删除"><a href="#过期删除" class="headerlink" title="过期删除"></a>过期删除</h1><p>Redis 可以设置 key 的过期时间，对于过期的 key，Redis 需要进行清理。</p>
+<h2 id="过期时间"><a href="#过期时间" class="headerlink" title="过期时间"></a>过期时间</h2><p>当对一个 key 设置了过期时间，Redis 会把该 key 带上过期时间存储到一个<strong>过期字典（哈希表）</strong>中，过期字典保存了所有 key 的过期时间。所以在访问一个 key 时，可以在<strong>常数级时间复杂度</strong>查找 key 是否过期：</p>
+<ul>
+<li>不在过期字典中，说明没有设置过期时间。</li>
+<li>在过期字典中，获取过期时间，与系统当前时间进行比对是否过期。</li>
+</ul>
+<h2 id="删除策略"><a href="#删除策略" class="headerlink" title="删除策略"></a>删除策略</h2><p>Redis 采用<strong>惰性删除+定期删除两种删除策略配合使用</strong>，以求在合理使用 CPU 时间和避免内存浪费之间取得平衡。</p>
+<h3 id="惰性删除"><a href="#惰性删除" class="headerlink" title="惰性删除"></a>惰性删除</h3><p>惰性删除中，不主动删除过期 key，只有当查询到过期 key 时才进行删除操作，删除可以选择异步删除或者同步删除。</p>
+<blockquote>
+<p>惰性删除<strong>节省 CPU 时间</strong>，但是<strong>浪费内存</strong>。</p>
+</blockquote>
+<h3 id="定期删除"><a href="#定期删除" class="headerlink" title="定期删除"></a>定期删除</h3><p>定期删除策略的做法是，<strong>每隔一段时间随机从数据库中取出一定数量的 key 进行检查，并删除其中的过期key。</strong></p>
+<blockquote>
+<p>定期删除相对于惰性删除<strong>更需要 CPU 资源</strong>，但是更加<strong>节约内存</strong>。</p>
+</blockquote>
+<p>Redis 实现的定期删除需要解决两个问题：</p>
+<ol>
+<li>定期检查<strong>间隔</strong>时间：默认每 10 秒钟检查一次，这是可以配置的。</li>
+<li>随机抽查的<strong>数量</strong>：数量是写死在代码中的，<strong>数值是 20</strong>。</li>
+</ol>
+<p>Redis 的定期删除的<strong>流程</strong>：</p>
+<ol>
+<li>从过期字典中随机抽取 20 个 key；</li>
+<li>检查这 20 个 key 是否过期，并删除已过期的 key；</li>
+<li>如果本轮检查的已过期 key 的数量，比例大于 25%（5 个），则继续重复步骤 1；否则停止继续删除过期 key，然后等待下一轮再检查。</li>
+</ol>
+<p>Redis 为了保证定期删除不会出现循环过度，导致线程卡死现象，为此增加了<strong>定期删除循环流程的时间上限</strong>，默认不会超过 25ms。</p>
+<span id="more"></span>
+
+<h1 id="内存淘汰"><a href="#内存淘汰" class="headerlink" title="内存淘汰"></a>内存淘汰</h1><p>Redis 可以通过设置 <code>maxmemory</code> 配置，来设定最大运行内存。<strong>不同位数的操作系统</strong>，maxmemory 的默认值是不同的：</p>
+<ul>
+<li><strong>在 64 位操作系统中</strong>，maxmemory 的默认值是 0，表示没有内存大小限制，直到 Redis 实例因内存不足而崩溃也无作为。</li>
+<li><strong>在 32 位操作系统中</strong>，maxmemory 的默认值是 3G，因为 32 位的机器最大只支持 4GB 的内存，而系统本身就需要一定的内存资源来支持运行，这样可以避免因为内存不足而导致 Redis 实例崩溃。</li>
+</ul>
+<h2 id="内存淘汰策略"><a href="#内存淘汰策略" class="headerlink" title="内存淘汰策略"></a>内存淘汰策略</h2><p>Redis 内存淘汰策略共有八种，这八种策略大体分为「不进行数据淘汰」和「进行数据淘汰」两类策略。</p>
+<h3 id="不进行数据淘汰的策略"><a href="#不进行数据淘汰的策略" class="headerlink" title="不进行数据淘汰的策略"></a>不进行数据淘汰的策略</h3><p><strong>noeviction</strong>（Redis3.0之后，<strong>默认</strong>的内存淘汰策略） ：它表示当运行内存超过最大设置内存时，不淘汰任何数据，这时如果有新的数据写入，会报错<strong>禁止写入</strong>（查询正常工作）。</p>
+<h3 id="进行数据淘汰的策略"><a href="#进行数据淘汰的策略" class="headerlink" title="进行数据淘汰的策略"></a>进行数据淘汰的策略</h3><p>针对「进行数据淘汰」这一类策略，又可以细分为「在设置了过期时间的数据中进行淘汰」和「在所有数据范围内进行淘汰」这两类策略。</p>
+<p>在<strong>设置了过期时间的数据中</strong>进行淘汰：</p>
+<ul>
+<li><strong>volatile-random</strong>：随机淘汰设置了过期时间的任意键值；</li>
+<li><strong>volatile-ttl</strong>：优先淘汰更早过期的键值。</li>
+<li><strong>volatile-lru</strong>（Redis3.0 之前，默认的内存淘汰策略）：淘汰所有设置了过期时间的键值中，最久未使用的键值；</li>
+<li><strong>volatile-lfu</strong>（Redis 4.0 后新增的内存淘汰策略）：淘汰所有设置了过期时间的键值中，最少使用的键值；</li>
+</ul>
+<p>在<strong>所有数据范围</strong>内进行淘汰：</p>
+<ul>
+<li><strong>allkeys-random</strong>：随机淘汰任意键值;</li>
+<li><strong>allkeys-lru</strong>：淘汰整个键值中最久未使用的键值；</li>
+<li><strong>allkeys-lfu</strong>（Redis 4.0 后新增的内存淘汰策略）：淘汰整个键值中最少使用的键值。</li>
+</ul>
+<h2 id="LRU-和-LFU"><a href="#LRU-和-LFU" class="headerlink" title="LRU 和 LFU"></a>LRU 和 LFU</h2><h3 id="Redis-中的-LRU"><a href="#Redis-中的-LRU" class="headerlink" title="Redis 中的 LRU"></a>Redis 中的 LRU</h3><p>Redis 并没有使用这样的方式实现 LRU 算法，因为传统的 LRU 算法存在两个问题：</p>
+<ul>
+<li>需要用链表管理所有的缓存数据，这会带来额外的空间开销；</li>
+<li>当有数据被访问时，需要在链表上把该数据移动到头端，如果有大量数据被访问，就会带来很多链表移动操作，会很耗时，进而会降低 Redis 缓存性能。</li>
+</ul>
+<p>Redis 实现的是一种<strong>近似 LRU 算法</strong>，目的是为了更好的节约内存，它的<strong>实现方式是在 Redis 的对象结构体中添加一个额外的字段，用于记录此数据的最后一次访问时间</strong>。当 Redis 进行内存淘汰时，会使用<strong>随机采样的方式来淘汰数据</strong>，它是随机取 5 个值（此值可配置），然后<strong>淘汰最久没有使用的那个</strong>。Redis 实现的 LRU 算法的优点：</p>
+<ul>
+<li>不用为所有的数据维护一个大链表，节省了空间占用；</li>
+<li>不用在每次数据访问时都移动链表项，提升了缓存的性能；</li>
+</ul>
+<p>但是 LRU 算法有一个问题，<strong>无法解决缓存污染问题</strong>，比如应用一次读取了大量的数据，而这些数据只会被读取这一次，那么这些数据会留存在 Redis 缓存中很长一段时间，造成缓存污染。</p>
+<p>因此，在 Redis 4.0 之后引入了 LFU 算法来解决这个问题。</p>
+<h3 id="Redis-中的-LFU"><a href="#Redis-中的-LFU" class="headerlink" title="Redis 中的 LFU"></a>Redis 中的 LFU</h3><p>LFU 算法会记录每个数据的访问次数，每次淘汰最少访问次数的数据。当一个数据被再次访问时，就会增加该数据的访问次数。LFU 算法<strong>解决了缓存污染问题</strong>。</p>
+<h3 id="Redis-实现"><a href="#Redis-实现" class="headerlink" title="Redis 实现"></a>Redis 实现</h3><p>Redis 对象头中的 lru 字段为 24 bit，在 LRU 算法下和 LFU 算法下使用方式并不相同。</p>
+<ul>
+<li><p><strong>在 LRU 算法中</strong>，Redis 对象头的 24 bits 的 lru 字段是用来记录 key 的访问时间戳，因此在 LRU 模式下，Redis可以根据对象头中的 lru 字段记录的值，来比较最后一次 key 的访问时间长，从而淘汰最久未被使用的 key。</p>
+</li>
+<li><p><strong>在 LFU 算法中</strong>，Redis对象头的 24 bits 的 lru 字段被分成<strong>两段</strong>来存储，高 16bit 存储 ldt(Last Decrement Time)，低 8bit 存储 logc(Logistic Counter)。</p>
+<ul>
+<li>ldt 用于记录 key 的上一次访问时间戳。</li>
+<li>logc 用于揭露 key 的访问频次，它的值越小表示使用频率越低，越容易淘汰，每个新加入的 key 的logc 初始值为 5。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>logc 并不是单纯的访问次数，而是访问频次，会<strong>随着时间推移减小</strong>。</p>
+</blockquote>
+<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-10-%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0/lru%E5%AD%97%E6%AE%B5.png" alt="img"></p>
+<blockquote>
+<p>LRU 中，Redis 在访问 key 时，logc 是这样变化的：</p>
+<ol>
+<li><p>先对 logc 做一个<strong>衰减</strong>操作，衰减的值跟前后访问时间的差距有关系，如果上一次访问的时间与这一次访问的时间差距很大，那么衰减的值就越大。</p>
+</li>
+<li><p>对 logc 进行<strong>增加</strong>操作，增加操作并不是单纯的 + 1，而是根据概率增加，如果 logc 越大的 key，它的 logc 就越难再增加。</p>
+</li>
+</ol>
+<p>Redis 提供了配置选项，可以控制 logc 的增长和衰减速度。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis/" rel="tag"># Redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/11/09/Redis%E5%AD%A6%E4%B9%A0-9-%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B/" rel="prev" title="Redis学习 (9) 线程模型">
+      <i class="fa fa-chevron-left"></i> Redis学习 (9) 线程模型
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/11/13/Redis%E5%AD%A6%E4%B9%A0-11-%E6%96%B0%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/" rel="next" title="Redis学习 (11) 新数据类型">
+      Redis学习 (11) 新数据类型 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4"><span class="nav-number">1.</span> <span class="nav-text">过期删除</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%87%E6%9C%9F%E6%97%B6%E9%97%B4"><span class="nav-number">1.1.</span> <span class="nav-text">过期时间</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%A0%E9%99%A4%E7%AD%96%E7%95%A5"><span class="nav-number">1.2.</span> <span class="nav-text">删除策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%83%B0%E6%80%A7%E5%88%A0%E9%99%A4"><span class="nav-number">1.2.1.</span> <span class="nav-text">惰性删除</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9A%E6%9C%9F%E5%88%A0%E9%99%A4"><span class="nav-number">1.2.2.</span> <span class="nav-text">定期删除</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0"><span class="nav-number">2.</span> <span class="nav-text">内存淘汰</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5"><span class="nav-number">2.1.</span> <span class="nav-text">内存淘汰策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%8D%E8%BF%9B%E8%A1%8C%E6%95%B0%E6%8D%AE%E6%B7%98%E6%B1%B0%E7%9A%84%E7%AD%96%E7%95%A5"><span class="nav-number">2.1.1.</span> <span class="nav-text">不进行数据淘汰的策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%9B%E8%A1%8C%E6%95%B0%E6%8D%AE%E6%B7%98%E6%B1%B0%E7%9A%84%E7%AD%96%E7%95%A5"><span class="nav-number">2.1.2.</span> <span class="nav-text">进行数据淘汰的策略</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#LRU-%E5%92%8C-LFU"><span class="nav-number">2.2.</span> <span class="nav-text">LRU 和 LFU</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Redis-%E4%B8%AD%E7%9A%84-LRU"><span class="nav-number">2.2.1.</span> <span class="nav-text">Redis 中的 LRU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Redis-%E4%B8%AD%E7%9A%84-LFU"><span class="nav-number">2.2.2.</span> <span class="nav-text">Redis 中的 LFU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Redis-%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.2.3.</span> <span class="nav-text">Redis 实现</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

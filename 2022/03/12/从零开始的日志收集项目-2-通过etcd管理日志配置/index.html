@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="上一版本的问题首先来看上一版本的配置文件： 1234567891011[kafka]# Kafka地址address &#x3D; 127.0.0.1:9092# 主题topic &#x3D; web_log# 消息管道大小chan_size &#x3D; 1000[collect]# 日志文件存放路径logfile_path &#x3D; F:\gopath\src\logagent\logs\1.log  通过配置文件指定需要收集的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零开始的日志收集项目 (2) 通过etcd管理日志配置">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="上一版本的问题首先来看上一版本的配置文件： 1234567891011[kafka]# Kafka地址address &#x3D; 127.0.0.1:9092# 主题topic &#x3D; web_log# 消息管道大小chan_size &#x3D; 1000[collect]# 日志文件存放路径logfile_path &#x3D; F:\gopath\src\logagent\logs\1.log  通过配置文件指定需要收集的">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-03-12T03:24:46.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.803Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>从零开始的日志收集项目 (2) 通过etcd管理日志配置 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          从零开始的日志收集项目 (2) 通过etcd管理日志配置
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-12 11:24:46" itemprop="dateCreated datePublished" datetime="2022-03-12T11:24:46+08:00">2022-03-12</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="上一版本的问题"><a href="#上一版本的问题" class="headerlink" title="上一版本的问题"></a>上一版本的问题</h1><p>首先来看上一版本的配置文件：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[collect]</span></span><br><span class="line"><span class="comment"># 日志文件存放路径</span></span><br><span class="line"><span class="attr">logfile_path</span> = F:\gopath\src\logagent\logs\<span class="number">1</span>.log</span><br></pre></td></tr></table></figure>
+
+<p>通过配置文件指定需要收集的日志时，主要有两个问题：</p>
+<ul>
+<li>日志文件的存放路径只能有一条，也就是说不能同时启动多个<code>tail.Tail</code>对象，来收集多个日志</li>
+<li>无法实现对配置文件的实时监控，根据配置文件的更改来做出及时的变化</li>
+</ul>
+<h1 id="通过etcd管理日志配置"><a href="#通过etcd管理日志配置" class="headerlink" title="通过etcd管理日志配置"></a>通过etcd管理日志配置</h1><p>上述问题的原因在于ini配置文件无法同时定义多个日志文件路径。解决的方法就是通过etcd管理日志收集配置，在etcd中以json的格式存储日志收集配置信息，如下方：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;path&quot;</span>:<span class="string">&quot;F:/gopath/src/logagent/logs/web.log&quot;</span>,</span><br><span class="line">        <span class="attr">&quot;topic&quot;</span>:<span class="string">&quot;web_log&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;path&quot;</span>:<span class="string">&quot;F:/gopath/src/logagent/logs/blog.log&quot;</span>,</span><br><span class="line">        <span class="attr">&quot;topic&quot;</span>:<span class="string">&quot;blog_log&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<p>相应的，需要修改<code>config.ini</code>配置文件，配置etcd的相关设置：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[etcd]</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">2379</span></span><br><span class="line"><span class="comment"># 保存日志收集配置文件的key</span></span><br><span class="line"><span class="attr">collect_conf_key</span> = collect_conf</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="从etcd中读取日志收集配置"><a href="#从etcd中读取日志收集配置" class="headerlink" title="从etcd中读取日志收集配置"></a>从etcd中读取日志收集配置</h2><p>初始化etcd连接，<code>etcd\etcd.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	client *clientv3.Client</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// Init 初始化etcd连接</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(endPoints []<span class="keyword">string</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	client, err = clientv3.New(clientv3.Config&#123;</span><br><span class="line">		Endpoints:   endPoints,</span><br><span class="line">		DialTimeout: time.Second * <span class="number">5</span>,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;connect to etcd failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从etcd中获取关于日志收集的配置，<code>etcd\etcd.go</code></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// GetConf 获取关于收集日志的配置文件</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">GetConf</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="params">(collectEntryList []common.CollectEntry, err error)</span></span> &#123;</span><br><span class="line">	ctx, cancel := context.WithTimeout(context.Background(), time.Second)</span><br><span class="line">	<span class="keyword">defer</span> cancel()</span><br><span class="line"></span><br><span class="line">	resp, err := client.Get(ctx, key)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Errorf(<span class="string">&quot;get conf from etcd by key: %v err: %v&quot;</span>, key, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> <span class="built_in">len</span>(resp.Kvs) == <span class="number">0</span> &#123;</span><br><span class="line">		logrus.Warn(<span class="string">&quot;get len=0 conf from etcd by key:&quot;</span>, key)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 解析json格式的字符串</span></span><br><span class="line">	ret := resp.Kvs[<span class="number">0</span>]</span><br><span class="line">	err = json.Unmarshal(ret.Value, &amp;collectEntryList)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;json unmarshal failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中<code>common.CollectEntry</code>的结构为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> common</span><br><span class="line"></span><br><span class="line"><span class="comment">// CollectEntry 要收集日志的配置条目</span></span><br><span class="line"><span class="keyword">type</span> CollectEntry <span class="keyword">struct</span> &#123;</span><br><span class="line">	Path  <span class="keyword">string</span> <span class="string">`json:&quot;path&quot;`</span>  <span class="comment">// 日志文件路径</span></span><br><span class="line">	Topic <span class="keyword">string</span> <span class="string">`json:&quot;topic&quot;`</span> <span class="comment">// 主题</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="根据配置启动多个tailTask"><a href="#根据配置启动多个tailTask" class="headerlink" title="根据配置启动多个tailTask"></a>根据配置启动多个tailTask</h2><p>将<code>main.go</code>中的<code>run()</code>函数作为tailTask的方法。根据得到的配置，创建多个tailTask，对于每一个tailTask，创建一个协程执行<code>run</code>方法，开始收集日志，发往消息管道中：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> tailTask <span class="keyword">struct</span> &#123;</span><br><span class="line">	path    <span class="keyword">string</span></span><br><span class="line">	topic   <span class="keyword">string</span></span><br><span class="line">	tailObj *tail.Tail</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	tailCfg tail.Config</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(confList []common.CollectEntry)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	<span class="comment">// confList中保存了多个日志收集项</span></span><br><span class="line">	<span class="comment">// 针对每一个日志创建一个tailTask</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Tail的配置</span></span><br><span class="line">	tailCfg = tail.Config&#123;</span><br><span class="line">		Location: &amp;tail.SeekInfo&#123; <span class="comment">// 从文件的哪个地方开始读取</span></span><br><span class="line">			Offset: <span class="number">0</span>,</span><br><span class="line">			Whence: os.SEEK_END,</span><br><span class="line">		&#125;,</span><br><span class="line">		ReOpen:    <span class="literal">true</span>,  <span class="comment">// 重新打开文件</span></span><br><span class="line">		MustExist: <span class="literal">false</span>, <span class="comment">// 文件不存在不报错</span></span><br><span class="line">		Follow:    <span class="literal">true</span>,  <span class="comment">// 进行跟随</span></span><br><span class="line">		Poll:      <span class="literal">true</span>,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> _, conf := <span class="keyword">range</span> confList &#123;</span><br><span class="line">		tt, err := newTailTask(conf)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			logrus.Errorf(<span class="string">&quot;create tailObj for path: %s failed, err: %s\n&quot;</span>, conf.Path, err)</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 开始收集日志，发往消息管道中</span></span><br><span class="line">		<span class="keyword">go</span> tt.run()</span><br><span class="line">	&#125;</span><br><span class="line">    </span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 开始收集日志，发往消息管道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *tailTask)</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	logrus.Infof(<span class="string">&quot;collect for path:%s is running...&quot;</span>, t.path)</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		line, ok := &lt;-t.tailObj.Lines:</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, t.tailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		line.Text = strings.Trim(line.Text, <span class="string">&quot;\r&quot;</span>)</span><br><span class="line">		<span class="keyword">if</span> <span class="built_in">len</span>(line.Text) == <span class="number">0</span> &#123;</span><br><span class="line">			<span class="comment">// 如果是空行，直接略过</span></span><br><span class="line">			logrus.Info(<span class="string">&quot;a empty line, continue!&quot;</span>)</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		logrus.Infof(<span class="string">&quot;read contents:%s from log file:%s\n&quot;</span>, line.Text, t.tailObj.Filename)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.PushMsg(msg)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 根据配置文件生成并初始化tailTask</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newTailTask</span><span class="params">(conf common.CollectEntry)</span> <span class="params">(tt tailTask, err error)</span></span> &#123;</span><br><span class="line">	ctx, cancel := context.WithCancel(context.Background())</span><br><span class="line">	tt = tailTask&#123;</span><br><span class="line">		path:   conf.Path,</span><br><span class="line">		topic:  conf.Topic,</span><br><span class="line">		ctx:    ctx,</span><br><span class="line">		cancel: cancel,</span><br><span class="line">	&#125;</span><br><span class="line">	tt.tailObj, err = tail.TailFile(conf.Path, tailCfg)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h2 id="监控etcd中的新配置"><a href="#监控etcd中的新配置" class="headerlink" title="监控etcd中的新配置"></a>监控etcd中的新配置</h2><p>需要新定义一个结构体，用于管理各个tailTask，<code>tailfile\tailTask_mgr.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// tailTask 的管理者</span></span><br><span class="line"><span class="keyword">type</span> tailTaskMgr <span class="keyword">struct</span> &#123;</span><br><span class="line">	tailTaskMap      <span class="keyword">map</span>[<span class="keyword">string</span>]*tailTask       <span class="comment">// 以tailTask.Path为键保存tailTask</span></span><br><span class="line">	collectEntryList []common.CollectEntry      <span class="comment">// 所有的配置项</span></span><br><span class="line">	confChan         <span class="keyword">chan</span> []common.CollectEntry <span class="comment">// 等待配置的通道</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>程序启动后，需要开启一个协程监听etcd中关于日志收集配置的变化。如果日志收集配置有更改，那么会将新的配置发送到配置管道中，<code>etcd\etcd.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// WatchConf 监控etcd中日志收集配置变化的函数</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">WatchConf</span><span class="params">(key <span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">	wChan := client.Watch(context.Background(), key)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> wResp := <span class="keyword">range</span> wChan &#123;</span><br><span class="line">		logrus.Info(<span class="string">&quot;get new conf from etcd.&quot;</span>)</span><br><span class="line">		<span class="keyword">for</span> _, event := <span class="keyword">range</span> wResp.Events &#123;</span><br><span class="line">			<span class="keyword">var</span> newConfList []common.CollectEntry</span><br><span class="line">			<span class="keyword">if</span> event.Type == clientv3.EventTypeDelete &#123;</span><br><span class="line">				<span class="comment">// 如果是删除</span></span><br><span class="line">				logrus.Warning(<span class="string">&quot;warning! conf has been deleted!&quot;</span>)</span><br><span class="line">				tailfile.PushNewConf(newConfList)</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			err := json.Unmarshal(event.Kv.Value, &amp;newConfList)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Error(<span class="string">&quot;json unmarshal new config failed, err:&quot;</span>, err)</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 将新的配置送入管道</span></span><br><span class="line">			tailfile.PushNewConf(newConfList)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同时对于tail任务的初始化函数也会初始化tailTaskMgr，并且在开启新的tailTask的同时，也会将tailTask的信息记录到tailTaskMgr中。最后开启一个协程，等待新的配置的到来<code>tailfile\tailTask_mgr.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	mgr     *tailTaskMgr</span><br><span class="line">	tailCfg tail.Config</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(confList []common.CollectEntry)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	<span class="comment">// confList中保存了多个日志收集项</span></span><br><span class="line">	<span class="comment">// 针对每一个日志创建一个tailTask</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Tail的配置</span></span><br><span class="line">	tailCfg = tail.Config&#123;</span><br><span class="line">		Location: &amp;tail.SeekInfo&#123; <span class="comment">// 从文件的哪个地方开始读取</span></span><br><span class="line">			Offset: <span class="number">0</span>,</span><br><span class="line">			Whence: os.SEEK_END,</span><br><span class="line">		&#125;,</span><br><span class="line">		ReOpen:    <span class="literal">true</span>,  <span class="comment">// 重新打开文件</span></span><br><span class="line">		MustExist: <span class="literal">false</span>, <span class="comment">// 文件不存在不报错</span></span><br><span class="line">		Follow:    <span class="literal">true</span>,  <span class="comment">// 进行跟随</span></span><br><span class="line">		Poll:      <span class="literal">true</span>,</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 初始化tailTaskMgr</span></span><br><span class="line">	mgr = &amp;tailTaskMgr&#123;</span><br><span class="line">		tailTaskMap:      <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*tailTask, <span class="number">20</span>),</span><br><span class="line">		collectEntryList: confList,</span><br><span class="line">		confChan:         <span class="built_in">make</span>(<span class="keyword">chan</span> []common.CollectEntry),</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> _, conf := <span class="keyword">range</span> confList &#123;</span><br><span class="line">		tt, err := newTailTask(conf)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			logrus.Errorf(<span class="string">&quot;create tailObj for path: %s failed, err: %s\n&quot;</span>, conf.Path, err)</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 将tailTask记录在tailTaskMgr中</span></span><br><span class="line">		mgr.tailTaskMap[tt.path] = &amp;tt</span><br><span class="line">		<span class="comment">// 开始收集日志，发往消息管道中</span></span><br><span class="line">		<span class="keyword">go</span> tt.run()</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 等待新配置到来</span></span><br><span class="line">	<span class="keyword">go</span> mgr.watch()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中<code>func (mgr *tailTaskMgr) watch()</code>方法用于监听新配置的到来：</p>
+<ul>
+<li>对于原来已经有的tailTask，不用变化</li>
+<li>对于原来没有的，新建一个tailTask</li>
+<li>对于原来有，现在新的配置中没有的，要杀死相应的tailTask</li>
+</ul>
+<p>对于杀死协程的办法，这里采用context包的<code>WithCancel</code>方法。同时，需要更改tailTask结构体，向其中添加上下文ctx和取消函数cancel，<code>tailfile\tailTask.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> tailTask <span class="keyword">struct</span> &#123;</span><br><span class="line">	path    <span class="keyword">string</span></span><br><span class="line">	topic   <span class="keyword">string</span></span><br><span class="line">	tailObj *tail.Tail</span><br><span class="line"></span><br><span class="line">	ctx    context.Context</span><br><span class="line">	cancel context.CancelFunc</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同时，在tailTask日志收集时，需要注意上下文是否执行了cancel函数，若执行了cancel函数，则停止对于该文件监听：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 开始收集日志，发往消息管道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *tailTask)</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	logrus.Infof(<span class="string">&quot;collect for path:%s is running...&quot;</span>, t.path)</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-t.ctx.Done():</span><br><span class="line">			<span class="comment">// 执行了cancel函数，结束tailTask结束运行</span></span><br><span class="line">			<span class="comment">// tailObj停止监听文件</span></span><br><span class="line">			logrus.Info(<span class="string">&quot;stop tail for file:&quot;</span>, t.tailObj.Filename)</span><br><span class="line">			t.tailObj.Cleanup()</span><br><span class="line">			t.tailObj.Stop()</span><br><span class="line">			<span class="comment">// 协程返回</span></span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line"></span><br><span class="line">		<span class="keyword">case</span> line, ok := &lt;-t.tailObj.Lines:</span><br><span class="line">			<span class="comment">// 循环读数据</span></span><br><span class="line">			<span class="keyword">if</span> !ok &#123;</span><br><span class="line">				logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, t.tailObj.Filename)</span><br><span class="line">			&#125;</span><br><span class="line">			line.Text = strings.Trim(line.Text, <span class="string">&quot;\r&quot;</span>)</span><br><span class="line">			<span class="keyword">if</span> <span class="built_in">len</span>(line.Text) == <span class="number">0</span> &#123;</span><br><span class="line">				<span class="comment">// 如果是空行，直接略过</span></span><br><span class="line">				logrus.Info(<span class="string">&quot;a empty line, continue!&quot;</span>)</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">			logrus.Infof(<span class="string">&quot;read contents:%s from log file:%s\n&quot;</span>, line.Text, t.tailObj.Filename)</span><br><span class="line">			msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">			msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">			msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">			<span class="comment">// 放到通道中</span></span><br><span class="line">			kafka.PushMsg(msg)</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>最后，<code>tailfile\tailTask_mgr.go</code>中对于新配置的监听函数如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(mgr *tailTaskMgr)</span> <span class="title">watch</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 等待新配置到来</span></span><br><span class="line">		newConf := &lt;-mgr.confChan</span><br><span class="line">		logrus.Info(<span class="string">&quot;get new conf from etcd:&quot;</span>, newConf)</span><br><span class="line">		<span class="comment">//新配置到来后管理之前启动的tailTask</span></span><br><span class="line">		<span class="keyword">for</span> _, conf := <span class="keyword">range</span> newConf &#123;</span><br><span class="line">			<span class="comment">// 原来已经有的tailTask，不用变化</span></span><br><span class="line">			<span class="keyword">if</span> _, ok := mgr.tailTaskMap[conf.Path]; ok &#123;</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line"></span><br><span class="line">			<span class="comment">// 原来没有的新建一个tailTask</span></span><br><span class="line">			tt, err := newTailTask(conf)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Errorf(<span class="string">&quot;create tailObj for path: %s failed, err: %s\n&quot;</span>, conf.Path, err)</span><br><span class="line">				<span class="keyword">continue</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 将tailTask记录在tailTaskMgr中</span></span><br><span class="line">			mgr.tailTaskMap[tt.path] = &amp;tt</span><br><span class="line">			<span class="comment">// 开始收集日志，发往消息管道中</span></span><br><span class="line">			<span class="keyword">go</span> tt.run()</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 原来有，现在没有的要杀死tailTask</span></span><br><span class="line">		<span class="comment">// 找出tailTaskMap中存在，但是newConf中不存在的tailTask，把他们都停掉</span></span><br><span class="line">		<span class="keyword">for</span> path, task := <span class="keyword">range</span> mgr.tailTaskMap &#123;</span><br><span class="line">			<span class="keyword">var</span> found <span class="keyword">bool</span></span><br><span class="line">			<span class="keyword">for</span> _, conf := <span class="keyword">range</span> newConf &#123;</span><br><span class="line">				<span class="keyword">if</span> path == conf.Path &#123;</span><br><span class="line">					<span class="comment">// 在newConf中找到</span></span><br><span class="line">					found = <span class="literal">true</span></span><br><span class="line">					<span class="keyword">break</span></span><br><span class="line">				&#125;</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> !found &#123;</span><br><span class="line">				<span class="comment">// 若在newConf中没有找到，杀死tailTask</span></span><br><span class="line">				<span class="built_in">delete</span>(mgr.tailTaskMap, path)</span><br><span class="line">				task.cancel()</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>最后进行总结，整体流程如下：</p>
+<ul>
+<li>首先读取配置文件，读取etcd和kafka的配置信息</li>
+<li>kafka的操作：<ul>
+<li>初始化连接kafka</li>
+<li>初始化一个消息管道用于保存向kafka中发送的消息</li>
+<li>起一个协程，监听消息管道，一旦消息管道中有新的消息，就向kafka发送消息</li>
+</ul>
+</li>
+<li>对于etcd的操作：<ul>
+<li>首先初始化etcd连接</li>
+<li>从etcd中根据key拉取日志收集的配置信息</li>
+<li>启动一个协程，监控etcd中的变化日志收集配置信息的变化，若配置信息有变化，则将新的配置信息发送到存放配置信息的管道中</li>
+</ul>
+</li>
+<li>收集日志文件：<ul>
+<li>根据刚开始拉取到的配置文件建立多个tailTask，每个tailTask启动一个协程以实现对多个日志的跟踪</li>
+<li>起一个协程，监听配置信息管道，一旦有新的配置，则进行对tailTask进行相应的管理</li>
+</ul>
+</li>
+</ul>
+<p>所以<code>main.go</code>如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 读配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">	err = cfg.MapTo(configObj)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(configObj)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Kafka</span></span><br><span class="line">	err = kafka.Init([]<span class="keyword">string</span>&#123;configObj.KafkaConfig.Address&#125;, configObj.KafkaConfig.ChanSize)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init kafka failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init kafka success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化etcd</span></span><br><span class="line">	err = etcd.Init([]<span class="keyword">string</span>&#123;configObj.EtcdConfig.Address&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init etcd failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init etcd success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 从etcd中拉取要收集的日志</span></span><br><span class="line">	confList, err := etcd.GetConf(configObj.EtcdConfig.CollectConfKey)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;get conf from etcd failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;get conf from etcd success!&quot;</span>, confList)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 监控etcd中的configObj.EtcdConfig.CollectConfKey对应值得变化</span></span><br><span class="line">	<span class="keyword">go</span> etcd.WatchConf(configObj.EtcdConfig.CollectConfKey)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 根据配置文件中的日志路径使用tail收集日志，初始化tail</span></span><br><span class="line">	err = tailfile.Init(confList)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init tail failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init tail success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">select</span> &#123;&#125; <span class="comment">// 阻塞，防止主进程退出</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/" rel="prev" title="GO语言杂谈 (7) 操作etcd">
+      <i class="fa fa-chevron-left"></i> GO语言杂谈 (7) 操作etcd
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/" rel="next" title="GO语言杂谈 (8) 操作influxDB">
+      GO语言杂谈 (8) 操作influxDB <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%8A%E4%B8%80%E7%89%88%E6%9C%AC%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">1.</span> <span class="nav-text">上一版本的问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">通过etcd管理日志配置</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8Eetcd%E4%B8%AD%E8%AF%BB%E5%8F%96%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%85%8D%E7%BD%AE"><span class="nav-number">2.1.</span> <span class="nav-text">从etcd中读取日志收集配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B9%E6%8D%AE%E9%85%8D%E7%BD%AE%E5%90%AF%E5%8A%A8%E5%A4%9A%E4%B8%AAtailTask"><span class="nav-number">2.2.</span> <span class="nav-text">根据配置启动多个tailTask</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7etcd%E4%B8%AD%E7%9A%84%E6%96%B0%E9%85%8D%E7%BD%AE"><span class="nav-number">2.3.</span> <span class="nav-text">监控etcd中的新配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">2.4.</span> <span class="nav-text">总结</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

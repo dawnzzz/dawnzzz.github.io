@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="项目介绍解析配置文件，进行日志收集首先，初步编写一个logagent：  从配置文件中读取信息。 根据从配置文件中得到的Kafka地址，初始化Kafka生产者： 生产者配置 连接Kafka 初始化消息管道，并且起一个协程，用于从消息管道中读取数据并向Kafka推送消息   根据从配置文件中得到的日志路径，初始化一个tail.Tail对象TailObj。 TailObj从日志中读取数据，封装成msg">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零开始的日志收集项目 (1) 解析配置文件进行日志收集">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="项目介绍解析配置文件，进行日志收集首先，初步编写一个logagent：  从配置文件中读取信息。 根据从配置文件中得到的Kafka地址，初始化Kafka生产者： 生产者配置 连接Kafka 初始化消息管道，并且起一个协程，用于从消息管道中读取数据并向Kafka推送消息   根据从配置文件中得到的日志路径，初始化一个tail.Tail对象TailObj。 TailObj从日志中读取数据，封装成msg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-03-11T03:34:14.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.803Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>从零开始的日志收集项目 (1) 解析配置文件进行日志收集 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          从零开始的日志收集项目 (1) 解析配置文件进行日志收集
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-11 11:34:14" itemprop="dateCreated datePublished" datetime="2022-03-11T11:34:14+08:00">2022-03-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="项目介绍"><a href="#项目介绍" class="headerlink" title="项目介绍"></a>项目介绍</h1><h1 id="解析配置文件，进行日志收集"><a href="#解析配置文件，进行日志收集" class="headerlink" title="解析配置文件，进行日志收集"></a>解析配置文件，进行日志收集</h1><p>首先，初步编写一个<code>logagent</code>：</p>
+<ol>
+<li>从配置文件中读取信息。</li>
+<li>根据从配置文件中得到的Kafka地址，初始化Kafka生产者：<ul>
+<li>生产者配置</li>
+<li>连接Kafka</li>
+<li>初始化消息管道，并且起一个协程，用于从消息管道中读取数据并向Kafka推送消息</li>
+</ul>
+</li>
+<li>根据从配置文件中得到的日志路径，初始化一个<code>tail.Tail</code>对象<code>TailObj</code>。</li>
+<li><code>TailObj</code>从日志中读取数据，封装成msg送入消息管道。协程从消息管道中取出数据并发送给Kafka</li>
+</ol>
+<h2 id="读取配置文件"><a href="#读取配置文件" class="headerlink" title="读取配置文件"></a>读取配置文件</h2><p>配置文件<code>conf/config.ini</code>：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[collect]</span></span><br><span class="line"><span class="comment"># 日志文件存放路径</span></span><br><span class="line"><span class="attr">logfile_path</span> = F:\gopath\src\logagent\logs\<span class="number">1</span>.log</span><br></pre></td></tr></table></figure>
+
+<p>读取配置文件：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 读配置文件</span></span><br><span class="line">cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">err = cfg.MapTo(configObj)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化Kafka生产者"><a href="#初始化Kafka生产者" class="headerlink" title="初始化Kafka生产者"></a>初始化Kafka生产者</h2><p><code>kafka/kafka.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> kafka</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// kafka相关操作</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	Client  sarama.SyncProducer</span><br><span class="line">	MsgChan <span class="keyword">chan</span> *sarama.ProducerMessage</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(address []<span class="keyword">string</span>, chanSize <span class="keyword">int</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 生产者配置</span></span><br><span class="line">	config := sarama.NewConfig()</span><br><span class="line">	config.Producer.RequiredAcks = sarama.WaitForAll          <span class="comment">// 等待leader和follow都确认</span></span><br><span class="line">	config.Producer.Partitioner = sarama.NewRandomPartitioner <span class="comment">// 分区</span></span><br><span class="line">	config.Producer.Return.Successes = <span class="literal">true</span>                   <span class="comment">// 确认</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 连接kafka</span></span><br><span class="line">	Client, err = sarama.NewSyncProducer(address, config)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;kafka: producer closed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 初始化消息管道</span></span><br><span class="line">	MsgChan = <span class="built_in">make</span>(<span class="keyword">chan</span> *sarama.ProducerMessage, chanSize)</span><br><span class="line">	<span class="comment">// 起一个协程向kafka发送数据</span></span><br><span class="line">	<span class="keyword">go</span> sendMsg()</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 从MsgChan中读取msg，发送给kafka</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sendMsg</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> msg := &lt;-MsgChan:</span><br><span class="line">			pid, offser, err := Client.SendMessage(msg)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Warn(<span class="string">&quot;send msg failed, err:&quot;</span>, err)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			logrus.Infof(<span class="string">&quot;send msg to kafka success. pid=%v offset=%v&quot;</span>, pid, offser)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化tail-Tail对象"><a href="#初始化tail-Tail对象" class="headerlink" title="初始化tail.Tail对象"></a>初始化tail.Tail对象</h2><p><code>tailfile.tailfile.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> tailfile</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/hpcloud/tail&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">	<span class="string">&quot;os&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	TailObj *tail.Tail</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(fileName <span class="keyword">string</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	TailObj, err = tail.TailFile(fileName, tail.Config&#123;</span><br><span class="line">		Location: &amp;tail.SeekInfo&#123; <span class="comment">// 从文件的哪个地方开始读取</span></span><br><span class="line">			Offset: <span class="number">0</span>,</span><br><span class="line">			Whence: os.SEEK_END,</span><br><span class="line">		&#125;,</span><br><span class="line">		ReOpen:    <span class="literal">true</span>,  <span class="comment">// 重新打开文件</span></span><br><span class="line">		MustExist: <span class="literal">false</span>, <span class="comment">// 文件不存在不报错</span></span><br><span class="line">		Follow:    <span class="literal">true</span>,  <span class="comment">// 进行跟随</span></span><br><span class="line">		Poll:      <span class="literal">true</span>,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Errorf(<span class="string">&quot;tailfile: create tailObj for path %s failed, err: %v\n&quot;</span>, fileName, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="TailObj从日志中读取数据，送入消息管道"><a href="#TailObj从日志中读取数据，送入消息管道" class="headerlink" title="TailObj从日志中读取数据，送入消息管道"></a>TailObj从日志中读取数据，送入消息管道</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		line, ok := &lt;-tailfile.TailObj.Lines</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, tailfile.TailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		fmt.Println(line.Text)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.MsgChan &lt;- msg</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="总结："><a href="#总结：" class="headerlink" title="总结："></a>总结：</h2><p>所以<code>main.go</code>中的流程为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/go-ini/ini&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">	<span class="string">&quot;logagent/kafka&quot;</span></span><br><span class="line">	<span class="string">&quot;logagent/tailfile&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 日志收集的客户端</span></span><br><span class="line"><span class="comment">// 收集指定目录下的日志文件，发送到kafka中</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	KafkaConfig   <span class="string">`ini:&quot;kafka&quot;`</span></span><br><span class="line">	CollectConfig <span class="string">`ini:&quot;collect&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address  <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">	Topic    <span class="keyword">string</span> <span class="string">`ini:&quot;topic&quot;`</span></span><br><span class="line">	ChanSize <span class="keyword">int</span>    <span class="string">`int:&quot;chan_size&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">type</span> CollectConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	LogFilePath <span class="keyword">string</span> <span class="string">`ini:&quot;logfile_path&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 真正业务逻辑</span></span><br><span class="line"><span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		line, ok := &lt;-tailfile.TailObj.Lines</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, tailfile.TailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		fmt.Println(line.Text)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.MsgChan &lt;- msg</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 读配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">	err = cfg.MapTo(configObj)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(configObj)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Kafka</span></span><br><span class="line">	err = kafka.Init([]<span class="keyword">string</span>&#123;configObj.KafkaConfig.Address&#125;, configObj.KafkaConfig.ChanSize)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init kafka failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init kafka success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 根据配置文件中的日志路径使用tail收集日志，初始化tail</span></span><br><span class="line">	err = tailfile.Init(configObj.CollectConfig.LogFilePath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init tail failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init tail success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 把日志发往kafka</span></span><br><span class="line">	<span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line">	run()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/" rel="prev" title="GO语言杂谈 (5) tail包的使用">
+      <i class="fa fa-chevron-left"></i> GO语言杂谈 (5) tail包的使用
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/" rel="next" title="GO语言杂谈 (6) go-ini的使用">
+      GO语言杂谈 (6) go-ini的使用 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%A1%B9%E7%9B%AE%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">项目介绍</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%EF%BC%8C%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86"><span class="nav-number">2.</span> <span class="nav-text">解析配置文件，进行日志收集</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%BB%E5%8F%96%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="nav-number">2.1.</span> <span class="nav-text">读取配置文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96Kafka%E7%94%9F%E4%BA%A7%E8%80%85"><span class="nav-number">2.2.</span> <span class="nav-text">初始化Kafka生产者</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96tail-Tail%E5%AF%B9%E8%B1%A1"><span class="nav-number">2.3.</span> <span class="nav-text">初始化tail.Tail对象</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TailObj%E4%BB%8E%E6%97%A5%E5%BF%97%E4%B8%AD%E8%AF%BB%E5%8F%96%E6%95%B0%E6%8D%AE%EF%BC%8C%E9%80%81%E5%85%A5%E6%B6%88%E6%81%AF%E7%AE%A1%E9%81%93"><span class="nav-number">2.4.</span> <span class="nav-text">TailObj从日志中读取数据，送入消息管道</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9A"><span class="nav-number">2.5.</span> <span class="nav-text">总结：</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

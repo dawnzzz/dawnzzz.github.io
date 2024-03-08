@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Hash 表KV 内存数据库的核心是并发安全的哈希表，godis 采用分段锁策略。将 key 分散到固定数量的 shard 中，在一个 shard 内的读写操作不会阻塞其他 shard 内的操作。 数据结构定义 Dict 接口，该接口表示一个哈希表的操作： 1234567891011121314151617&#x2F;&#x2F; Consumer is used to traversal dict, if it r">
+<meta property="og:type" content="article">
+<meta property="og:title" content="godis源码阅读 (3) 存储数据结构之Hash表和LockMap">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Hash 表KV 内存数据库的核心是并发安全的哈希表，godis 采用分段锁策略。将 key 分散到固定数量的 shard 中，在一个 shard 内的读写操作不会阻塞其他 shard 内的操作。 数据结构定义 Dict 接口，该接口表示一个哈希表的操作： 1234567891011121314151617&#x2F;&#x2F; Consumer is used to traversal dict, if it r">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-01-06T11:58:52.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.795Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>godis源码阅读 (3) 存储数据结构之Hash表和LockMap | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          godis源码阅读 (3) 存储数据结构之Hash表和LockMap
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-06 19:58:52" itemprop="dateCreated datePublished" datetime="2023-01-06T19:58:52+08:00">2023-01-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Hash-表"><a href="#Hash-表" class="headerlink" title="Hash 表"></a>Hash 表</h1><p>KV 内存数据库的核心是并发安全的哈希表，godis 采用<strong>分段锁</strong>策略。<strong>将 key 分散到固定数量的 shard 中，在一个 shard 内的读写操作不会阻塞其他 shard 内的操作</strong>。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>定义 Dict 接口，该接口表示一个哈希表的操作：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Consumer is used to traversal dict, if it returns false the traversal will be break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Dict is interface of a key-value data structure</span></span><br><span class="line"><span class="keyword">type</span> Dict <span class="keyword">interface</span> &#123;</span><br><span class="line">   Get(key <span class="keyword">string</span>) (val <span class="keyword">interface</span>&#123;&#125;, exists <span class="keyword">bool</span>)</span><br><span class="line">   Len() <span class="keyword">int</span></span><br><span class="line">   Put(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">   PutIfAbsent(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">   PutIfExists(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">   Remove(key <span class="keyword">string</span>) (result <span class="keyword">int</span>)</span><br><span class="line">   ForEach(consumer Consumer)</span><br><span class="line">   Keys() []<span class="keyword">string</span></span><br><span class="line">   RandomKeys(limit <span class="keyword">int</span>) []<span class="keyword">string</span></span><br><span class="line">   RandomDistinctKeys(limit <span class="keyword">int</span>) []<span class="keyword">string</span></span><br><span class="line">   Clear()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>定义 ConcurrentDict 实现了 Dict 接口，ConcurrentDict 为并发安全的哈希表。<strong>将 key 映射到不同的 shard 中，不同 shard 上的操作是不会相互影响的</strong>，提高了<strong>并发性</strong>。</p>
+<blockquote>
+<p>注意，这里 shard 的数量恒为 2 的整数幂。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ConcurrentDict is thread safe map using sharding lock</span></span><br><span class="line"><span class="keyword">type</span> ConcurrentDict <span class="keyword">struct</span> &#123;</span><br><span class="line">   table      []*shard</span><br><span class="line">   count      <span class="keyword">int32</span></span><br><span class="line">   shardCount <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> shard <span class="keyword">struct</span> &#123;</span><br><span class="line">   m     <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">   mutex sync.RWMutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="定位-shard"><a href="#定位-shard" class="headerlink" title="定位 shard"></a>定位 shard</h2><p>将 key 映射为 shard 的哈希函数采用 FNV 算法。</p>
+<blockquote>
+<p><strong>FNV 能快速 hash 大量数据并保持较小的冲突率</strong>，它的高度分散使它<strong>适用于 hash 一些非常相近的字符串</strong>。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> prime32 = <span class="keyword">uint32</span>(<span class="number">16777619</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">fnv32</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="title">uint32</span></span> &#123;</span><br><span class="line">   hash := <span class="keyword">uint32</span>(<span class="number">2166136261</span>)</span><br><span class="line">   <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="built_in">len</span>(key); i++ &#123;</span><br><span class="line">      hash *= prime32</span><br><span class="line">      hash ^= <span class="keyword">uint32</span>(key[i])</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> hash</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>依据 key 的哈希值定位 shard（确定 shard 的 index），<strong>当 n 为 2 的整数幂时</strong> <code>h % n == (n - 1) &amp; h</code>。</p>
+<ul>
+<li>spread 方法根据哈希值，返回 shard 的下标。</li>
+<li>getShard 方法根据下标值，返回对应的 shard。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(dict *ConcurrentDict)</span> <span class="title">spread</span><span class="params">(hashCode <span class="keyword">uint32</span>)</span> <span class="title">uint32</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> dict == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="built_in">panic</span>(<span class="string">&quot;dict is nil&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">   tableSize := <span class="keyword">uint32</span>(<span class="built_in">len</span>(dict.table))</span><br><span class="line">   <span class="keyword">return</span> (tableSize - <span class="number">1</span>) &amp; hashCode</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(dict *ConcurrentDict)</span> <span class="title">getShard</span><span class="params">(index <span class="keyword">uint32</span>)</span> *<span class="title">shard</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> dict == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="built_in">panic</span>(<span class="string">&quot;dict is nil&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> dict.table[index]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Get-和-Put-方法"><a href="#Get-和-Put-方法" class="headerlink" title="Get 和 Put 方法"></a>Get 和 Put 方法</h2><p>以 Get 和 Put 方法为例，阅读 ConcurrentDict 的实现。</p>
+<h3 id="Get"><a href="#Get" class="headerlink" title="Get"></a>Get</h3><p>Get 方法用于查询数据，给定一个 key，返回对应的值。其流程为：</p>
+<ul>
+<li>计算 key 的哈希值，根据<strong>哈希值找到对应的 shard</strong>。</li>
+<li>对这个 shard 上<strong>读锁</strong>，在 map 中查询数据。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Get returns the binding value and whether the key is exist</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(dict *ConcurrentDict)</span> <span class="title">Get</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="params">(val <span class="keyword">interface</span>&#123;&#125;, exists <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> dict == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="built_in">panic</span>(<span class="string">&quot;dict is nil&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">   hashCode := fnv32(key)</span><br><span class="line">   index := dict.spread(hashCode)</span><br><span class="line">   s := dict.getShard(index)</span><br><span class="line">   s.mutex.RLock()</span><br><span class="line">   <span class="keyword">defer</span> s.mutex.RUnlock()</span><br><span class="line">   val, exists = s.m[key]</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Put"><a href="#Put" class="headerlink" title="Put"></a>Put</h3><p>Put 方法用于插入数据，给定 key 和 value 将键值对插入到某一个 shard 的 map 中。其流程为：</p>
+<ul>
+<li>计算 key 的哈希值，根据<strong>哈希值找到对应的 shard</strong>。</li>
+<li>对这个 shard 上<strong>写锁</strong>，在 map 中写入键值对。</li>
+<li>新增数据返回 1，更新数据返回 0。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Put puts key value into dict and returns the number of new inserted key-value</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(dict *ConcurrentDict)</span> <span class="title">Put</span><span class="params">(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;)</span> <span class="params">(result <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> dict == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="built_in">panic</span>(<span class="string">&quot;dict is nil&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">   hashCode := fnv32(key)</span><br><span class="line">   index := dict.spread(hashCode)</span><br><span class="line">   s := dict.getShard(index)</span><br><span class="line">   s.mutex.Lock()</span><br><span class="line">   <span class="keyword">defer</span> s.mutex.Unlock()</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> _, ok := s.m[key]; ok &#123;</span><br><span class="line">      s.m[key] = val</span><br><span class="line">      <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">   &#125;</span><br><span class="line">   dict.addCount()</span><br><span class="line">   s.m[key] = val</span><br><span class="line">   <span class="keyword">return</span> <span class="number">1</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="LockMap"><a href="#LockMap" class="headerlink" title="LockMap"></a>LockMap</h1><p><strong>ConcurrentDict 可以保证单个 key 操作的并发安全性</strong>，但是仍无法满足需求。</p>
+<blockquote>
+<p>比如：</p>
+<ul>
+<li>INCR 命令需要完成：读取、做加法、写入，这三步操作。</li>
+<li>MSETNX 命令当且仅当所有给定键都不存在时所有给定键设置值，因此需要锁定所有给定的键直到完成所有键的检查和设置。</li>
+</ul>
+</blockquote>
+<p>因此，需要实现 LockMap，用于锁定一个或者一组 key。</p>
+<h2 id="数据结构-1"><a href="#数据结构-1" class="headerlink" title="数据结构"></a>数据结构</h2><p>多个键可以共用一个哈希槽（这里的哈希槽 shard 仅仅指逻辑上的概念，不存储数据仅仅是锁，与 ConcurrentDict shard 并不是一一对应的），不为单个 key 加锁而是<strong>为它所在的哈希槽加锁</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Locks provides rw locks for key</span></span><br><span class="line"><span class="keyword">type</span> Locks <span class="keyword">struct</span> &#123;</span><br><span class="line">   table []*sync.RWMutex</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Make creates a new lock map</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Make</span><span class="params">(tableSize <span class="keyword">int</span>)</span> *<span class="title">Locks</span></span> &#123;</span><br><span class="line">   table := <span class="built_in">make</span>([]*sync.RWMutex, tableSize)</span><br><span class="line">   <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; tableSize; i++ &#123;</span><br><span class="line">      table[i] = &amp;sync.RWMutex&#123;&#125;</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> &amp;Locks&#123;</span><br><span class="line">      table: table,</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在定位哈希槽时，同样<strong>对 key 做 FNV 哈希函数</strong>之后选择哈希槽。</p>
+<h2 id="为一个-key-加锁"><a href="#为一个-key-加锁" class="headerlink" title="为一个 key 加锁"></a>为一个 key 加锁</h2><p>为一个 key 加锁时非常简单，就是对 key 做哈希之后选择相应的 shard，之后在对应的 shard 上加锁即可。</p>
+<h2 id="锁定多个-key"><a href="#锁定多个-key" class="headerlink" title="锁定多个 key"></a>锁定多个 key</h2><p>在锁定多个 key 时，<strong>所有协程都按照相同顺序加锁</strong>，就可以避免循环等待防止死锁。</p>
+<h3 id="确定加锁顺序"><a href="#确定加锁顺序" class="headerlink" title="确定加锁顺序"></a>确定加锁顺序</h3><p>一次性锁定多个 key 之前，首先确定加锁顺序，这样可以避免死锁。</p>
+<ul>
+<li>对要加锁的<strong>每一个 key 都做哈希函数</strong>，确定其对应的 shard 的下标（这里用 map 实现 set，避免重复的下标）。</li>
+<li>对<strong>下标进行排序</strong>，即可得到一个确定的加锁顺序。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(locks *Locks)</span> <span class="title">toLockIndices</span><span class="params">(keys []<span class="keyword">string</span>, reverse <span class="keyword">bool</span>)</span> []<span class="title">uint32</span></span> &#123;</span><br><span class="line">   indexMap := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">uint32</span>]<span class="keyword">bool</span>)</span><br><span class="line">   <span class="keyword">for</span> _, key := <span class="keyword">range</span> keys &#123;</span><br><span class="line">      index := locks.spread(fnv32(key))</span><br><span class="line">      indexMap[index] = <span class="literal">true</span></span><br><span class="line">   &#125;</span><br><span class="line">   indices := <span class="built_in">make</span>([]<span class="keyword">uint32</span>, <span class="number">0</span>, <span class="built_in">len</span>(indexMap))</span><br><span class="line">   <span class="keyword">for</span> index := <span class="keyword">range</span> indexMap &#123;</span><br><span class="line">      indices = <span class="built_in">append</span>(indices, index)</span><br><span class="line">   &#125;</span><br><span class="line">   sort.Slice(indices, <span class="function"><span class="keyword">func</span><span class="params">(i, j <span class="keyword">int</span>)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">      <span class="keyword">if</span> !reverse &#123;</span><br><span class="line">         <span class="keyword">return</span> indices[i] &lt; indices[j]</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">return</span> indices[i] &gt; indices[j]</span><br><span class="line">   &#125;)</span><br><span class="line">   <span class="keyword">return</span> indices</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="为多个-key-加读写锁"><a href="#为多个-key-加读写锁" class="headerlink" title="为多个 key 加读写锁"></a>为多个 key 加读写锁</h3><p>确定了加锁顺序之后，就可以为多个 key 加锁了。这里以加读写锁为例进行讲解：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(locks *Locks)</span> <span class="title">RWLocks</span><span class="params">(writeKeys []<span class="keyword">string</span>, readKeys []<span class="keyword">string</span>)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>首先不管是需要读的 key，还是需要写的 key，全部<strong>计算出加锁顺序</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">keys := <span class="built_in">append</span>(writeKeys, readKeys...)</span><br><span class="line">indices := locks.toLockIndices(keys, <span class="literal">false</span>)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着得到<strong>需要加写锁的 shard 下标</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">writeIndexSet := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">uint32</span>]<span class="keyword">struct</span>&#123;&#125;)</span><br><span class="line"><span class="keyword">for</span> _, wKey := <span class="keyword">range</span> writeKeys &#123;</span><br><span class="line">   idx := locks.spread(fnv32(wKey))</span><br><span class="line">   writeIndexSet[idx] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>按照顺序加锁</strong>，检查这个 shard 是否需要加上写锁，如果需要就加写锁否则加上读锁。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> _, index := <span class="keyword">range</span> indices &#123;</span><br><span class="line">   _, w := writeIndexSet[index]</span><br><span class="line">   mu := locks.table[index]</span><br><span class="line">   <span class="keyword">if</span> w &#123;</span><br><span class="line">      mu.Lock()</span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      mu.RLock()</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="为多个-key-解读写锁"><a href="#为多个-key-解读写锁" class="headerlink" title="为多个 key 解读写锁"></a>为多个 key 解读写锁</h3><p>这里以解读写锁为例进行讲解：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(locks *Locks)</span> <span class="title">RWUnLocks</span><span class="params">(writeKeys []<span class="keyword">string</span>, readKeys []<span class="keyword">string</span>)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>首先不管是需要读的 key，还是需要写的 key，<strong>全部计算出解锁顺序（解锁顺序与加锁顺序相反）</strong>。</li>
+<li>接着得到<strong>需要解写锁的 shard 下标</strong>。</li>
+<li><strong>按照顺序解锁</strong>，检查这个 shard 是否需要解开写锁，如果需要就解写锁否则解读锁。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/" rel="prev" title="godis源码阅读 (2) Redis协议解析器">
+      <i class="fa fa-chevron-left"></i> godis源码阅读 (2) Redis协议解析器
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/" rel="next" title="godis源码阅读 (4) 存储数据结构之List和SortedSet">
+      godis源码阅读 (4) 存储数据结构之List和SortedSet <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Hash-%E8%A1%A8"><span class="nav-number">1.</span> <span class="nav-text">Hash 表</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E4%BD%8D-shard"><span class="nav-number">1.2.</span> <span class="nav-text">定位 shard</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Get-%E5%92%8C-Put-%E6%96%B9%E6%B3%95"><span class="nav-number">1.3.</span> <span class="nav-text">Get 和 Put 方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Get"><span class="nav-number">1.3.1.</span> <span class="nav-text">Get</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Put"><span class="nav-number">1.3.2.</span> <span class="nav-text">Put</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#LockMap"><span class="nav-number">2.</span> <span class="nav-text">LockMap</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-1"><span class="nav-number">2.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%B8%80%E4%B8%AA-key-%E5%8A%A0%E9%94%81"><span class="nav-number">2.2.</span> <span class="nav-text">为一个 key 加锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%94%81%E5%AE%9A%E5%A4%9A%E4%B8%AA-key"><span class="nav-number">2.3.</span> <span class="nav-text">锁定多个 key</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A1%AE%E5%AE%9A%E5%8A%A0%E9%94%81%E9%A1%BA%E5%BA%8F"><span class="nav-number">2.3.1.</span> <span class="nav-text">确定加锁顺序</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E5%A4%9A%E4%B8%AA-key-%E5%8A%A0%E8%AF%BB%E5%86%99%E9%94%81"><span class="nav-number">2.3.2.</span> <span class="nav-text">为多个 key 加读写锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E5%A4%9A%E4%B8%AA-key-%E8%A7%A3%E8%AF%BB%E5%86%99%E9%94%81"><span class="nav-number">2.3.3.</span> <span class="nav-text">为多个 key 解读写锁</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

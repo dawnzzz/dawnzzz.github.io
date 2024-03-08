@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Constituency ParsingConstituency Parsing 就是：  找出一段 text span 作为 constituents  每一个 constituents 都有一个标签     对于每一个单词都是一个 constituent（标签为这个单词的词性） 相邻的 constituent 可以组成一个更大的 constituent 一句话的所有单词，从底向上，可以组成一棵">
+<meta property="og:type" content="article">
+<meta property="og:title" content="NLP学习笔记 (6) Parsing">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/06/22/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Constituency ParsingConstituency Parsing 就是：  找出一段 text span 作为 constituents  每一个 constituents 都有一个标签     对于每一个单词都是一个 constituent（标签为这个单词的词性） 相邻的 constituent 可以组成一个更大的 constituent 一句话的所有单词，从底向上，可以组成一棵">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655892270551.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655892544642.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655893866459.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894066479.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894315635.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894356049.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894496403.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894898468.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1656986928287.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1656987793280.png">
+<meta property="article:published_time" content="2022-06-22T09:35:05.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.783Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="深度学习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655892270551.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/06/22/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>NLP学习笔记 (6) Parsing | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/06/22/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          NLP学习笔记 (6) Parsing
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-06-22 17:35:05" itemprop="dateCreated datePublished" datetime="2022-06-22T17:35:05+08:00">2022-06-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">NLP学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Constituency-Parsing"><a href="#Constituency-Parsing" class="headerlink" title="Constituency Parsing"></a>Constituency Parsing</h1><p><strong>Constituency Parsing 就是：</strong></p>
+<ul>
+<li><p>找出一段 text span 作为 <strong>constituents</strong></p>
+</li>
+<li><p>每一个 constituents 都有一个<strong>标签</strong></p>
+</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655892270551.png" alt="1655892270551"></p>
+<ul>
+<li>对于<strong>每一个单词</strong>都是一个 constituent（标签为这个单词的词性）</li>
+<li><strong>相邻的 constituent</strong> 可以组成一个<strong>更大</strong>的 constituent</li>
+<li>一句话的所有单词，从底向上，可以组成一棵树</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655892544642.png" alt="1655892544642"></p>
+<h2 id="Chart-based"><a href="#Chart-based" class="headerlink" title="Chart-based"></a>Chart-based</h2><p>Chart-based 方法实际上就是<strong>对每一个 span 进行两次分类</strong>：</p>
+<ul>
+<li>放入<strong>二分类</strong>：判断<strong>是否是</strong> constituent</li>
+<li>放入<strong>多分类</strong>：constituent 属于哪一个<strong>标签</strong></li>
+</ul>
+<p>下图是 Chart-based 的结构，其中 <strong>Span Feature Extraction 与 Coreference Resolution 中的一样</strong>。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655893866459.png" alt="1655893866459"></p>
+<hr>
+<p>需要注意的是，对于 span 的选择可能会产生<strong>矛盾</strong>，比如两个<strong>重合</strong>的 span 都被判断出是 constituent，那么就无法组成一棵树。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894066479.png" alt="1655894066479"></p>
+<p><strong>解决方法就是</strong>，<strong>穷举出所有可能性的树</strong>，然后对每一棵树进行评分，选取评分最高的树。</p>
+<h2 id="Transition-based"><a href="#Transition-based" class="headerlink" title="Transition-based"></a>Transition-based</h2><p>Transition-based 中由三个部分组成：</p>
+<ul>
+<li><strong>Stack</strong>：初始为空。</li>
+<li><strong>Buffer</strong>：初始存放整个句子。</li>
+<li><strong>Actions</strong>：包括三种操作<ul>
+<li>NT (X)：创建一个带有 X 标签的 constituent</li>
+<li>SHIFT：将一个 token 从 Buffer 移动到 Stack 中</li>
+<li>REDUCE：结束一个 constituent</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894315635.png" alt="1655894315635"></p>
+<p>实际上，我们需要训练一个<strong>分类模型</strong>，用于输出 Actions。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894356049.png" alt="1655894356049"></p>
+<h2 id="Tree-to-Sequence"><a href="#Tree-to-Sequence" class="headerlink" title="Tree to Sequence"></a>Tree to Sequence</h2><p>甚至，我们可以利用 <strong>Seq2seq Model</strong>，将语法树变为一个 Sequence，比如：</p>
+<p>对树进行<strong>遍历</strong>，得到遍历序列，这个遍历序列就是 Sequence。需要注意的是，这个模型不需要输出单词（因为可能会改变输入的句子），可以用 XX 表示输入的一个单词。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894496403.png" alt="1655894496403"></p>
+<h1 id="Dependency-Parsing"><a href="#Dependency-Parsing" class="headerlink" title="Dependency Parsing"></a>Dependency Parsing</h1><p>Constituency Parsing 考虑的是一个句子中，相邻单词的关系。</p>
+<p><strong>Dependency Parsing</strong> 考虑的是任意<strong>两个单词（不需要相邻）</strong>的关系，用箭头表示这种关系（标签为关系的类别），起始为 head，结束为 dependent。</p>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1655894898468.png" alt="1655894898468"></p>
+<p>Dependency Parsing就是将一句话变为有向图（Directed Graph，实际上也是一棵树），word 变为 node，关系变为 edge。</p>
+<ul>
+<li>所有 word 只有一个入边（除去 ROOT）。</li>
+<li>从每一个 word 到 ROOT 有唯一的一条路径。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1656986928287.png" alt="1656986928287"></p>
+<p>核心方法就是：两个<strong>分类器</strong>，输入是两个 word。</p>
+<ul>
+<li>判断左边是否指向右边。</li>
+<li>判断属于哪一种关系。</li>
+</ul>
+<p><img src="/../images/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Parsing/1656987793280.png" alt="1656987793280"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/" rel="tag"># 深度学习</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/06/20/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E8%87%AA%E6%B3%A8%E6%84%8F%E5%8A%9B%E6%9C%BA%E5%88%B6%E5%92%8CTransformer/" rel="prev" title="NLP学习笔记 (5) 自注意力机制和Transformer">
+      <i class="fa fa-chevron-left"></i> NLP学习笔记 (5) 自注意力机制和Transformer
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/07/07/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-CNN%E4%B8%8ERNN/" rel="next" title="NLP学习笔记 (7) CNN与RNN">
+      NLP学习笔记 (7) CNN与RNN <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Constituency-Parsing"><span class="nav-number">1.</span> <span class="nav-text">Constituency Parsing</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Chart-based"><span class="nav-number">1.1.</span> <span class="nav-text">Chart-based</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Transition-based"><span class="nav-number">1.2.</span> <span class="nav-text">Transition-based</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Tree-to-Sequence"><span class="nav-number">1.3.</span> <span class="nav-text">Tree to Sequence</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Dependency-Parsing"><span class="nav-number">2.</span> <span class="nav-text">Dependency Parsing</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

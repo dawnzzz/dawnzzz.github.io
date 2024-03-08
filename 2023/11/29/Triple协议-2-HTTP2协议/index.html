@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="gRPC 仅支持 HTTP 2 协议，而 Triple 协议不仅仅支持 HTTP 2，还支持 HTTP 1，下面介绍 HTTP 2 协议。 为什么提出 HTTP 2既然已经出现了 HTTP 1.0、 HTTP 1.1，为什么要提出 HTTP 2，这就不得不说一下 HTTP 1.X 的缺陷。 HTTP 1.X 的缺陷HTTP 1.X 主要有两个缺陷：  Header 巨大。 并发能力差。  Head">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triple协议 (2) HTTP2协议">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/11/29/Triple%E5%8D%8F%E8%AE%AE-2-HTTP2%E5%8D%8F%E8%AE%AE/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="gRPC 仅支持 HTTP 2 协议，而 Triple 协议不仅仅支持 HTTP 2，还支持 HTTP 1，下面介绍 HTTP 2 协议。 为什么提出 HTTP 2既然已经出现了 HTTP 1.0、 HTTP 1.1，为什么要提出 HTTP 2，这就不得不说一下 HTTP 1.X 的缺陷。 HTTP 1.X 的缺陷HTTP 1.X 主要有两个缺陷：  Header 巨大。 并发能力差。  Head">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-11-29T12:45:16.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.791Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="dubbo-go - 云原生 - triple">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/11/29/Triple%E5%8D%8F%E8%AE%AE-2-HTTP2%E5%8D%8F%E8%AE%AE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Triple协议 (2) HTTP2协议 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/11/29/Triple%E5%8D%8F%E8%AE%AE-2-HTTP2%E5%8D%8F%E8%AE%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Triple协议 (2) HTTP2协议
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-11-29 20:45:16" itemprop="dateCreated datePublished" datetime="2023-11-29T20:45:16+08:00">2023-11-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>gRPC 仅支持 HTTP 2 协议，而 Triple 协议不仅仅支持 HTTP 2，还支持 HTTP 1，下面介绍 HTTP 2 协议。</p>
+<h1 id="为什么提出-HTTP-2"><a href="#为什么提出-HTTP-2" class="headerlink" title="为什么提出 HTTP 2"></a>为什么提出 HTTP 2</h1><p>既然已经出现了 HTTP 1.0、 HTTP 1.1，为什么要提出 HTTP 2，这就不得不说一下 HTTP 1.X 的缺陷。</p>
+<h2 id="HTTP-1-X-的缺陷"><a href="#HTTP-1-X-的缺陷" class="headerlink" title="HTTP 1.X 的缺陷"></a>HTTP 1.X 的缺陷</h2><p>HTTP 1.X 主要有两个缺陷：</p>
+<ul>
+<li>Header 巨大。</li>
+<li>并发能力差。</li>
+</ul>
+<h3 id="Header-巨大"><a href="#Header-巨大" class="headerlink" title="Header 巨大"></a>Header 巨大</h3><p>每一个 HTTP 1.X 请求和响应都会携带<strong>沉重的 Header</strong>，这些 Header 严重拖慢传输速度。</p>
+<h3 id="并发能力差"><a href="#并发能力差" class="headerlink" title="并发能力差"></a>并发能力差</h3><p>尽管从 HTTP 1.0 到 HTTP 1.1 已经做了很多优化，但远远不够：</p>
+<ul>
+<li><strong>HTTP 1.0：</strong>刚开始是非持久连接，一个 TCP 连接只会发出一个 HTTP 请求。后来提出<strong>持久连接</strong>，但是只能等待上一个请求的响应回来了，才能发出下一个请求；并且<strong>持久连接与压缩是冲突</strong>的。</li>
+<li><strong>HTTP 1.1：</strong>为了解决持久连接和压缩冲突的问题，提出了<strong>分块传输</strong>。又<strong>提出了 pipeline 模式</strong>，允许请求方一口气并发多个请求，但是<strong>响应需要按照请求的顺序排列</strong>，所以普及率不高。</li>
+</ul>
+<p>但是访问一个页面需要发出很多请求（css、js、img 等），如果让请求一个个串行执行，那页面的渲染会变得极慢。于是只能<strong>同时创建多个 TCP 连接，实现并发下载数据</strong>，快速渲染出页面。这会给浏览器造成较大的资源消耗，电脑会变卡。很多浏览器为了兼顾下载速度和资源消耗，会对<strong>同一个域名限制并发的 TCP 连接数量</strong>，如 Chrome 是 6 个左右，剩下的请求则需要排队。</p>
+<blockquote>
+<p><strong>为了避开这个数量限制</strong>，可以将图片、css、js 等资源放在不同域名下（或者二级域名），避开排队导致的渲染延迟。快速下载的目标实现了，但这会<strong>消耗更多的资源</strong>，背后都是高昂的带宽、CDN 成本。</p>
+</blockquote>
+<h2 id="HTTP-2-的提出"><a href="#HTTP-2-的提出" class="headerlink" title="HTTP 2 的提出"></a>HTTP 2 的提出</h2><p>HTTP 2 的提出就是为了低成本、快速传输，主要做了以下几点：</p>
+<ul>
+<li>HTTP 2 未改变 HTTP 协议的语义，只是在传输上做了优化。</li>
+<li>引入<strong>帧、流</strong>的概念，在一个域名下只有一个 TCP 连接，借助帧、流可以实现<strong>多路复用</strong>，降低资源消耗。</li>
+<li>引入<strong>头部压缩</strong>，降低 Header 的空间，提高传输速度。</li>
+</ul>
+<span id="more"></span>
+
+<h1 id="HTTP-2-特性"><a href="#HTTP-2-特性" class="headerlink" title="HTTP 2 特性"></a>HTTP 2 特性</h1><p>HTTP 2 的核心就是头部压缩和多路复用。</p>
+<h2 id="头部压缩"><a href="#头部压缩" class="headerlink" title="头部压缩"></a>头部压缩</h2><p>提出了 HPACK 2，以<strong>索引表（index，Header，Value）</strong>的方式进行头部压缩，主要是两种方式：</p>
+<ul>
+<li><strong>静态表：</strong>将<strong>高频</strong>使用的 Header 制成静态表，静态表是<strong>协议级别的约定</strong>，是不变的内容</li>
+<li><strong>动态表：</strong>可以动态的在表中<strong>添加 Header 和 Value</strong>，添加时可以采用<strong>哈夫曼编码</strong>，是当前 TCP 连接中协商的结果。</li>
+</ul>
+<h2 id="多路复用"><a href="#多路复用" class="headerlink" title="多路复用"></a>多路复用</h2><p>HTTP 2 提出了<strong>流和帧</strong>的概念，每一次请求对应一个流，有一个<strong>唯一 ID</strong>，用来区分不同的请求；一个流被分成多个帧，这样不同帧根据流 ID 的不同，就可以<strong>在一个 TCP 连接上多路复用</strong>，多个请求和响应数据穿插在一个 TCP 连接上。</p>
+<h3 id="帧类型"><a href="#帧类型" class="headerlink" title="帧类型"></a>帧类型</h3><p>HTTP 2 中均以帧进行传输，同时有多种帧的类型，包括：</p>
+<ul>
+<li><strong>HEADERS：</strong>帧仅包含 HTTP Header 信息。</li>
+<li><strong>DATA：</strong>帧包含消息的所有或部分请求数据。</li>
+<li>PRIORITY：指定分配给流的优先级，服务方可先处理高优先请求。</li>
+<li>RST_STREAM：错误通知，终止某个流。</li>
+<li><strong>SETTINGS：</strong>指定连接配置。流 ID 为 0，会 ACK。</li>
+<li>PUSH_PROMISE：通知一个将资源推送到客户端的意图。</li>
+<li>PING：检测信号和往返时间。流 ID为0，会 ACK。</li>
+<li>GOAWAY：停止为当前连接生成流的停止通知。</li>
+<li>WINDOW_UPDATE：用于流控制，约定发送窗口大小。</li>
+<li>CONTINUATION：用于继续传送 Header 片段序列。</li>
+</ul>
+<p>所以一次 HTTP 2 的流程：</p>
+<ul>
+<li>通过一个或者多个 SETTINGS 帧配置连接，进行约定。</li>
+<li>请求方发送 HEADERS 帧，发送 DATA 帧。</li>
+<li>服务方返回 HEADERS 帧，返回 DATA 帧。</li>
+<li>。。。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/dubbo-go-%E4%BA%91%E5%8E%9F%E7%94%9F-triple/" rel="tag"># dubbo-go - 云原生 - triple</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/11/29/Triple%E5%8D%8F%E8%AE%AE-1-Triple%E5%8D%8F%E8%AE%AE%E7%AE%80%E4%BB%8B/" rel="prev" title="Triple协议 (1) Triple协议简介">
+      <i class="fa fa-chevron-left"></i> Triple协议 (1) Triple协议简介
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/" rel="next" title="Triple协议 (3) gRPC协议">
+      Triple协议 (3) gRPC协议 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%8F%90%E5%87%BA-HTTP-2"><span class="nav-number">1.</span> <span class="nav-text">为什么提出 HTTP 2</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-1-X-%E7%9A%84%E7%BC%BA%E9%99%B7"><span class="nav-number">1.1.</span> <span class="nav-text">HTTP 1.X 的缺陷</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Header-%E5%B7%A8%E5%A4%A7"><span class="nav-number">1.1.1.</span> <span class="nav-text">Header 巨大</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B9%B6%E5%8F%91%E8%83%BD%E5%8A%9B%E5%B7%AE"><span class="nav-number">1.1.2.</span> <span class="nav-text">并发能力差</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-2-%E7%9A%84%E6%8F%90%E5%87%BA"><span class="nav-number">1.2.</span> <span class="nav-text">HTTP 2 的提出</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#HTTP-2-%E7%89%B9%E6%80%A7"><span class="nav-number">2.</span> <span class="nav-text">HTTP 2 特性</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%B4%E9%83%A8%E5%8E%8B%E7%BC%A9"><span class="nav-number">2.1.</span> <span class="nav-text">头部压缩</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8"><span class="nav-number">2.2.</span> <span class="nav-text">多路复用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B8%A7%E7%B1%BB%E5%9E%8B"><span class="nav-number">2.2.1.</span> <span class="nav-text">帧类型</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

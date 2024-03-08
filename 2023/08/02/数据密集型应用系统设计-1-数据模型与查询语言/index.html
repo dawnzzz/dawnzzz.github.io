@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="常见数据模型关系模型关系模型是最常见，也是最著名的数据模型，SQL 就是基于关系模型的。 ORM 映射关系型数据模型和编程语言对象之间是不匹配的，需要一个转换层，即对象关系映射（ORM）。 123数据库中的一个表 &lt;---&gt; 一个类表中的一条数据 &lt;---&gt; 类的一个对象表中的一个列 &lt;---&gt; 类中的一个字段（field）  一对多的关系在个人简历中，在工作经">
+<meta property="og:type" content="article">
+<meta property="og:title" content="数据密集型应用系统设计 (1) 数据模型与查询语言">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="常见数据模型关系模型关系模型是最常见，也是最著名的数据模型，SQL 就是基于关系模型的。 ORM 映射关系型数据模型和编程语言对象之间是不匹配的，需要一个转换层，即对象关系映射（ORM）。 123数据库中的一个表 &lt;---&gt; 一个类表中的一条数据 &lt;---&gt; 类的一个对象表中的一个列 &lt;---&gt; 类中的一个字段（field）  一对多的关系在个人简历中，在工作经">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-08-02T02:42:06.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.818Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>数据密集型应用系统设计 (1) 数据模型与查询语言 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          数据密集型应用系统设计 (1) 数据模型与查询语言
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-02 10:42:06" itemprop="dateCreated datePublished" datetime="2023-08-02T10:42:06+08:00">2023-08-02</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="常见数据模型"><a href="#常见数据模型" class="headerlink" title="常见数据模型"></a>常见数据模型</h1><h2 id="关系模型"><a href="#关系模型" class="headerlink" title="关系模型"></a>关系模型</h2><p>关系模型是最常见，也是最著名的数据模型，SQL 就是基于关系模型的。</p>
+<h3 id="ORM-映射"><a href="#ORM-映射" class="headerlink" title="ORM 映射"></a>ORM 映射</h3><p>关系型数据模型和编程语言对象之间是不匹配的，需要一个转换层，即对象关系映射（ORM）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">数据库中的一个表 &lt;---&gt; 一个类</span><br><span class="line">表中的一条数据 &lt;---&gt; 类的一个对象</span><br><span class="line">表中的一个列 &lt;---&gt; 类中的一个字段（field）</span><br></pre></td></tr></table></figure>
+
+<h3 id="一对多的关系"><a href="#一对多的关系" class="headerlink" title="一对多的关系"></a>一对多的关系</h3><p>在个人简历中，在工作经历一栏可能会有多个工作经历，并且可能有多段教育经历等<strong>一对多</strong>的关系。</p>
+<p>这样的一对多关系，关系模型可以采用多种方式表示：</p>
+<ul>
+<li>在关系模型中，可以将工作经历、教育经历等放在<strong>单独的数据表</strong>中，并且使用<strong>外键</strong>引用。</li>
+<li>如果<strong>关系型数据库支持</strong>结构化的 Json（MySQL、PostgreSQL）或者 XML（Oracle、SQL Server、PostgreSQL）数据格式，可以将这些多值数据存储在一个属性内，并且支持查询和索引。</li>
+<li>将工作经历、教育经历<strong>编码为 Json 或者 XML 格式</strong>，存储在关系型数据库的<strong>文本列</strong>中，由<strong>应用程序解释</strong>其结构和内容。</li>
+</ul>
+<h2 id="文档模型"><a href="#文档模型" class="headerlink" title="文档模型"></a>文档模型</h2><p>使用文档型数据库，就可以天然的解决关系模型中的一对多问题。并且<strong>文档型</strong>数据库在<strong>读取一对多关系的数据</strong>上，具有更好的<strong>局部性</strong>。如果在<strong>关系模型</strong>中读取一份简历，要么执行<strong>多个查询</strong>，要么进行<strong>多表联结</strong>查询。而在<strong>文档型</strong>数据库中，所有的信息都在一个地方，<strong>一次查询</strong>就已经足够了。</p>
+<p>但是，文档型数据库通常<strong>不支持数据联结</strong>操作，只能在应用层通过多次查询来模拟联结。</p>
+<h3 id="多对一和多对多的关系"><a href="#多对一和多对多的关系" class="headerlink" title="多对一和多对多的关系"></a>多对一和多对多的关系</h3><p>在表示<strong>多对一</strong>和<strong>多对多</strong>的关系时，关系数据库和文档数据库的思想并<strong>没有根本的不同</strong>：相关项都由<strong>唯一的标识符引用</strong>。</p>
+<ul>
+<li>在<strong>关系</strong>模型中，这个唯一标识符为<strong>外键</strong>。</li>
+<li>在<strong>文档</strong>模型中，被称为文档<strong>引用</strong>。</li>
+</ul>
+<blockquote>
+<p>如果存在<strong>多对多</strong>关系，那么<strong>文档模型就不太适用</strong>了。</p>
+<ul>
+<li>可以通过<strong>反范式化来减少联结</strong>，但是需要在<strong>应用层做出额外的工作去保证数据的一致性</strong>。</li>
+<li>也可以在<strong>应用层执行多次查询来模拟联结</strong>，但是这通常比数据库内的专用代码慢，使得文档型数据库<strong>应用程序代码复、性能差</strong>。</li>
+</ul>
+</blockquote>
+<span id="more"></span>
+
+<h3 id="灵活的模式"><a href="#灵活的模式" class="headerlink" title="灵活的模式"></a>灵活的模式</h3><p><strong>文档型数据库不会强制约束数据的模式</strong>，但是读取数据的代码通常定义了数据的结构。</p>
+<ul>
+<li><strong>文档</strong>型数据库是<strong>读时模式（数据结构是隐式的，读取时由应用解释）</strong>。</li>
+<li><strong>关系</strong>型数据库的<strong>写时模式（模式是显式的，数据库确保写入的数据都遵循）</strong>。</li>
+</ul>
+<p><strong>文档型数据库的这种灵活的模式，对于需要频繁变更的数据结构是十分友好的</strong>。而关系型数据库中，则需要改变表结构，在变更时无法读取和写入数据。但是当记录的结构稳定时，模式是记录和确保这种数据结构的有效机制。</p>
+<h2 id="图模型"><a href="#图模型" class="headerlink" title="图模型"></a>图模型</h2><p>关系模型可以描述简单的多对多关系，但是复杂的多对多关系，使用图模型会更加自然。</p>
+<p>图模型的实现方式包括属性图模型和三元存储模型。</p>
+<blockquote>
+<p>图数据库和文档数据库有一个共同点，就是它们都不会强制约束数据的模式。</p>
+</blockquote>
+<h3 id="属性图模型"><a href="#属性图模型" class="headerlink" title="属性图模型"></a>属性图模型</h3><p>属性图模型中，每一个顶点包括：</p>
+<ul>
+<li>唯一的标识符。</li>
+<li>入边集合。</li>
+<li>出边集合。</li>
+<li>属性集合。</li>
+</ul>
+<p>每一条边包括：</p>
+<ul>
+<li>唯一的标识符。</li>
+<li>头部顶点。</li>
+<li>尾部顶点。</li>
+<li>描述两个顶点之间关系类型的标签。</li>
+<li>属性集合。</li>
+</ul>
+<p>Neo4j 就是一种图数据库，它基于属性图模型，使用的查询语言为 Cypher。</p>
+<blockquote>
+<p>可以利用关系模型，通过建立一个顶点表和一个边表，去描述属性图。</p>
+</blockquote>
+<h3 id="三元存储模型"><a href="#三元存储模型" class="headerlink" title="三元存储模型"></a>三元存储模型</h3><p>三元存储模型，利用三元组存储图。三元组由主体、谓语、客体组成。</p>
+<ul>
+<li>主体相当于图的顶点。</li>
+<li>谓语可以表示边（关系），也可以表示属性。</li>
+<li>客体可以是字面量也可以是图中的另一个顶点。</li>
+</ul>
+<h1 id="数据查询语言"><a href="#数据查询语言" class="headerlink" title="数据查询语言"></a>数据查询语言</h1><p>SQL 是一种声明式查询语言，只需要指定所需要的数据模式，不需要指定如何实现这一目标。</p>
+<p>数据库的查询优化器会决定如何优化查询过程，所以比命令式查询语言更加简洁易用。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/" rel="prev" title="软件架构设计读书笔记 (4) 高并发">
+      <i class="fa fa-chevron-left"></i> 软件架构设计读书笔记 (4) 高并发
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/" rel="next" title="数据密集型应用系统设计 (2) 存储与检索">
+      数据密集型应用系统设计 (2) 存储与检索 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.</span> <span class="nav-text">常见数据模型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E7%B3%BB%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.</span> <span class="nav-text">关系模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ORM-%E6%98%A0%E5%B0%84"><span class="nav-number">1.1.1.</span> <span class="nav-text">ORM 映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E5%AF%B9%E5%A4%9A%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-number">1.1.2.</span> <span class="nav-text">一对多的关系</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%96%87%E6%A1%A3%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.2.</span> <span class="nav-text">文档模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%9A%E5%AF%B9%E4%B8%80%E5%92%8C%E5%A4%9A%E5%AF%B9%E5%A4%9A%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-number">1.2.1.</span> <span class="nav-text">多对一和多对多的关系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%81%B5%E6%B4%BB%E7%9A%84%E6%A8%A1%E5%BC%8F"><span class="nav-number">1.2.2.</span> <span class="nav-text">灵活的模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%BE%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.3.</span> <span class="nav-text">图模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B1%9E%E6%80%A7%E5%9B%BE%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.3.1.</span> <span class="nav-text">属性图模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%89%E5%85%83%E5%AD%98%E5%82%A8%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.3.2.</span> <span class="nav-text">三元存储模型</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80"><span class="nav-number">2.</span> <span class="nav-text">数据查询语言</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

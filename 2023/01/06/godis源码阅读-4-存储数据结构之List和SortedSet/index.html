@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Listsimple-redis 中定义了 List 接口，以定义 List 的各种操作。 12345678910111213141516171819202122&#x2F;&#x2F; Expected check whether given item is equals to expected valuetype Expected func(a interface&amp;#123;&amp;#125;) bool&#x2F;&#x2F; Cons">
+<meta property="og:type" content="article">
+<meta property="og:title" content="godis源码阅读 (4) 存储数据结构之List和SortedSet">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Listsimple-redis 中定义了 List 接口，以定义 List 的各种操作。 12345678910111213141516171819202122&#x2F;&#x2F; Expected check whether given item is equals to expected valuetype Expected func(a interface&amp;#123;&amp;#125;) bool&#x2F;&#x2F; Cons">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/793413-20200503230748021-1515963822.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/793413-20200503230906423-1276062392.png">
+<meta property="article:published_time" content="2023-01-06T13:30:37.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.796Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/793413-20200503230748021-1515963822.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>godis源码阅读 (4) 存储数据结构之List和SortedSet | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          godis源码阅读 (4) 存储数据结构之List和SortedSet
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-06 21:30:37" itemprop="dateCreated datePublished" datetime="2023-01-06T21:30:37+08:00">2023-01-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>simple-redis 中定义了 List 接口，以定义 List 的各种操作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Expected check whether given item is equals to expected value</span></span><br><span class="line"><span class="keyword">type</span> Expected <span class="function"><span class="keyword">func</span><span class="params">(a <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Consumer traverses list.</span></span><br><span class="line"><span class="comment">// It receives index and value as params, returns true to continue traversal, while returns false to break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(i <span class="keyword">int</span>, v <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> List <span class="keyword">interface</span> &#123;</span><br><span class="line">   Add(val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Get(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Set(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Insert(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Remove(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveLast() (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveAllByVal(expected Expected) <span class="keyword">int</span></span><br><span class="line">   RemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   ReverseRemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   Len() <span class="keyword">int</span></span><br><span class="line">   ForEach(consumer Consumer)</span><br><span class="line">   Contains(expected Expected) <span class="keyword">bool</span></span><br><span class="line">   Range(start <span class="keyword">int</span>, stop <span class="keyword">int</span>) []<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="快速链表"><a href="#快速链表" class="headerlink" title="快速链表"></a>快速链表</h3><p>在 simple-redis 中，采用<strong>快速链表</strong>作为 List 的数据结构。</p>
+<p>快速链表实际上就是一个<strong>双向链表</strong>，但是双向链表中的每一个节点不是存储一个数据，而是<strong>将数据连续存放形成一段连续的存储空间</strong>作为链表的节点。</p>
+<p>这一段连续的存储空间在 godis 中被称为 page（每一个 page 的大小为 1024），page 的类型为<strong>空接口切片</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> (</span><br><span class="line">	pageSize = <span class="number">1024</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// QuickList 快速链表，用于实现list</span></span><br><span class="line"><span class="keyword">type</span> QuickList <span class="keyword">struct</span> &#123;</span><br><span class="line">	data *list.List</span><br><span class="line">	size <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="迭代器"><a href="#迭代器" class="headerlink" title="迭代器"></a>迭代器</h3><p>又定义了 iterator 为快速链表的迭代器，在 <code>[-1, QuickList.Len()]</code> 范围内移动。</p>
+<ul>
+<li>node 表示元素所在的 page。</li>
+<li>offset 表示这个元素在 page 中的下标。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// iterator of QuickList, move between [-1, ql.Len()]</span></span><br><span class="line"><span class="keyword">type</span> iterator <span class="keyword">struct</span> &#123;</span><br><span class="line">   node   *list.Element</span><br><span class="line">   offset <span class="keyword">int</span></span><br><span class="line">   ql     *QuickList</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<p>下面以 QuickList.find 方法、iterator.get 方法、iterator.next 方法为例说明迭代器的实现。</p>
+<h4 id="find-查找-index-对应的迭代器"><a href="#find-查找-index-对应的迭代器" class="headerlink" title="find 查找 index 对应的迭代器"></a>find 查找 index 对应的迭代器</h4><p>比如 QuckList 定义了一个方法 find，用于<strong>查找对应 index 的迭代器</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// find returns page and in-page-offset of given index</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ql *QuickList)</span> <span class="title">find</span><span class="params">(index <span class="keyword">int</span>)</span> *<span class="title">iterator</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程为：</p>
+<ul>
+<li>首先查看 index 在快速链表的前半部分还是后半部分。<strong>若在前半部分，则从前向后查找</strong>。<ul>
+<li>从前向后查找，找到 index 所在的 page，pageBeg 表示这个 index 所在 page 之前的元素个数。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> index &lt; ql.size/<span class="number">2</span> &#123;</span><br><span class="line">   <span class="comment">// search from front</span></span><br><span class="line">   n = ql.data.Front()</span><br><span class="line">   pageBeg = <span class="number">0</span></span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      <span class="comment">// assert: n != nil</span></span><br><span class="line">      page = n.Value.([]<span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">      <span class="keyword">if</span> pageBeg+<span class="built_in">len</span>(page) &gt; index &#123;</span><br><span class="line">         <span class="keyword">break</span></span><br><span class="line">      &#125;</span><br><span class="line">      pageBeg += <span class="built_in">len</span>(page)</span><br><span class="line">      n = n.Next()</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>若 index 在快速链表的后半部分，则从后向前查找</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span> &#123;</span><br><span class="line">   <span class="comment">// search from back</span></span><br><span class="line">   n = ql.data.Back()</span><br><span class="line">   pageBeg = ql.size</span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      page = n.Value.([]<span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">      pageBeg -= <span class="built_in">len</span>(page)</span><br><span class="line">      <span class="keyword">if</span> pageBeg &lt;= index &#123;</span><br><span class="line">         <span class="keyword">break</span></span><br><span class="line">      &#125;</span><br><span class="line">      n = n.Prev()</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>计算这个 index 在 page 中的相对位置 offset，返回迭代器。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">pageOffset := index - pageBeg</span><br><span class="line"><span class="keyword">return</span> &amp;iterator&#123;</span><br><span class="line">   node:   n,</span><br><span class="line">   offset: pageOffset,</span><br><span class="line">   ql:     ql,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="get-获取迭代器所指向的数据"><a href="#get-获取迭代器所指向的数据" class="headerlink" title="get 获取迭代器所指向的数据"></a>get 获取迭代器所指向的数据</h4><p>interator.get 方法用于获取迭代器所执行的数据：</p>
+<ul>
+<li>它首先调用 iterator.page 方法获取所在 page（类型为空接口切片）。</li>
+<li>接着获取 page 中 offset 下标中的数据内容。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(iter *iterator)</span> <span class="title">get</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">   <span class="keyword">return</span> iter.page()[iter.offset]</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(iter *iterator)</span> <span class="title">page</span><span class="params">()</span> []<span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">   <span class="keyword">return</span> iter.node.Value.([]<span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="next-移动到下一个数据元素"><a href="#next-移动到下一个数据元素" class="headerlink" title="next 移动到下一个数据元素"></a>next 移动到下一个数据元素</h4><p>iterator.nex 方法将迭代器移动到下一个元素上。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// next returns whether iter is in bound</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(iter *iterator)</span> <span class="title">next</span><span class="params">()</span> <span class="title">bool</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程为：</p>
+<ul>
+<li>首先获取所在 page，若当前迭代器的元素不是 page 的最后一个元素，直接 offset + 1即可返回。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">page := iter.page()</span><br><span class="line"><span class="keyword">if</span> iter.offset &lt; <span class="built_in">len</span>(page)<span class="number">-1</span> &#123;</span><br><span class="line">   iter.offset++</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>否则则移动到下一个 page 上：<ul>
+<li>移动之前首先看看当前 page 是不是最后一个 page，若是则说明迭代器当前指向的元素是整个快速链表的最后一个元素。此时将迭代器移动到 <code>QuickList.Len()</code> 位置上。</li>
+<li>不是最后一个 page，就移动到下一个 page 的第一个数据上。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// move to next page</span></span><br><span class="line"><span class="keyword">if</span> iter.node == iter.ql.data.Back() &#123;</span><br><span class="line">   <span class="comment">// already at last node</span></span><br><span class="line">   iter.offset = <span class="built_in">len</span>(page)</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">&#125;</span><br><span class="line">iter.offset = <span class="number">0</span></span><br><span class="line">iter.node = iter.node.Next()</span><br><span class="line"><span class="keyword">return</span> <span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Get-Set-查询、更新数据"><a href="#Get-Set-查询、更新数据" class="headerlink" title="Get Set 查询、更新数据"></a>Get Set 查询、更新数据</h2><p>在快速链表上查询数据非常简单，首先获取 index 所在的迭代器，然后调用 iterator.get 方法获取其指向的值。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Get returns value at the given index</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ql *QuickList)</span> <span class="title">Get</span><span class="params">(index <span class="keyword">int</span>)</span> <span class="params">(val <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">   iter := ql.find(index)</span><br><span class="line">   <span class="keyword">return</span> iter.get()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在快速链表上更新数据也是同样的，首先获取 index 所在的迭代器，接着调用 iterator.set 方法更改其值。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(iter *iterator)</span> <span class="title">set</span><span class="params">(val <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">   page := iter.page()</span><br><span class="line">   page[iter.offset] = val</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Set updates value at the given index, the index should between [0, list.size]</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ql *QuickList)</span> <span class="title">Set</span><span class="params">(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">   iter := ql.find(index)</span><br><span class="line">   iter.set(val)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Add-在尾部插入数据"><a href="#Add-在尾部插入数据" class="headerlink" title="Add 在尾部插入数据"></a>Add 在尾部插入数据</h2><p>Add 用于在快速链表的尾部插入数据。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Add adds value to the tail</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ql *QuickList)</span> <span class="title">Add</span><span class="params">(val <span class="keyword">interface</span>&#123;&#125;)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>首先检查<strong>是否是空链表</strong>，若是空链表则初始化一个链表插入到第一个位置上。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ql.size++</span><br><span class="line"><span class="keyword">if</span> ql.data.Len() == <span class="number">0</span> &#123; <span class="comment">// empty list</span></span><br><span class="line">   page := <span class="built_in">make</span>([]<span class="keyword">interface</span>&#123;&#125;, <span class="number">0</span>, pageSize)</span><br><span class="line">   page = <span class="built_in">append</span>(page, val)</span><br><span class="line">   ql.data.PushBack(page)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>找到最后一个 page，<strong>检查最后一个 page 是否已满</strong>。若<strong>最后一个 page 满了则新增一个 page 到后面</strong>，插入数据到新增 page 的第一个位置。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">backNode := ql.data.Back()</span><br><span class="line">backPage := backNode.Value.([]<span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line"><span class="keyword">if</span> <span class="built_in">len</span>(backPage) == <span class="built_in">cap</span>(backPage) &#123; <span class="comment">// full page, create new page</span></span><br><span class="line">   page := <span class="built_in">make</span>([]<span class="keyword">interface</span>&#123;&#125;, <span class="number">0</span>, pageSize)</span><br><span class="line">   page = <span class="built_in">append</span>(page, val)</span><br><span class="line">   ql.data.PushBack(page)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>若<strong>最后一个 page 没有满</strong>则直接插入到最后一个 page 的最后面。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// append into page</span></span><br><span class="line">backPage = <span class="built_in">append</span>(backPage, val)</span><br><span class="line">backNode.Value = backPage</span><br></pre></td></tr></table></figure>
+
+<h2 id="Insert-插入数据"><a href="#Insert-插入数据" class="headerlink" title="Insert 插入数据"></a>Insert 插入数据</h2><p>Insert 用于在快速链表的 index 位置插入数据，这个过程比较复杂。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(ql *QuickList)</span> <span class="title">Insert</span><span class="params">(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程如下：</p>
+<ul>
+<li>若插入到<strong>最后</strong>，则调用 Add 进行末尾上的插入。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> index == ql.size &#123; <span class="comment">// insert at</span></span><br><span class="line">   ql.Add(val)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>找到 index 所在的 page，若 page 没有满</strong>，则<strong>直接插入</strong>到 page 的相应位置上并返回。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">iter := ql.find(index)</span><br><span class="line">page := iter.node.Value.([]interface&#123;&#125;)</span><br><span class="line">if len(page) &lt; pageSize &#123;</span><br><span class="line">   // insert into not full page</span><br><span class="line">   page = append(page[:iter.offset+1], page[iter.offset:]...)</span><br><span class="line">   page[iter.offset] = val</span><br><span class="line">   iter.node.Value = page</span><br><span class="line">   ql.size++</span><br><span class="line">   return</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>若 page 满了</strong>，则将一个<strong>满的 page 分裂成两个 page</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// insert into a full page may cause memory copy, so we split a full page into two half pages</span></span><br><span class="line"><span class="keyword">var</span> nextPage []<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">nextPage = <span class="built_in">append</span>(nextPage, page[pageSize/<span class="number">2</span>:]...) <span class="comment">// pageSize must be even</span></span><br><span class="line">page = page[:pageSize/<span class="number">2</span>]</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>若迭代器的 offset 在前半部分则在第一个 page 上插入；否则在第二个位置上插入数据。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> iter.offset &lt; <span class="built_in">len</span>(page) &#123;</span><br><span class="line">   page = <span class="built_in">append</span>(page[:iter.offset+<span class="number">1</span>], page[iter.offset:]...)</span><br><span class="line">   page[iter.offset] = val</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   i := iter.offset - pageSize/<span class="number">2</span></span><br><span class="line">   nextPage = <span class="built_in">append</span>(nextPage[:i+<span class="number">1</span>], nextPage[i:]...)</span><br><span class="line">   nextPage[i] = val</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// store current page and next page</span></span><br><span class="line">iter.node.Value = page</span><br><span class="line">ql.data.InsertAfter(nextPage, iter.node)</span><br><span class="line">ql.size++</span><br></pre></td></tr></table></figure>
+
+<h1 id="Sorted-Set"><a href="#Sorted-Set" class="headerlink" title="Sorted Set"></a>Sorted Set</h1><h2 id="跳跃链表"><a href="#跳跃链表" class="headerlink" title="跳跃链表"></a>跳跃链表</h2><p><strong>godis 使用跳跃链表实现有序集合（Sorted Set）</strong>，实现有序集合最简单的方法是有序链表，但是其查找的时间复杂度很高为 <code>O(n)</code>。</p>
+<p>跳表的优化思路是<strong>添加上层链表</strong>，上层链表中会<strong>跳过</strong>一些节点。</p>
+<p><img src="/../images/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/793413-20200503230748021-1515963822.png" alt="img"></p>
+<p>其数据结构为还是<strong>类似于双向链表</strong>，只不过链表上的<strong>节点有了层的概念</strong>。其两个最核心的概念节点和层的解释如下：</p>
+<ul>
+<li><strong>节点：</strong>链表上的节点，<strong>一个节点存储一个元素</strong>，节点有指向下一个节点的<strong>后向指针</strong>，同时还保存了<strong>这个节点上的每一层</strong>（是一个切片，0 号为最下层）。</li>
+<li><strong>层：</strong>表示<strong>一个节点的某一层</strong>，包括指向<strong>同一层中下一个节点的前向指针</strong>，以及到下一个节点<strong>跳过的节点数</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 对外的元素抽象</span></span><br><span class="line"><span class="keyword">type</span> Element <span class="keyword">struct</span> &#123;</span><br><span class="line">    Member <span class="keyword">string</span></span><br><span class="line">    Score  <span class="keyword">float64</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Node <span class="keyword">struct</span> &#123;</span><br><span class="line">    Element <span class="comment">// 元素的名称和 score</span></span><br><span class="line">    backward *Node <span class="comment">// 后向指针</span></span><br><span class="line">    level []*Level <span class="comment">// 前向指针, level[0] 为最下层</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 节点中每一层的抽象 </span></span><br><span class="line"><span class="keyword">type</span> Level <span class="keyword">struct</span> &#123;</span><br><span class="line">    forward *Node <span class="comment">// 指向同层中的下一个节点</span></span><br><span class="line">    span <span class="keyword">int64</span> <span class="comment">// 到 forward 跳过的节点数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 跳表的定义</span></span><br><span class="line"><span class="keyword">type</span> skiplist <span class="keyword">struct</span> &#123;</span><br><span class="line">    header *Node</span><br><span class="line">    tail *Node</span><br><span class="line">    length <span class="keyword">int64</span></span><br><span class="line">    level <span class="keyword">int16</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../images/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/793413-20200503230906423-1276062392.png" alt="img"></p>
+<h3 id="查找节点"><a href="#查找节点" class="headerlink" title="查找节点"></a>查找节点</h3><h4 id="getByRank"><a href="#getByRank" class="headerlink" title="getByRank"></a>getByRank</h4><p>skiplist.getByRank 方法用于查找排名第 rank 的节点。它<strong>从顶层向下</strong>一层一层查询，从当前层向前搜索，若<strong>当前层的下一个节点已经超过目标值</strong>，则<strong>结束搜索进入下一层</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(skiplist *skiplist)</span> <span class="title">getByRank</span><span class="params">(rank <span class="keyword">int64</span>)</span> *<span class="title">node</span></span> &#123;</span><br><span class="line">   <span class="keyword">var</span> i <span class="keyword">int64</span> = <span class="number">0</span></span><br><span class="line">   n := skiplist.header</span><br><span class="line">   <span class="comment">// scan from top level</span></span><br><span class="line">   <span class="keyword">for</span> level := skiplist.level - <span class="number">1</span>; level &gt;= <span class="number">0</span>; level-- &#123;</span><br><span class="line">      <span class="keyword">for</span> n.level[level].forward != <span class="literal">nil</span> &amp;&amp; (i+n.level[level].span) &lt;= rank &#123;</span><br><span class="line">         i += n.level[level].span</span><br><span class="line">         n = n.level[level].forward</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">if</span> i == rank &#123;</span><br><span class="line">         <span class="keyword">return</span> n</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="getFirstInScoreRange"><a href="#getFirstInScoreRange" class="headerlink" title="getFirstInScoreRange"></a>getFirstInScoreRange</h4><p>skiplist.getFirstInScoreRange 方法用于查找分数范围内的第一个节点。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(skiplist *skiplist)</span> <span class="title">getFirstInScoreRange</span><span class="params">(min *ScoreBorder, max *ScoreBorder)</span> *<span class="title">node</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程为：</p>
+<ul>
+<li>判断跳表和范围<strong>是否有交集</strong>，若无交集提早返回。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> !skiplist.hasInRange(min, max) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>从顶层向下查询，<strong>若 forward 节点未进入范围则继续向前</strong>。<strong>若 forward 节点已经进入范围</strong>，当 level &gt; 0 时 forward 节点不能保证是第一个在范围内的节点，因此需要进入<strong>下一层查找</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">n := skiplist.header</span><br><span class="line"><span class="comment">// scan from top level</span></span><br><span class="line"><span class="keyword">for</span> level := skiplist.level - <span class="number">1</span>; level &gt;= <span class="number">0</span>; level-- &#123;</span><br><span class="line">   <span class="comment">// if forward is not in range than move forward</span></span><br><span class="line">   <span class="keyword">for</span> n.level[level].forward != <span class="literal">nil</span> &amp;&amp; !min.less(n.level[level].forward.Score) &#123;</span><br><span class="line">      n = n.level[level].forward</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>查找结束，此时 n.level[0].forward 节点一定是范围内的第一个节点。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">n = n.level[<span class="number">0</span>].forward</span><br><span class="line"><span class="keyword">if</span> !max.greater(n.Score) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> n</span><br></pre></td></tr></table></figure>
+
+<h3 id="插入节点"><a href="#插入节点" class="headerlink" title="插入节点"></a>插入节点</h3><p>skiplist.insert 方法用于插入节点。基本思想就是，<strong>寻找每一层的前驱节点</strong>，前驱节点的前向指针 forward 指向新插入的节点。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(skiplist *skiplist)</span> <span class="title">insert</span><span class="params">(member <span class="keyword">string</span>, score <span class="keyword">float64</span>)</span> *<span class="title">node</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>因为每一层都要找到插入节点的前驱节点，所以<strong>用 update 数组记录每一层的前驱节点</strong>。并且<strong>用 rank 数组保存各层先驱节点的排名</strong>，用于计算 span。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">update := <span class="built_in">make</span>([]*node, maxLevel) <span class="comment">// link new node with node in `update`</span></span><br><span class="line">rank := <span class="built_in">make</span>([]<span class="keyword">int64</span>, maxLevel)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>从上向下</strong>一层一层寻找，到达每一层时只要<strong>当前节点的前向指针 forward 不为空并且 forward 指向的节点分数小于插入节点</strong>，就<strong>向后移动</strong>，当找到这一层的前驱节点之后再去<strong>下一层中寻找</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// find position to insert</span></span><br><span class="line">node := skiplist.header</span><br><span class="line"><span class="keyword">for</span> i := skiplist.level - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i-- &#123;</span><br><span class="line">   <span class="keyword">if</span> i == skiplist.level<span class="number">-1</span> &#123;</span><br><span class="line">      rank[i] = <span class="number">0</span></span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      rank[i] = rank[i+<span class="number">1</span>] <span class="comment">// store rank that is crossed to reach the insert position</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> node.level[i] != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="comment">// traverse the skip list</span></span><br><span class="line">      <span class="keyword">for</span> node.level[i].forward != <span class="literal">nil</span> &amp;&amp;</span><br><span class="line">         (node.level[i].forward.Score &lt; score ||</span><br><span class="line">            (node.level[i].forward.Score == score &amp;&amp; node.level[i].forward.Member &lt; member)) &#123; <span class="comment">// same score, different key</span></span><br><span class="line">         rank[i] += node.level[i].span</span><br><span class="line">         node = node.level[i].forward</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">   update[i] = node</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>随机</strong>决定新节点的层数，若新的节点层数<strong>大于</strong>当前跳表的最高层数，则<strong>创建新的层</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">level := randomLevel()</span><br><span class="line"><span class="comment">// extend skiplist level</span></span><br><span class="line"><span class="keyword">if</span> level &gt; skiplist.level &#123;</span><br><span class="line">   <span class="keyword">for</span> i := skiplist.level; i &lt; level; i++ &#123;</span><br><span class="line">      rank[i] = <span class="number">0</span></span><br><span class="line">      update[i] = skiplist.header</span><br><span class="line">      update[i].level[i].span = skiplist.length</span><br><span class="line">   &#125;</span><br><span class="line">   skiplist.level = level</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>创建新节点，并且<strong>插入</strong>到跳表中，对于<strong>每一层</strong>都修改新节点和前驱节点的 forward 指针和 span。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// make node and link into skiplist</span></span><br><span class="line">node = makeNode(level, score, member)</span><br><span class="line"><span class="keyword">for</span> i := <span class="keyword">int16</span>(<span class="number">0</span>); i &lt; level; i++ &#123;</span><br><span class="line">   node.level[i].forward = update[i].level[i].forward</span><br><span class="line">   update[i].level[i].forward = node</span><br><span class="line"></span><br><span class="line">   <span class="comment">// update span covered by update[i] as node is inserted here</span></span><br><span class="line">   node.level[i].span = update[i].level[i].span - (rank[<span class="number">0</span>] - rank[i])</span><br><span class="line">   update[i].level[i].span = (rank[<span class="number">0</span>] - rank[i]) + <span class="number">1</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>若新节点的层数<strong>小于</strong>当前跳表的最高层数，也就是新节点可能不包含所有的层。那么对于没有的层，<strong>先驱节点的 span 会加1（后面插入了新节点导致span+1）</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// increment span for untouched levels</span></span><br><span class="line"><span class="keyword">for</span> i := level; i &lt; skiplist.level; i++ &#123;</span><br><span class="line">   update[i].level[i].span++</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>最后，<strong>更新后向指针</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// set backward node</span></span><br><span class="line"><span class="keyword">if</span> update[<span class="number">0</span>] == skiplist.header &#123;</span><br><span class="line">   node.backward = <span class="literal">nil</span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   node.backward = update[<span class="number">0</span>]</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> node.level[<span class="number">0</span>].forward != <span class="literal">nil</span> &#123;</span><br><span class="line">   node.level[<span class="number">0</span>].forward.backward = node</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   skiplist.tail = node</span><br><span class="line">&#125;</span><br><span class="line">skiplist.length++</span><br><span class="line"><span class="keyword">return</span> node</span><br></pre></td></tr></table></figure>
+
+<h3 id="删除节点"><a href="#删除节点" class="headerlink" title="删除节点"></a>删除节点</h3><p>skiplist.RemoveRangeByRank 方法用于删除 <code>[start, stop)</code> 范围内的节点，其思想和插入节点差不多，就是找到被删除的范围内的第一个节点的<strong>前驱节点</strong>，然后依次删除。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(skiplist *skiplist)</span> <span class="title">RemoveRangeByRank</span><span class="params">(start <span class="keyword">int64</span>, stop <span class="keyword">int64</span>)</span> <span class="params">(removed []*Element)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程如下：</p>
+<ul>
+<li>因为每一层都要找到删除节点的前驱节点，所以<strong>用 update 数组记录每一层的前驱节点</strong>。并且用 removed 记录被删除的节点。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> i <span class="keyword">int64</span> = <span class="number">0</span> <span class="comment">// rank of iterator</span></span><br><span class="line">update := <span class="built_in">make</span>([]*node, maxLevel)</span><br><span class="line">removed = <span class="built_in">make</span>([]*Element, <span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>从顶向下</strong>，寻找<strong>前驱</strong>节点。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// scan from top level</span></span><br><span class="line">node := skiplist.header</span><br><span class="line"><span class="keyword">for</span> level := skiplist.level - <span class="number">1</span>; level &gt;= <span class="number">0</span>; level-- &#123;</span><br><span class="line">   <span class="keyword">for</span> node.level[level].forward != <span class="literal">nil</span> &amp;&amp; (i+node.level[level].span) &lt; start &#123;</span><br><span class="line">      i += node.level[level].span</span><br><span class="line">      node = node.level[level].forward</span><br><span class="line">   &#125;</span><br><span class="line">   update[level] = node</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>移动到被目标<strong>范围内的第一个节点</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">i++</span><br><span class="line">node = node.level[<span class="number">0</span>].forward <span class="comment">// first node in range</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>依次删除</strong>范围内的所有节点。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// remove nodes in range</span></span><br><span class="line"><span class="keyword">for</span> node != <span class="literal">nil</span> &amp;&amp; i &lt; stop &#123;</span><br><span class="line">   next := node.level[<span class="number">0</span>].forward</span><br><span class="line">   removedElement := node.Element</span><br><span class="line">   removed = <span class="built_in">append</span>(removed, &amp;removedElement)</span><br><span class="line">   skiplist.removeNode(node, update)</span><br><span class="line">   node = next</span><br><span class="line">   i++</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> removed</span><br></pre></td></tr></table></figure>
+
+<h4 id="removeNode"><a href="#removeNode" class="headerlink" title="removeNode"></a>removeNode</h4><p>skiplist.removeNode 是删除一个节点操作的具体方法，传入被删除的节点和每一层的前驱节点。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(skiplist *skiplist)</span> <span class="title">removeNode</span><span class="params">(node *node, update []*node)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其流程如下：</p>
+<ul>
+<li>修改每一层前驱节点，如果<strong>前驱节点的 forward 指针指向了目标节点，则需要修改前驱的 forward 指针跳过要删除的目标节点，同时更新前驱节点的 span</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> i := <span class="keyword">int16</span>(<span class="number">0</span>); i &lt; skiplist.level; i++ &#123;</span><br><span class="line">   <span class="keyword">if</span> update[i].level[i].forward == node &#123;</span><br><span class="line">      update[i].level[i].span += node.level[i].span - <span class="number">1</span></span><br><span class="line">      update[i].level[i].forward = node.level[i].forward</span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      update[i].level[i].span--</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>修改目标节点<strong>后继节点的 backward 指针</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> node.level[<span class="number">0</span>].forward != <span class="literal">nil</span> &#123;</span><br><span class="line">   node.level[<span class="number">0</span>].forward.backward = node.backward</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   skiplist.tail = node.backward</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>必要时<strong>删除空白的层</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> skiplist.level &gt; <span class="number">1</span> &amp;&amp; skiplist.header.level[skiplist.level<span class="number">-1</span>].forward == <span class="literal">nil</span> &#123;</span><br><span class="line">   skiplist.level--</span><br><span class="line">&#125;</span><br><span class="line">skiplist.length--</span><br></pre></td></tr></table></figure>
+
+<h2 id="有序集合的实现"><a href="#有序集合的实现" class="headerlink" title="有序集合的实现"></a>有序集合的实现</h2><p>goredis 中，有序集合通过字典和跳跃链表。</p>
+<ul>
+<li>字典记录集合内元素和分数的映射关系。</li>
+<li>跳跃链表用于对分数的顺序存储。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// SortedSet is a set which keys sorted by bound score</span></span><br><span class="line"><span class="keyword">type</span> SortedSet <span class="keyword">struct</span> &#123;</span><br><span class="line">   dict     <span class="keyword">map</span>[<span class="keyword">string</span>]*Element</span><br><span class="line">   skiplist *skiplist</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Make makes a new SortedSet</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Make</span><span class="params">()</span> *<span class="title">SortedSet</span></span> &#123;</span><br><span class="line">   <span class="keyword">return</span> &amp;SortedSet&#123;</span><br><span class="line">      dict:     <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*Element),</span><br><span class="line">      skiplist: makeSkiplist(),</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>下面举几个例子。</p>
+<h3 id="Add-插入元素"><a href="#Add-插入元素" class="headerlink" title="Add 插入元素"></a>Add 插入元素</h3><p>SortedSet.Add 方法用于在有序集合中插入元素：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Add puts member into set,  and returns whether has inserted new node</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(sortedSet *SortedSet)</span> <span class="title">Add</span><span class="params">(member <span class="keyword">string</span>, score <span class="keyword">float64</span>)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">   element, ok := sortedSet.dict[member]</span><br><span class="line">   sortedSet.dict[member] = &amp;Element&#123;</span><br><span class="line">      Member: member,</span><br><span class="line">      Score:  score,</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> ok &#123;</span><br><span class="line">      <span class="keyword">if</span> score != element.Score &#123;</span><br><span class="line">         sortedSet.skiplist.remove(member, element.Score)</span><br><span class="line">         sortedSet.skiplist.insert(member, score)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   sortedSet.skiplist.insert(member, score)</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="RemoveByRank-删除范围内的元素"><a href="#RemoveByRank-删除范围内的元素" class="headerlink" title="RemoveByRank 删除范围内的元素"></a>RemoveByRank 删除范围内的元素</h3><p>SortedSet.RemoveByRank 方法用于删除 <code>[start, stop)</code> 范围内的元素。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// RemoveByRank removes member ranking within [start, stop)</span></span><br><span class="line"><span class="comment">// sort by ascending order and rank starts from 0</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(sortedSet *SortedSet)</span> <span class="title">RemoveByRank</span><span class="params">(start <span class="keyword">int64</span>, stop <span class="keyword">int64</span>)</span> <span class="title">int64</span></span> &#123;</span><br><span class="line">   removed := sortedSet.skiplist.RemoveRangeByRank(start+<span class="number">1</span>, stop+<span class="number">1</span>)</span><br><span class="line">   <span class="keyword">for</span> _, element := <span class="keyword">range</span> removed &#123;</span><br><span class="line">      <span class="built_in">delete</span>(sortedSet.dict, element.Member)</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="keyword">int64</span>(<span class="built_in">len</span>(removed))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/" rel="prev" title="godis源码阅读 (3) 存储数据结构之Hash表和LockMap">
+      <i class="fa fa-chevron-left"></i> godis源码阅读 (3) 存储数据结构之Hash表和LockMap
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/08/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Simple-yet-Effective-Relation-Information-Guided-Approach-for-Few-Shot-Relation-Extraction/" rel="next" title="关系抽取论文 A Simple yet Effective Relation Information Guided Approach for Few-Shot Relation Extraction">
+      关系抽取论文 A Simple yet Effective Relation Information Guided Approach for Few-Shot Relation Extraction <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#List"><span class="nav-number">1.</span> <span class="nav-text">List</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BF%AB%E9%80%9F%E9%93%BE%E8%A1%A8"><span class="nav-number">1.1.1.</span> <span class="nav-text">快速链表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%AD%E4%BB%A3%E5%99%A8"><span class="nav-number">1.1.2.</span> <span class="nav-text">迭代器</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#find-%E6%9F%A5%E6%89%BE-index-%E5%AF%B9%E5%BA%94%E7%9A%84%E8%BF%AD%E4%BB%A3%E5%99%A8"><span class="nav-number">1.1.2.1.</span> <span class="nav-text">find 查找 index 对应的迭代器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#get-%E8%8E%B7%E5%8F%96%E8%BF%AD%E4%BB%A3%E5%99%A8%E6%89%80%E6%8C%87%E5%90%91%E7%9A%84%E6%95%B0%E6%8D%AE"><span class="nav-number">1.1.2.2.</span> <span class="nav-text">get 获取迭代器所指向的数据</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#next-%E7%A7%BB%E5%8A%A8%E5%88%B0%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%95%B0%E6%8D%AE%E5%85%83%E7%B4%A0"><span class="nav-number">1.1.2.3.</span> <span class="nav-text">next 移动到下一个数据元素</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Get-Set-%E6%9F%A5%E8%AF%A2%E3%80%81%E6%9B%B4%E6%96%B0%E6%95%B0%E6%8D%AE"><span class="nav-number">1.2.</span> <span class="nav-text">Get Set 查询、更新数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Add-%E5%9C%A8%E5%B0%BE%E9%83%A8%E6%8F%92%E5%85%A5%E6%95%B0%E6%8D%AE"><span class="nav-number">1.3.</span> <span class="nav-text">Add 在尾部插入数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Insert-%E6%8F%92%E5%85%A5%E6%95%B0%E6%8D%AE"><span class="nav-number">1.4.</span> <span class="nav-text">Insert 插入数据</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Sorted-Set"><span class="nav-number">2.</span> <span class="nav-text">Sorted Set</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B7%B3%E8%B7%83%E9%93%BE%E8%A1%A8"><span class="nav-number">2.1.</span> <span class="nav-text">跳跃链表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9F%A5%E6%89%BE%E8%8A%82%E7%82%B9"><span class="nav-number">2.1.1.</span> <span class="nav-text">查找节点</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#getByRank"><span class="nav-number">2.1.1.1.</span> <span class="nav-text">getByRank</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#getFirstInScoreRange"><span class="nav-number">2.1.1.2.</span> <span class="nav-text">getFirstInScoreRange</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8F%92%E5%85%A5%E8%8A%82%E7%82%B9"><span class="nav-number">2.1.2.</span> <span class="nav-text">插入节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%A0%E9%99%A4%E8%8A%82%E7%82%B9"><span class="nav-number">2.1.3.</span> <span class="nav-text">删除节点</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#removeNode"><span class="nav-number">2.1.3.1.</span> <span class="nav-text">removeNode</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%89%E5%BA%8F%E9%9B%86%E5%90%88%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">2.2.</span> <span class="nav-text">有序集合的实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Add-%E6%8F%92%E5%85%A5%E5%85%83%E7%B4%A0"><span class="nav-number">2.2.1.</span> <span class="nav-text">Add 插入元素</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RemoveByRank-%E5%88%A0%E9%99%A4%E8%8C%83%E5%9B%B4%E5%86%85%E7%9A%84%E5%85%83%E7%B4%A0"><span class="nav-number">2.2.2.</span> <span class="nav-text">RemoveByRank 删除范围内的元素</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

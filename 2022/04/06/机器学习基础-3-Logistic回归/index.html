@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Logistic回归实际上是一种分类算法。 假设函数因为应用于分类问题，想要使得假设函数的值域为[0, 1]。故在线性回归假设函数的基础上，外层再套一个logistic或者叫做sigmoid函数，作为logistic回归的假设函数：  sigmoid函数图型如下：  在logistic回归中，假设函数的输出h(x)的含义是当输入x时，预测y&#x3D;1的可能性。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="机器学习基础 (3) Logistic回归">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/04/06/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Logistic回归实际上是一种分类算法。 假设函数因为应用于分类问题，想要使得假设函数的值域为[0, 1]。故在线性回归假设函数的基础上，外层再套一个logistic或者叫做sigmoid函数，作为logistic回归的假设函数：  sigmoid函数图型如下：  在logistic回归中，假设函数的输出h(x)的含义是当输入x时，预测y&#x3D;1的可能性。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649226030426.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/v2-5a8214c717a6df35375d32da6d4d8d08_r.jpg">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649227513920.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649232705805.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649300390936.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649300708780.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649300839364.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649302550612.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649309227143.png">
+<meta property="article:published_time" content="2022-04-06T05:34:35.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.820Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="机器学习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649226030426.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/04/06/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>机器学习基础 (3) Logistic回归 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/06/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          机器学习基础 (3) Logistic回归
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-06 13:34:35" itemprop="dateCreated datePublished" datetime="2022-04-06T13:34:35+08:00">2022-04-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>Logistic回归实际上是一种<strong>分类</strong>算法。</p>
+<h1 id="假设函数"><a href="#假设函数" class="headerlink" title="假设函数"></a>假设函数</h1><p>因为应用于分类问题，想要使得假设函数的值域为<code>[0, 1]</code>。故在线性回归假设函数的基础上，外层再套一个logistic或者叫做<strong>sigmoid函数</strong>，作为logistic回归的假设函数：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649226030426.png" alt="logistic回归假设函数"></p>
+<p>sigmoid函数图型如下：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/v2-5a8214c717a6df35375d32da6d4d8d08_r.jpg" alt="sigmoid函数"></p>
+<p>在logistic回归中，假设函数的输出h(x)的含义是当输入x时，预测y=1的<strong>可能性</strong>。</p>
+<span id="more"></span>
+
+<h1 id="决策边界"><a href="#决策边界" class="headerlink" title="决策边界"></a>决策边界</h1><p>决策边界就是一系列的点连成的线（二元分类），在<strong>线上的所有点满足h(x)=0.5</strong>，这条线就是<strong>决策边界</strong>。而这条线将平面分为两个区域，其中一个区域预测y=1（h(x) &gt;= 0.5）；另一片区域预测y=0（h(x) &lt; 0.5）。</p>
+<p>需要注意的是，<strong>决策边界与参数有关</strong>，是参数的属性，并不是数据集特征的属性。只要给定了参数向量θ，决策边界也就确定了。</p>
+<h1 id="代价函数"><a href="#代价函数" class="headerlink" title="代价函数"></a>代价函数</h1><p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649227513920.png" alt="1649227513920"></p>
+<p>定义Logistic代价函数如下。同时，假设函数h代表了y=1的<strong>可能性</strong>，所以Cost函数的意义可以解释为：</p>
+<ul>
+<li>当y=1时，若h预测出的结果趋近于0，那么代价就会趋于无穷；若h预测出的结果趋近于1，那么代价就会趋近于0；</li>
+<li>当y=0时，若h预测出的结果趋近于1，那么代价就会趋近于无穷；若h预测出的结果趋近于0，那么代价就会趋近于0。</li>
+</ul>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649232705805.png" alt="1649232705805"></p>
+<p>因为y的取值只有0或者1，可以将以上Cost函数进行简化，将两种情况整合到一个式子中去：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649300390936.png" alt="logistic回归代价函数简化"></p>
+<h1 id="梯度下降"><a href="#梯度下降" class="headerlink" title="梯度下降"></a>梯度下降</h1><p>我们的目标就是<strong>最小化代价函数</strong>，利用梯度下降完成此工作。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649300708780.png" alt="梯度下降"></p>
+<p>将代价函数的偏导数算出来，可以发现<strong>logistic回归与线性回归中的梯度下降的计算表达式是一致的（两者之间假设函数h不一样）</strong>。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649300839364.png" alt="梯度下降"></p>
+<h2 id="高级优化"><a href="#高级优化" class="headerlink" title="高级优化"></a>高级优化</h2><p>在最小化最小化代价函数的过程中，每一次算得代价函数J的偏导后，除了进行梯度下降处理，其他的<strong>优化</strong>策略包括：<strong>共轭梯度（Conjugate gradient）、牛顿法（BFGS）、拟牛顿法（L-BFGS）</strong>。</p>
+<p>这些优化策略的<strong>优点</strong>在于：无需选择学习率α、比梯度下降算法效率更高。<strong>缺点</strong>就是这些算法更加的复杂。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649302550612.png" alt="其他最小化代价函数的方法"></p>
+<h1 id="多元分类"><a href="#多元分类" class="headerlink" title="多元分类"></a>多元分类</h1><p>对于类别大于2的多元分类，同样可以应用logistic回归进行分类。依次令<strong>每一种分类定义为y=1，其他所有分类看作是y=0</strong>，每一次这样的操作都会产生不同的假设函数h。那么，第i次时产生的假设函数h，就是预测输入为第i个分类的概率。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-3-Logistic%E5%9B%9E%E5%BD%92/1649309227143.png" alt="losgistic多元分类"></p>
+<p>对于一个新输入的x，选择最大的假设函数h即为对应的预测，即可完成多元分类。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" rel="tag"># 机器学习</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/04/05/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-2-%E7%BA%BF%E6%80%A7%E5%9B%9E%E5%BD%92/" rel="prev" title="机器学习基础 (2) 线性回归">
+      <i class="fa fa-chevron-left"></i> 机器学习基础 (2) 线性回归
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/04/07/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-4-%E6%AD%A3%E5%88%99%E5%8C%96/" rel="next" title="机器学习基础 (4) 正则化">
+      机器学习基础 (4) 正则化 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%81%87%E8%AE%BE%E5%87%BD%E6%95%B0"><span class="nav-number">1.</span> <span class="nav-text">假设函数</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%86%B3%E7%AD%96%E8%BE%B9%E7%95%8C"><span class="nav-number">2.</span> <span class="nav-text">决策边界</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BB%A3%E4%BB%B7%E5%87%BD%E6%95%B0"><span class="nav-number">3.</span> <span class="nav-text">代价函数</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%A2%AF%E5%BA%A6%E4%B8%8B%E9%99%8D"><span class="nav-number">4.</span> <span class="nav-text">梯度下降</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%AB%98%E7%BA%A7%E4%BC%98%E5%8C%96"><span class="nav-number">4.1.</span> <span class="nav-text">高级优化</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%A4%9A%E5%85%83%E5%88%86%E7%B1%BB"><span class="nav-number">5.</span> <span class="nav-text">多元分类</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

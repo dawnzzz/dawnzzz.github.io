@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="卷Kubernetes 中卷是 Pod 的组成部分，因此卷可以在 Pod 中定义。Kubernetes 卷不是单独的对象，也不能单独创建或者删除。 卷有很多类型可以选择，包括 emptyDir（临时卷，生命周期与 Pod 相同）、hostPath（指向节点文件系统上的文件或者目录）、持久卷等。 Pod 与底层存储技术解耦但是！！在 Kubernetes 上部署应用的开发人员不需要知道底层使用的是哪">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes学习 (8) 卷 配置">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="卷Kubernetes 中卷是 Pod 的组成部分，因此卷可以在 Pod 中定义。Kubernetes 卷不是单独的对象，也不能单独创建或者删除。 卷有很多类型可以选择，包括 emptyDir（临时卷，生命周期与 Pod 相同）、hostPath（指向节点文件系统上的文件或者目录）、持久卷等。 Pod 与底层存储技术解耦但是！！在 Kubernetes 上部署应用的开发人员不需要知道底层使用的是哪">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-05-30T13:53:55.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.774Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="云原生">
+<meta property="article:tag" content="k8s">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes学习 (8) 卷 配置 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes学习 (8) 卷 配置
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-30 21:53:55" itemprop="dateCreated datePublished" datetime="2023-05-30T21:53:55+08:00">2023-05-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="卷"><a href="#卷" class="headerlink" title="卷"></a>卷</h1><p>Kubernetes 中卷是 Pod 的组成部分，因此卷可以在 Pod 中定义。Kubernetes 卷不是单独的对象，也不能单独创建或者删除。</p>
+<p>卷有很多类型可以选择，包括 emptyDir（临时卷，生命周期与 Pod 相同）、hostPath（指向节点文件系统上的文件或者目录）、持久卷等。</p>
+<h2 id="Pod-与底层存储技术解耦"><a href="#Pod-与底层存储技术解耦" class="headerlink" title="Pod 与底层存储技术解耦"></a>Pod 与底层存储技术解耦</h2><p><strong>但是！！</strong>在 Kubernetes 上部署应用的开发人员<strong>不需要知道</strong>底层使用的是哪种存储技术，同理他们也<strong>不需要了解</strong>应该使用哪些类型的物理服务器来运行 Pod。所以，需要令具体的类型的存储卷与开发人员<strong>解耦</strong>，当开发入员需要一定数量的持久化存储来进行应用时，可以向 Kubernetes 请求然后 Kubernetes 再进行分配。</p>
+<p>因此，Kubernetes 引入了两种新的资源，<strong>持久卷（Persistent Volume，PV）</strong>和<strong>持久卷声明（Persistent Volume Claim）</strong>。开发人员无需向 Pod 中添加特定技术的卷，而是由集群管理员设置底层存储，<strong>创建持久卷并注册</strong>。开发人员<strong>创建持久卷声明</strong>，指定需要的容量和访问模式，Kubernetes 会<strong>自动</strong>的<strong>匹配到持久卷并绑定到 PVC 中</strong>。</p>
+<blockquote>
+<p>可以声明访问模式、回收策略等。</p>
+</blockquote>
+<h2 id="动态声明持久卷"><a href="#动态声明持久卷" class="headerlink" title="动态声明持久卷"></a>动态声明持久卷</h2><p>通过 PV 和 PVC 的配合，开发人员已经无需关心底层的存储是怎样实现的，但是还需要管理员来配置和创建持久卷。</p>
+<p>Kubernetes 可以<strong>通过 StorageClass 来动态的执行此过程</strong>，管理员只需要定义 StorageClass 对象，系统在每次通过持久卷声明请求时创建一个新的持久卷。用户也可以再 PVC 中引用 StorageClass，并且可以指定大小和访问模式，StorageClass 对象会根据 PVC 中的要求动态的创建持久化卷并与相应的 Pod 绑定。</p>
+<h1 id="配置"><a href="#配置" class="headerlink" title="配置"></a>配置</h1><p>Kubernetes 中的应用程序需要读取配置信息，ConfigMap 用于读取一般配置，而 Secret 用于读取密码等敏感信息。</p>
+<h2 id="ConfigMap"><a href="#ConfigMap" class="headerlink" title="ConfigMap"></a>ConfigMap</h2><p>ConfigMap 实际上就是<strong>键值对</strong>，<strong>值</strong>的内容可以是<strong>字面量</strong>，也可以是完整的<strong>配置文件</strong>。应用程序无法直接读取 ConfigMap，甚至不知道其是否存在，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
+<blockquote>
+<p>如果 Pod 引用了不存在的 ConifgMap，则会无法启动。</p>
+</blockquote>
+<p>ConfigMap 相比于直接在镜像中打入环境变量更加灵活，因为 ConfigMap 可以随时更新配置信息。</p>
+<h2 id="Secret"><a href="#Secret" class="headerlink" title="Secret"></a>Secret</h2><p>Secret 也是键值对，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
+<blockquote>
+<p>Secret 只会存储在节点的内存中，永远不会写入物理内存。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E4%BA%91%E5%8E%9F%E7%94%9F/" rel="tag"># 云原生</a>
+              <a href="/tags/k8s/" rel="tag"># k8s</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/" rel="prev" title="Kubernetes学习 (7) 服务 通信">
+      <i class="fa fa-chevron-left"></i> Kubernetes学习 (7) 服务 通信
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/" rel="next" title="凤凰架构笔记 (2) 事务处理">
+      凤凰架构笔记 (2) 事务处理 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8D%B7"><span class="nav-number">1.</span> <span class="nav-text">卷</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Pod-%E4%B8%8E%E5%BA%95%E5%B1%82%E5%AD%98%E5%82%A8%E6%8A%80%E6%9C%AF%E8%A7%A3%E8%80%A6"><span class="nav-number">1.1.</span> <span class="nav-text">Pod 与底层存储技术解耦</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8A%A8%E6%80%81%E5%A3%B0%E6%98%8E%E6%8C%81%E4%B9%85%E5%8D%B7"><span class="nav-number">1.2.</span> <span class="nav-text">动态声明持久卷</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">配置</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ConfigMap"><span class="nav-number">2.1.</span> <span class="nav-text">ConfigMap</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Secret"><span class="nav-number">2.2.</span> <span class="nav-text">Secret</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

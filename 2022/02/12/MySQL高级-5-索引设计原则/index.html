@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="索引的使用查看索引 1SHOW INDEX FROM 表名;  创建索引创建表的时候添加索引 隐式的方式添加索引：在声明有主键约束、唯一性约束、外键约束的字段上，会自动的添加索引  123456789101112CREATE TABLE dept(    dept_id INT PRIMARY KEY AUTO_INCREMENT,	# 主键约束，自动添加索引    dept_name VARCH">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (5) 索引设计原则">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/12/MySQL%E9%AB%98%E7%BA%A7-5-%E7%B4%A2%E5%BC%95%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="索引的使用查看索引 1SHOW INDEX FROM 表名;  创建索引创建表的时候添加索引 隐式的方式添加索引：在声明有主键约束、唯一性约束、外键约束的字段上，会自动的添加索引  123456789101112CREATE TABLE dept(    dept_id INT PRIMARY KEY AUTO_INCREMENT,	# 主键约束，自动添加索引    dept_name VARCH">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-02-12T03:49:53.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.781Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/12/MySQL%E9%AB%98%E7%BA%A7-5-%E7%B4%A2%E5%BC%95%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (5) 索引设计原则 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/12/MySQL%E9%AB%98%E7%BA%A7-5-%E7%B4%A2%E5%BC%95%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (5) 索引设计原则
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-12 11:49:53" itemprop="dateCreated datePublished" datetime="2022-02-12T11:49:53+08:00">2022-02-12</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="索引的使用"><a href="#索引的使用" class="headerlink" title="索引的使用"></a>索引的使用</h1><p>查看索引</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SHOW</span> INDEX <span class="keyword">FROM</span> 表名;</span><br></pre></td></tr></table></figure>
+
+<h2 id="创建索引"><a href="#创建索引" class="headerlink" title="创建索引"></a>创建索引</h2><h3 id="创建表的时候添加索引"><a href="#创建表的时候添加索引" class="headerlink" title="创建表的时候添加索引"></a>创建表的时候添加索引</h3><ol>
+<li>隐式的方式添加索引：在声明有<strong>主键约束、唯一性约束、外键约束</strong>的字段上，会自动的添加索引</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> dept(</span><br><span class="line">    dept_id <span class="type">INT</span> <span class="keyword">PRIMARY</span> KEY AUTO_INCREMENT,	# 主键约束，自动添加索引</span><br><span class="line">    dept_name <span class="type">VARCHAR</span>(<span class="number">20</span>)</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> emp(</span><br><span class="line">    emp_id <span class="type">INT</span> <span class="keyword">PRIMARY</span> KEY AUTO_INCREMENT,	# 主键约束</span><br><span class="line">    emp_name <span class="type">VARCHAR</span>(<span class="number">20</span>) <span class="keyword">UNIQUE</span>,	# 唯一性约束，自动添加索引</span><br><span class="line">    dept_id <span class="type">INT</span>,</span><br><span class="line">    # 外键约束，自动添加是索引</span><br><span class="line">    <span class="keyword">CONSTRAINT</span> emp_dept_id_fk <span class="keyword">FOREIGN</span> KEY(dept_id) <span class="keyword">REFERENCES</span> dept(dept_id)</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<ol start="2">
+<li>显式的方式添加索引</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> book(</span><br><span class="line">	book_id <span class="type">INT</span>,</span><br><span class="line">    book_name <span class="type">VARCHAR</span>(<span class="number">100</span>),</span><br><span class="line">    authors <span class="type">VARCHAR</span>(<span class="number">100</span>),</span><br><span class="line">    info <span class="type">VARCHAR</span>(<span class="number">100</span>),</span><br><span class="line">    comment <span class="type">VARCHAR</span>(<span class="number">100</span>),</span><br><span class="line">    # 声明普通索引</span><br><span class="line">    INDEX idx_book_name(book_name),</span><br><span class="line">    # 声明唯一索引，保证唯一性约束</span><br><span class="line">    <span class="keyword">UNIQUE</span> INDEX uk_idx_cmt(info)</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<h3 id="在已经存在的表上创建索引"><a href="#在已经存在的表上创建索引" class="headerlink" title="在已经存在的表上创建索引"></a>在已经存在的表上创建索引</h3><ol>
+<li>使用<code>ALTER TABLE</code>语句</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ALTER</span> <span class="keyword">TABLE</span> table_name</span><br><span class="line"><span class="keyword">ADD</span> [<span class="keyword">UNIQUE</span> <span class="operator">|</span> FULLTEXT <span class="operator">|</span> SPATIAL] INDEX [index_name](col_name[length],...)</span><br><span class="line">[<span class="keyword">ASC</span> <span class="operator">|</span> <span class="keyword">DESC</span>]</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>使用<code>DROP INDEX</code>语句</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> [<span class="keyword">UNIQUE</span> <span class="operator">|</span> FULLTEXT <span class="operator">|</span> SPATIAL] INDEX [index_name]</span><br><span class="line"><span class="keyword">ON</span> table_name(col_name[length],...)</span><br><span class="line">[<span class="keyword">ASC</span> <span class="operator">|</span> <span class="keyword">DESC</span>]</span><br></pre></td></tr></table></figure>
+
+<h2 id="删除索引"><a href="#删除索引" class="headerlink" title="删除索引"></a>删除索引</h2><ol>
+<li>使用<code>ALTER TABLE</code>语句</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ALTER</span> <span class="keyword">TABLE</span> table_name <span class="keyword">DROP</span> INDEX index_name;</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>使用<code>CREATE INDEX</code>语句</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">DROP</span> INDEX index_name <span class="keyword">ON</span> table_name;</span><br></pre></td></tr></table></figure>
+
+<h1 id="MySQL-8-0索引新特性"><a href="#MySQL-8-0索引新特性" class="headerlink" title="MySQL 8.0索引新特性"></a>MySQL 8.0索引新特性</h1><h2 id="降序索引"><a href="#降序索引" class="headerlink" title="降序索引"></a>降序索引</h2><p>索引默认是升序排列的，在MySQL 8.0中支持索引的降序排列</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> test1(</span><br><span class="line">    id <span class="type">INT</span>,</span><br><span class="line">    name <span class="type">VARCHAR</span>(<span class="number">100</span>),</span><br><span class="line">    # 创建联合索引，id降序、name升序</span><br><span class="line">    INDEX idx_id_name(id <span class="keyword">DESC</span>, name <span class="keyword">ASC</span>)</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<h2 id="隐藏索引"><a href="#隐藏索引" class="headerlink" title="隐藏索引"></a>隐藏索引</h2><p>将待删除的索引设置为隐藏索引，那么查询优化器将不再使用这个索引</p>
+<p>关键字：<code>VISIBLE</code>可见，<code>INVISIBLE</code>不可见</p>
+<h1 id="索引设计原则"><a href="#索引设计原则" class="headerlink" title="索引设计原则"></a>索引设计原则</h1><h2 id="适合创建索引的情况"><a href="#适合创建索引的情况" class="headerlink" title="适合创建索引的情况"></a>适合创建索引的情况</h2><h3 id="字段有唯一性的限制"><a href="#字段有唯一性的限制" class="headerlink" title="字段有唯一性的限制"></a>字段有唯一性的限制</h3><p>业务上具有<strong>唯一特性</strong>的字段，即使是组合字段，也<strong>必须</strong>建成唯一索引<br>说明：不要以为唯一索引影响了 insert 速度，这个速度损耗可以忽略，但<strong>提高查找速度是明显的</strong></p>
+<h3 id="频繁作为-WHERE-查询条件的字段"><a href="#频繁作为-WHERE-查询条件的字段" class="headerlink" title="频繁作为 WHERE 查询条件的字段"></a>频繁作为 WHERE 查询条件的字段</h3><p>某个字段在<code>SELECT</code>语句的<code>WHERE</code>条件中<strong>经常被使用</strong>到，那么就需要给这个字段创建索引了。尤其是在<strong>数据量大</strong>的情况下，创建普通索引就可以大幅提升数据查询的效率</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">mysql<span class="operator">&gt;</span> <span class="keyword">SELECT</span> <span class="operator">*</span></span><br><span class="line">    <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">FROM</span> student_info</span><br><span class="line">    <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">WHERE</span> student_id <span class="operator">=</span> <span class="number">123110</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">--------+------------+--------+-----------+----------+---------------------+</span></span><br><span class="line"><span class="operator">|</span> id     <span class="operator">|</span> student_id <span class="operator">|</span> name   <span class="operator">|</span> course_id <span class="operator">|</span> class_id <span class="operator">|</span> create_time         <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">--------+------------+--------+-----------+----------+---------------------+</span></span><br><span class="line"><span class="operator">|</span> <span class="number">137269</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> brFXZf <span class="operator">|</span>     <span class="number">10048</span> <span class="operator">|</span>    <span class="number">10002</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">45</span>:<span class="number">18</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">317972</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> IzwJiO <span class="operator">|</span>     <span class="number">10013</span> <span class="operator">|</span>    <span class="number">10161</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">45</span>:<span class="number">40</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">469811</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> zDtlXe <span class="operator">|</span>     <span class="number">10012</span> <span class="operator">|</span>    <span class="number">10039</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">46</span>:<span class="number">00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">478466</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> CTNhvI <span class="operator">|</span>     <span class="number">10042</span> <span class="operator">|</span>    <span class="number">10035</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">46</span>:<span class="number">01</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">636345</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> NYCPtA <span class="operator">|</span>     <span class="number">10019</span> <span class="operator">|</span>    <span class="number">10088</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">46</span>:<span class="number">21</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">--------+------------+--------+-----------+----------+---------------------+</span></span><br><span class="line"><span class="number">5</span> <span class="keyword">rows</span> <span class="keyword">in</span> <span class="keyword">set</span> (<span class="number">1.01</span> sec)</span><br><span class="line"></span><br><span class="line">mysql<span class="operator">&gt;</span> <span class="keyword">ALTER</span> <span class="keyword">TABLE</span> student_info</span><br><span class="line">    <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">ADD</span> INDEX idx_sid(student_id);</span><br><span class="line">Query OK, <span class="number">0</span> <span class="keyword">rows</span> affected (<span class="number">14.45</span> sec)</span><br><span class="line">Records: <span class="number">0</span>  Duplicates: <span class="number">0</span>  Warnings: <span class="number">0</span></span><br><span class="line"></span><br><span class="line">mysql<span class="operator">&gt;</span> <span class="keyword">SELECT</span> <span class="operator">*</span></span><br><span class="line">    <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">FROM</span> student_info</span><br><span class="line">    <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">WHERE</span> student_id <span class="operator">=</span> <span class="number">123110</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">--------+------------+--------+-----------+----------+---------------------+</span></span><br><span class="line"><span class="operator">|</span> id     <span class="operator">|</span> student_id <span class="operator">|</span> name   <span class="operator">|</span> course_id <span class="operator">|</span> class_id <span class="operator">|</span> create_time         <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">--------+------------+--------+-----------+----------+---------------------+</span></span><br><span class="line"><span class="operator">|</span> <span class="number">137269</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> brFXZf <span class="operator">|</span>     <span class="number">10048</span> <span class="operator">|</span>    <span class="number">10002</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">45</span>:<span class="number">18</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">317972</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> IzwJiO <span class="operator">|</span>     <span class="number">10013</span> <span class="operator">|</span>    <span class="number">10161</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">45</span>:<span class="number">40</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">469811</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> zDtlXe <span class="operator">|</span>     <span class="number">10012</span> <span class="operator">|</span>    <span class="number">10039</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">46</span>:<span class="number">00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">478466</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> CTNhvI <span class="operator">|</span>     <span class="number">10042</span> <span class="operator">|</span>    <span class="number">10035</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">46</span>:<span class="number">01</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span> <span class="number">636345</span> <span class="operator">|</span>     <span class="number">123110</span> <span class="operator">|</span> NYCPtA <span class="operator">|</span>     <span class="number">10019</span> <span class="operator">|</span>    <span class="number">10088</span> <span class="operator">|</span> <span class="number">2022</span><span class="number">-02</span><span class="number">-12</span> <span class="number">16</span>:<span class="number">46</span>:<span class="number">21</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">--------+------------+--------+-----------+----------+---------------------+</span></span><br><span class="line"><span class="number">5</span> <span class="keyword">rows</span> <span class="keyword">in</span> <span class="keyword">set</span> (<span class="number">0.11</span> sec)</span><br></pre></td></tr></table></figure>
+
+<h3 id="经常-GROUP-BY-和-ORDER-BY-的列"><a href="#经常-GROUP-BY-和-ORDER-BY-的列" class="headerlink" title="经常 GROUP BY 和 ORDER BY 的列"></a>经常 GROUP BY 和 ORDER BY 的列</h3><p><strong>索引就是让数据按照某种顺序进行存储或检索</strong>，因此当我们使用<code>GROUP BY</code>对数据进行分组查询，或者使用<code>ORDER BY</code>对数据进行排序的时候，就需要 <strong>对分组或者排序的字段进行索引</strong> </p>
+<p>如果待排序的列有<strong>多个</strong>，那么可以在这些列上建立<strong>组合索引</strong></p>
+<h3 id="UPDATE、DELETE-的-WHERE-条件列"><a href="#UPDATE、DELETE-的-WHERE-条件列" class="headerlink" title="UPDATE、DELETE 的 WHERE 条件列"></a>UPDATE、DELETE 的 WHERE 条件列</h3><p>对数据按照某个条件进行查询后再进行<code>UPDATE</code>或<code>DELETE</code>的操作，如果对<code>WHERE</code>字段创建了索引，就能大幅提升效率</p>
+<p>原理是因为我们需要<strong>先</strong>根据<code>WHERE</code>条件列<strong>检索出来这条记录</strong>，然后再对它进行更新或删除。如果进行更新的时候，<strong>更新的字段是非索引字段，提升的效率会更明显，这是因为非索引字段更新不需要对索引进行维护</strong></p>
+<h3 id="DISTINCT-字段需要创建索引"><a href="#DISTINCT-字段需要创建索引" class="headerlink" title="DISTINCT 字段需要创建索引"></a>DISTINCT 字段需要创建索引</h3><p>有时候我们需要对某个字段进行去重，使用<code>DISTINCT</code>，那么对这个字段创建索引，也会提升查询效率</p>
+<p>这对去重字段的SQL查询效率有了提升，同时该字段还是按照递增的<strong>顺序</strong> 进行展示的。这是因为<strong>索引会对数据按照某种顺序进行排序</strong>，所以在去重的时候也会快很多</p>
+<h3 id="多表-JOIN-连接操作时，创建索引注意事项"><a href="#多表-JOIN-连接操作时，创建索引注意事项" class="headerlink" title="多表 JOIN 连接操作时，创建索引注意事项"></a>多表 JOIN 连接操作时，创建索引注意事项</h3><p>首先， <strong>连接表的数量尽量不要超过 3 张</strong> ，因为每增加一张表就相当于增加了一次嵌套的循环，数量级增长会非常快，严重影响查询的效率</p>
+<p>其次， <strong>对 WHERE 条件创建索引</strong> ，因为<code>WHERE</code>才是对数据条件的过滤。如果在数据量非常大的情况下，没有<code>WHERE</code>条件过滤是非常可怕的</p>
+<p>最后， <strong>对用于连接的字段创建索引</strong> ，并且该字段在多张表中的类型必须一致</p>
+<h3 id="使用列的类型小的创建索引"><a href="#使用列的类型小的创建索引" class="headerlink" title="使用列的类型小的创建索引"></a>使用列的类型小的创建索引</h3><p>数据类型小指，表示的数据范围小</p>
+<ul>
+<li>数据类型小，在查询时进行<strong>比较的操作快</strong></li>
+<li>数据类型小，<strong>一个数据页内就可以放下更多的记录</strong>，从而减少磁盘IO</li>
+</ul>
+<p>对于<strong>表的主键来说更好</strong>，不仅聚簇索引中会存储主键值，<strong>所有其他的非聚簇索引同样会存储一份主键值</strong>，如果主键使用更小的数据类型，意味着数据页中可以存放更多的记录</p>
+<h3 id="使用字符串前缀创建索引"><a href="#使用字符串前缀创建索引" class="headerlink" title="使用字符串前缀创建索引"></a>使用字符串前缀创建索引</h3><p>使用字符串前缀建立索引，可以有效减小索引占用的空间</p>
+<ul>
+<li>比较的效率更高</li>
+<li>一个数据页内可以存放下更多索引记录</li>
+</ul>
+<p>在varchar字段上建立索引时，必须指定索引长度，没必要对全字段建立索引，根据实际文本<strong>区分度决定索引长度</strong></p>
+<p>说明：索引的长度与区分度是一对矛盾体，一般对字符串类型数据，长度为 20 的索引，区分度会高达90%以上 ，可以使用<code>count(distinct left(列名, 索引长度))/count(*)</code>的区分度来确定</p>
+<h3 id="区分度高-散列性高-的列适合作为索引"><a href="#区分度高-散列性高-的列适合作为索引" class="headerlink" title="区分度高(散列性高)的列适合作为索引"></a>区分度高(散列性高)的列适合作为索引</h3><p>区分度高的列，索引效果更好</p>
+<p><code>区分度=count(distinct left(列名, 索引长度))/count(*)</code></p>
+<p>联合索引中可以把区分度高的列放在前面</p>
+<h3 id="使用最频繁的列放到联合索引的左侧"><a href="#使用最频繁的列放到联合索引的左侧" class="headerlink" title="使用最频繁的列放到联合索引的左侧"></a>使用最频繁的列放到联合索引的左侧</h3><p>这样也可以较少的建立一些索引。同时，由于”最左前缀原则”，可以增加联合索引的使用率</p>
+<h3 id="在多个字段都要创建索引的情况下，联合索引优于单值索引"><a href="#在多个字段都要创建索引的情况下，联合索引优于单值索引" class="headerlink" title="在多个字段都要创建索引的情况下，联合索引优于单值索引"></a>在多个字段都要创建索引的情况下，联合索引优于单值索引</h3><p>联合索引应用场景更广</p>
+<h2 id="限制索引的数量"><a href="#限制索引的数量" class="headerlink" title="限制索引的数量"></a>限制索引的数量</h2><p>索引不是越多越好，单张表的索引数量建议<strong>不超过6个</strong>。原因：</p>
+<ul>
+<li>每个索引都会<strong>占用磁盘空间</strong>，索引越多，需要的磁盘空间就越多</li>
+<li>索引<strong>会影响数据增删改的速度</strong>，因为更新数据的同时，也同样需要<strong>维护索引</strong></li>
+<li>优化器在选择如何查询优化时，会<strong>对每一个可能用到的索引进行评估</strong>，以生成一个最好的执行计划。过多的索引用于查询会<strong>增加MySQL优化器生成执行计划的时间</strong>，降低查询性能</li>
+</ul>
+<h2 id="不适合创建索引的情况"><a href="#不适合创建索引的情况" class="headerlink" title="不适合创建索引的情况"></a>不适合创建索引的情况</h2><ol>
+<li><p>在where中使用不到的字段，不要设置索引：<code>WHERE</code>条件，包括<code>GROUP BY</code>、<code>ORDER BY</code></p>
+</li>
+<li><p>数据量小的表最好不要使用索引：<strong>回表</strong>时得不偿失</p>
+</li>
+<li><p>有大量重复数据的列上不要建立索引</p>
+</li>
+<li><p>避免对经常更新的表创建过多的索引</p>
+</li>
+<li><p>不建议用无序的值作为索引：造成索引的频繁更新（排序）</p>
+</li>
+<li><p>删除不再使用或者很少使用的索引：浪费空间、影响数据更新的性能</p>
+</li>
+<li><p>不要定义冗余或重复的索引</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/10/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/" rel="prev" title="MySQL高级 (4) InnoDB的数据存储结构">
+      <i class="fa fa-chevron-left"></i> MySQL高级 (4) InnoDB的数据存储结构
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/12/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-14/" rel="next" title="算法刷题笔记 (14) 二叉树的完全性检验 最长连续序列 寻找旋转排序数组中的最小值 寻找峰值">
+      算法刷题笔记 (14) 二叉树的完全性检验 最长连续序列 寻找旋转排序数组中的最小值 寻找峰值 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E7%9A%84%E4%BD%BF%E7%94%A8"><span class="nav-number">1.</span> <span class="nav-text">索引的使用</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95"><span class="nav-number">1.1.</span> <span class="nav-text">创建索引</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E8%A1%A8%E7%9A%84%E6%97%B6%E5%80%99%E6%B7%BB%E5%8A%A0%E7%B4%A2%E5%BC%95"><span class="nav-number">1.1.1.</span> <span class="nav-text">创建表的时候添加索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%A8%E5%B7%B2%E7%BB%8F%E5%AD%98%E5%9C%A8%E7%9A%84%E8%A1%A8%E4%B8%8A%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95"><span class="nav-number">1.1.2.</span> <span class="nav-text">在已经存在的表上创建索引</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%A0%E9%99%A4%E7%B4%A2%E5%BC%95"><span class="nav-number">1.2.</span> <span class="nav-text">删除索引</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#MySQL-8-0%E7%B4%A2%E5%BC%95%E6%96%B0%E7%89%B9%E6%80%A7"><span class="nav-number">2.</span> <span class="nav-text">MySQL 8.0索引新特性</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%99%8D%E5%BA%8F%E7%B4%A2%E5%BC%95"><span class="nav-number">2.1.</span> <span class="nav-text">降序索引</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9A%90%E8%97%8F%E7%B4%A2%E5%BC%95"><span class="nav-number">2.2.</span> <span class="nav-text">隐藏索引</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99"><span class="nav-number">3.</span> <span class="nav-text">索引设计原则</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%80%82%E5%90%88%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95%E7%9A%84%E6%83%85%E5%86%B5"><span class="nav-number">3.1.</span> <span class="nav-text">适合创建索引的情况</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AD%97%E6%AE%B5%E6%9C%89%E5%94%AF%E4%B8%80%E6%80%A7%E7%9A%84%E9%99%90%E5%88%B6"><span class="nav-number">3.1.1.</span> <span class="nav-text">字段有唯一性的限制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%A2%91%E7%B9%81%E4%BD%9C%E4%B8%BA-WHERE-%E6%9F%A5%E8%AF%A2%E6%9D%A1%E4%BB%B6%E7%9A%84%E5%AD%97%E6%AE%B5"><span class="nav-number">3.1.2.</span> <span class="nav-text">频繁作为 WHERE 查询条件的字段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BB%8F%E5%B8%B8-GROUP-BY-%E5%92%8C-ORDER-BY-%E7%9A%84%E5%88%97"><span class="nav-number">3.1.3.</span> <span class="nav-text">经常 GROUP BY 和 ORDER BY 的列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#UPDATE%E3%80%81DELETE-%E7%9A%84-WHERE-%E6%9D%A1%E4%BB%B6%E5%88%97"><span class="nav-number">3.1.4.</span> <span class="nav-text">UPDATE、DELETE 的 WHERE 条件列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#DISTINCT-%E5%AD%97%E6%AE%B5%E9%9C%80%E8%A6%81%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.5.</span> <span class="nav-text">DISTINCT 字段需要创建索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%9A%E8%A1%A8-JOIN-%E8%BF%9E%E6%8E%A5%E6%93%8D%E4%BD%9C%E6%97%B6%EF%BC%8C%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="nav-number">3.1.6.</span> <span class="nav-text">多表 JOIN 连接操作时，创建索引注意事项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E5%88%97%E7%9A%84%E7%B1%BB%E5%9E%8B%E5%B0%8F%E7%9A%84%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.7.</span> <span class="nav-text">使用列的类型小的创建索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E5%AD%97%E7%AC%A6%E4%B8%B2%E5%89%8D%E7%BC%80%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.8.</span> <span class="nav-text">使用字符串前缀创建索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8C%BA%E5%88%86%E5%BA%A6%E9%AB%98-%E6%95%A3%E5%88%97%E6%80%A7%E9%AB%98-%E7%9A%84%E5%88%97%E9%80%82%E5%90%88%E4%BD%9C%E4%B8%BA%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.9.</span> <span class="nav-text">区分度高(散列性高)的列适合作为索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E6%9C%80%E9%A2%91%E7%B9%81%E7%9A%84%E5%88%97%E6%94%BE%E5%88%B0%E8%81%94%E5%90%88%E7%B4%A2%E5%BC%95%E7%9A%84%E5%B7%A6%E4%BE%A7"><span class="nav-number">3.1.10.</span> <span class="nav-text">使用最频繁的列放到联合索引的左侧</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%A8%E5%A4%9A%E4%B8%AA%E5%AD%97%E6%AE%B5%E9%83%BD%E8%A6%81%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95%E7%9A%84%E6%83%85%E5%86%B5%E4%B8%8B%EF%BC%8C%E8%81%94%E5%90%88%E7%B4%A2%E5%BC%95%E4%BC%98%E4%BA%8E%E5%8D%95%E5%80%BC%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.11.</span> <span class="nav-text">在多个字段都要创建索引的情况下，联合索引优于单值索引</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%99%90%E5%88%B6%E7%B4%A2%E5%BC%95%E7%9A%84%E6%95%B0%E9%87%8F"><span class="nav-number">3.2.</span> <span class="nav-text">限制索引的数量</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8D%E9%80%82%E5%90%88%E5%88%9B%E5%BB%BA%E7%B4%A2%E5%BC%95%E7%9A%84%E6%83%85%E5%86%B5"><span class="nav-number">3.3.</span> <span class="nav-text">不适合创建索引的情况</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

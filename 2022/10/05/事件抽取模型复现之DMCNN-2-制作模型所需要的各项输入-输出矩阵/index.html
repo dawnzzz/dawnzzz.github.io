@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="123456789101112import jsonimport numpy as npimport joblibwith open(&amp;#x27;.&#x2F;preprocess&#x2F;dataset.json&amp;#x27;, &amp;#x27;r&amp;#x27;) as f:    dataset &#x3D; json.load(f)len(dataset)# 1665MAX_SEQUENCE_LENGTH &#x3D; 85	# 句子最">
+<meta property="og:type" content="article">
+<meta property="og:title" content="事件抽取模型复现之DMCNN (2) 制作模型所需要的各项输入&#x2F;输出矩阵">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-2-%E5%88%B6%E4%BD%9C%E6%A8%A1%E5%9E%8B%E6%89%80%E9%9C%80%E8%A6%81%E7%9A%84%E5%90%84%E9%A1%B9%E8%BE%93%E5%85%A5-%E8%BE%93%E5%87%BA%E7%9F%A9%E9%98%B5/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="123456789101112import jsonimport numpy as npimport joblibwith open(&amp;#x27;.&#x2F;preprocess&#x2F;dataset.json&amp;#x27;, &amp;#x27;r&amp;#x27;) as f:    dataset &#x3D; json.load(f)len(dataset)# 1665MAX_SEQUENCE_LENGTH &#x3D; 85	# 句子最">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-10-05T03:07:37.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.798Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="深度学习">
+<meta property="article:tag" content="事件抽取">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-2-%E5%88%B6%E4%BD%9C%E6%A8%A1%E5%9E%8B%E6%89%80%E9%9C%80%E8%A6%81%E7%9A%84%E5%90%84%E9%A1%B9%E8%BE%93%E5%85%A5-%E8%BE%93%E5%87%BA%E7%9F%A9%E9%98%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>事件抽取模型复现之DMCNN (2) 制作模型所需要的各项输入/输出矩阵 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-2-%E5%88%B6%E4%BD%9C%E6%A8%A1%E5%9E%8B%E6%89%80%E9%9C%80%E8%A6%81%E7%9A%84%E5%90%84%E9%A1%B9%E8%BE%93%E5%85%A5-%E8%BE%93%E5%87%BA%E7%9F%A9%E9%98%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          事件抽取模型复现之DMCNN (2) 制作模型所需要的各项输入/输出矩阵
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-10-05 11:07:37" itemprop="dateCreated datePublished" datetime="2022-10-05T11:07:37+08:00">2022-10-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">事件抽取模型复现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> json</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">import</span> joblib</span><br><span class="line"></span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;./preprocess/dataset.json&#x27;</span>, <span class="string">&#x27;r&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    dataset = json.load(f)</span><br><span class="line"></span><br><span class="line"><span class="built_in">len</span>(dataset)</span><br><span class="line"><span class="comment"># 1665</span></span><br><span class="line"></span><br><span class="line">MAX_SEQUENCE_LENGTH = <span class="number">85</span>	<span class="comment"># 句子最大长度</span></span><br><span class="line">EVENT_TYPE = <span class="number">7</span>		<span class="comment"># 事件类型数量</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="Word2Vec"><a href="#Word2Vec" class="headerlink" title="Word2Vec"></a>Word2Vec</h1><h2 id="生成-embedding-index"><a href="#生成-embedding-index" class="headerlink" title="生成 embedding_index"></a>生成 embedding_index</h2><p>这里用的预训练Word2Vec语料为 sgns.weibo.bigram-char，建立一个字典 embedding_index，用来记录 word 与 vec 的映射。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> keras.preprocessing.text <span class="keyword">import</span> Tokenizer</span><br><span class="line"><span class="keyword">from</span> keras.preprocessing.sequence <span class="keyword">import</span> pad_sequences</span><br><span class="line"></span><br><span class="line">embeddings_index = &#123;&#125;</span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;path-to/sgns.weibo.bigram-char&#x27;</span>, encoding=<span class="string">&#x27;utf-8&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    lines = f.readlines()</span><br><span class="line">    lines = [l.strip() <span class="keyword">for</span> l <span class="keyword">in</span> lines]</span><br><span class="line">    <span class="built_in">print</span>(lines[<span class="number">0</span>])	<span class="comment"># 195197 300，共有195197个词，embedding-dim为300</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> line <span class="keyword">in</span> lines[<span class="number">1</span>:]:</span><br><span class="line">        word, coefs = line.split(maxsplit=<span class="number">1</span>)</span><br><span class="line">        coefs = np.fromstring(coefs, <span class="string">&#x27;f&#x27;</span>, sep=<span class="string">&#x27; &#x27;</span>)	<span class="comment"># 转为vec</span></span><br><span class="line">        embeddings_index[word] = coefs</span><br><span class="line">       </span><br><span class="line"><span class="built_in">print</span>(<span class="string">&#x27;Found %s word vectors.&#x27;</span> % <span class="built_in">len</span>(embeddings_index))</span><br><span class="line"><span class="comment"># Found 195197 word vectors.</span></span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="填充句子"><a href="#填充句子" class="headerlink" title="填充句子"></a>填充句子</h2><p>首先定义最大的词数为6000，embedding-dim 为 300。并且用 texts 记录每句话：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">MAX_NUM_WORDS = <span class="number">6000</span></span><br><span class="line">EMBEDDING_DIM = <span class="number">300</span></span><br><span class="line"></span><br><span class="line">texts = []</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> piece <span class="keyword">in</span> dataset:</span><br><span class="line">    texts.append(piece[<span class="string">&#x27;sentence_words&#x27;</span>])</span><br><span class="line">    </span><br><span class="line"><span class="built_in">len</span>(texts)	<span class="comment"># 1665</span></span><br></pre></td></tr></table></figure>
+
+<p>进行分词，得到 word_index 用于记录在 Tokenizer 中 token 和 id 的映射关系。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">tokenizer = Tokenizer(num_words=MAX_NUM_WORDS)</span><br><span class="line">tokenizer.fit_on(texts)	<span class="comment"># 分词</span></span><br><span class="line">sequences = tokenizer.texts_to_sequences(texts)		<span class="comment"># 将中文句子转为 word_id 序列</span></span><br><span class="line"></span><br><span class="line">word_index = tokenizer.word_index</span><br><span class="line"><span class="built_in">print</span>(<span class="string">&#x27;Found %s unique tokens.&#x27;</span> % <span class="built_in">len</span>(word_index))</span><br><span class="line"><span class="comment"># Found 6476 unique tokens.</span></span><br></pre></td></tr></table></figure>
+
+<p>最后利用 pad_sequences 填充句子至数据集中的最大句子长度（85）：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">we = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)</span><br></pre></td></tr></table></figure>
+
+<h2 id="生成-embedding-matrix"><a href="#生成-embedding-matrix" class="headerlink" title="生成 embedding_matrix"></a>生成 embedding_matrix</h2><p>生成 embedding_matrix ，**维度为 (单词数量，embedding 长度)**。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">num_words = <span class="built_in">min</span>(MAX_NUM_WORDS, <span class="built_in">len</span>(word_index) + <span class="number">1</span>)</span><br><span class="line">embedding_matrix = np.zeros((num_words, EMBEDDING_DIM))</span><br><span class="line"><span class="keyword">for</span> word, i <span class="keyword">in</span> word_index.items():</span><br><span class="line">    <span class="keyword">if</span> i &gt;= MAX_NUM_WORDS:</span><br><span class="line">        <span class="keyword">continue</span></span><br><span class="line">    embedding_vector = embeddings_index.get(word)</span><br><span class="line">    <span class="keyword">if</span> embedding_vector <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="comment"># words not found in embedding index will be all-zeros.</span></span><br><span class="line">        embedding_matrix[i] = embedding_vector</span><br><span class="line"></span><br><span class="line"><span class="comment"># 保存embedding_matrix we</span></span><br><span class="line">np.save(<span class="string">&#x27;./we_embedding_matrix_&#123;&#125;.npy&#x27;</span>.<span class="built_in">format</span>(embedding_matrix.shape), embedding_matrix)</span><br><span class="line">np.save(<span class="string">&#x27;./we_&#123;&#125;.npy&#x27;</span>.<span class="built_in">format</span>(we.shape), we)</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> joblib</span><br><span class="line"><span class="comment"># 保存 token 到 id 的映射</span></span><br><span class="line">joblib.dump(word_index, <span class="string">&#x27;we_word_index.pkl&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<h1 id="位置向量-Position"><a href="#位置向量-Position" class="headerlink" title="位置向量 Position"></a>位置向量 Position</h1><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> json</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">import</span> joblib</span><br><span class="line"></span><br><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;./preprocess/dataset.json&#x27;</span>, <span class="string">&#x27;r&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    dataset = json.load(f)</span><br><span class="line"></span><br><span class="line">    </span><br><span class="line"><span class="built_in">len</span>(dataset)	<span class="comment"># 1665</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># we: 填充后的句子，type为list，元素为token的id</span></span><br><span class="line">we = np.load(<span class="string">&#x27;./we_(1665, 85).npy&#x27;</span>)</span><br><span class="line">we.shape	<span class="comment"># (1665, 85)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># token与id的映射</span></span><br><span class="line">word_index = joblib.load(<span class="string">&#x27;./we_word_index.pkl&#x27;</span>)</span><br><span class="line"><span class="built_in">len</span>(word_index)		<span class="comment"># 6476</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="cal-distance-arr-函数"><a href="#cal-distance-arr-函数" class="headerlink" title="cal_distance_arr 函数"></a>cal_distance_arr 函数</h2><p>cal_distance_arr 函数用来计算位置信息，</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">cal_distance_arr</span>(<span class="params">word, we_arr</span>):</span></span><br><span class="line">    <span class="keyword">assert</span> <span class="built_in">len</span>(we_arr) == MAX_SEQUENCE_LENGTH</span><br><span class="line">    arr = np.arange(MAX_SEQUENCE_LENGTH)</span><br><span class="line">    </span><br><span class="line">    value = word_index[word]	<span class="comment"># 对应的id</span></span><br><span class="line">    index = np.where(we_arr==value)[<span class="number">0</span>]	<span class="comment"># 取第一个位置</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(index) != <span class="number">0</span>:</span><br><span class="line">        index = index[<span class="number">0</span>]	<span class="comment"># word 的 index</span></span><br><span class="line">        </span><br><span class="line">        arr = np.<span class="built_in">abs</span>(arr - index)	<span class="comment"># arr 为与 word 的距离（绝对值）</span></span><br><span class="line">        arr[np.where(we_arr==<span class="number">0</span>)[<span class="number">0</span>]] = -<span class="number">1</span>	<span class="comment"># 填充的部分置为 -1</span></span><br><span class="line">        <span class="keyword">return</span> index, arr</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># 不可达</span></span><br><span class="line">        <span class="keyword">return</span> -<span class="number">1</span>, np.zeros(MAX_SEQUENCE_LENGTH) - <span class="number">1</span>   </span><br><span class="line">    </span><br><span class="line">cal_distance_arr(<span class="string">&#x27;领导&#x27;</span>,we[<span class="number">0</span>])</span><br><span class="line"><span class="comment"># (69,</span></span><br><span class="line"><span class="comment">#  array([-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,</span></span><br><span class="line"><span class="comment">#         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,</span></span><br><span class="line"><span class="comment">#         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,</span></span><br><span class="line"><span class="comment">#         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  5,  4,  3,  2,</span></span><br><span class="line"><span class="comment">#          1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15]))</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="计算位置向量"><a href="#计算位置向量" class="headerlink" title="计算位置向量"></a>计算位置向量</h2><p>初始化位置向量矩阵，前两维代表<strong>第 i 个句子的第 j 个（触发）词的位置向量</strong>，后两维代表<strong>触发词位置向量</strong>和<strong>论元的位置向量</strong>。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">position = np.zeros((<span class="built_in">len</span>(dataset), MAX_SEQUENCE_LENGTH, MAX_SEQUENCE_LENGTH, <span class="number">2</span>))</span><br><span class="line">position.shape</span><br><span class="line"><span class="comment"># (1665, 85, 85, 2)</span></span><br></pre></td></tr></table></figure>
+
+<p>计算<strong>触发词</strong>和对应<strong>论元</strong>的位置向量：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> i, piece <span class="keyword">in</span> <span class="built_in">enumerate</span>(dataset):</span><br><span class="line">    triggers = piece[<span class="string">&#x27;triggers&#x27;</span>]</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> triggers:</span><br><span class="line">        <span class="comment"># trigger词</span></span><br><span class="line">        t_word = trigger[<span class="string">&#x27;event_trigger&#x27;</span>]</span><br><span class="line">        trigger_index, trigger_arr = cal_distance_arr(t_word, we[i])</span><br><span class="line"></span><br><span class="line">        <span class="comment"># arguments词</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            a_word = trigger[<span class="string">&#x27;event_arguments&#x27;</span>]</span><br><span class="line">            argument_index, argument_arr = cal_distance_arr(a_word, we[i])</span><br><span class="line">        <span class="keyword">except</span>:</span><br><span class="line">            argument_arr = np.zeros(MAX_SEQUENCE_LENGTH) - <span class="number">1</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> trigger_index == -<span class="number">1</span>:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line"></span><br><span class="line">        position[i][trigger_index] = np.concatenate(</span><br><span class="line">            [trigger_arr[:, <span class="literal">None</span>], argument_arr[:, <span class="literal">None</span>]], axis=-<span class="number">1</span>)</span><br><span class="line">        </span><br><span class="line">np.save(<span class="string">&#x27;./position_&#123;&#125;.npy&#x27;</span>.<span class="built_in">format</span>(position.shape), position)</span><br></pre></td></tr></table></figure>
+
+<h1 id="Lexical-Level-Feature"><a href="#Lexical-Level-Feature" class="headerlink" title="Lexical Level Feature"></a>Lexical Level Feature</h1><h2 id="find-index-函数和-get-context-value-函数"><a href="#find-index-函数和-get-context-value-函数" class="headerlink" title="find_index 函数和 get_context_value 函数"></a>find_index 函数和 get_context_value 函数</h2><p>find_index 函数用于获取 word 在 we_arr 中的下标，若不可达则返回 -1：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">find_index</span>(<span class="params">word, we_arr</span>):</span></span><br><span class="line">    <span class="keyword">assert</span> <span class="built_in">len</span>(we_arr) == MAX_SEQUENCE_LENGTH</span><br><span class="line">    </span><br><span class="line">    value = word_index[word]</span><br><span class="line">    index = np.where(we_arr==value)[<span class="number">0</span>]</span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(index) != <span class="number">0</span>:</span><br><span class="line">        index = index[<span class="number">0</span>]</span><br><span class="line">        <span class="keyword">return</span> index</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># 不可达</span></span><br><span class="line">        <span class="keyword">return</span> -<span class="number">1</span>  </span><br></pre></td></tr></table></figure>
+
+<p>get_context_value 用于返回 we_arr 中坐标为 index 左、中、右的 token id：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">get_context_value</span>(<span class="params">index, we_arr</span>):</span></span><br><span class="line">    <span class="keyword">if</span> index == -<span class="number">1</span>:</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span></span><br><span class="line">    </span><br><span class="line">    curr = we_arr[index]</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        left = we_arr[index-<span class="number">1</span>]</span><br><span class="line">    <span class="keyword">except</span>:</span><br><span class="line">        left = <span class="number">0</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        right = we_arr[index+<span class="number">1</span>]</span><br><span class="line">    <span class="keyword">except</span>:</span><br><span class="line">        right = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> left, curr, right</span><br></pre></td></tr></table></figure>
+
+<h2 id="计算-Lexical-矩阵"><a href="#计算-Lexical-矩阵" class="headerlink" title="计算 Lexical 矩阵"></a>计算 Lexical 矩阵</h2><p>首先初始化 Lexical 矩阵，前两维代表<strong>第 i 个句子的第 j 个（触发）词的 Lexical 向量</strong>，最后一维表示<strong>触发词</strong>和<strong>论元</strong>的左、中、右 token_id（get_context_value 返回的）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lexical = np.zeros((<span class="built_in">len</span>(dataset), MAX_SEQUENCE_LENGTH, <span class="number">6</span>))</span><br><span class="line">lexical.shape</span><br><span class="line"><span class="comment"># (1665, 85, 6)</span></span><br></pre></td></tr></table></figure>
+
+<p>计算 Lexical 矩阵：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> i, piece <span class="keyword">in</span> <span class="built_in">enumerate</span>(dataset):</span><br><span class="line">    triggers = piece[<span class="string">&#x27;triggers&#x27;</span>]</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> triggers:</span><br><span class="line">        <span class="comment"># trigger词</span></span><br><span class="line">        t_word = trigger[<span class="string">&#x27;event_trigger&#x27;</span>]</span><br><span class="line">        trigger_index = find_index(t_word, we[i])</span><br><span class="line"></span><br><span class="line">        <span class="comment"># arguments词</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            a_word = trigger[<span class="string">&#x27;event_arguments&#x27;</span>]</span><br><span class="line">            argument_index = find_index(a_word, we[i])</span><br><span class="line">        <span class="keyword">except</span>:</span><br><span class="line">            argument_index = -<span class="number">1</span></span><br><span class="line">            </span><br><span class="line">        <span class="keyword">if</span> trigger_index == -<span class="number">1</span>:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment"># 触发词的</span></span><br><span class="line">        lexical[i][trigger_index][:<span class="number">3</span>] = get_context_value(trigger_index, we[i])</span><br><span class="line">        <span class="comment"># 论元的</span></span><br><span class="line">        lexical[i][trigger_index][<span class="number">3</span>:] = get_context_value(argument_index, we[i])</span><br><span class="line">   </span><br><span class="line">np.save(<span class="string">&#x27;./lexical_&#123;&#125;.npy&#x27;</span>.<span class="built_in">format</span>(lexical.shape), lexical)</span><br></pre></td></tr></table></figure>
+
+<h1 id="用于-DynamicPooling：Mask"><a href="#用于-DynamicPooling：Mask" class="headerlink" title="用于 DynamicPooling：Mask"></a>用于 DynamicPooling：Mask</h1><p>因为在动态池化时，把每一个 feature map 分为了 <strong>3 部分（被触发词和论元划分）</strong>，所以需要计算 Mask 矩阵用于动态池化操作。</p>
+<h2 id="gen-mask-arr-函数"><a href="#gen-mask-arr-函数" class="headerlink" title="gen_mask_arr 函数"></a>gen_mask_arr 函数</h2><p>gen_mask_arr 函数用于产生 mask_arr，输入中 t_index、a_index 分别是触发词的下标、论元的下标。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">gen_mask_arr</span>(<span class="params">t_index, a_index</span>):</span></span><br><span class="line">    mask_arr = np.ones((<span class="number">3</span>, MAX_SEQUENCE_LENGTH))</span><br><span class="line">    </span><br><span class="line">    partition = [t_index, a_index]</span><br><span class="line">    partition.sort()</span><br><span class="line">    low, high = partition</span><br><span class="line">    low = <span class="number">0</span> <span class="keyword">if</span> low &lt; <span class="number">0</span> <span class="keyword">else</span> low</span><br><span class="line">    </span><br><span class="line">    mask_arr[<span class="number">0</span>][<span class="number">0</span>:low] = <span class="number">0</span></span><br><span class="line">    mask_arr[<span class="number">1</span>][low:high] = <span class="number">0</span></span><br><span class="line">    mask_arr[<span class="number">2</span>][high:] = <span class="number">0</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> mask_arr</span><br></pre></td></tr></table></figure>
+
+<h2 id="计算-Mask-矩阵"><a href="#计算-Mask-矩阵" class="headerlink" title="计算 Mask 矩阵"></a>计算 Mask 矩阵</h2><p>首先初始化 Mask 矩阵，“3” 代表了被分为三个部分。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mask = np.ones((<span class="built_in">len</span>(dataset), MAX_SEQUENCE_LENGTH, <span class="number">3</span>, MAX_SEQUENCE_LENGTH))</span><br><span class="line">mask.shape</span><br><span class="line"><span class="comment"># (1665, 85, 3, 85)</span></span><br></pre></td></tr></table></figure>
+
+<p>计算 Mask 矩阵。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> i, piece <span class="keyword">in</span> <span class="built_in">enumerate</span>(dataset):</span><br><span class="line">    triggers = piece[<span class="string">&#x27;triggers&#x27;</span>]</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> triggers:</span><br><span class="line">        <span class="comment"># trigger词</span></span><br><span class="line">        t_word = trigger[<span class="string">&#x27;event_trigger&#x27;</span>]</span><br><span class="line">        trigger_index = find_index(t_word, we[i])</span><br><span class="line"></span><br><span class="line">        <span class="comment"># arguments词</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            a_word = trigger[<span class="string">&#x27;event_arguments&#x27;</span>]</span><br><span class="line">            argument_index = find_index(a_word, we[i])</span><br><span class="line">        <span class="keyword">except</span>:</span><br><span class="line">            argument_index = -<span class="number">1</span></span><br><span class="line">            </span><br><span class="line">        <span class="keyword">if</span> trigger_index == -<span class="number">1</span>:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        </span><br><span class="line">        mask[i][trigger_index] = gen_mask_arr(trigger_index, argument_index)</span><br></pre></td></tr></table></figure>
+
+<h1 id="生成-Label"><a href="#生成-Label" class="headerlink" title="生成 Label"></a>生成 Label</h1><h2 id="得到-event2index"><a href="#得到-event2index" class="headerlink" title="得到 event2index"></a>得到 event2index</h2><p>event2index 是一个字典，其记录了事件类型与 id 的映射。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">event_type = <span class="built_in">dict</span>()</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> sent <span class="keyword">in</span> dataset:</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> sent[<span class="string">&#x27;triggers&#x27;</span>]:</span><br><span class="line">        t = trigger[<span class="string">&#x27;event&#x27;</span>]</span><br><span class="line">        <span class="keyword">if</span> t <span class="keyword">not</span> <span class="keyword">in</span> event_type.keys():</span><br><span class="line">            event_type[t] = <span class="number">1</span></span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            event_type[t] += <span class="number">1</span></span><br><span class="line">            </span><br><span class="line">events = <span class="built_in">list</span>(event_type.keys())</span><br><span class="line">events.sort()</span><br><span class="line"></span><br><span class="line">event2id = <span class="built_in">dict</span>(<span class="built_in">zip</span>(events, [i+<span class="number">1</span> <span class="keyword">for</span> i <span class="keyword">in</span> <span class="built_in">range</span>(<span class="built_in">len</span>(events))]))</span><br><span class="line">event2id</span><br><span class="line"><span class="comment"># &#123;&#x27;action&#x27;: 1,</span></span><br><span class="line"><span class="comment">#  &#x27;emergency&#x27;: 2,</span></span><br><span class="line"><span class="comment">#  &#x27;movement&#x27;: 3,</span></span><br><span class="line"><span class="comment">#  &#x27;operation&#x27;: 4,</span></span><br><span class="line"><span class="comment">#  &#x27;perception&#x27;: 5,</span></span><br><span class="line"><span class="comment">#  &#x27;stateChange&#x27;: 6,</span></span><br><span class="line"><span class="comment">#  &#x27;statement&#x27;: 7&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="利用-to-categorical-函数生成-Label"><a href="#利用-to-categorical-函数生成-Label" class="headerlink" title="利用 to_categorical 函数生成 Label"></a>利用 to_categorical 函数生成 Label</h2><p>利用 to_categorical 生成 one-hot 形式的 label 向量：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> tensorflow.keras.utils <span class="keyword">import</span> to_categorical</span><br><span class="line"></span><br><span class="line">label = np.zeros((<span class="built_in">len</span>(dataset), MAX_SEQUENCE_LENGTH))</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> i, piece <span class="keyword">in</span> <span class="built_in">enumerate</span>(dataset):</span><br><span class="line">    <span class="keyword">for</span> trigger <span class="keyword">in</span> piece[<span class="string">&#x27;triggers&#x27;</span>]:</span><br><span class="line">        j = find_index(trigger[<span class="string">&#x27;event_trigger&#x27;</span>], we[i])</span><br><span class="line">        t = event2id[trigger[<span class="string">&#x27;event&#x27;</span>]]</span><br><span class="line">        label[i][j] = t</span><br><span class="line"></span><br><span class="line">label = to_categorical(label)</span><br><span class="line">label.shape</span><br><span class="line"><span class="comment"># (1665, 85, 8)</span></span><br><span class="line"></span><br><span class="line">np.save(<span class="string">&#x27;./label_&#123;&#125;.npy&#x27;</span>.<span class="built_in">format</span>(label.shape), label)</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/" rel="tag"># 深度学习</a>
+              <a href="/tags/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96/" rel="tag"># 事件抽取</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-1-%E6%95%B0%E6%8D%AE%E9%A2%84%E5%A4%84%E7%90%86/" rel="prev" title="事件抽取模型复现之DMCNN (1) 数据预处理">
+      <i class="fa fa-chevron-left"></i> 事件抽取模型复现之DMCNN (1) 数据预处理
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-3-DMCNN%E6%A8%A1%E5%9E%8B/" rel="next" title="事件抽取模型复现之DMCNN (3) DMCNN模型">
+      事件抽取模型复现之DMCNN (3) DMCNN模型 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Word2Vec"><span class="nav-number">1.</span> <span class="nav-text">Word2Vec</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E6%88%90-embedding-index"><span class="nav-number">1.1.</span> <span class="nav-text">生成 embedding_index</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A1%AB%E5%85%85%E5%8F%A5%E5%AD%90"><span class="nav-number">1.2.</span> <span class="nav-text">填充句子</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E6%88%90-embedding-matrix"><span class="nav-number">1.3.</span> <span class="nav-text">生成 embedding_matrix</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BD%8D%E7%BD%AE%E5%90%91%E9%87%8F-Position"><span class="nav-number">2.</span> <span class="nav-text">位置向量 Position</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#cal-distance-arr-%E5%87%BD%E6%95%B0"><span class="nav-number">2.1.</span> <span class="nav-text">cal_distance_arr 函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%A1%E7%AE%97%E4%BD%8D%E7%BD%AE%E5%90%91%E9%87%8F"><span class="nav-number">2.2.</span> <span class="nav-text">计算位置向量</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Lexical-Level-Feature"><span class="nav-number">3.</span> <span class="nav-text">Lexical Level Feature</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#find-index-%E5%87%BD%E6%95%B0%E5%92%8C-get-context-value-%E5%87%BD%E6%95%B0"><span class="nav-number">3.1.</span> <span class="nav-text">find_index 函数和 get_context_value 函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%A1%E7%AE%97-Lexical-%E7%9F%A9%E9%98%B5"><span class="nav-number">3.2.</span> <span class="nav-text">计算 Lexical 矩阵</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%94%A8%E4%BA%8E-DynamicPooling%EF%BC%9AMask"><span class="nav-number">4.</span> <span class="nav-text">用于 DynamicPooling：Mask</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#gen-mask-arr-%E5%87%BD%E6%95%B0"><span class="nav-number">4.1.</span> <span class="nav-text">gen_mask_arr 函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%A1%E7%AE%97-Mask-%E7%9F%A9%E9%98%B5"><span class="nav-number">4.2.</span> <span class="nav-text">计算 Mask 矩阵</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%94%9F%E6%88%90-Label"><span class="nav-number">5.</span> <span class="nav-text">生成 Label</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BE%97%E5%88%B0-event2index"><span class="nav-number">5.1.</span> <span class="nav-text">得到 event2index</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%A9%E7%94%A8-to-categorical-%E5%87%BD%E6%95%B0%E7%94%9F%E6%88%90-Label"><span class="nav-number">5.2.</span> <span class="nav-text">利用 to_categorical 函数生成 Label</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

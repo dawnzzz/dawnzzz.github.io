@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="服务Kubernetes 中服务是一种为一组功能相同的 Pod 提供单一不变的入口点的资源。当服务存在时，入口地址不会改变。 客户端通过 服务的入口地址建立连接，这些连接会被路由到提供该服务的任意一个 pod 上。 通过这种方式， 客户端不需要知道每个单独的提供服务的 pod 的地址， 这样这些 pod 就可以在集群中随时被创建或移除。 创建服务服务使用标签来选择哪些 Pod 属于服务，哪些标签不">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes学习 (7) 服务 通信">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="服务Kubernetes 中服务是一种为一组功能相同的 Pod 提供单一不变的入口点的资源。当服务存在时，入口地址不会改变。 客户端通过 服务的入口地址建立连接，这些连接会被路由到提供该服务的任意一个 pod 上。 通过这种方式， 客户端不需要知道每个单独的提供服务的 pod 的地址， 这样这些 pod 就可以在集群中随时被创建或移除。 创建服务服务使用标签来选择哪些 Pod 属于服务，哪些标签不">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530181524181.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530182214724.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530183832502.png">
+<meta property="article:published_time" content="2023-05-30T08:16:15.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.774Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="云原生">
+<meta property="article:tag" content="k8s">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530181524181.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes学习 (7) 服务 通信 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes学习 (7) 服务 通信
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-30 16:16:15" itemprop="dateCreated datePublished" datetime="2023-05-30T16:16:15+08:00">2023-05-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="服务"><a href="#服务" class="headerlink" title="服务"></a>服务</h1><p>Kubernetes 中<strong>服务</strong>是一种为<strong>一组功能相同</strong>的 Pod 提供<strong>单一不变的入口点</strong>的资源。当服务存在时，入口地址不会改变。 客户端通过 服务的入口地址建立连接，<strong>这些连接会被路由到提供该服务的任意一个 pod 上</strong>。 通过这种方式， 客户端不需要知道每个单独的提供服务的 pod 的地址， 这样这些 pod 就可以在集群中随时被创建或移除。</p>
+<h2 id="创建服务"><a href="#创建服务" class="headerlink" title="创建服务"></a>创建服务</h2><p>服务使用<strong>标签</strong>来选择哪些 Pod 属于服务，哪些标签不属于服务。spec. ports.port 声明服务对外暴露的端口，而 spec.ports.targetPort 声明的是将消息转发给 Pod 的端口。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">kubia</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">ports:</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">https</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">443</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8443</span></span><br><span class="line">	<span class="attr">selector:</span></span><br><span class="line">		<span class="attr">app:</span> <span class="string">kubia</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>如果希望<strong>特定客户端</strong>产生的所有请求每次都<strong>指向同一个 Pod</strong>，则可以设置服务的 spec.sessionAffinity 属性为 ClientIP。sessionAffinity 属性仅支持两个值，none（默认）和 ClientIP。</p>
+</blockquote>
+<h2 id="DNS-服务发现"><a href="#DNS-服务发现" class="headerlink" title="DNS 服务发现"></a>DNS 服务发现</h2><p>在集群内部的客户端如何知道访问服务的地址，这就需要<strong>服务发现</strong>了。在 Kubernetes 中<strong>提供了 DNS 服务器</strong>，Pod 可以使用内部的 DNS 服务器作为服务发现。客户端可以通过<strong>全限定域名（FQDN）</strong>来访问。</p>
+<p>在创建一个服务时，Kubernetes 会<strong>创建一个相应的 DNS 条目</strong>，条目的内容为 <code>&lt;服务名称&gt;.&lt;名字空间名称&gt;.svc.cluster.local</code>，其中 svc.cluster.local 是在所有<strong>集群本地服务</strong>名称中使用的<strong>可配置</strong>集群域后缀。</p>
+<p>如果客户端 Pod 和目标 Pod 在同一个命名空间下，则可以省略 svc.cluster.local 后缀，甚至是命名空间名字。</p>
+<h1 id="Endpoint"><a href="#Endpoint" class="headerlink" title="Endpoint"></a>Endpoint</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>服务 和 Pod 不是直接相连的，而是通过 Endpoint 资源进行连接。Endpoint 就是一个记录 IP 和 端口的列表，用于指示服务的转发地址。</p>
+<p>尽管在 服务中定义了 Pod 选择器，但在重定向传入连接时不会直接使用它。<strong>选择器用于构建 Pod 的 IP 端口列表</strong>，然后存储在 Endpoint 资源中。当客户端连接服务时，会<strong>从 Endpoint 资源中选择一个地址</strong>，将客户端的请求重定向到这个地址上。</p>
+<h2 id="手动配置-Endpoint"><a href="#手动配置-Endpoint" class="headerlink" title="手动配置 Endpoint"></a>手动配置 Endpoint</h2><p>当服务和 Endpoint 解耦后，可以<strong>分别手动配置</strong>它们。如果创建了不包含 Pod 选择器的服务，那么 Kubernetes 就不会创建 Endpoint 资源。所以在<strong>创建服务时不指定 Pod 选择器</strong>，然后手动的<strong>创建 Endpoint 资源</strong>，实现服务的<strong>任意重定向</strong>。</p>
+<blockquote>
+<p>Endpoints 资源与服务需要具有相同的名称，这样才能使二者进行绑定。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="创建-ExternalName-类型的服务"><a href="#创建-ExternalName-类型的服务" class="headerlink" title="创建 ExternalName 类型的服务"></a>创建 ExternalName 类型的服务</h2><p>客户端 Pod 通过访问服务，手动配置服务的 Endpoint，就相当于创建了一个具有<strong>别名</strong>（别名就是 Kubernetes 中服务的名字）的<strong>外部服务</strong>。更简单的方法就是将服务的 spec.type 字段声明为 ExternalName。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">external-service</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">type:</span> <span class="string">ExternalName</span></span><br><span class="line">	<span class="attr">externalName:</span> <span class="string">xxx.yyy.com</span></span><br><span class="line">	<span class="attr">ports:</span></span><br><span class="line">		<span class="bullet">-</span> <span class="string">port</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
+
+<p>在 ExternalName 服务创建完毕后，K8s 集群<strong>内部的 Pod 可以通过 external-service 来连接到外部服务</strong>，而不是使用实际的远程 URL。在以后如果将其指向不同的服务，只需简单地修改 spec.externalName 属性，或者将类型改为 ClusterIP（集群内部地址）。</p>
+<h1 id="将服务暴露给外部客户端"><a href="#将服务暴露给外部客户端" class="headerlink" title="将服务暴露给外部客户端"></a>将服务暴露给外部客户端</h1><p>外部的客户端访问服务有以下三种方式：</p>
+<ul>
+<li><strong>服务类型设置为 NodePort：</strong>每一个集群节点上都会打开一个端口，在这个端口上收到的请求重定向给类型为 NodePort 的服务。</li>
+<li><strong>服务类型设置为 LoadBalance：</strong>作为 NodePort 的扩展，服务可以通过专用的负载均衡器访问。负载均衡器将流量重定向到 NodePort 端口，客户端通过负载均衡器连接到服务。</li>
+<li><strong>Ingress 资源：</strong>运行在 HTTP 层，通过一个 IP 地址公开多个服务（类似于 Niginx 反向代理）。</li>
+</ul>
+<h2 id="NodePort-服务"><a href="#NodePort-服务" class="headerlink" title="NodePort 服务"></a>NodePort 服务</h2><p>将服务的类型设置为 NodePort，通过创建 NodePort 服务，可以<strong>让 Kubernetes 上的每一个节点都保留一个端口</strong>，将收到的请求转发给作为服务。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">kubia-node-port</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">type:</span> <span class="string">NodePort</span></span><br><span class="line">	<span class="attr">ports:</span></span><br><span class="line">	<span class="bullet">-</span> <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">	  <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">	  <span class="attr">nodePort:</span> <span class="number">30123</span>	<span class="comment"># 不是强制的，如果不指定则选择一个随机端口 </span></span><br><span class="line">	<span class="attr">selector:</span></span><br><span class="line">	  <span class="attr">app:</span> <span class="string">kubia</span></span><br></pre></td></tr></table></figure>
+
+<p>通过访问集群内任意一个节点的 30123端口，就可以访问该服务了。</p>
+<p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530181524181.png" alt="image-20230530181524181"></p>
+<h2 id="LoadBalance-服务"><a href="#LoadBalance-服务" class="headerlink" title="LoadBalance 服务"></a>LoadBalance 服务</h2><p>使用 NodePort 时，访问集群内的任意一个节点就可以访问服务。但是，如果一个节点发生故障，客户端必须手动切换节点。LoadBalance 就是为了解决这样的问题，在所有节点之前放置一个<strong>负载均衡器</strong>，用于<strong>选择健康节点而不用客户端来手动切换</strong>。</p>
+<blockquote>
+<p>可以这样说，LoadBalance 就是一个具有额外基础设施（负载均衡器）的 NodePort 服务。</p>
+</blockquote>
+<p>云服务商提供的 Kubernetes 集群通常支持从云基础架构自动提供负载平衡器。将服务的类型设置为 LoadBalance，通过访问负载均衡器，就可以访问到内部的服务了。</p>
+<p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530182214724.png" alt="image-20230530182214724"></p>
+<h2 id="Ingress"><a href="#Ingress" class="headerlink" title="Ingress"></a>Ingress</h2><p>LoadBalance 服务需要有自己的负载均衡器并且独有公网 IP，但是 Ingress 只需要一个公网 IP 就可以为多个服务提供外部访问。Ingress <strong>工作在 HTTP 层</strong>，当客户端向 Ingress 发送 HTTP 请求时，Ingress 会根据<strong>请求路径决定转发的服务</strong>。</p>
+<blockquote>
+<p>Ingress 提供<strong>反向代理</strong>的功能，因为工作在应用层所以也可以<strong>配置 TLS 安全连接</strong>。</p>
+</blockquote>
+<p><strong>需要注意的是</strong>，Ingress 不会将客户端请求转发给服务（再由服务转发给具体 Pod），<strong>Ingress 仅仅会通过服务选择一个 Pod，然后直接将请求转发给 Pod</strong>。</p>
+<p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/image-20230530183832502.png" alt="image-20230530183832502"></p>
+<h1 id="就绪探针"><a href="#就绪探针" class="headerlink" title="就绪探针"></a>就绪探针</h1><p>如果 Pod 的标签和服务的标签选择器相匹配，那么 Pod 就成为了服务的后端。创建了相同标签的 Pod，就会成为服务的一部分。但是新创建的 Pod 可能<strong>需要时间来加载配置或者数据</strong>，在这种情况下不希望 Pod 立即开始接收请求，<strong>直到这个 Pod 准备就绪</strong>。</p>
+<p>Kubernetes 还允许为容器定义准备<strong>就绪探针</strong>，就绪探针会<strong>定期</strong>调用，以确定 Pod 是否已经准备好提供服务。和存活探针一样，就绪探针也有三种类型：</p>
+<ul>
+<li><strong>Exec 探针：</strong>在容器中执行，准备状态由退出结果码决定。</li>
+<li><strong>HTTP Get 探针：</strong>向容器发送 HTTP GET 请求，通过响应码来判断。</li>
+<li><strong>TCP Socket 探针：</strong>与容器建立 TCP 连接，通过是否成功建立连接来判断。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E4%BA%91%E5%8E%9F%E7%94%9F/" rel="tag"># 云原生</a>
+              <a href="/tags/k8s/" rel="tag"># k8s</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/" rel="prev" title="凤凰架构笔记 (1) 架构的演进">
+      <i class="fa fa-chevron-left"></i> 凤凰架构笔记 (1) 架构的演进
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/" rel="next" title="Kubernetes学习 (8) 卷 配置">
+      Kubernetes学习 (8) 卷 配置 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1"><span class="nav-number">1.</span> <span class="nav-text">服务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E6%9C%8D%E5%8A%A1"><span class="nav-number">1.1.</span> <span class="nav-text">创建服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DNS-%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">1.2.</span> <span class="nav-text">DNS 服务发现</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Endpoint"><span class="nav-number">2.</span> <span class="nav-text">Endpoint</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.1.</span> <span class="nav-text">介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%89%8B%E5%8A%A8%E9%85%8D%E7%BD%AE-Endpoint"><span class="nav-number">2.2.</span> <span class="nav-text">手动配置 Endpoint</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA-ExternalName-%E7%B1%BB%E5%9E%8B%E7%9A%84%E6%9C%8D%E5%8A%A1"><span class="nav-number">2.3.</span> <span class="nav-text">创建 ExternalName 类型的服务</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B0%86%E6%9C%8D%E5%8A%A1%E6%9A%B4%E9%9C%B2%E7%BB%99%E5%A4%96%E9%83%A8%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">3.</span> <span class="nav-text">将服务暴露给外部客户端</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#NodePort-%E6%9C%8D%E5%8A%A1"><span class="nav-number">3.1.</span> <span class="nav-text">NodePort 服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#LoadBalance-%E6%9C%8D%E5%8A%A1"><span class="nav-number">3.2.</span> <span class="nav-text">LoadBalance 服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Ingress"><span class="nav-number">3.3.</span> <span class="nav-text">Ingress</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B0%B1%E7%BB%AA%E6%8E%A2%E9%92%88"><span class="nav-number">4.</span> <span class="nav-text">就绪探针</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

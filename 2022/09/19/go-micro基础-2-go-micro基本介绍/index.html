@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="MicroMicro 是用来构建和管理分布式程序的系统，组成如下：  Runtime（运行时）：用来管理配置、认证、网络等。  Framework（程序开发框架）：用来编写微服务。  Clients（多语言客户端）支持多语音访问服务端。   RuntimeRuntime（运行时）是工具集，组成：  api：api 网关，把微服务组合起来，形成单一的入口方便调用。 broker：允许处理异步消息的代">
+<meta property="og:type" content="article">
+<meta property="og:title" content="go-micro基础 (2) go-micro基本介绍">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/09/19/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="MicroMicro 是用来构建和管理分布式程序的系统，组成如下：  Runtime（运行时）：用来管理配置、认证、网络等。  Framework（程序开发框架）：用来编写微服务。  Clients（多语言客户端）支持多语音访问服务端。   RuntimeRuntime（运行时）是工具集，组成：  api：api 网关，把微服务组合起来，形成单一的入口方便调用。 broker：允许处理异步消息的代">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/1663591380963.png">
+<meta property="article:published_time" content="2022-09-19T12:20:34.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.794Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta property="article:tag" content="go-micro">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/1663591380963.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/09/19/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>go-micro基础 (2) go-micro基本介绍 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/09/19/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          go-micro基础 (2) go-micro基本介绍
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-09-19 20:20:34" itemprop="dateCreated datePublished" datetime="2022-09-19T20:20:34+08:00">2022-09-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/go-micro%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">go-micro基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Micro"><a href="#Micro" class="headerlink" title="Micro"></a>Micro</h1><p>Micro 是用来<strong>构建和管理分布式程序的系统</strong>，组成如下：</p>
+<ul>
+<li><p>Runtime（运行时）：用来管理配置、认证、网络等。</p>
+</li>
+<li><p>Framework（程序开发框架）：用来编写微服务。</p>
+</li>
+<li><p>Clients（多语言客户端）支持多语音访问服务端。</p>
+</li>
+</ul>
+<h2 id="Runtime"><a href="#Runtime" class="headerlink" title="Runtime"></a>Runtime</h2><p>Runtime（运行时）是工具集，组成：</p>
+<ul>
+<li><strong>api：</strong>api 网关，把微服务组合起来，形成<strong>单一的入口</strong>方便调用。</li>
+<li>broker：允许处理异步消息的代理。</li>
+<li>network：通过微网络服务构建多云网络。</li>
+<li><strong>new：</strong>服务模板生成器。</li>
+<li><strong>proxy：</strong>建立在 Go Micro 上的透明服务代理。</li>
+<li><strong>registry：</strong>一个服务资源管理器，通过注册的方式提供服务发现以及查找服务。</li>
+<li>store：简单的状态存储。</li>
+<li>web：Web 仪表盘，通过 Web 仪表盘的方式浏览服务。</li>
+</ul>
+<h2 id="Framework（go-micro）"><a href="#Framework（go-micro）" class="headerlink" title="Framework（go-micro）"></a>Framework（go-micro）</h2><p>go-micro 是 Micro 的一种 Framework，是对分布式系统的高度抽象、提供分布式系统开发的核心库、可插拔的架构，按需使用。组件如下：</p>
+<ul>
+<li>注册（Registry）：提供了服务发现机制。</li>
+<li>选择器（Selector）：能够实现负载均衡。</li>
+<li>传输（Transport）：服务和服务之间的通信。</li>
+<li>Broker：提供异步消息的消息发布/订阅接口。</li>
+<li>编码（Codec）：消息传输的编码与解码。</li>
+<li>Server、Client：服务的提供者和使用者。</li>
+</ul>
+<p>go-micro 的<strong>通信</strong>如下：</p>
+<ul>
+<li>Server 通过 Registry 将服务注册到服务注册中心，Client 通过 Selector 从服务注册中心进行服务发现。</li>
+<li>Client 通过 Broker 发布消息到消息中间件中，Server 通过 Broker 从消息中间件中读取订阅消息。</li>
+</ul>
+<p><img src="/../images/go-micro%E5%9F%BA%E7%A1%80-2-go-micro%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/1663591380963.png" alt="1663591380963"></p>
+<span id="more"></span>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+              <a href="/tags/go-micro/" rel="tag"># go-micro</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/18/go-micro%E5%9F%BA%E7%A1%80-1-gRPC%E5%92%8CProtoBuf/" rel="prev" title="go-micro基础 (1) gRPC和ProtoBuf">
+      <i class="fa fa-chevron-left"></i> go-micro基础 (1) gRPC和ProtoBuf
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/10/05/%E4%BA%8B%E4%BB%B6%E6%8A%BD%E5%8F%96%E6%A8%A1%E5%9E%8B%E5%A4%8D%E7%8E%B0%E4%B9%8BDMCNN-1-%E6%95%B0%E6%8D%AE%E9%A2%84%E5%A4%84%E7%90%86/" rel="next" title="事件抽取模型复现之DMCNN (1) 数据预处理">
+      事件抽取模型复现之DMCNN (1) 数据预处理 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Micro"><span class="nav-number">1.</span> <span class="nav-text">Micro</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Runtime"><span class="nav-number">1.1.</span> <span class="nav-text">Runtime</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Framework%EF%BC%88go-micro%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">Framework（go-micro）</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

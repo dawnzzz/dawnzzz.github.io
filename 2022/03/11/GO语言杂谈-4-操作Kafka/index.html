@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="消息队列通信模型队列模式消息⽣产者⽣产消息发送到队列queue中，然后消息消费者从queue中取出并且消费消息。 ⼀条消息被消费以后，queue中就没有了，不存在重复消费。 发布&#x2F;订阅消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费  发布订阅模式下，当发布者消息量很⼤时，显然单个订阅者的处理能⼒是不⾜的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO语言杂谈 (4) 操作Kafka">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="消息队列通信模型队列模式消息⽣产者⽣产消息发送到队列queue中，然后消息消费者从queue中取出并且消费消息。 ⼀条消息被消费以后，queue中就没有了，不存在重复消费。 发布&#x2F;订阅消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费  发布订阅模式下，当发布者消息量很⼤时，显然单个订阅者的处理能⼒是不⾜的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646902518112.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646903180288.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646903802572.png">
+<meta property="article:published_time" content="2022-03-11T02:22:30.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.751Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta property="article:tag" content="kafka">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646902518112.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO语言杂谈 (4) 操作Kafka | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO语言杂谈 (4) 操作Kafka
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-11 10:22:30" itemprop="dateCreated datePublished" datetime="2022-03-11T10:22:30+08:00">2022-03-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="消息队列通信模型"><a href="#消息队列通信模型" class="headerlink" title="消息队列通信模型"></a>消息队列通信模型</h1><h2 id="队列模式"><a href="#队列模式" class="headerlink" title="队列模式"></a>队列模式</h2><p>消息⽣产者⽣产消息发送到<strong>队列</strong>queue中，然后消息消费者从queue中取出并且消费消息。 ⼀条消息被消费以后，queue中就没有了，不存在重复消费。</p>
+<h2 id="发布-订阅"><a href="#发布-订阅" class="headerlink" title="发布/订阅"></a>发布/订阅</h2><p>消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费</p>
+<hr>
+<p>发布订阅模式下，当发布者消息量很⼤时，显然单个订阅者的处理能⼒是不⾜的。实际上现实场景中是多个订阅者节点组成⼀个订阅组负载均衡消费topic消息即分组订阅，这样订阅者很容易实现消费能⼒线性扩展。可以看成是⼀个topic下有多个queue，每个queue是点对点的⽅式，queue之间是发布订阅⽅式。</p>
+<h1 id="Kafka"><a href="#Kafka" class="headerlink" title="Kafka"></a>Kafka</h1><p>Kafka是一种高吞吐量的分布式发布订阅消息系统。</p>
+<p>同时Kafka<strong>结合队列模型和发布订阅模型</strong>：</p>
+<ul>
+<li>对于同一个消费者组Consumer Group，一个message只有被一个consumer消费</li>
+<li>同一个消息可以被广播到不同的Consumer Group中</li>
+</ul>
+<h2 id="架构介绍"><a href="#架构介绍" class="headerlink" title="架构介绍"></a>架构介绍</h2><p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646902518112.png" alt="Kafka架构"></p>
+<ul>
+<li><strong>Producer：</strong>Producer即⽣产者，消息的产⽣者，是消息的⼊⼝。</li>
+<li><strong>kafka cluster：</strong>kafka集群，⼀台或多台服务器组成<ul>
+<li><strong>Broker：</strong>Broker是指部署了Kafka实例的服务器节点。每个服务器上有⼀个或多个kafka的实例，我们姑且认为每个broker对应⼀台服务器。每个kafka集群内的broker都有⼀个<strong>不重复</strong>的编号。</li>
+<li><strong>Topic：</strong>消息的<strong>主题</strong>，可以理解为<strong>消息的分类</strong>，kafka的数据就保存在topic。在每个broker上都可以创建多个topic。实际应⽤中通常是⼀个业务线建⼀个topic。</li>
+<li><strong>Partition：</strong>Topic的分区，每个topic可以有多个分区，分区的作⽤是做<strong>负载，提⾼kafka的吞吐量</strong>。同⼀个topic在不同的分区的数据是不重复的，partition的表现形式就是⼀个⼀个的⽂件夹。为了提高可靠性，提出分区的<strong>副本</strong>，分为Leader和Follower，生产和消费只针对Leader。</li>
+<li><strong>Replication：</strong>每⼀个分区都有多个副本，副本的作⽤是做<strong>备份</strong>。当主分区（Leader）故障的时候会选择⼀个备胎（Follower）上位，成为Leader。在kafka中默认副本的最⼤数量是10个，且副本的数量不能⼤于Broker的数量，follower和leader绝对是在不同的机器，同⼀机器对同⼀个分区也只可能存放⼀个副本（包括⾃⼰）。</li>
+</ul>
+</li>
+<li><strong>Consumer：</strong>消费者，即消息的消费⽅，是消息的出⼝。<ul>
+<li><strong>Consumer Group：</strong>我们可以将多个消费组组成⼀个消费者组，在kafka的设计中<strong>同⼀个分区的数据只能被消费者组中的某⼀个消费者消费</strong>。<strong>同⼀个消费者组的消费者可以消费同⼀个topic的不同分区的数据</strong>，这也是为了提⾼kafka的吞吐量！</li>
+</ul>
+</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="工作流程"><a href="#工作流程" class="headerlink" title="工作流程"></a>工作流程</h2><h3 id="生产者寻找Leader、写入流程"><a href="#生产者寻找Leader、写入流程" class="headerlink" title="生产者寻找Leader、写入流程"></a>生产者寻找Leader、写入流程</h3><p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646903180288.png" alt="生产者寻找Leader 写入流程"></p>
+<ol>
+<li>⽣产者从Kafka集群获取分区leader信息</li>
+<li>⽣产者将消息发送给leader</li>
+<li>leader将消息写⼊本地磁盘</li>
+<li>follower从leader拉取消息数据</li>
+<li>follower将消息写⼊本地磁盘后向leader发送ACK</li>
+<li>leader收到所有的follower的ACK之后向⽣产者发送ACK</li>
+</ol>
+<h3 id="选择Partition的原则"><a href="#选择Partition的原则" class="headerlink" title="选择Partition的原则"></a>选择Partition的原则</h3><p>那在kafka中，如果某个topic有多个partition，producer⼜怎么知道该将数据发往哪个partition呢？</p>
+<ol>
+<li>partition在写⼊的时候<strong>可以指定</strong>需要写⼊的partition，如果有指定，则写⼊对应的partition。</li>
+<li>如果没有指定partition，但是设置了数据的key，则会<strong>根据key的值hash</strong>出⼀个partition。</li>
+<li>如果既没指定partition，⼜没有设置key，则会采⽤<strong>轮询⽅式</strong>，即每次取⼀小段时间的数据写⼊某个partition，下⼀⼩段的时间写⼊下⼀个partition。</li>
+</ol>
+<h3 id="ACK应答机制"><a href="#ACK应答机制" class="headerlink" title="ACK应答机制"></a>ACK应答机制</h3><p>producer在向kafka写⼊消息的时候，可以设置参数来确定是否确认kafka接收到数据，这个参数可设置的值为<code>0</code>、<code>1</code>、<code>all</code>。</p>
+<ul>
+<li><code>0</code>代表producer往集群发送数据<strong>不需要等待集群的返回</strong>，不确保消息发送成功。安全性最低但是效率最⾼。</li>
+<li><code>1</code>代表producer往集群发送数据<strong>只要leader应答</strong>就可以发送下⼀条，只确保leader发送成功。</li>
+<li><code>all</code>代表producer往集群发送数据<strong>需要所有的follower都完成从leader的同步才会发送下⼀条</strong>，确保leader发送成功和所有的副本都完成备份。安全性最⾼，但是效率最低。</li>
+</ul>
+<h3 id="Topic分区数据日志"><a href="#Topic分区数据日志" class="headerlink" title="Topic分区数据日志"></a>Topic分区数据日志</h3><p>在Kafka中，对于每一个主题Topic，Kafka集群维护了⼀个分区数据⽇志⽂件：</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646903802572.png" alt="分区数据日志"></p>
+<p><strong>每个partition都是⼀个有序并且不可变的消息记录集合</strong>。当新的数据写⼊时，就被追加到partition的末尾。在每个partition中，每条消息都会被分配⼀个顺序的<strong>唯⼀标识</strong>，这个标识被称为offset，即<strong>偏移量</strong>。</p>
+<p><strong>注意</strong>，Kafka只保证在同⼀个partition内部消息是有序的，在不同partition之间，并不能保证消息有序。</p>
+<p>Kafka可以配置⼀个<strong>保留期限</strong>，⽤来标识⽇志会在Kafka集群内保留多⻓时间。Kafka集群会保留在保留期限内所有被发布的消息，不管这些消息是否被消费过。⽐如保留期限设置为两天，那么数据被发布到Kafka集群的两天以内，所有的这些数据都可以被消费。当超过两天，这些数据将会被清空，以便为后续的数据腾出空间。由于Kafka会将数据进⾏持久化存储（即写⼊到硬盘上），所以保留的数据⼤⼩可以设置为⼀个比较⼤的值。</p>
+<h3 id="Partition结构"><a href="#Partition结构" class="headerlink" title="Partition结构"></a>Partition结构</h3><p>Partition在服务器上的表现形式就是⼀个⼀个的<strong>文件夹</strong>，每个partition的文件夹包含<code>.index</code>文件、<code>.log</code>文件、<code>.timeindex</code>文件。</p>
+<p>其中<code>.log</code>文件就是实际存储消息的地方，而<code>.index</code>文件和<code>.timeindex</code>文件为索引文件，⽤于检索消息。</p>
+<h1 id="GO语言操作kafka"><a href="#GO语言操作kafka" class="headerlink" title="GO语言操作kafka"></a>GO语言操作kafka</h1><p>GO语言操作kafka需要使用第三方库：<a target="_blank" rel="noopener" href="https://github.com/Shopify/sarama">github.com/Shopify/sarama</a></p>
+<h2 id="连接kafka发送消息"><a href="#连接kafka发送消息" class="headerlink" title="连接kafka发送消息"></a>连接kafka发送消息</h2><p>连接kafka生产消息总体来说需要4步：</p>
+<ol>
+<li>配置信息，新建配置<code>sarama.NewConfig()</code></li>
+<li>生产者连接kafka</li>
+<li>构造消息</li>
+<li>发送消息</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 配置生产者</span></span><br><span class="line">	config := sarama.NewConfig()</span><br><span class="line">	config.Producer.RequiredAcks = sarama.WaitForAll          <span class="comment">// 发送数据需要leader和follow都确认</span></span><br><span class="line">	config.Producer.Partitioner = sarama.NewRandomPartitioner <span class="comment">// 随机选择一个partition</span></span><br><span class="line">	config.Producer.Return.Successes = <span class="literal">true</span>                   <span class="comment">// 成功交付的消息将在success channel返回</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 连接kafka</span></span><br><span class="line">	client, err := sarama.NewSyncProducer([]<span class="keyword">string</span>&#123;<span class="string">&quot;localhost:9092&quot;</span>&#125;, config)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Producer closed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">defer</span> client.Close()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 构造一个消息</span></span><br><span class="line">	msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">	msg.Topic = <span class="string">&quot;logs&quot;</span></span><br><span class="line">	msg.Value = sarama.StringEncoder(<span class="string">&quot;this is a test log...&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 发送消息</span></span><br><span class="line">	fmt.Println(<span class="number">1</span>)</span><br><span class="line">	pid, offset, err := client.SendMessage(msg)</span><br><span class="line">	fmt.Println(<span class="number">2</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Send msg failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	fmt.Printf(<span class="string">&quot;pid:%v offset:%v&quot;</span>, pid, offset)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="连接kafka消费消息"><a href="#连接kafka消费消息" class="headerlink" title="连接kafka消费消息"></a>连接kafka消费消息</h2><p>消费者连接kafka消费消息总体来说需要3步：</p>
+<ol>
+<li>生成消费者<code>sarama.NewConsumer</code></li>
+<li>拿到对应主题下的所有分区</li>
+<li>遍历所有分区：<ul>
+<li>针对每个分区建立一个对应的分区消费者</li>
+<li>每个分区消费者单独开启一个协程从分区中取出消息</li>
+</ul>
+</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 生成消费者</span></span><br><span class="line">	consumer, err := sarama.NewConsumer([]<span class="keyword">string</span>&#123;<span class="string">&quot;localhost:9092&quot;</span>&#125;, <span class="literal">nil</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;fail to start consumer, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 拿到对应主题下的所有分区</span></span><br><span class="line">	partitionList, err := consumer.Partitions(<span class="string">&quot;logs&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;get partition list failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 遍历所有分区</span></span><br><span class="line">	<span class="keyword">for</span> partition := <span class="keyword">range</span> partitionList &#123;</span><br><span class="line">		<span class="comment">// 针对每个分区创建一个对应的分区消费者</span></span><br><span class="line">		pc, err := consumer.ConsumePartition(<span class="string">&quot;logs&quot;</span>, <span class="keyword">int32</span>(partition), sarama.OffsetNewest)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			fmt.Println(<span class="string">&quot;consume partition failed, err:&quot;</span>, err)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">defer</span> pc.AsyncClose()</span><br><span class="line">		<span class="comment">// 取出消息</span></span><br><span class="line">		<span class="comment">// 通过异步的方式拿到消息</span></span><br><span class="line">		<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(partitionConsumer sarama.PartitionConsumer)</span></span> &#123;</span><br><span class="line">			<span class="keyword">for</span> msg := <span class="keyword">range</span> partitionConsumer.Messages() &#123;</span><br><span class="line">				fmt.Printf(<span class="string">&quot;Partition:%d Offset:%d Key:%v Value:%v&quot;</span>, msg.Partition, msg.Offset, msg.Key, msg.Value)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;(pc)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+              <a href="/tags/kafka/" rel="tag"># kafka</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/" rel="prev" title="GO语言杂谈 (3) Context标准库">
+      <i class="fa fa-chevron-left"></i> GO语言杂谈 (3) Context标准库
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/" rel="next" title="GO语言杂谈 (5) tail包的使用">
+      GO语言杂谈 (5) tail包的使用 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%E9%80%9A%E4%BF%A1%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.</span> <span class="nav-text">消息队列通信模型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%98%9F%E5%88%97%E6%A8%A1%E5%BC%8F"><span class="nav-number">1.1.</span> <span class="nav-text">队列模式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%91%E5%B8%83-%E8%AE%A2%E9%98%85"><span class="nav-number">1.2.</span> <span class="nav-text">发布&#x2F;订阅</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka"><span class="nav-number">2.</span> <span class="nav-text">Kafka</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.1.</span> <span class="nav-text">架构介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.</span> <span class="nav-text">工作流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85%E5%AF%BB%E6%89%BELeader%E3%80%81%E5%86%99%E5%85%A5%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.1.</span> <span class="nav-text">生产者寻找Leader、写入流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%89%E6%8B%A9Partition%E7%9A%84%E5%8E%9F%E5%88%99"><span class="nav-number">2.2.2.</span> <span class="nav-text">选择Partition的原则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ACK%E5%BA%94%E7%AD%94%E6%9C%BA%E5%88%B6"><span class="nav-number">2.2.3.</span> <span class="nav-text">ACK应答机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Topic%E5%88%86%E5%8C%BA%E6%95%B0%E6%8D%AE%E6%97%A5%E5%BF%97"><span class="nav-number">2.2.4.</span> <span class="nav-text">Topic分区数据日志</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Partition%E7%BB%93%E6%9E%84"><span class="nav-number">2.2.5.</span> <span class="nav-text">Partition结构</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#GO%E8%AF%AD%E8%A8%80%E6%93%8D%E4%BD%9Ckafka"><span class="nav-number">3.</span> <span class="nav-text">GO语言操作kafka</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5kafka%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF"><span class="nav-number">3.1.</span> <span class="nav-text">连接kafka发送消息</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5kafka%E6%B6%88%E8%B4%B9%E6%B6%88%E6%81%AF"><span class="nav-number">3.2.</span> <span class="nav-text">连接kafka消费消息</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="服务发现服务发现既要高可用，又要高可靠。因为服务注册中心的地位是特殊的，不依赖其他服务，但被所有其他服务共同依赖（类似于配置中心），是系统中最基础的服务。服务注册中心一旦崩溃，整个系统都不再可用，因此，必须尽最大努力保证服务发现的可用性。 实际用于生产的分布式系统，服务注册中心都是以集群的方式进行部署的。 采用集群部署注册中心时，就会遇到 CAP 矛盾。所以注册中心分为两类，满足 AP 的注册中心">
+<meta property="og:type" content="article">
+<meta property="og:title" content="凤凰架构笔记 (7) 服务调用之服务发现 网关路由 客户端负载均衡">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="服务发现服务发现既要高可用，又要高可靠。因为服务注册中心的地位是特殊的，不依赖其他服务，但被所有其他服务共同依赖（类似于配置中心），是系统中最基础的服务。服务注册中心一旦崩溃，整个系统都不再可用，因此，必须尽最大努力保证服务发现的可用性。 实际用于生产的分布式系统，服务注册中心都是以集群的方式进行部署的。 采用集群部署注册中心时，就会遇到 CAP 矛盾。所以注册中心分为两类，满足 AP 的注册中心">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/image-20230609203726851.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/image-20230609212234746.png">
+<meta property="article:published_time" content="2023-06-09T08:58:10.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.814Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/image-20230609203726851.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>凤凰架构笔记 (7) 服务调用之服务发现 网关路由 客户端负载均衡 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          凤凰架构笔记 (7) 服务调用之服务发现 网关路由 客户端负载均衡
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-09 16:58:10" itemprop="dateCreated datePublished" datetime="2023-06-09T16:58:10+08:00">2023-06-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h1><p>服务发现<strong>既要高可用，又要高可靠</strong>。因为服务注册中心的地位是特殊的，<strong>不依赖其他服务，但被所有其他服务共同依赖</strong>（类似于配置中心），是系统中最基础的服务。服务注册中心一旦崩溃，整个系统都不再可用，因此，必须尽最大努力保证服务发现的可用性。</p>
+<p>实际用于生产的分布式系统，服务注册中心都是以<strong>集群</strong>的方式进行部署的。</p>
+<p>采用集群部署注册中心时，就会遇到 CAP 矛盾。所以注册中心分为两类，<strong>满足 AP 的注册中心</strong>和<strong>满足 CP 的注册中心</strong>：</p>
+<ul>
+<li>满足 AP 的注册中心，保证了高可用，但是注册中心内部可能会发生不一致的情况。<strong>代表如 Eureka、Redis、Nacos 等</strong>。</li>
+<li>满足 CP 的注册中心，保证了一致性，但是必须经过集群之间的同步之后，才算是注册完成。<strong>代表如 Consul、Zookeeper、Etcd、Nacos 等</strong>。</li>
+</ul>
+<h2 id="实现注册中心"><a href="#实现注册中心" class="headerlink" title="实现注册中心"></a>实现注册中心</h2><p>实现注册中心，主要通过以下三种方式实现：</p>
+<ul>
+<li><strong>在分布式 K/V 存储框架上自己开发的服务发现：</strong>这一类的代表为 Etcd、Zookeeper 等，需要在 CRUD 和 Watch 等 API 的基础上，自己去实现服务的注册和发现功能，还需要考虑健康检查。</li>
+<li><strong>以基础设施来实现服务发现：</strong>代表就是 Kubernetes 的服务注册发现功能，如 Kubernetes 中采用 CoreDNS 进行服务发现。这种方案是 CP 还是 AP，取决于后端采用何种存储。</li>
+<li><strong>专门用于服务发现的框架和工具：</strong>代表是 Eureka、Consul 和 Nacos，其中 Nacos 支持 AP 或者 CP 二选一。这类服务发现提供了专门的 API，使用这类服务发现必须有语言的支持。</li>
+</ul>
+<h1 id="网关路由"><a href="#网关路由" class="headerlink" title="网关路由"></a>网关路由</h1><p>在为微服务中，路由网关又称之为 API 网关或者服务网关。作为微服务架构的入口，具有路由的功能，还可以具有认证、监控、缓存等辅助功能。</p>
+<span id="more"></span>
+
+<h2 id="网络-I-O-模型"><a href="#网络-I-O-模型" class="headerlink" title="网络 I/O 模型"></a>网络 I/O 模型</h2><p>当发生一次网络请求发生后，将会按顺序经历，<strong>等待数据从远程主机到达缓冲区</strong>和<strong>将数据从缓冲区拷贝到应用程序地址空间</strong>两个阶段。</p>
+<p>把网络 I/O 模型分为两类，五种模型：</p>
+<ul>
+<li><strong>异步 I/O：</strong>异步 I/O 中数据到达缓冲区后，不需要由调用进程主动进行从缓冲区复制数据的操作，而是<strong>复制完成后</strong>由操作系统向线程发送<strong>信号</strong>。</li>
+<li><strong>同步 I/O：</strong><ul>
+<li><strong>阻塞 I/O：</strong>等待数据到达时就进入<strong>阻塞</strong>，直到数据到达唤醒线程，线程唤醒后将数据复制到自己的内存空间。这种方法节省 CPU 资源，但缺点就是线程休眠所带来的上下文切换。</li>
+<li><strong>非阻塞 I/O：</strong>非阻塞 I/O 中，线程不会进入阻塞状态，而是会一直<strong>轮询</strong>直到数据到达。这种方法会浪费 CPU 资源，不常用。</li>
+<li><strong>多路复用 I/O：</strong>多路 I/O 就是<strong>一个线程在多个描述符（一个描述符看作是一个连接）上等待</strong>，而不是每一个描述符一个线程。具体又分为 select、poll、epoll：<ul>
+<li><strong>select：</strong>有数据到达后，每一次<strong>轮询</strong>所有等待的描述符，找出数据进行操作。</li>
+<li><strong>poll：</strong>本质上和 select 没有区别，但是<strong>没有最大连接数的限制</strong>，因为是基于链表的。</li>
+<li><strong>epoll：</strong>会把哪个文件描述符发生的<strong>事件</strong>（读取或者写入）<strong>通知</strong>给我们，不用轮询。</li>
+</ul>
+</li>
+<li><strong>信号驱动 I/O：</strong>等待<strong>数据到达后会发出信号</strong>，应用程序会自行将数据复制到自己的内存空间中。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p><strong>信号驱动 I/O 和异步 I/O 的区别：</strong></p>
+<p>区别在于<strong>从缓冲区获取数据</strong>这个步骤，<strong>信号驱动 I/O 是应用程序自己将数据复制</strong>到自己的内存区域。而<strong>异步 I/O 是已经复制完成后</strong>，才发出信号。</p>
+</blockquote>
+<h2 id="BFF-网关"><a href="#BFF-网关" class="headerlink" title="BFF 网关"></a>BFF 网关</h2><p>BFF 网关（后端前置）就是针对不同的前端提供不同的网关，而不是对所有前端提供统一无差别的服务。</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/image-20230609203726851.png" alt="image-20230609203726851"></p>
+<h1 id="客户端负载均衡"><a href="#客户端负载均衡" class="headerlink" title="客户端负载均衡"></a>客户端负载均衡</h1><p>负载均衡通常来说指的是部署在整个服务集群的前端的集中式负载均衡器（<strong>服务端负载均衡</strong>），如 Nginx、Apache 等。</p>
+<p>但是在微服务架构中，每一种服务即充当客户端由充当服务端，而服务之间的调用是在微服务架构内部的，<strong>针对这种内部流量部署于每一个服务前端</strong>的负载均衡称之为<strong>客户端负载均衡</strong>。</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/image-20230609212234746.png" alt="image-20230609212234746"></p>
+<p>客户端负载均衡与服务端负载均衡的<strong>差别</strong>：客户端均衡器是<strong>和服务实例一一对应</strong>的，而且与服务实例并存于同一个进程之内。这样做的好处：</p>
+<ul>
+<li>均衡器与服务之间信息交换是进程内的方法调用，不存在任何额外的网络开销。</li>
+<li>分散式的均衡器意味着天然避免了集中式的单点问题。</li>
+<li>客户端均衡器要更加灵活，能够针对每一个服务实例单独设置均衡策略等参数。</li>
+</ul>
+<p>在<strong>服务网格</strong>中，这种<strong>客户端负载均衡作为一个容器与应用放在同一个 Pod 中</strong>，这种被称为代理客户端负载均衡器。这样的代理负载均衡器不再受编程语言的限制，而且受到控制面的统一控制，有利于安全性和可观测性。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/" rel="prev" title="凤凰架构笔记 (6) 安全之授权和加密">
+      <i class="fa fa-chevron-left"></i> 凤凰架构笔记 (6) 安全之授权和加密
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-8-%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%AE%B9%E9%94%99%E5%92%8C%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/" rel="next" title="凤凰架构笔记 (8) 流量治理之服务容错和流量控制">
+      凤凰架构笔记 (8) 流量治理之服务容错和流量控制 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">1.</span> <span class="nav-text">服务发现</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83"><span class="nav-number">1.1.</span> <span class="nav-text">实现注册中心</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1"><span class="nav-number">2.</span> <span class="nav-text">网关路由</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C-I-O-%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.</span> <span class="nav-text">网络 I&#x2F;O 模型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#BFF-%E7%BD%91%E5%85%B3"><span class="nav-number">2.2.</span> <span class="nav-text">BFF 网关</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="nav-number">3.</span> <span class="nav-text">客户端负载均衡</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

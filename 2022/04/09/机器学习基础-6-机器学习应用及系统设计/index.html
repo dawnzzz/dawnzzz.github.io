@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="应用及其学习的建议决定下一步做什么当我们运用训练好了的模型来预测未知数据的时候发现有较大的误差，我们下一步可以做什么？  获得更多的训练样本 尝试减少特征的数量，防止过拟合 需要更多的特征 尝试增加多项式特征 减少&#x2F;增加正则化程度λ  我们不应该随机选择上面的某种方法来改进我们的算法，而是运用一些机器学习诊断法来帮助我们知道上面哪些方法对我们的算法是有效的。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="机器学习基础 (6) 机器学习应用及系统设计">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/04/09/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="应用及其学习的建议决定下一步做什么当我们运用训练好了的模型来预测未知数据的时候发现有较大的误差，我们下一步可以做什么？  获得更多的训练样本 尝试减少特征的数量，防止过拟合 需要更多的特征 尝试增加多项式特征 减少&#x2F;增加正则化程度λ  我们不应该随机选择上面的某种方法来改进我们的算法，而是运用一些机器学习诊断法来帮助我们知道上面哪些方法对我们的算法是有效的。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649480057947.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/751e868bebf4c0bf139db173d25e8ec4.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1b908480ad78ee54ba7129945015f87f.jpg">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649481287879.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649490332363.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/2ba317c326547f5b5313489a3f0d66ce.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649491525881.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/969281bc9b07e92a0052b17288fb2c52.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/4a5099b9f4b6aac5785cb0ad05289335.jpg">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/2977243994d8d28d5ff300680988ec34.jpg">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649494252086.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649501282372.png">
+<meta property="article:published_time" content="2022-04-09T03:20:37.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.820Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="机器学习">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649480057947.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/04/09/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>机器学习基础 (6) 机器学习应用及系统设计 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/09/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          机器学习基础 (6) 机器学习应用及系统设计
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-09 11:20:37" itemprop="dateCreated datePublished" datetime="2022-04-09T11:20:37+08:00">2022-04-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="应用及其学习的建议"><a href="#应用及其学习的建议" class="headerlink" title="应用及其学习的建议"></a>应用及其学习的建议</h1><h2 id="决定下一步做什么"><a href="#决定下一步做什么" class="headerlink" title="决定下一步做什么"></a>决定下一步做什么</h2><p>当我们运用训练好了的模型来预测未知数据的时候发现有较大的误差，我们下一步可以做什么？</p>
+<ul>
+<li>获得更多的训练样本</li>
+<li>尝试减少特征的数量，防止过拟合</li>
+<li>需要更多的特征</li>
+<li>尝试增加多项式特征</li>
+<li>减少/增加正则化程度λ</li>
+</ul>
+<p>我们不应该随机选择上面的某种方法来改进我们的算法，而是运用一些机器学习诊断法来帮助我们知道上面哪些方法对我们的算法是有效的。</p>
+<span id="more"></span>
+
+<h2 id="如何评价学习算法"><a href="#如何评价学习算法" class="headerlink" title="如何评价学习算法"></a>如何评价学习算法</h2><h3 id="评估假设"><a href="#评估假设" class="headerlink" title="评估假设"></a>评估假设</h3><p>为了检验算法是否过拟合，我们将数据<strong>分成训练集和测试集</strong>，通常用<strong>70%<strong>的数据作为</strong>训练集</strong>，用剩下<strong>30%<strong>的数据作为</strong>测试集</strong>。很重要的一点是训练集和测试集均要含有各种类型的数据，通常我们要对数据进行“<strong>洗牌</strong>”，然后再分成训练集和测试集。</p>
+<p>测试集评估在通过训练集让我们的模型学习得出其参数后，对测试集运用该模型，我们有两种方式计算误差：</p>
+<ul>
+<li><p>对于线性回归模型</p>
+<ul>
+<li>首先利用训练集产生参数</li>
+<li>计算误差，利用测试集数据计算代价函数J</li>
+</ul>
+</li>
+<li><p>对于逻辑回归模型</p>
+<ul>
+<li><p>首先利用训练集产生参数</p>
+</li>
+<li><p>计算误差，可以有两种方法</p>
+<ul>
+<li>利用测试集数据计算代价函数J</li>
+</ul>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649480057947.png" alt="1649480057947"></p>
+<ul>
+<li>错误分类（也称作0/1分类错误），也就是计算误分类的比率。对于每一个测试集样本，计算是否预测错误（预测错误为1，预测成功为-），然后对计算结果求平均。</li>
+</ul>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/751e868bebf4c0bf139db173d25e8ec4.png" alt="img"></p>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="模型选择和交叉验证集"><a href="#模型选择和交叉验证集" class="headerlink" title="模型选择和交叉验证集"></a>模型选择和交叉验证集</h3><p>假设我们要在10个不同次数的二项式模型之间进行选择：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1b908480ad78ee54ba7129945015f87f.jpg" alt="img"></p>
+<p>显然越高次数的多项式模型越能够适应我们的训练数据集，但是适应训练数据集并不代表着能推广至一般情况，我们应该选择一个更能适应一般情况的模型。我们需要使用<strong>交叉验证集</strong>来帮助选择模型。 即：使用<strong>60%<strong>的数据作为</strong>训练集</strong>，使用 <strong>20%<strong>的数据作为</strong>交叉验证集</strong>，使用<strong>20%<strong>的数据作为</strong>测试集</strong>。</p>
+<p>模型选择的方法为：</p>
+<ol>
+<li>使用<strong>训练集</strong>训练出10个模型</li>
+<li>用10个模型分别对<strong>交叉验证集</strong>计算得出<strong>交叉验证误差</strong>（代价函数的值）</li>
+<li>选取代价函数值最小的模型</li>
+<li>用步骤3中选出的模型对<strong>测试集</strong>计算得出<strong>推广（测试）误差</strong>（代价函数的值）</li>
+</ol>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649481287879.png" alt="1649481287879"></p>
+<h2 id="机器学习诊断法"><a href="#机器学习诊断法" class="headerlink" title="机器学习诊断法"></a>机器学习诊断法</h2><p>“诊断法”的意思是：这是一种测试法，你通过执行这种测试，能够深入了解某种算法到底是否有用。这通常也能够告诉你，要想改进一种算法的效果，什么样的尝试，才是有意义的。</p>
+<h3 id="诊断偏差和方差"><a href="#诊断偏差和方差" class="headerlink" title="诊断偏差和方差"></a>诊断偏差和方差</h3><p>当运行一个学习算法时，如果这个算法的表现不理想，那么多半是出现两种情况：要么是<strong>偏差比较大</strong>，要么是<strong>方差比较大</strong>。换句话说，出现的情况要么是<strong>欠拟合</strong>，要么是<strong>过拟合</strong>问题。</p>
+<p>当<strong>训练误差和交叉验证误差都比较大</strong>的时候，说明出现了较大的偏差，产生了<strong>欠拟合</strong>的问题，需要用较高的多项式次数来拟合数据。而<strong>训练误差很小，交叉验证误差很大</strong>时，说明出现了较大的方差，产生了<strong>过拟合</strong>的问题。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649490332363.png" alt="1649490332363"></p>
+<h3 id="正则化和偏差-方差"><a href="#正则化和偏差-方差" class="headerlink" title="正则化和偏差/方差"></a>正则化和偏差/方差</h3><p>在我们在训练模型的过程中，一般会使用一些正则化方法来防止过拟合。但是我们可能会正则化的程度太高（λ太大）或太小（λ太小）了，可能会产生欠拟合/过拟合问题。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/2ba317c326547f5b5313489a3f0d66ce.png" alt="img"></p>
+<p>需要选择一系列的想要测试的测试的λ值，这些λ之间通常呈2倍关系。分别应用这些不同的λ值，对训练集进行训练，并计算交叉验证误差。</p>
+<p>当<strong>训练误差和交叉验证误差都比较大</strong>的时候，说明出现了较大的偏差，产生了<strong>欠拟合</strong>的问题，需要用减小的正则化程度λ。而<strong>训练误差很小，交叉验证误差很大</strong>时，说明出现了较大的方差，产生了<strong>过拟合</strong>的问题，需要用增大的正则化程度λ。</p>
+<hr>
+<p>需要注意的是，训练误差、交叉验证误差、测试误差<strong>不带有正则化项</strong>的，因为它们只是表示预测结果与正确结果的“差距大小”。</p>
+<hr>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649491525881.png" alt="1649491525881"></p>
+<h3 id="学习曲线"><a href="#学习曲线" class="headerlink" title="学习曲线"></a>学习曲线</h3><p>可以使用学习曲线来<strong>判断</strong>某一个学习算法是否处于<strong>偏差、方差</strong>问题。学习曲线是学习算法的一个很好的<strong>合理检验</strong>（<strong>sanity check</strong>）。学习曲线就是绘制<strong>训练误差、交叉验证误差</strong>与训练集样本<strong>数量</strong>的关系曲线。思想是：当训练较少行数据的时候，训练的模型将能够非常完美地适应较少的训练数据，但是训练出来的模型却不能很好地适应交叉验证集数据或测试集数据。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/969281bc9b07e92a0052b17288fb2c52.png" alt="img"></p>
+<p><strong>高偏差/欠拟合</strong>：作为例子，我们尝试用一条直线来适应下面的数据，可以看出，无论训练集有多么大误差都不会有太大改观。也就是说<strong>在高偏差/欠拟合的情况下，增加数据到训练集不一定能有帮助</strong>。交叉验证误差与训练误差很快就随着训练数据的增加不再变化，交叉验证误差与训练误差<strong>很接近</strong>并且<strong>误差值较高</strong>。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/4a5099b9f4b6aac5785cb0ad05289335.jpg" alt="img"></p>
+<p><strong>高方差/过拟合</strong>：假设我们使用一个非常高次的多项式模型，并且正则化非常小。可以看出，当交叉验证集误差<strong>远大于</strong>训练集误差时，往训练集增加更多数据可以提高模型的效果。也就是说在高方差/过拟合的情况下，<strong>增加更多数据到训练集可能可以提高算法效果</strong>。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/2977243994d8d28d5ff300680988ec34.jpg" alt="img"></p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ol>
+<li>获得更多的训练样本——解决高方差</li>
+<li>尝试减少特征的数量——解决高方差</li>
+<li>尝试获得更多的特征——解决高偏差</li>
+<li>尝试增加多项式特征——解决高偏差</li>
+<li>尝试减少正则化程度λ——解决高偏差</li>
+<li>尝试增加正则化程度λ——解决高方差</li>
+</ol>
+<h3 id="神经网络中的偏差-方差"><a href="#神经网络中的偏差-方差" class="headerlink" title="神经网络中的偏差/方差"></a>神经网络中的偏差/方差</h3><p>使用<strong>较小的神经网络</strong>，类似于参数较少的情况，容易导致<strong>高偏差和欠拟合</strong>，但计算代价较小。</p>
+<p>使用<strong>较大的神经网络</strong>，类似于参数较多的情况，容易导致<strong>高方差和过拟合</strong>，虽然计算代价比较大，但是可以通过<strong>正则化</strong>手段来调整而更加适应数据。 通常选择较大的神经网络并采用正则化处理会比采用较小的神经网络效果要好。 </p>
+<hr>
+<p>对于神经网络中的<strong>隐藏层的层数的选择</strong>，通常从一层开始逐渐增加层数，为了更好地作选择，可以把数据分为训练集、交叉验证集和测试集，针对不同隐藏层层数的神经网络训练神经网络， 然后选择交叉验证集代价最小的神经网络。</p>
+<hr>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649494252086.png" alt="1649494252086"></p>
+<h1 id="机器学习系统的设计"><a href="#机器学习系统的设计" class="headerlink" title="机器学习系统的设计"></a>机器学习系统的设计</h1><h2 id="误差分析"><a href="#误差分析" class="headerlink" title="误差分析"></a>误差分析</h2><p>构建一个学习算法的推荐方式为：</p>
+<ol>
+<li>从一个简单的能快速实现的算法开始，实现该算法并用交叉验证集数据测试这个算法。</li>
+<li>绘制学习曲线，决定是增加更多数据，或者添加更多特征，还是其他选择。</li>
+<li>进行<strong>误差分析</strong>：人工检查交叉验证集中我们算法中产生预测误差的样本，看看这些样本是否有某种系统化的趋势。可以通过一个量化的数值评估（如准确率）去衡量不同方案的表现，通过这个量化的指标，可以容易看出误差是变大还是变小了。</li>
+</ol>
+<h2 id="类偏斜的误差度量"><a href="#类偏斜的误差度量" class="headerlink" title="类偏斜的误差度量"></a>类偏斜的误差度量</h2><p><strong>类偏斜</strong>情况表现为我们的训练集中有非常多的同一种类的样本，只有很少或没有其他类的样本。</p>
+<p> 例如我们希望用算法来预测癌症是否是恶性的，在我们的训练集中，只有0.5%的实例是恶性肿瘤。假设我们编写一个非学习而来的算法，在所有情况下都预测肿瘤是良性的，那么误差只有0.5%。然而我们通过训练而得到的神经网络算法却有1%的误差。这时，误差的大小是不能视为评判算法效果的依据的。</p>
+<p>可以将算法的预测结果分为4种情况：</p>
+<ol>
+<li><strong>正确肯定</strong>（<strong>True Positive, TP</strong>）：预测为真，实际为真</li>
+<li><strong>正确否定</strong>（<strong>True Negative, TN</strong>）：预测为假，实际为假</li>
+<li><strong>错误肯定</strong>（<strong>False Positive, FP</strong>）：预测为真，实际为假</li>
+<li><strong>错误否定</strong>（<strong>False Negative,FN</strong>）：预测为假，实际为真</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th align="left"></th>
+<th align="left"></th>
+<th align="left"><strong>预测值</strong></th>
+<th align="left"></th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"><strong>Positive</strong></td>
+<td align="left"><strong>Negtive</strong></td>
+</tr>
+<tr>
+<td align="left"><strong>实际值</strong></td>
+<td align="left"><strong>Positive</strong></td>
+<td align="left"><strong>TP</strong></td>
+<td align="left"><strong>FN</strong></td>
+</tr>
+<tr>
+<td align="left"></td>
+<td align="left"><strong>Negtive</strong></td>
+<td align="left"><strong>FP</strong></td>
+<td align="left"><strong>TN</strong></td>
+</tr>
+</tbody></table>
+<p>那么，查准率=**TP/(TP+FP)**。例如，在所有我们预测有恶性肿瘤的病人中，实际上有恶性肿瘤的病人的百分比，越高越好。</p>
+<p> 查全率=**TP/(TP+FN)**。例如，在所有实际上有恶性肿瘤的病人中，成功预测有恶性肿瘤的病人的百分比，越高越好。 这样，对于我们刚才那个总是预测病人肿瘤为良性的算法，其查全率是0。</p>
+<h3 id="查准率和查全率的权衡"><a href="#查准率和查全率的权衡" class="headerlink" title="查准率和查全率的权衡"></a>查准率和查全率的权衡</h3><p>在很多应用中，我们希望能够保证查准率和召回率的相对平衡。 继续沿用刚才预测肿瘤性质的例子。假使，我们的算法输出的结果在0-1之间，我们使用阀值0.5来预测真和假。</p>
+<p>查准率**(Precision)=TP/(TP+FP)** 例，在所有我们预测有恶性肿瘤的病人中，实际上有恶性肿瘤的病人的百分比，越高越好。查全率**(Recall)=TP/(TP+FN)**例，在所有实际上有恶性肿瘤的病人中，成功预测有恶性肿瘤的病人的百分比，越高越好。</p>
+<p> 如果我们希望只在非常确信的情况下预测为真（肿瘤为恶性），即我们希望<strong>更高的查准率</strong>，我们可以使用<strong>比0.5更大的阀值</strong>，如0.7，0.9。这样做我们会减少错误预测病人为恶性肿瘤的情况，同时却会增加未能成功预测肿瘤为恶性的情况。 如果我们希望<strong>提高查全率</strong>，尽可能地让所有有可能是恶性肿瘤的病人都得到进一步地检查、诊断，我们可以使用<strong>比0.5更小的阀值</strong>，如0.3。</p>
+<p>我们希望有一个帮助我们选择这个阀值的方法。一种方法是计算<strong>F1值</strong>（<strong>F1 Score</strong>），其计算公式如下，选择使得<strong>F1</strong>值最高的阀值即可。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/1649501282372.png" alt="1649501282372"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" rel="tag"># 机器学习</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/04/07/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/" rel="prev" title="机器学习基础 (5) 神经网络">
+      <i class="fa fa-chevron-left"></i> 机器学习基础 (5) 神经网络
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-7-%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA/" rel="next" title="机器学习基础 (7) 支持向量机">
+      机器学习基础 (7) 支持向量机 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%BA%94%E7%94%A8%E5%8F%8A%E5%85%B6%E5%AD%A6%E4%B9%A0%E7%9A%84%E5%BB%BA%E8%AE%AE"><span class="nav-number">1.</span> <span class="nav-text">应用及其学习的建议</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%B3%E5%AE%9A%E4%B8%8B%E4%B8%80%E6%AD%A5%E5%81%9A%E4%BB%80%E4%B9%88"><span class="nav-number">1.1.</span> <span class="nav-text">决定下一步做什么</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E8%AF%84%E4%BB%B7%E5%AD%A6%E4%B9%A0%E7%AE%97%E6%B3%95"><span class="nav-number">1.2.</span> <span class="nav-text">如何评价学习算法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%84%E4%BC%B0%E5%81%87%E8%AE%BE"><span class="nav-number">1.2.1.</span> <span class="nav-text">评估假设</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B%E9%80%89%E6%8B%A9%E5%92%8C%E4%BA%A4%E5%8F%89%E9%AA%8C%E8%AF%81%E9%9B%86"><span class="nav-number">1.2.2.</span> <span class="nav-text">模型选择和交叉验证集</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E8%AF%8A%E6%96%AD%E6%B3%95"><span class="nav-number">1.3.</span> <span class="nav-text">机器学习诊断法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%8A%E6%96%AD%E5%81%8F%E5%B7%AE%E5%92%8C%E6%96%B9%E5%B7%AE"><span class="nav-number">1.3.1.</span> <span class="nav-text">诊断偏差和方差</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A3%E5%88%99%E5%8C%96%E5%92%8C%E5%81%8F%E5%B7%AE-%E6%96%B9%E5%B7%AE"><span class="nav-number">1.3.2.</span> <span class="nav-text">正则化和偏差&#x2F;方差</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AD%A6%E4%B9%A0%E6%9B%B2%E7%BA%BF"><span class="nav-number">1.3.3.</span> <span class="nav-text">学习曲线</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">1.4.</span> <span class="nav-text">总结</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E4%B8%AD%E7%9A%84%E5%81%8F%E5%B7%AE-%E6%96%B9%E5%B7%AE"><span class="nav-number">1.4.1.</span> <span class="nav-text">神经网络中的偏差&#x2F;方差</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E7%B3%BB%E7%BB%9F%E7%9A%84%E8%AE%BE%E8%AE%A1"><span class="nav-number">2.</span> <span class="nav-text">机器学习系统的设计</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%AF%E5%B7%AE%E5%88%86%E6%9E%90"><span class="nav-number">2.1.</span> <span class="nav-text">误差分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B1%BB%E5%81%8F%E6%96%9C%E7%9A%84%E8%AF%AF%E5%B7%AE%E5%BA%A6%E9%87%8F"><span class="nav-number">2.2.</span> <span class="nav-text">类偏斜的误差度量</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9F%A5%E5%87%86%E7%8E%87%E5%92%8C%E6%9F%A5%E5%85%A8%E7%8E%87%E7%9A%84%E6%9D%83%E8%A1%A1"><span class="nav-number">2.2.1.</span> <span class="nav-text">查准率和查全率的权衡</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

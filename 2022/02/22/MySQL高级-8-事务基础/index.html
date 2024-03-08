@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="事务概述InnoDB是支持事务的 基本概念事务：一组逻辑操作单元，使数据从一种状态变换到另一种状态 事务处理的原则：保证所有事务都作为一个工作单元来执行，即使出现了故障，都不能改变这种执行方式。当在一个事务中执行多个操作时，要么所有的事务都被提交( commit )，那么这些修改就永久地保存下来；要么数据库管理系统将放弃所作的所有修改，整个事务回滚（rollback ）到最初状态。 事务的ACID">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (8) 事务基础">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/22/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="事务概述InnoDB是支持事务的 基本概念事务：一组逻辑操作单元，使数据从一种状态变换到另一种状态 事务处理的原则：保证所有事务都作为一个工作单元来执行，即使出现了故障，都不能改变这种执行方式。当在一个事务中执行多个操作时，要么所有的事务都被提交( commit )，那么这些修改就永久地保存下来；要么数据库管理系统将放弃所作的所有修改，整个事务回滚（rollback ）到最初状态。 事务的ACID">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/1645519510533.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/1645528763646.png">
+<meta property="article:published_time" content="2022-02-22T08:19:06.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.782Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/1645519510533.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/22/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (8) 事务基础 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/22/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (8) 事务基础
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-22 16:19:06" itemprop="dateCreated datePublished" datetime="2022-02-22T16:19:06+08:00">2022-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="事务概述"><a href="#事务概述" class="headerlink" title="事务概述"></a>事务概述</h1><p>InnoDB是支持事务的</p>
+<h2 id="基本概念"><a href="#基本概念" class="headerlink" title="基本概念"></a>基本概念</h2><p><strong>事务：</strong>一组逻辑操作单元，使数据从一种状态变换到另一种状态</p>
+<p><strong>事务处理的原则：</strong>保证所有事务都作为<strong>一个工作单元</strong>来执行，即使出现了故障，都不能改变这种执行方式。当在一个事务中执行多个操作时，要么所有的事务都被<strong>提交( commit )<strong>，那么这些修改就</strong>永久</strong>地保存下来；要么数据库管理系统将<strong>放弃</strong>所作的所有<strong>修改</strong>，整个事务<strong>回滚（rollback ）</strong>到最初状态。</p>
+<h2 id="事务的ACID特性"><a href="#事务的ACID特性" class="headerlink" title="事务的ACID特性"></a>事务的ACID特性</h2><p>ACID即<strong>原子性（atomicity）、一致性（consistency）、隔离性（isolation）和持久性（durability）</strong></p>
+<ul>
+<li><strong>原子性（atomicity）：</strong>事务是一个<strong>不可分割</strong>的工作单位，<strong>要么全部提交，要么全部失败回滚</strong>。</li>
+<li><strong>一致性（consistency）：</strong>事务执行前后，数据从一个<strong>合法性状态</strong>变换到另外一个<strong>合法性状态</strong>。这样的合法性状态不是语法上的，而是和具体业务有关的。</li>
+<li><strong>隔离性（isolation）</strong>：事务的隔离性是指一个事务的执行<strong>不能被其他事务干扰</strong>，即一个事务内部的操作及使用的数据对<strong>并发</strong>的其他事务是隔离的，并发执行的各个事务之间不能互相干扰。</li>
+<li><strong>持久性（durability）：</strong>一个事务一旦被提交，它对数据库中数据的改变就是<strong>永久性</strong>的，接下来的其他操作和数据库故障不应该对其有任何影响。持久性是通过<strong>事务日志</strong>来保证的。日志包括了<strong>重做日志</strong>和<strong>回滚日志</strong>。当我们通过事务对数据进行修改的时候，首先会将数据库的变化信息记录到重做日志中，然后再对数据库中对应的行进行修改。这样做的好处是，即使数据库系统崩溃，数据库重启后也能找到没有更新到数据库系统中的重做日志，重新执行，从而使事务具有持久性。</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="事务的状态"><a href="#事务的状态" class="headerlink" title="事务的状态"></a>事务的状态</h2><p>一个事务对应着一个或多个数据库操作，MySQL根据这些操作所执行的不同阶段把事务划分为几个状态：</p>
+<ul>
+<li><strong>活动的（active）：</strong>事务对应的数据库操作<strong>正在执行</strong>过程中</li>
+<li><strong>部分提交的（partially committed）：</strong>当事务中的最后一个操作执行完成，但由于操作都在内存中执行，所造成的影响并<strong>没有刷新到磁盘时</strong>的状态</li>
+<li><strong>失败的（failed）：</strong>当事务处在<strong>活动的</strong>或者<strong>部分提交的</strong>状态时，可能遇到了某些<strong>错误</strong>而无法继续执行，或者<strong>人为的停止</strong>当前事务的执行</li>
+<li><strong>中止的（aborted）：</strong>如果事务执行了一部分而变为<strong>失败的</strong>状态，那么就需要把已经修改的事务中的操作还原到事务执行前的状态，即<strong>回滚</strong>。当回滚操作执行完毕时，也就是数据库恢复到了执行事务之前的状态，我们就说该事务处在了<strong>中止的</strong>状态</li>
+<li><strong>提交的（committed）：</strong>当一个处在部分提交的状态的事务将修改过的数据都<strong>同步到磁盘上</strong>之后，我们就可以说该事务处在了提交的状态</li>
+</ul>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/1645519510533.png" alt="事务的状态转换图"></p>
+<h1 id="事务的使用"><a href="#事务的使用" class="headerlink" title="事务的使用"></a>事务的使用</h1><p>使用事务有两种方式，分别为显式事务和隐式事务</p>
+<h2 id="显式事务"><a href="#显式事务" class="headerlink" title="显式事务"></a>显式事务</h2><ol>
+<li><code>START TRANSACTION</code>或者<code>BEGIN</code>，显式的<strong>开启事务</strong>。<code>START TRANSACTION</code>相比于<code>BEGIN</code>，后面可以跟几个修饰符：<ul>
+<li><code>READ ONLY</code>：标识当前事务是一个只读事务，也就是属于该事务的数据库操作只能读取数据，而不能修改数据</li>
+<li><code>READ WRITE</code>（<strong>默认</strong>模式）：标识当前事务是一个读写事务，也就是属于该事务的数据库操作既能读数据，又可以修改数据</li>
+<li><code>WITH CONSISTENT SNAPSHOT</code>：一致性读</li>
+</ul>
+</li>
+<li>一系列事务中的<strong>操作</strong>（DML），也可以设置保存点<code>SAVEPOINT 保存点名称</code></li>
+<li><strong>提交</strong><code>COMMIT</code>或者<strong>回滚</strong><code>ROLLBACK [TO 保存点]</code>事务</li>
+</ol>
+<h2 id="隐式事务"><a href="#隐式事务" class="headerlink" title="隐式事务"></a>隐式事务</h2><p>MySQL针对DML操作，默认是<strong>自动提交</strong>的。可以设置系统变量<code>SET autocommit = FALSE</code>，关闭DML操作的自动提交。显式的使用<code>COMMIT</code>提交或者<code>ROLLBACK</code>回滚。</p>
+<hr>
+<p><strong>注意：DDL操作会自动提交数据</strong></p>
+<h1 id="事务隔离级别"><a href="#事务隔离级别" class="headerlink" title="事务隔离级别"></a>事务隔离级别</h1><p>MySQL是<strong>C/S架构</strong>，对于同一个服务器，可以有多个客户端与之连接，每个客户端与服务器连接之后，就可以成为一个<strong>会话（Session）</strong>。因为多个客户端的存在，所以服务器可能会<strong>同时处理多个事务</strong>。要考虑好事务隔离性和并行处理的效率问题。</p>
+<h2 id="数据并发问题"><a href="#数据并发问题" class="headerlink" title="数据并发问题"></a>数据并发问题</h2><h3 id="脏写（Dirty-Write）"><a href="#脏写（Dirty-Write）" class="headerlink" title="脏写（Dirty Write）"></a>脏写（Dirty Write）</h3><p>对于两个事务 Session A、Session B，如果事务Session A<strong>修改了</strong>另一个<strong>未提交</strong>事务Session B<strong>修改过</strong>的数据，那就意味着发生了<strong>脏写</strong>。</p>
+<h3 id="脏读（Dirty-Read）"><a href="#脏读（Dirty-Read）" class="headerlink" title="脏读（Dirty Read）"></a>脏读（Dirty Read）</h3><p>对于两个事务 Session A、Session B，Session A<strong>读取</strong>了已经被 Session B<strong>更新</strong>但是还<strong>未提交</strong>的数据。之后若Session B<strong>回滚</strong>，那么Session A读取的内容就是<strong>临时且无效</strong>的。</p>
+<h3 id="不可重复读（Non-Repeatable-Read）"><a href="#不可重复读（Non-Repeatable-Read）" class="headerlink" title="不可重复读（Non-Repeatable Read）"></a>不可重复读（Non-Repeatable Read）</h3><p>对于两个事务Session A、Session B，Session A<strong>读取</strong>了一个字段，然后Session B<strong>更新</strong>了该字段。之后Session A<strong>再次读取</strong>同一个字段，<strong>值就不同了</strong>。</p>
+<h3 id="幻读（Phantom）"><a href="#幻读（Phantom）" class="headerlink" title="幻读（Phantom）"></a>幻读（Phantom）</h3><p>对于两个事务Session A、Session B, Session A 从一个表中<strong>读取</strong>了一个字段，然后 Session B 在该表中<strong>插入</strong>了一些新的行。之后，如果Session A<strong>再次读取</strong>同一个表，就会<strong>多出几行</strong>。</p>
+<h2 id="SQL的四种隔离级别"><a href="#SQL的四种隔离级别" class="headerlink" title="SQL的四种隔离级别"></a>SQL的四种隔离级别</h2><p>对于以上问题，按照严重性来排序：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">脏写 &gt; 脏读 &gt; 不可重复读 &gt; 幻读</span><br></pre></td></tr></table></figure>
+
+<p>为了提高效率，因此设立一些隔离级别，隔离级别越低，并发问题发生的就越多。SQL标准中设立了4个隔离级别，<strong>4种隔离级别都解决了脏写的问题</strong>：</p>
+<ul>
+<li><code>READ UNCOMMITTED</code>：<strong>读未提交</strong>，在该隔离级别，<strong>所有事务都可以看到其他未提交事务的执行结果</strong>。不能避免脏读、不可重复读、幻读。</li>
+<li><code>READ COMMITTED</code>：<strong>读已提交</strong>，它满足了隔离的简单定义：<strong>一个事务只能看见已经提交事务所做的改变</strong>。这是大多数数据库系统的默认隔离级别（但不是MySQL默认的）。可以避免脏读，但不可重复读、幻读问题仍然存在。</li>
+<li><code>REPEATABLE READ</code>：<strong>可重复读</strong>，事务A在读到一条数据之后，此时事务B对该数据进行了修改并提交，那么事务A再读该数据，<strong>读到的还是原来的内容</strong>。可以避免脏读、不可重复读，但幻读问题仍然存在。这是<strong>MySQL的默认隔离级别</strong>。</li>
+<li><code>SERIALIZABLE</code>：<strong>可串行化</strong>，<strong>确保事务可以从一个表中读取相同的行</strong>。在这个事务持续期间，<strong>禁止其他事务对该表执行插入、更新和删除操作</strong>。所有的并发问题都可以避免，但性能十分低下。能避免脏读、不可重复读和幻读。</li>
+</ul>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-8-%E4%BA%8B%E5%8A%A1%E5%9F%BA%E7%A1%80/1645528763646.png" alt="4种隔离级别"></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">mysql<span class="operator">&gt;</span> <span class="keyword">select</span> @<span class="variable">@transaction</span>_isolation;</span><br><span class="line"><span class="operator">+</span><span class="comment">-------------------------+</span></span><br><span class="line"><span class="operator">|</span> @<span class="variable">@transaction</span>_isolation <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------------------+</span></span><br><span class="line"><span class="operator">|</span> REPEATABLE<span class="operator">-</span>READ         <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------------------+</span></span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/22/Redis%E5%AD%A6%E4%B9%A0-1-%E4%BA%94%E5%A4%A7%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/" rel="prev" title="Redis学习 (1) 五大数据类型">
+      <i class="fa fa-chevron-left"></i> Redis学习 (1) 五大数据类型
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/22/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-21/" rel="next" title="算法刷题笔记 (21) 最长重复子数组 用队列实现栈 乘积最大子数组  买卖股票的最佳时机II">
+      算法刷题笔记 (21) 最长重复子数组 用队列实现栈 乘积最大子数组  买卖股票的最佳时机II <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">事务概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="nav-number">1.1.</span> <span class="nav-text">基本概念</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84ACID%E7%89%B9%E6%80%A7"><span class="nav-number">1.2.</span> <span class="nav-text">事务的ACID特性</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84%E7%8A%B6%E6%80%81"><span class="nav-number">1.3.</span> <span class="nav-text">事务的状态</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8"><span class="nav-number">2.</span> <span class="nav-text">事务的使用</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%98%BE%E5%BC%8F%E4%BA%8B%E5%8A%A1"><span class="nav-number">2.1.</span> <span class="nav-text">显式事务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9A%90%E5%BC%8F%E4%BA%8B%E5%8A%A1"><span class="nav-number">2.2.</span> <span class="nav-text">隐式事务</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB"><span class="nav-number">3.</span> <span class="nav-text">事务隔离级别</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98"><span class="nav-number">3.1.</span> <span class="nav-text">数据并发问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%8F%E5%86%99%EF%BC%88Dirty-Write%EF%BC%89"><span class="nav-number">3.1.1.</span> <span class="nav-text">脏写（Dirty Write）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%84%8F%E8%AF%BB%EF%BC%88Dirty-Read%EF%BC%89"><span class="nav-number">3.1.2.</span> <span class="nav-text">脏读（Dirty Read）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%8D%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%EF%BC%88Non-Repeatable-Read%EF%BC%89"><span class="nav-number">3.1.3.</span> <span class="nav-text">不可重复读（Non-Repeatable Read）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B9%BB%E8%AF%BB%EF%BC%88Phantom%EF%BC%89"><span class="nav-number">3.1.4.</span> <span class="nav-text">幻读（Phantom）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SQL%E7%9A%84%E5%9B%9B%E7%A7%8D%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB"><span class="nav-number">3.2.</span> <span class="nav-text">SQL的四种隔离级别</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

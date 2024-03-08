@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本节首先会介绍数据集切分的方法，并讨论索引和分片的配合；然后将会讨论分片再平衡（rebalancing），集群节点增删会引起数据再平衡；最后，会探讨数据库如何将请求路由到相应的分片并执行。 分片方法分片方法都是基于键值对的，键值对是数据的一种最通用、泛化的表示，其他种类数据库都可以转化为键值对表示：  关系型数据库：primary key → row 文档型数据库：document id → do">
+<meta property="og:type" content="article">
+<meta property="og:title" content="数据密集型应用系统设计 (5) 数据分区">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本节首先会介绍数据集切分的方法，并讨论索引和分片的配合；然后将会讨论分片再平衡（rebalancing），集群节点增删会引起数据再平衡；最后，会探讨数据库如何将请求路由到相应的分片并执行。 分片方法分片方法都是基于键值对的，键值对是数据的一种最通用、泛化的表示，其他种类数据库都可以转化为键值对表示：  关系型数据库：primary key → row 文档型数据库：document id → do">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/ch06-fig07.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/ch06-fig08.png">
+<meta property="article:published_time" content="2023-08-06T15:04:37.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.819Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/ch06-fig07.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>数据密集型应用系统设计 (5) 数据分区 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          数据密集型应用系统设计 (5) 数据分区
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-06 23:04:37" itemprop="dateCreated datePublished" datetime="2023-08-06T23:04:37+08:00">2023-08-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本节首先会介绍数据集<strong>切分的方法</strong>，并讨论索引和分片的配合；然后将会讨论分片<strong>再平衡</strong>（rebalancing），集群节点增删会引起数据再平衡；最后，会探讨数据库如何将请求<strong>路由</strong>到相应的分片并执行。</p>
+<h1 id="分片方法"><a href="#分片方法" class="headerlink" title="分片方法"></a>分片方法</h1><p>分片方法都是基于<strong>键值对</strong>的，键值对是数据的一种最通用、泛化的表示，其他种类数据库都可以转化为键值对表示：</p>
+<ul>
+<li>关系型数据库：primary key → row</li>
+<li>文档型数据库：document id → document</li>
+<li>图数据库：vertex id → vertex，edge id → edge</li>
+</ul>
+<p>所以数据分片的基本方法就是，首先<strong>将数据转化为键值对，然后进行分区</strong>。<strong>分片（Partition）</strong> 的本质是对数据集合的划分，可以分为两个步骤：</p>
+<ul>
+<li>对数据集进行<strong>逻辑</strong>划分。</li>
+<li>将逻辑分片<strong>调度到物理节点</strong>上。</li>
+</ul>
+<p>本节介绍逻辑划分方法，分别是按照键范围分区和按键散列分区。</p>
+<h2 id="按键范围分区"><a href="#按键范围分区" class="headerlink" title="按键范围分区"></a>按键范围分区</h2><p>将该连续的定义域进行切分，每个分区内可以按照关键字排序保存（SSLTable）。保存每个切分的上下界，在给出某个 Key 时，就能通过比较，定位其所在分区。</p>
+<ul>
+<li>按键范围分区<strong>好处</strong>在于可以进行<strong>快速的范围查询</strong>。</li>
+<li><strong>坏处</strong>在于，数据分散<strong>不均匀</strong>，且容易造成<strong>热点</strong>。</li>
+</ul>
+<blockquote>
+<p>比如关键字是时间戳，可能导致在近期的分区写入负载高，但是其他分区处于空闲状态。</p>
+<p>解决方法就是使用除了时间戳以外的其他内容作为关键字的第一项，使用<strong>拼接主键</strong>的方式。</p>
+</blockquote>
+<h2 id="按键散列分区"><a href="#按键散列分区" class="headerlink" title="按键散列分区"></a>按键散列分区</h2><p>为了避免数据倾斜和读写热点，许多数据系统使用散列函数对键进行分区。</p>
+<blockquote>
+<p><strong>一致性哈希</strong>也是基于散列分区，它不仅解决了从键到分区的映射，也解决了分区到节点的映射。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>哈希分片在避免数据倾斜和读写热点的同时，也丧失了高效的范围查询方式。</p>
+<blockquote>
+<p>在MongoDB中，如果启用了基于哈希的分片方式则范围查询会发送到所有的分区上，而一些数据库如Riak、Couchbase则不支持范围查询。</p>
+</blockquote>
+<p>Cassandra 则在范围分区和哈希分区做出了<strong>折中</strong>，即可以将主键声明为<strong>复合主键</strong>。主键的<strong>第一列用于哈希分区</strong>，而<strong>其他列用作索引列基于SSTable进行排序</strong>。因此，它不支持第一列的范围查询，但是如果指定第一列为固定值，则可以对其他列进行高效的范围查询。</p>
+<h3 id="负载倾斜与热点"><a href="#负载倾斜与热点" class="headerlink" title="负载倾斜与热点"></a>负载倾斜与热点</h3><p>哈希分区可以减轻热点，但是<strong>无法完全避免</strong>。如果<strong>所有的读写操作都针对同一个关键字</strong>（如某个热点大 V 的用户 ID），那么最终所有的请求路由到同一个分区。</p>
+<p>数据库层面无法解决这种数据热点问题，这种情况下只能通过<strong>应用层</strong>来减轻数据倾斜的程度。如果某个关键字被认为是热点，一个简单的方法就是在<strong>关键字的开头或者结尾加上一个随机数</strong>。</p>
+<p>但这无疑需要<strong>应用层做额外的工作</strong>，请求时需要进行拆分，返回时需要进行合并；此外，还需要<strong>额外的元数据</strong>来标记哪些关键字进行了特殊的处理。</p>
+<h1 id="分区和二级索引"><a href="#分区和二级索引" class="headerlink" title="分区和二级索引"></a>分区和二级索引</h1><p>由于分区都是基于主键的，在针对有分区的数据建立次级索引时，就会遇到一些困难。数据分区的二级索引可以有两种实现方式：</p>
+<ul>
+<li>本地索引。</li>
+<li>全局索引。</li>
+</ul>
+<h2 id="本地索引"><a href="#本地索引" class="headerlink" title="本地索引"></a>本地索引</h2><p>本地索引就是对<strong>每个数据分区独立地建立次级索引</strong>，即次级索引只针对本分区数据，而不关心其他分区数据。</p>
+<p>本地索引的<strong>优点</strong>是<strong>维护方便、实现简单</strong>，在更新数据时，只需要在该分区所在机器同时更新索引即可。</p>
+<p>但<strong>缺点</strong>是，<strong>查询效率相对较低</strong>，所有基于索引的查询请求，都要发送到<strong>所有分区，并将结果合并</strong>。这种方法造成了<strong>读延迟放大</strong>，也容易发生长尾请求（由于某些节点响应慢），导致整个请求过程变慢。</p>
+<blockquote>
+<p>本地索引非常简单，本地索引被广泛使用，如 MongoDB，Riak，Cassandra，Elasticsearch，SolrCloud 和 VoltDB 都使用本地索引。</p>
+</blockquote>
+<h2 id="全局索引"><a href="#全局索引" class="headerlink" title="全局索引"></a>全局索引</h2><p>为了避免查询索引时将请求发到所有分区，可以建立<strong>全局索引</strong>，即每个次级索引条目都是针对全局数据。同时，也会将二级索引数据本身进行分片，分散到多个机器上。</p>
+<blockquote>
+<p>对二级索引进行分区，也可以基于范围或者哈希，优劣前文已经说明。</p>
+</blockquote>
+<p>全局索引可以<strong>避免</strong>在查询时向<strong>所有分区</strong>发送请求；但<strong>维护</strong>起来较为<strong>复杂</strong>，存在<strong>写延迟放大</strong>的问题，在插入数据时可能会写入多个二级索引。</p>
+<p>为了避免增加写入延迟，在实践中，全局索引多为<strong>异步更新</strong>。但由此会带来短暂（有时可能会比较长）的数据和索引<strong>不一致</strong>。</p>
+<blockquote>
+<p>如果想要保证强一致性，需要引入跨分区的分布式事务（实现复杂度高，且会带来较大的性能损耗），但并不是所有数据库都支持。</p>
+</blockquote>
+<h1 id="分区再平衡策略"><a href="#分区再平衡策略" class="headerlink" title="分区再平衡策略"></a>分区再平衡策略</h1><p>本小节介绍逻辑分区到物理节点的映射方法。</p>
+<h2 id="静态分区"><a href="#静态分区" class="headerlink" title="静态分区"></a>静态分区</h2><p>静态分区，即，逻辑分区阶段的<strong>分区数量是固定的</strong>，并且最好让分区数量<strong>大于</strong>（比如高一个数量级）机器节点（也不能太大，因为每个分区信息也是有管理成本的）。</p>
+<blockquote>
+<p>静态分区需要<strong>元信息节点</strong>，维护<strong>逻辑分区到物理节点的映射</strong>，并根据此映射信息来发现不均衡，进而进行调度。</p>
+</blockquote>
+<h2 id="动态分区"><a href="#动态分区" class="headerlink" title="动态分区"></a>动态分区</h2><p>在动态分区中，当分区数据增长超过了阈值则<strong>拆分</strong>为两个分区，当分区数据删除缩小到了某个阈值则与相邻分区进行<strong>合并</strong>。</p>
+<p>动态分区好处在于，小数据量使用少量分区，减少开销；大数据量增加分区，以均摊负载。</p>
+<p>但同时，小数据量时，如果只有一个分区，会限制写入并发。因此，工程中有些数据库支持<strong>预分区</strong>（如 Hbase 和 MongoDB），即允许在空数据库中，<strong>配置最少量的初始分区</strong>。</p>
+<h2 id="与节点成比例分区"><a href="#与节点成比例分区" class="headerlink" title="与节点成比例分区"></a>与节点成比例分区</h2><blockquote>
+<ul>
+<li>静态均衡的分区数量一开始就固定的，但是单分区尺寸会随着总数量增大而增大。</li>
+<li>动态分区的分区数量与数据量有关，单分区尺寸相对保持不变。</li>
+</ul>
+</blockquote>
+<p>保持<strong>总分区数量</strong>和节点数量成正比，也即保持每个节点分区数量不变。</p>
+<h1 id="请求路由"><a href="#请求路由" class="headerlink" title="请求路由"></a>请求路由</h1><p>当客户端请求到来时，我们如何决定将请求路由到哪台机器？需要知道两点：</p>
+<ul>
+<li>数据条目到逻辑分区的映射。</li>
+<li>逻辑分区到物理机器的映射。</li>
+</ul>
+<h2 id="路由方案"><a href="#路由方案" class="headerlink" title="路由方案"></a>路由方案</h2><p>总的来说有三种方案：</p>
+<ul>
+<li><strong>每个节点都有全局路由表</strong>。客户端可以连接集群中任意一个节点，如该节点恰有该分区，则处理后返回；否则，根据路由信息，将其路由合适节点。</li>
+<li><strong>由一个专门的路由层来记录</strong>。客户端所有请求都打到路由层，路由层依据分区路由信息，将请求转发给相关节点。</li>
+<li><strong>让客户端感知分区到节点映射</strong>。客户端可以直接根据该映射，向某个节点发送请求。</li>
+</ul>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/ch06-fig07.png" alt="routing request ways"></p>
+<h2 id="感知路由变化"><a href="#感知路由变化" class="headerlink" title="感知路由变化"></a>感知路由变化</h2><p>如何让相关组件感知（分区到节点）的映射变化？</p>
+<ul>
+<li><strong>依赖外部协调组件</strong>。如 Zookeeper、Etcd，他们各自使用某种共识协议保持高可用和一致性，并且<strong>提供 Watch 接口</strong>。在有路由信息更新时，让外部所有节点快速达成一致。</li>
+</ul>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/ch06-fig08.png" alt="zookeeper partitions"></p>
+<ul>
+<li><strong>使用内部元数据服务器</strong>。如三节点的 Meta 服务器，每个节点都存储一份路由数据，使用某种共识协议达成一致。</li>
+<li><strong>使用某种协议点对点同步</strong>。如 Dynamo、Cassandra 和 Riak 使用 Gossip Protocol，节点之间对路由信息进行传播，达成最终一致性。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/" rel="prev" title="数据密集型应用系统设计 (4) 数据复制">
+      <i class="fa fa-chevron-left"></i> 数据密集型应用系统设计 (4) 数据复制
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/" rel="next" title="MongoDB学习 (1) 基础概念">
+      MongoDB学习 (1) 基础概念 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%86%E7%89%87%E6%96%B9%E6%B3%95"><span class="nav-number">1.</span> <span class="nav-text">分片方法</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%89%E9%94%AE%E8%8C%83%E5%9B%B4%E5%88%86%E5%8C%BA"><span class="nav-number">1.1.</span> <span class="nav-text">按键范围分区</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%89%E9%94%AE%E6%95%A3%E5%88%97%E5%88%86%E5%8C%BA"><span class="nav-number">1.2.</span> <span class="nav-text">按键散列分区</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B4%9F%E8%BD%BD%E5%80%BE%E6%96%9C%E4%B8%8E%E7%83%AD%E7%82%B9"><span class="nav-number">1.2.1.</span> <span class="nav-text">负载倾斜与热点</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%86%E5%8C%BA%E5%92%8C%E4%BA%8C%E7%BA%A7%E7%B4%A2%E5%BC%95"><span class="nav-number">2.</span> <span class="nav-text">分区和二级索引</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%AC%E5%9C%B0%E7%B4%A2%E5%BC%95"><span class="nav-number">2.1.</span> <span class="nav-text">本地索引</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%A8%E5%B1%80%E7%B4%A2%E5%BC%95"><span class="nav-number">2.2.</span> <span class="nav-text">全局索引</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%86%E5%8C%BA%E5%86%8D%E5%B9%B3%E8%A1%A1%E7%AD%96%E7%95%A5"><span class="nav-number">3.</span> <span class="nav-text">分区再平衡策略</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9D%99%E6%80%81%E5%88%86%E5%8C%BA"><span class="nav-number">3.1.</span> <span class="nav-text">静态分区</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8A%A8%E6%80%81%E5%88%86%E5%8C%BA"><span class="nav-number">3.2.</span> <span class="nav-text">动态分区</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8E%E8%8A%82%E7%82%B9%E6%88%90%E6%AF%94%E4%BE%8B%E5%88%86%E5%8C%BA"><span class="nav-number">3.3.</span> <span class="nav-text">与节点成比例分区</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%AF%B7%E6%B1%82%E8%B7%AF%E7%94%B1"><span class="nav-number">4.</span> <span class="nav-text">请求路由</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1%E6%96%B9%E6%A1%88"><span class="nav-number">4.1.</span> <span class="nav-text">路由方案</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%84%9F%E7%9F%A5%E8%B7%AF%E7%94%B1%E5%8F%98%E5%8C%96"><span class="nav-number">4.2.</span> <span class="nav-text">感知路由变化</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

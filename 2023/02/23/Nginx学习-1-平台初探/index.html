@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Nginx 是一个高性能的 HTTP 和反向代理服务器，同时也提供了 IMAP&#x2F;POP3&#x2F;SMTP 服务，具有高并发的优点。 Nginx 平台初探Nginx 架构Nginx 在启动后，在系统中会议 daemon（守护进程）的方式在后台运行，后台进程包含一个 master 和多个 worker 进程。 master 进程主要用来管理 worker 进程，包含：  接收来自外界的信号，向各 worke">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nginx学习 (1) 平台初探">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/02/23/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Nginx 是一个高性能的 HTTP 和反向代理服务器，同时也提供了 IMAP&#x2F;POP3&#x2F;SMTP 服务，具有高并发的优点。 Nginx 平台初探Nginx 架构Nginx 在启动后，在系统中会议 daemon（守护进程）的方式在后台运行，后台进程包含一个 master 和多个 worker 进程。 master 进程主要用来管理 worker 进程，包含：  接收来自外界的信号，向各 worke">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/chapter-2-1.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/image-20230223105009678.png">
+<meta property="article:published_time" content="2023-02-23T02:15:32.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.784Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Nginx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/chapter-2-1.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/02/23/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Nginx学习 (1) 平台初探 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/02/23/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nginx学习 (1) 平台初探
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-23 10:15:32" itemprop="dateCreated datePublished" datetime="2023-02-23T10:15:32+08:00">2023-02-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Nginx%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Nginx学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>Nginx 是一个高性能的 HTTP 和反向代理服务器，同时也提供了 IMAP/POP3/SMTP 服务，具有高并发的优点。</p>
+<h1 id="Nginx-平台初探"><a href="#Nginx-平台初探" class="headerlink" title="Nginx 平台初探"></a>Nginx 平台初探</h1><h2 id="Nginx-架构"><a href="#Nginx-架构" class="headerlink" title="Nginx 架构"></a>Nginx 架构</h2><p>Nginx 在启动后，在系统中会议 daemon（守护进程）的方式在后台运行，后台进程包含一个 master 和多个 worker 进程。</p>
+<p><strong>master 进程主要用来管理 worker 进程</strong>，包含：</p>
+<ul>
+<li>接收来自外界的信号，向各 worker 进程发送信号。</li>
+<li>监控 worker 进程的运行状态，当 worker 进程退出后(异常情况下)，会自动重新启动新的 worker 进程。</li>
+</ul>
+<p>而基本的<strong>网络事件，则是放在 worker 进程中来处理</strong>：</p>
+<ul>
+<li>多个 worker 进程之间是<strong>对等</strong>的，他们同等竞争来自客户端的请求，各进程互相之间是独立的。<strong>一个请求，只可能在一个 worker 进程中处理</strong>，一个 worker 进程，不可能处理其它进程的请求。</li>
+<li>worker 进程的个数是可以设置的，一般我们<strong>会设置与机器 cpu 核数一致</strong>，这里面的原因与 Nginx 的进程模型以及事件处理模型是分不开的。</li>
+</ul>
+<p><img src="/../images/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/chapter-2-1.png" alt="img"></p>
+<h3 id="操作-Nginx"><a href="#操作-Nginx" class="headerlink" title="操作 Nginx"></a>操作 Nginx</h3><p>因为 Nginx 是 master-worker 模型，所以如果要操作 Nginx，<strong>只需要与 master 通信即可</strong>。</p>
+<p>比如可以用 <code>./nginx -s reload</code> 来重启 Nginx：此时会启动一个新的 Nginx 进程，在解析到 reload 参数后它会向 master 进程发送信号：</p>
+<ul>
+<li><p>首先 master 进程在接到信号后，会先<strong>重新加载配置文件</strong>。</p>
+</li>
+<li><p>然后再<strong>启动新的 worker 进程</strong>，并向<strong>所有老的 worker 进程发送信号</strong>，告诉他们可以光荣退休了。</p>
+</li>
+<li><p>新的 worker 在启动后，就开始接收新的请求，而老的 worker 在收到来自 master 的信号后，就不再接收新的请求，并且在当前进程中的所有未处理完的请求处理完成后，再退出。</p>
+</li>
+</ul>
+<span id="more"></span>
+
+<h3 id="处理请求"><a href="#处理请求" class="headerlink" title="处理请求"></a>处理请求</h3><p>worker 进程之间是平等的，每个进程，处理请求的机会也是一样的。</p>
+<ul>
+<li>首先，每个 worker 进程都是从 master 进程 fork 过来，在 master 进程里面，先建立好需要 listen 的 socket（listenfd）之后，然后再 fork 出多个 worker 进程。</li>
+<li><strong>所有 worker 进程在注册 listenfd 读事件前抢 accept_mutex</strong>，抢到互斥锁的那个进程注册 listenfd 读事件，在读事件里调用 accept 接受该连接。当一个 worker 进程在 accept 这个连接之后，就开始读取请求，解析请求，处理请求，产生数据后，再返回给客户端，最后才断开连接</li>
+</ul>
+<h3 id="处理事件"><a href="#处理事件" class="headerlink" title="处理事件"></a>处理事件</h3><p>Nginx 采用了<strong>异步非阻塞</strong>的方式来处理请求，也就是说，Nginx 是可以同时处理成千上万个请求的。</p>
+<blockquote>
+<p>Apache 中（Apache 也有异步非阻塞版本，但因其与自带某些模块冲突，所以不常用），每个请求会独占一个工作线程，当并发数上到几千时，就同时有几千的线程在处理请求了。这对操作系统来说，是个不小的挑战，线程带来的内存占用非常大，线程的上下文切换带来的 cpu 开销很大，自然性能就上不去。</p>
+</blockquote>
+<p>请求过来，要建立连接，然后再接收数据，接收数据后，再发送数据。具体到系统底层，就是读写事件。阻塞与非阻塞、同步与异步的示意图如下：</p>
+<p><img src="/../images/Nginx%E5%AD%A6%E4%B9%A0-1-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2/image-20230223105009678.png" alt="image-20230223105009678"></p>
+<p>在处理<strong>网络事件</strong>时，以 epoll 为例子：</p>
+<p>当事件没准备好时，放到 epoll 里面，事件准备好了就去读写，当读写返回 EAGAIN（事件还没有准备好）时，我们将它再次加入到 epoll 里面。这样，只要有事件准备好了，我们就去处理它，只有当所有事件都没准备好时，才在 epoll 里面等着。</p>
+<p>这样，我们就可以并发处理大量的并发了，当然，这里的并发请求，是指未处理完的请求，线程只有一个，所以同时能处理的请求当然只有一个了，只是<strong>在请求间进行不断地切换而已，切换也是因为异步事件未准备好，而主动让出的</strong>。与多线程相比，这种事件处理方式是有很大的优势的，<strong>不需要创建线程</strong>，每个请求<strong>占用的内存也很少</strong>，<strong>没有上下文切换</strong>，事件处理非常的轻量级。并发数再多也不会导致无谓的资源浪费（上下文切换）。</p>
+<blockquote>
+<p><strong>推荐设置 worker 的个数为 cpu 的核数</strong>，因为更多的 worker 数，只会导致进程来竞争 cpu 资源了，从而带来不必要的上下文切换。Nginx 为了更好的利用多核特性，提供了 cpu 亲缘性的绑定选项，我们可以将某一个进程绑定在某一个核上，这样就不会因为进程的切换带来 cache 的失效。</p>
+</blockquote>
+<h2 id="基础概念"><a href="#基础概念" class="headerlink" title="基础概念"></a>基础概念</h2><h3 id="connection"><a href="#connection" class="headerlink" title="connection"></a>connection</h3><p><strong>在 Nginx 中 connection 就是对 tcp 连接的封装。</strong>在 Nginx 中，每个进程会有一个连接数的最大上限，这个上限与系统对 fd 的限制不一样（一个进程所能够打开的 fd 的最大数，即 nofile）。因为每个 socket 连接会占用掉一个 fd，所以这也会限制我们进程的最大连接数，当然也会直接影响到我们程序所能支持的最大并发数，当 fd 用完后，再创建 socket 时，就会失败。</p>
+<p><strong>Nginx 通过设置 worker_connectons 来设置每个进程支持的最大连接数。</strong>如果该值大于 nofile，那么实际的最大连接数是 nofile，Nginx 会有警告。Nginx 在实现时，是通过一个<strong>连接池</strong>来管理的，<strong>每个 worker 进程都有一个独立的连接池，连接池的大小是 worker_connections</strong>。这里的连接池里面保存的其实不是真实的连接，它只是一个 worker_connections 大小的<strong>一个 ngx_connection_t 结构的数组</strong>。并且，Nginx 会通过一个<strong>链表 free_connections 来保存所有的空闲 ngx_connection_t</strong>，每次获取一个连接时，就从空闲连接链表中获取一个，用完后，再放回空闲连接链表里面。</p>
+<blockquote>
+<p><strong>worker_connections 表示的是每一个 worker 进程能建立的最大连接数</strong>。所以一个 Nginx 能建立的<strong>最大连接数</strong>，应该是 <code>worker_connections * worker_processes</code>。</p>
+<p>对于 HTTP 请求本地资源来说，能够支持的<strong>最大并发数量</strong>是 <code>worker_connections * worker_processes</code>，而如果是 HTTP 作为反向代理来说，最大并发数量应该是 <code>worker_connections * worker_processes/2</code>。因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。</p>
+</blockquote>
+<h4 id="公平竞争"><a href="#公平竞争" class="headerlink" title="公平竞争"></a>公平竞争</h4><p>一个客户端连接过来后，多个空闲的进程，会竞争这个连接，这种竞争会导致不公平，如果某个进程得到 accept 的机会比较多，它的空闲连接很快就用完了，会导致此 tcp 连接得不到处理，就中止了。Nginx 的解决方法是：</p>
+<ul>
+<li>在获取 accept_mutex 之前，会<strong>先计算 ngx_accept_disabled 的值</strong>，这个值是 Nginx 单进程的所有连接总数的八分之一，减去剩下的空闲连接数量。得到的这个 ngx_accept_disabled 有一个规律，<strong>当剩余连接数小于总连接数的八分之一时，其值才大于 0，而且剩余的连接数越小，这个值越大</strong>。</li>
+<li><strong>当 ngx_accept_disabled 大于 0 时，不会去尝试获取 accept_mutex 锁</strong>，并且将 ngx_accept_disabled 减 1，于是，每次执行到此处时，都会去减 1，直到小于 0。很显然可以看出，当空余连接越少时，ngx_accept_disable 越大，于是让出的机会就越多，这样其它进程获取锁的机会也就越大。</li>
+</ul>
+<h2 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h2><p>Nginx 常用命令：</p>
+<ul>
+<li>查看版本号：<code>./nginx -v</code></li>
+<li>启动 Nginx：<code>./nginx</code></li>
+<li>停止 Nginx：<code>./nginx -s stop</code></li>
+<li>重新加载 Nginx：<code>./nginx -s reload</code></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nginx/" rel="tag"># Nginx</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/21/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-Span-based-Joint-Entity-and-Relation-Extraction-with-Transformer-Pre-training/" rel="prev" title="关系抽取论文 Span-based Joint Entity and Relation Extraction with Transformer Pre-training">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 Span-based Joint Entity and Relation Extraction with Transformer Pre-training
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/23/Nginx%E5%AD%A6%E4%B9%A0-2-%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6/" rel="next" title="Nginx学习 (2) 配置文件">
+      Nginx学习 (2) 配置文件 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Nginx-%E5%B9%B3%E5%8F%B0%E5%88%9D%E6%8E%A2"><span class="nav-number">1.</span> <span class="nav-text">Nginx 平台初探</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Nginx-%E6%9E%B6%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">Nginx 架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%93%8D%E4%BD%9C-Nginx"><span class="nav-number">1.1.1.</span> <span class="nav-text">操作 Nginx</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E8%AF%B7%E6%B1%82"><span class="nav-number">1.1.2.</span> <span class="nav-text">处理请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E4%BA%8B%E4%BB%B6"><span class="nav-number">1.1.3.</span> <span class="nav-text">处理事件</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5"><span class="nav-number">1.2.</span> <span class="nav-text">基础概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#connection"><span class="nav-number">1.2.1.</span> <span class="nav-text">connection</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%AC%E5%B9%B3%E7%AB%9E%E4%BA%89"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">公平竞争</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4"><span class="nav-number">1.3.</span> <span class="nav-text">常用命令</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

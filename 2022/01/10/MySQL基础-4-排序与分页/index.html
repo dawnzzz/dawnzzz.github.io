@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="排序ORDER BY默认查询返回地数据顺序，是数据先后添加的顺序 排序实现方法使用ORDER BY对查询的数据进行排序，默认是升序排列：  升序：ASC (ascend) 降序：DESC (descend)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL基础 (4) 排序与分页">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/01/10/MySQL%E5%9F%BA%E7%A1%80-4-%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%88%86%E9%A1%B5/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="排序ORDER BY默认查询返回地数据顺序，是数据先后添加的顺序 排序实现方法使用ORDER BY对查询的数据进行排序，默认是升序排列：  升序：ASC (ascend) 降序：DESC (descend)">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-01-10T13:32:58.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.778Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL基础">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/01/10/MySQL%E5%9F%BA%E7%A1%80-4-%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%88%86%E9%A1%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL基础 (4) 排序与分页 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/01/10/MySQL%E5%9F%BA%E7%A1%80-4-%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%88%86%E9%A1%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL基础 (4) 排序与分页
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-01-10 21:32:58" itemprop="dateCreated datePublished" datetime="2022-01-10T21:32:58+08:00">2022-01-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E5%9F%BA%E7%A1%80%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">MySQL基础学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="排序ORDER-BY"><a href="#排序ORDER-BY" class="headerlink" title="排序ORDER BY"></a>排序ORDER BY</h1><p><strong>默认</strong>查询返回地数据顺序，是数据<strong>先后添加的顺序</strong></p>
+<h2 id="排序实现方法"><a href="#排序实现方法" class="headerlink" title="排序实现方法"></a>排序实现方法</h2><p>使用<code>ORDER BY</code>对查询的数据进行排序，<strong>默认是升序排列</strong>：</p>
+<ul>
+<li>升序：<code>ASC</code> (ascend)</li>
+<li>降序：<code>DESC</code> (descend)</li>
+</ul>
+<span id="more"></span>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> employee_id, last_name, salary</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> salary <span class="keyword">DESC</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-------------+----------+</span></span><br><span class="line"><span class="operator">|</span> employee_id <span class="operator">|</span> last_name   <span class="operator">|</span> salary   <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-------------+----------+</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">100</span> <span class="operator">|</span> King        <span class="operator">|</span> <span class="number">24000.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">101</span> <span class="operator">|</span> Kochhar     <span class="operator">|</span> <span class="number">17000.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">102</span> <span class="operator">|</span> De Haan     <span class="operator">|</span> <span class="number">17000.00</span> <span class="operator">|</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> employee_id, last_name, salary</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> salary <span class="keyword">ASC</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-------------+----------+</span></span><br><span class="line"><span class="operator">|</span> employee_id <span class="operator">|</span> last_name   <span class="operator">|</span> salary   <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-------------+----------+</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">132</span> <span class="operator">|</span> Olson       <span class="operator">|</span>  <span class="number">2100.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">128</span> <span class="operator">|</span> Markle      <span class="operator">|</span>  <span class="number">2200.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">136</span> <span class="operator">|</span> Philtanker  <span class="operator">|</span>  <span class="number">2200.00</span> <span class="operator">|</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="使用列的别名进行排序"><a href="#使用列的别名进行排序" class="headerlink" title="使用列的别名进行排序"></a>使用列的别名进行排序</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"># 以annual_sal为年工资（salary<span class="operator">*</span><span class="number">12</span> ）的别名进行排序</span><br><span class="line"><span class="keyword">SELECT</span> employee_id, salary, salary<span class="operator">*</span><span class="number">12</span> annual_sal</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> annual_sal <span class="keyword">ASC</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+----------+------------+</span></span><br><span class="line"><span class="operator">|</span> employee_id <span class="operator">|</span> salary   <span class="operator">|</span> annual_sal <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+----------+------------+</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">132</span> <span class="operator">|</span>  <span class="number">2100.00</span> <span class="operator">|</span>   <span class="number">25200.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">128</span> <span class="operator">|</span>  <span class="number">2200.00</span> <span class="operator">|</span>   <span class="number">26400.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">136</span> <span class="operator">|</span>  <span class="number">2200.00</span> <span class="operator">|</span>   <span class="number">26400.00</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">127</span> <span class="operator">|</span>  <span class="number">2400.00</span> <span class="operator">|</span>   <span class="number">28800.00</span> <span class="operator">|</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>注意：</strong></p>
+<p>列的别名<strong>只能</strong>在<code>ORDER BY</code>中使用，<strong>不能</strong>在<code>WHERE</code>中使用：</p>
+<p>一条查询语句执行时，<strong>首先</strong>执行<code>FROM</code>和<code>WHERE</code>语句，<strong>再执行</strong><code>SELECT</code>（SELECT中声明了别名），<strong>最后</strong>执行<code>ORDER BY</code></p>
+<h2 id="多级排序"><a href="#多级排序" class="headerlink" title="多级排序"></a>多级排序</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"># 按照department_id降序排列，salary升序排列</span><br><span class="line"><span class="keyword">SELECT</span> employee_id, salary, department_id</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> department_id <span class="keyword">DESC</span>, salary <span class="keyword">ASC</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+----------+---------------+</span></span><br><span class="line"><span class="operator">|</span> employee_id <span class="operator">|</span> salary   <span class="operator">|</span> department_id <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+----------+---------------+</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">206</span> <span class="operator">|</span>  <span class="number">8300.00</span> <span class="operator">|</span>           <span class="number">110</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">205</span> <span class="operator">|</span> <span class="number">12000.00</span> <span class="operator">|</span>           <span class="number">110</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">113</span> <span class="operator">|</span>  <span class="number">6900.00</span> <span class="operator">|</span>           <span class="number">100</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">111</span> <span class="operator">|</span>  <span class="number">7700.00</span> <span class="operator">|</span>           <span class="number">100</span> <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">112</span> <span class="operator">|</span>  <span class="number">7800.00</span> <span class="operator">|</span>           <span class="number">100</span> <span class="operator">|</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="分页LIMIT"><a href="#分页LIMIT" class="headerlink" title="分页LIMIT"></a>分页LIMIT</h1><h2 id="分页实现方法"><a href="#分页实现方法" class="headerlink" title="分页实现方法"></a>分页实现方法</h2><p>使用<code>LIMIT</code>关键字：</p>
+<ul>
+<li><code>LIMIT [offset,] rows</code>：<ul>
+<li><code>offset</code>为偏移量（默认从0开始）</li>
+<li><code>rows</code>为返回行的最大行数。为了检索<strong>从某一个偏移量到记录集的结束所有的记录行</strong>，可以指定第二个参数为<code>-1</code></li>
+</ul>
+</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"># 显示前<span class="number">20</span>条记录</span><br><span class="line"><span class="keyword">SELECT</span> employee_id, last_name</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line">LIMIT <span class="number">0</span>, <span class="number">20</span>;</span><br><span class="line"></span><br><span class="line"># 显示第<span class="number">21</span><span class="number">-40</span>条记录</span><br><span class="line"><span class="keyword">SELECT</span> employee_id, last_name</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line">LIMIT <span class="number">20</span>, <span class="number">20</span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="MySQL-8-0新特性"><a href="#MySQL-8-0新特性" class="headerlink" title="MySQL 8.0新特性"></a>MySQL 8.0新特性</h2><p>MySQL 8.0新特性即<code>LIMIT 最大行数 OFFSET 偏移量</code></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> employee_id, last_name</span><br><span class="line"><span class="keyword">FROM</span> employees</span><br><span class="line">LIMIT <span class="number">2</span> <span class="keyword">OFFSET</span> <span class="number">41</span>;</span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-----------+</span></span><br><span class="line"><span class="operator">|</span> employee_id <span class="operator">|</span> last_name <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-----------+</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">141</span> <span class="operator">|</span> Rajs      <span class="operator">|</span></span><br><span class="line"><span class="operator">|</span>         <span class="number">142</span> <span class="operator">|</span> Davies    <span class="operator">|</span></span><br><span class="line"><span class="operator">+</span><span class="comment">-------------+-----------+</span></span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E5%9F%BA%E7%A1%80/" rel="tag"># MySQL基础</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/01/10/MySQL%E5%9F%BA%E7%A1%80-3-%E6%AF%94%E8%BE%83%E8%BF%90%E7%AE%97%E7%AC%A6/" rel="prev" title="MySQL基础 (3) 比较运算符">
+      <i class="fa fa-chevron-left"></i> MySQL基础 (3) 比较运算符
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/01/10/GO%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%AE%A1%E9%81%93/" rel="next" title="GO学习笔记 (5) 管道">
+      GO学习笔记 (5) 管道 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8E%92%E5%BA%8FORDER-BY"><span class="nav-number">1.</span> <span class="nav-text">排序ORDER BY</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%92%E5%BA%8F%E5%AE%9E%E7%8E%B0%E6%96%B9%E6%B3%95"><span class="nav-number">1.1.</span> <span class="nav-text">排序实现方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E5%88%97%E7%9A%84%E5%88%AB%E5%90%8D%E8%BF%9B%E8%A1%8C%E6%8E%92%E5%BA%8F"><span class="nav-number">1.2.</span> <span class="nav-text">使用列的别名进行排序</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%9A%E7%BA%A7%E6%8E%92%E5%BA%8F"><span class="nav-number">1.3.</span> <span class="nav-text">多级排序</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%86%E9%A1%B5LIMIT"><span class="nav-number">2.</span> <span class="nav-text">分页LIMIT</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E9%A1%B5%E5%AE%9E%E7%8E%B0%E6%96%B9%E6%B3%95"><span class="nav-number">2.1.</span> <span class="nav-text">分页实现方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#MySQL-8-0%E6%96%B0%E7%89%B9%E6%80%A7"><span class="nav-number">2.2.</span> <span class="nav-text">MySQL 8.0新特性</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="PodPod 是可以在 Kubernetes 中创建和管理的、最小的可部署的计算单元，是一组容器，这些容器共享存储、网络（容器间可以使用 localhost 相互通信）、以及怎样运行这些容器的声明。有些 Pod 具有 Init 容器和应用容器，Init 容器会在启动应用容器之前运行并完成。 如下面是一个 Nginx Pod 示例： 12345678910apiVersion: v1kind: Po">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes学习 (6) Pod和工作负载">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/17/Kubernetes%E5%AD%A6%E4%B9%A0-6-Pod%E5%92%8C%E5%B7%A5%E4%BD%9C%E8%B4%9F%E8%BD%BD/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="PodPod 是可以在 Kubernetes 中创建和管理的、最小的可部署的计算单元，是一组容器，这些容器共享存储、网络（容器间可以使用 localhost 相互通信）、以及怎样运行这些容器的声明。有些 Pod 具有 Init 容器和应用容器，Init 容器会在启动应用容器之前运行并完成。 如下面是一个 Nginx Pod 示例： 12345678910apiVersion: v1kind: Po">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-05-17T05:30:58.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.774Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="云原生">
+<meta property="article:tag" content="k8s">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/17/Kubernetes%E5%AD%A6%E4%B9%A0-6-Pod%E5%92%8C%E5%B7%A5%E4%BD%9C%E8%B4%9F%E8%BD%BD/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes学习 (6) Pod和工作负载 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/17/Kubernetes%E5%AD%A6%E4%B9%A0-6-Pod%E5%92%8C%E5%B7%A5%E4%BD%9C%E8%B4%9F%E8%BD%BD/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes学习 (6) Pod和工作负载
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-17 13:30:58" itemprop="dateCreated datePublished" datetime="2023-05-17T13:30:58+08:00">2023-05-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Pod"><a href="#Pod" class="headerlink" title="Pod"></a>Pod</h1><p><strong>Pod</strong> 是可以在 Kubernetes 中创建和管理的、最小的可部署的计算单元，是<strong>一组容器</strong>，这些容器<strong>共享存储、网络（容器间可以使用 localhost 相互通信）、以及怎样运行这些容器的声明</strong>。有些 Pod 具有 Init 容器和应用容器，Init 容器会在启动应用容器之前运行并完成。</p>
+<p>如下面是一个 Nginx Pod 示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx:1.14.2</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
+
+<p>通常情况下，使用 Deployment、ReplicaSet 或者 Job 这类<strong>工作负载</strong>来创建 Pod，如果 Pod 需要跟踪状态，可以考虑 StatefulSet 资源。</p>
+<span id="more"></span>
+
+<h2 id="生命周期"><a href="#生命周期" class="headerlink" title="生命周期"></a>生命周期</h2><p>Pod 被认为是<strong>临时</strong>性的实体（而不是长期存在的）。Pod <strong>起始于 Pending 阶段</strong>，如果至少其中有一个主要容器正常启动，则<strong>进入 running</strong>，之后取决于 Pod 中是否有容器以失败状态结束而<strong>进入 Succeed 或者 Failed 阶段</strong>。</p>
+<blockquote>
+<p><strong>Pod 在其生命周期中只会被调度一次。</strong>一旦 Pod 被调度（分派）到某个节点，Pod 会一直在该节点运行，直到 Pod 停止或者被终止。Pod 一旦给定，就不会被调度到不同的节点上；相反，只能被一个全新的、几乎相同的 Pod 所代替。</p>
+</blockquote>
+<h3 id="Pod-阶段"><a href="#Pod-阶段" class="headerlink" title="Pod 阶段"></a>Pod 阶段</h3><p>Pod 阶段的可能值：</p>
+<ul>
+<li><strong>Pending：</strong> Pod 已被 Kubernetes 系统接受，但有一个或者多个容器尚未创建亦未运行。此阶段包括等待 Pod 被调度的时间和通过网络下载镜像的时间。</li>
+<li><strong>Running：</strong>Pod 已经绑定到了某个节点，Pod 中所有的容器都已被创建。至少有一个容器仍在运行，或者正处于启动或重启状态。</li>
+<li><strong>Succeed：</strong>Pod 中的所有容器都已成功终止，并且不会再重启。</li>
+<li><strong>Failed：</strong>Pod 中的所有容器都已终止，并且至少有一个容器是因为失败终止。</li>
+<li><strong>Unknown：</strong> 因为某些原因无法取得 Pod 的状态。</li>
+</ul>
+<h3 id="容器状态"><a href="#容器状态" class="headerlink" title="容器状态"></a>容器状态</h3><p>Kubernetes 会跟踪 Pod 内每一个容器的状态，容器有三种状态：</p>
+<ul>
+<li>waiting：如果容器没有处于 running 或者 terminated 状态，那么容器就处于 waiting 状态。</li>
+<li>running：容器正在运行，且没有发生任何问题。</li>
+<li>terminated：已经开始执行并且或者正常结束或者因为某些原因失败。</li>
+</ul>
+<h3 id="容器重启策略"><a href="#容器重启策略" class="headerlink" title="容器重启策略"></a>容器重启策略</h3><p>Pod 的 spec 中<strong>包含一个 restartPolicy 字段</strong>，其可能取值包括 Always、OnFailure 和 Never。默认值是 Always。</p>
+<p>当容器发生重启时，会按<strong>指数回退方式计算重启的延迟</strong>（10s、20s、40s、…），其最长延迟为 5 分钟。一旦某容器执行了 10 分钟并且没有出现问题，kubelet 对该容器的重启回退计时器执行重置操作。</p>
+<h2 id="使用标签和选择器约束调度"><a href="#使用标签和选择器约束调度" class="headerlink" title="使用标签和选择器约束调度"></a>使用标签和选择器约束调度</h2><p>通常来说，向 Kubernetes 中添加节点时，都将标签（label）附加到节点上，<strong>通过附加标签对节点进行分类</strong>。比如一个节点用于 GPU 计算，那么可以附加一个标签 <code>gpu=true</code>。</p>
+<p>在 Pod 的 yaml 文件中<strong>声明 spec.nodeSelector 字段</strong>，就可以按照标签选择该 Pod 被部署的节点。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">kubia-gpu</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">nodeSelecotr:</span></span><br><span class="line">		<span class="attr">gpu:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">	<span class="attr">containers:</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">image:</span> <span class="string">xxx</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">kubia</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Init-容器"><a href="#Init-容器" class="headerlink" title="Init 容器"></a>Init 容器</h2><p>Init 容器是一种特殊容器，<strong>在 Pod 内应用容器启动之前运行</strong>。</p>
+<p>如果为一个 Pod 指定了多个 Init 容器，这些容器会<strong>按顺序逐个运行</strong>。 每个 Init 容器必须运行成功，下一个才能够运行。当所有的 Init 容器运行完成时， Kubernetes 才会为 Pod 初始化应用容器并像平常一样运行。 如果某容器因为容器运行时的原因无法启动，或以错误状态退出，kubelet 会根据 Pod 的 restartPolicy 策略进行重试，Init 容器失败则 Kubernetes 会将整个 Pod 状态设置为失败。</p>
+<p>为 Pod 设置容器需要在 spec 中添加 initContainers 字段，如：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">myapp-pod</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/name:</span> <span class="string">MyApp</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">containers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">myapp-container</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">busybox:1.28</span></span><br><span class="line">    <span class="attr">command:</span> [<span class="string">&#x27;sh&#x27;</span>, <span class="string">&#x27;-c&#x27;</span>, <span class="string">&#x27;echo The app is running! &amp;&amp; sleep 3600&#x27;</span>]</span><br><span class="line">  <span class="attr">initContainers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">init-myservice</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">busybox:1.28</span></span><br><span class="line">    <span class="attr">command:</span> [<span class="string">&#x27;sh&#x27;</span>, <span class="string">&#x27;-c&#x27;</span>, <span class="string">&quot;until nslookup myservice.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done&quot;</span>]</span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">init-mydb</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">busybox:1.28</span></span><br><span class="line">    <span class="attr">command:</span> [<span class="string">&#x27;sh&#x27;</span>, <span class="string">&#x27;-c&#x27;</span>, <span class="string">&quot;until nslookup mydb.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for mydb; sleep 2; done&quot;</span>]</span><br></pre></td></tr></table></figure>
+
+<h2 id="Pod-QoS-类"><a href="#Pod-QoS-类" class="headerlink" title="Pod QoS 类"></a>Pod QoS 类</h2><p>Kubernetes 对你运行的 Pod 进行分类，并将每个 Pod 分配到特定的 QoS 类中。Kubernetes 基于 Pod 中容器的<strong>资源请求</strong>进行分类。有三种 QoS 类：<strong>Guaranteed、Burstable、BestEffort</strong>。当一个 Node 耗尽资源时，Kubernetes 将首先驱逐在该 Node 上运行的 BestEffort Pod，接着是 Burstable Pod，最后是 Guaranteed Pod。</p>
+<h3 id="Guaranteed"><a href="#Guaranteed" class="headerlink" title="Guaranteed"></a>Guaranteed</h3><p>Guaranteed Pod 具有最严格的资源限制，并且<strong>最不可能</strong>面临驱逐。同时，这些 Pod 爷可以使用 static CPU 管理策略来使用独占的 CPU。</p>
+<p>Pod 被赋予 Guaranteed QoS 类的几个判据：</p>
+<ul>
+<li>Pod 中的每个容器必须有内存 limit 和内存 request。</li>
+<li>对于 Pod 中的每个容器，内存 limit 必须等于内存 request。</li>
+<li>Pod 中的每个容器必须有 CPU limit 和 CPU request。</li>
+<li>对于 Pod 中的每个容器，CPU limit 必须等于 CPU request。</li>
+</ul>
+<h3 id="Burstable"><a href="#Burstable" class="headerlink" title="Burstable"></a>Burstable</h3><p>Burstable Pod 有一些基于 request 的资源<strong>下限</strong>保证，但不需要特定的 limit。 由于没有指定 limit，Pod 在资源可用时可以灵活的增加资源。因为 Burstable Pod Pod 可以包括没有资源 limit 或资源 request 的容器， 所以可以尝试使用任意数量的节点资源。</p>
+<p>判据：</p>
+<ul>
+<li>不满足 Guaranteed QoS 类判据。</li>
+<li>Pod 中至少一个容器有内存或 CPU 的 request 或 limit。</li>
+</ul>
+<h3 id="BestEffort"><a href="#BestEffort" class="headerlink" title="BestEffort"></a>BestEffort</h3><p>BestEffort QoS 类中的 Pod 可以<strong>使用未专门分配给其他 QoS 类中的 Pod 的节点资源</strong>；同样的，如果节点遇到资源压力，kubelet 会优先驱逐 BestEffort Pod。</p>
+<p>当 Pod 不满足 Guaranteed 和 Burstable 的判据时，那么这个 Pod 的 QoS 类为 BestEffort。</p>
+<h2 id="存活探针"><a href="#存活探针" class="headerlink" title="存活探针"></a>存活探针</h2><p>Kubernetes 可以通过<strong>存活探针（liveness probe）</strong>来检查容器是否存活运行，可以为 pod 中的每一个容器单独指定存活探针。如果探测失败，Kubernetes 将定期执行探针并重启容器。Kubernetes 支持三种存活探针：</p>
+<ul>
+<li><strong>HTTP Get 探针：</strong>通过对指定的 URL 发送 HTTP GET 请求，如果收到响应且响应码不代表错误则认为探测成功。</li>
+<li><strong>TCP 套接字探针：</strong>与容器指定端口建立 TCP 链接，如果建立成功则说明探测成功。</li>
+<li><strong>Exec 探针：</strong>在容器内部执行命令，返回码是 0 则探测成功。</li>
+</ul>
+<blockquote>
+<p>存活探针还可以定义其他属性，如 delay（延迟），timeout（超时），period（周期）等。</p>
+<p>必要时设置<strong>初始延迟</strong>（initialDelaySeconds），如果没有设置初始延迟，探针将在启动时立即开始探测容器， 这通常会导致探测失败， 因为应用程序还没准备好开始接收请求。</p>
+<p>可以定义一个健康检查接口 /health 以供检查健康状态，需要注意的是这个接口不应该有任何的认证，否则探针会一直失败导致重启。</p>
+<p>在健康检查接口内部<strong>不应该定义重试逻辑</strong>，因为 Kubernetes 在探测失败时会自行重试。</p>
+</blockquote>
+<h1 id="工作负载"><a href="#工作负载" class="headerlink" title="工作负载"></a>工作负载</h1><h2 id="Deployment"><a href="#Deployment" class="headerlink" title="Deployment"></a>Deployment</h2><p><strong>Deployment 控制器是工作在 ReplicaSet 之上的（Kubernetes 也建议使用 Deployment）</strong>，Deployment 通过控制 ReplicaSet 来控制 Pod，并不是直接控制 Pod。Deployment 的示例如下：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx-deployment</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">3</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">nginx:1.14.2</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
+
+<p>同其他 Kubernetes 配置一样， Deployment 需要 apiVersion，kind 和 metadata 字段。在 Deployment 规约中，只有 spec.template 和 spec.selector 是必须的字段。</p>
+<blockquote>
+<p><strong>spec.template 是一个 Pod 模板</strong>，和 Pod 的语法完全签筒，这里它是嵌套的，因此不需要 apiVersion 和 kind。</p>
+</blockquote>
+<h3 id="副本"><a href="#副本" class="headerlink" title="副本"></a>副本</h3><p>spec.replicas 指定 Pod 的副本数量，默认为 1。</p>
+<blockquote>
+<p>应该让 Kubernetes 控制面自动的管理 Pod 副本数量，不应该自己去手动的扩容或者缩容。</p>
+</blockquote>
+<h3 id="选择运算符"><a href="#选择运算符" class="headerlink" title="选择运算符"></a>选择运算符</h3><p>spec.selector 指定这个 Deployment 的 Pod 标签选择运算符，必须匹配 spec.template.metadata.labels，否则会被 API 拒绝。</p>
+<blockquote>
+<p>Deployment 和 ReplicaSet 仅仅通过<strong>标签匹配</strong>来选择管理的 Pod。如果手动变更 Pod 的标签使之无法匹配到 Deployment 中，则相当于手动将这个 Pod 从 Deployment 移除，而 Deployment 因为水平复制数量少一个，则会创建一个新的 Pod。</p>
+</blockquote>
+<h3 id="策略"><a href="#策略" class="headerlink" title="策略"></a>策略</h3><p>spec.strategy 策略用于指定<strong>新 Pod 替换旧的 Pod 的策略</strong>，可选值为 Recreate 或者 RollingUpdate。默认为 RollingUpdate。</p>
+<ul>
+<li><strong>Recreate：</strong>在创建新 Pod 之前，所有现有的 Pod 会被杀死。</li>
+<li><strong>RollingUpdate：</strong>采取滚动更新的方式更新 Pod，可以指定 spec.strategy.rollingUpdate.maxUnavailable（最大不可用，用来指定更新过程中不可用的 Pod 的个数上限）和 spec.strategy.rollingUpdate.maxSurge（可以创建的超出期望 Pod 个数的 Pod 数量，即新旧 Pod 总数的最大值）来控制更新进程。</li>
+</ul>
+<h3 id="最短就绪时间"><a href="#最短就绪时间" class="headerlink" title="最短就绪时间"></a>最短就绪时间</h3><p>spec.minReadySeconds 是一个可选字段，用于指定新创建的 Pod 在没有任意容器崩溃情况下的最小就绪时间， <strong>只有超出这个时间 Pod 才被视为可用</strong>。默认值为 0（Pod 在准备就绪后立即将被视为可用）。 </p>
+<h2 id="ReplicaSet"><a href="#ReplicaSet" class="headerlink" title="ReplicaSet"></a>ReplicaSet</h2><p>ReplicaSet 的核心作用在于<strong>帮助用户创建指定数量的 Pod 副本</strong>，并确保 Pod 副本一直处于期望的数量。</p>
+<p><strong>Deployment 是一个更高级的概念</strong>，它管理 ReplicaSet，并向 Pod 提供声明式的更新以及许多其他有用的功能。 </p>
+<blockquote>
+<p>建议使用 Deployment 而不是直接使用 ReplicaSet。</p>
+</blockquote>
+<h2 id="StatefulSet"><a href="#StatefulSet" class="headerlink" title="StatefulSet"></a>StatefulSet</h2><p>StatefulSet 是用来管理<strong>有状态应用</strong>的工作负载 API 对象。</p>
+<p>和 Deployment 一样，StatefulSet 也是用来管理 Pod 的部署和扩缩。但是与 Deployment 不同的是，<strong>StatefulSet 为它们的每个 Pod 维护了一个有粘性的 ID</strong>。</p>
+<h2 id="DaemonSet"><a href="#DaemonSet" class="headerlink" title="DaemonSet"></a>DaemonSet</h2><p><strong>DaemonSet 确保全部（或者某些）节点上运行一个 Pod 的副本。</strong> 当有节点加入集群时， 也会为他们新增一个 Pod 。 当有节点从集群移除时，这些 Pod 也会被回收。删除 DaemonSet 将会删除它创建的所有 Pod。</p>
+<p>DaemonSet 的一些<strong>典型用法</strong>：</p>
+<ul>
+<li>在每个节点上运行<strong>集群</strong>守护进程</li>
+<li>在每个节点上运行<strong>日志收集</strong>守护进程</li>
+<li>在每个节点上运行<strong>监控</strong>守护进程</li>
+</ul>
+<blockquote>
+<p>DaemonSet 通过变迁选择节点，只要标签匹配到的节点，都会在节点上创建指定的 Pod。</p>
+</blockquote>
+<h2 id="Job"><a href="#Job" class="headerlink" title="Job"></a>Job</h2><p>Job 用于完成<strong>只执行一次就结束</strong>的任务，Job 会自动重启或者重新分配返回错误的任务。</p>
+<p>可以在 Job 中配置多个 Pod，并且可以声明以<strong>串行或者并行</strong>的方式运行他们。也可以配置 Pod 的完成时间，超过此时间的 Pod 将会被终止，然后将 Job 标记为失败（Job 的默认失败重试次数为 6，这是可以配置的）。</p>
+<h3 id="CronJob"><a href="#CronJob" class="headerlink" title="CronJob"></a>CronJob</h3><p>Cron用于完成定时任务，spec.schedule 用于指定运行时间，spec.jobTemplate 用于指定创建出的 Job 模板。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E4%BA%91%E5%8E%9F%E7%94%9F/" rel="tag"># 云原生</a>
+              <a href="/tags/k8s/" rel="tag"># k8s</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/17/Kubernetes%E5%AD%A6%E4%B9%A0-5-Kubernetes%E5%AF%B9%E8%B1%A1%E4%B9%8BFinalizer-%E5%B1%9E%E4%B8%BB%E4%B8%8E%E9%99%84%E5%B1%9E/" rel="prev" title="Kubernetes学习 (5) Kubernetes对象之Finalizer 属主与附属">
+      <i class="fa fa-chevron-left"></i> Kubernetes学习 (5) Kubernetes对象之Finalizer 属主与附属
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-1-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%BB%8B%E7%BB%8D/" rel="next" title="微服务架构设计模式 (1) 微服务架构介绍">
+      微服务架构设计模式 (1) 微服务架构介绍 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Pod"><span class="nav-number">1.</span> <span class="nav-text">Pod</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">1.1.</span> <span class="nav-text">生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Pod-%E9%98%B6%E6%AE%B5"><span class="nav-number">1.1.1.</span> <span class="nav-text">Pod 阶段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E7%8A%B6%E6%80%81"><span class="nav-number">1.1.2.</span> <span class="nav-text">容器状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E9%87%8D%E5%90%AF%E7%AD%96%E7%95%A5"><span class="nav-number">1.1.3.</span> <span class="nav-text">容器重启策略</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E6%A0%87%E7%AD%BE%E5%92%8C%E9%80%89%E6%8B%A9%E5%99%A8%E7%BA%A6%E6%9D%9F%E8%B0%83%E5%BA%A6"><span class="nav-number">1.2.</span> <span class="nav-text">使用标签和选择器约束调度</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Init-%E5%AE%B9%E5%99%A8"><span class="nav-number">1.3.</span> <span class="nav-text">Init 容器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Pod-QoS-%E7%B1%BB"><span class="nav-number">1.4.</span> <span class="nav-text">Pod QoS 类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Guaranteed"><span class="nav-number">1.4.1.</span> <span class="nav-text">Guaranteed</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Burstable"><span class="nav-number">1.4.2.</span> <span class="nav-text">Burstable</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#BestEffort"><span class="nav-number">1.4.3.</span> <span class="nav-text">BestEffort</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AD%98%E6%B4%BB%E6%8E%A2%E9%92%88"><span class="nav-number">1.5.</span> <span class="nav-text">存活探针</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E8%B4%9F%E8%BD%BD"><span class="nav-number">2.</span> <span class="nav-text">工作负载</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Deployment"><span class="nav-number">2.1.</span> <span class="nav-text">Deployment</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%89%AF%E6%9C%AC"><span class="nav-number">2.1.1.</span> <span class="nav-text">副本</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%80%89%E6%8B%A9%E8%BF%90%E7%AE%97%E7%AC%A6"><span class="nav-number">2.1.2.</span> <span class="nav-text">选择运算符</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AD%96%E7%95%A5"><span class="nav-number">2.1.3.</span> <span class="nav-text">策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%80%E7%9F%AD%E5%B0%B1%E7%BB%AA%E6%97%B6%E9%97%B4"><span class="nav-number">2.1.4.</span> <span class="nav-text">最短就绪时间</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ReplicaSet"><span class="nav-number">2.2.</span> <span class="nav-text">ReplicaSet</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#StatefulSet"><span class="nav-number">2.3.</span> <span class="nav-text">StatefulSet</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DaemonSet"><span class="nav-number">2.4.</span> <span class="nav-text">DaemonSet</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Job"><span class="nav-number">2.5.</span> <span class="nav-text">Job</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CronJob"><span class="nav-number">2.5.1.</span> <span class="nav-text">CronJob</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

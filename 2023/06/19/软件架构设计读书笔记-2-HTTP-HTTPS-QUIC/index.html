@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="HTTPHTTP 协议主要有三个版本，分别是 1996 年发布的 HTTP 1.0、1999 年发布的 HTTP 1.1 以及 2015 年发布的 HTTP 2。 HTTP 1.0在 HTTP 1.0 中，默认发出一个请求就建立一个 TCP 连接。但是可以使用 Keep-Alive 和 Content-Length 来实现持久连接。  Keep-Alive：用于声明这个字段是持久连接，多个 HTT">
+<meta property="og:type" content="article">
+<meta property="og:title" content="软件架构设计读书笔记 (2) HTTP HTTPS QUIC">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="HTTPHTTP 协议主要有三个版本，分别是 1996 年发布的 HTTP 1.0、1999 年发布的 HTTP 1.1 以及 2015 年发布的 HTTP 2。 HTTP 1.0在 HTTP 1.0 中，默认发出一个请求就建立一个 TCP 连接。但是可以使用 Keep-Alive 和 Content-Length 来实现持久连接。  Keep-Alive：用于声明这个字段是持久连接，多个 HTT">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619204542901.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/1829481-9021e7511b024129.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619212844398.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619213913179.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/29fedfbcb196411f957f94f332692692.png">
+<meta property="article:published_time" content="2023-06-19T08:36:48.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.833Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619204542901.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>软件架构设计读书笔记 (2) HTTP HTTPS QUIC | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          软件架构设计读书笔记 (2) HTTP HTTPS QUIC
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-19 16:36:48" itemprop="dateCreated datePublished" datetime="2023-06-19T16:36:48+08:00">2023-06-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="HTTP"><a href="#HTTP" class="headerlink" title="HTTP"></a>HTTP</h1><p>HTTP 协议主要有三个版本，分别是 1996 年发布的 HTTP 1.0、1999 年发布的 HTTP 1.1 以及 2015 年发布的 HTTP 2。</p>
+<h2 id="HTTP-1-0"><a href="#HTTP-1-0" class="headerlink" title="HTTP 1.0"></a>HTTP 1.0</h2><p>在 HTTP 1.0 中，默认发出一个请求就建立一个 TCP 连接。但是可以使用 Keep-Alive 和 Content-Length 来实现<strong>持久连接</strong>。</p>
+<ul>
+<li><strong>Keep-Alive：</strong>用于声明这个字段是持久连接，多个 HTTP 请求都在同一个 TCP 连接上。</li>
+<li><strong>Content-Length：</strong>之前服务器响应完成就会关闭连接，而在持久连接中客户端不知道服务器的数据是否发送完成，所以<strong>需要 Content-Length 字段来告知数据长度</strong>。</li>
+</ul>
+<p>但是 Content-Length 字段有一个<strong>缺点</strong>，如果服务器使用了压缩，那么在生成 Header 时并不知道压缩之后的长度，所以无法生成 Content-Length。</p>
+<blockquote>
+<p>所以在 HTTP 1.0 中，压缩和持久连接是<strong>冲突</strong>的。</p>
+</blockquote>
+<h2 id="HTTP-1-1"><a href="#HTTP-1-1" class="headerlink" title="HTTP 1.1"></a>HTTP 1.1</h2><h3 id="分块传输编码-chunk"><a href="#分块传输编码-chunk" class="headerlink" title="分块传输编码 chunk"></a>分块传输编码 chunk</h3><p>在 HTTP 1.1 中，Keep-Alive 变成了默认选项，也可以利用 Content-Length 字段，让客户端判断服务器响应是否结束。但是因为 Content-Length 的缺点，所以<strong>引入了 Chunk 机制（分块传输编码）</strong>。</p>
+<p>在响应 Header 中添加 <code>Transfer-Encoding: chunked</code>，Body 中可以采用分块传输。分块包含<strong>十六进制的长度值</strong>和对应长度的数据<strong>内容</strong>，长度值独占一行，数据从下一行开始。最后以<strong>一个长度值为 0 的分块来表示资源结束</strong>。</p>
+<h3 id="pipeline"><a href="#pipeline" class="headerlink" title="pipeline"></a>pipeline</h3><p>尽管 HTTP 1.0 中的已经引入了长连接模式，但是 HTTP 1.0 中在收到上一次请求之后才能发出下一次请求。</p>
+<p>在 HTTP 1.1 中改进了这个问题，<strong>引入了 Pipeline 机制</strong>。在没有收到响应之前，就可以发出之后的请求。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619204542901.png" alt="image-20230619204542901"></p>
+<p>但是不管是 HTTP 1.0 还是 Pipeline，都有个问题就是<strong>队头阻塞</strong>。因为<strong>服务器的响应顺序必须是请求发出的顺序</strong>，所以如果前面的响应处理流程缓慢，则会延缓后面请求响应的处理。</p>
+<blockquote>
+<p>由于队头阻塞的问题，Pipeline 的推广并不是很成功。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="HTTP-2"><a href="#HTTP-2" class="headerlink" title="HTTP 2"></a>HTTP 2</h2><h3 id="帧"><a href="#帧" class="headerlink" title="帧"></a>帧</h3><p>HTTP 2.0 中，<strong>帧（Frame）是传输的最小单位</strong>，每一个帧都<strong>附带一个 ID 用于标识这个帧属于哪个流</strong>，从而可以通过不同流重组出 HTTP 请求和响应，被<strong>称为 HTTP 2 多路复用技术</strong>。HTTP 与同一个服务器只维护<strong>一个连接</strong>。</p>
+<blockquote>
+<p>这样就缓解了队头阻塞问题。</p>
+</blockquote>
+<h3 id="Header-压缩"><a href="#Header-压缩" class="headerlink" title="Header 压缩"></a>Header 压缩</h3><p>HTTP 2 的另一个提高效率的方法就是使用<strong>头部压缩</strong>，HTTP 2 专门设计了针对于 Header 压缩的算法。</p>
+<p>HTTP 2 使用的<strong>头部压缩算法是 hpack 算法</strong>，其基本思想就是<strong>缓存头部的数据</strong>，如果头部键值已经存在直接使用索引进行传输。未缓存的数据，可以采用<strong>哈夫曼编码</strong>进行传输。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/1829481-9021e7511b024129.png" alt="img"></p>
+<h1 id="HTTPS"><a href="#HTTPS" class="headerlink" title="HTTPS"></a>HTTPS</h1><p>HTTPS = HTTP + TLS，HTTPS 可以保证 HTTP 协议的内容的机密性和完整性。</p>
+<h2 id="TLS-握手"><a href="#TLS-握手" class="headerlink" title="TLS 握手"></a>TLS 握手</h2><p>TLS 在传输数据之前会进行<strong>握手</strong>，TLS 握手的作用就是交换证书（公钥）、对称密钥等信息。</p>
+<ol>
+<li><strong>客户端请求：</strong>会给服务器提供以下信息，支持 TLS 的版本、客户端生成的<strong>随机数</strong>、支持的加密算法等。</li>
+<li><strong>服务器响应：</strong>如果服务器接受客户端的请求，则向客户端回复响应。服务器同样会给客户端提供以下信息：确认使用的 TLS 版本、服务器生成的<strong>随机数</strong>、服务器选定的加密算法等。如果协商出的加密算法需要证书，则也会发送自己的证书。</li>
+<li><strong>客户端确认：</strong>此时通信采用协商出的加密方式进行，客户端向服务器发送的信息包括：客户端的证书（可选）、<strong>以服务器公钥加密的对称密钥</strong>（对称密钥通过两个随机数计算出）。</li>
+<li><strong>服务器确认：</strong>服务器通过私钥解密得到对称密钥，此后所有的通信通过对称密钥以对称加密的形式传输。                                       </li>
+</ol>
+<p>TLS 握手完成后，安全连接已经建立，之后的通信采用协商出的对称加密算法进行传输。因为 TLS 位于 TCP 和 HTTP 之间所以上层协议 HTTP 是对其<strong>无感知</strong>的。</p>
+<h2 id="CA-证书"><a href="#CA-证书" class="headerlink" title="CA 证书"></a>CA 证书</h2><p>至于<strong>如何验证服务器的证书，就引入了 CA</strong>。CA 就是一个可以信任的机构，用于<strong>颁发证书和验证证书</strong>。</p>
+<p>但是又回到了原来的问题，<strong>如何验证 CA 的证书？</strong>答案就是<strong>给 CA 颁发证书</strong>，CA 的证书由 CA 的上一级 CA 颁发。而<strong>根 CA 是有限可数的</strong>，已经内置进了浏览器和操作系统中，我们无条件的信任根 CA。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619212844398.png" alt="image-20230619212844398"></p>
+<h1 id="QUIC"><a href="#QUIC" class="headerlink" title="QUIC"></a>QUIC</h1><p>HTTP 3 的涉及重点在于<strong>用 UDP 替换 TCP</strong>，HTTP 3 <strong>使用 QUIC（Quick UDP Internet Connections）作为底层协议</strong>。</p>
+<p>QUIC 取代了 TCP 的部分功能，实现了 SSL/TLS 的所有功能，最后它还取代了 HTTP 2 的部分功能（帧，HTTP 2 多路复用）。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619213913179.png" alt="image-20230619213913179"></p>
+<p>下面介绍 QUIC 的几个特性。</p>
+<h2 id="不丢包"><a href="#不丢包" class="headerlink" title="不丢包"></a>不丢包</h2><p>TCP 通过 ACK 和重传来保证不丢包的问题，而在 QUIC 中采用 Raid 算法来解决。</p>
+<p><strong>Raid 5 算法</strong>就是<strong>每发送 n 个数据包，就发送一个冗余包</strong>，冗余包是通过 n 个数据包<strong>异或</strong>得到的。这样如果其中<strong>有一个包丢失了，就可以通过冗余包和其他包计算得到</strong>。如果丢失的数据包超过一个，则还是需要重传（不过已经大大降低了重传的几率）。</p>
+<p><strong>Raid 6 算法</strong>更进一步提高可靠性，<strong>生成两个冗余包</strong>，这就允许丢失两个数据包。数据恢复的过程就相当于解一个二元一次方程组。</p>
+<p><strong>对于 QUIC 来说，采用了 Raid5 算法，每发送 10 个数据包构建一个冗余包。</strong></p>
+<h2 id="更少的-RTT"><a href="#更少的-RTT" class="headerlink" title="更少的 RTT"></a>更少的 RTT</h2><p>在 HTTPS 中，需要实现 TCP 3次握手和 TLS 4 次握手，共需要 3.5 RTT。</p>
+<p><strong>QUIC 实现了 TLS1.3 协议，首次握手 1RTT，PSK 过期前再握手 0RTT</strong>。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/29fedfbcb196411f957f94f332692692.png" alt="在这里插入图片描述"></p>
+<h2 id="连接迁移"><a href="#连接迁移" class="headerlink" title="连接迁移"></a>连接迁移</h2><p>在移动端上可能客户端的 IP 会一直变化，意味着需要频繁的建立和关闭连接。</p>
+<p><strong>QUIC 不再使用 IP 和端口号标识连接，而是让客户端生成一个 64 位的数字标识连接</strong>。虽然客户端 IP 和端口号一直在漂移，但是 64 位的连接标识符没有发生变化。对于上层应用来说，就感觉这条连接一直存在没有中断过。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/" rel="prev" title="软件架构设计读书笔记 (1) I/O">
+      <i class="fa fa-chevron-left"></i> 软件架构设计读书笔记 (1) I/O
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/" rel="next" title="软件架构设计读书笔记 (3) 数据库">
+      软件架构设计读书笔记 (3) 数据库 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#HTTP"><span class="nav-number">1.</span> <span class="nav-text">HTTP</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-1-0"><span class="nav-number">1.1.</span> <span class="nav-text">HTTP 1.0</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-1-1"><span class="nav-number">1.2.</span> <span class="nav-text">HTTP 1.1</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E5%9D%97%E4%BC%A0%E8%BE%93%E7%BC%96%E7%A0%81-chunk"><span class="nav-number">1.2.1.</span> <span class="nav-text">分块传输编码 chunk</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#pipeline"><span class="nav-number">1.2.2.</span> <span class="nav-text">pipeline</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-2"><span class="nav-number">1.3.</span> <span class="nav-text">HTTP 2</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B8%A7"><span class="nav-number">1.3.1.</span> <span class="nav-text">帧</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Header-%E5%8E%8B%E7%BC%A9"><span class="nav-number">1.3.2.</span> <span class="nav-text">Header 压缩</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#HTTPS"><span class="nav-number">2.</span> <span class="nav-text">HTTPS</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#TLS-%E6%8F%A1%E6%89%8B"><span class="nav-number">2.1.</span> <span class="nav-text">TLS 握手</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CA-%E8%AF%81%E4%B9%A6"><span class="nav-number">2.2.</span> <span class="nav-text">CA 证书</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#QUIC"><span class="nav-number">3.</span> <span class="nav-text">QUIC</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8D%E4%B8%A2%E5%8C%85"><span class="nav-number">3.1.</span> <span class="nav-text">不丢包</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9B%B4%E5%B0%91%E7%9A%84-RTT"><span class="nav-number">3.2.</span> <span class="nav-text">更少的 RTT</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5%E8%BF%81%E7%A7%BB"><span class="nav-number">3.3.</span> <span class="nav-text">连接迁移</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

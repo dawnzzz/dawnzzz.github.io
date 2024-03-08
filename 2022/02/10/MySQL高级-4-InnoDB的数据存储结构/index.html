@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="页概述InnoDB将数据划分为若干个页，InnoDB中数据页的默认大小为16KB。数据库管理存储空间的基本单位是页，数据库IO操作的最小单位是页。 页之间不在物理上相邻，通过双向链表相关联。数据页中的每条记录通过单向链表按照顺序连接 页的上层结构数据库中，还存在着区（Extent）、段（Segment）和表空间（Tablespace）的概念。它们的关系如下：  区（Extent）：比页大一级的存储">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (4) InnoDB的数据存储结构">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/10/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="页概述InnoDB将数据划分为若干个页，InnoDB中数据页的默认大小为16KB。数据库管理存储空间的基本单位是页，数据库IO操作的最小单位是页。 页之间不在物理上相邻，通过双向链表相关联。数据页中的每条记录通过单向链表按照顺序连接 页的上层结构数据库中，还存在着区（Extent）、段（Segment）和表空间（Tablespace）的概念。它们的关系如下：  区（Extent）：比页大一级的存储">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644575492204.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644576209279.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644576242708.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644577361230.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644576646887.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644577511117.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644577352808.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644579361259.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644580548953.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644580733083.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578075714.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578202509.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578226780.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578248489.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644579703856.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644581512041.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644583433620.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644583708260.png">
+<meta property="article:published_time" content="2022-02-10T08:53:55.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.781Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644575492204.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/10/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (4) InnoDB的数据存储结构 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/10/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (4) InnoDB的数据存储结构
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-10 16:53:55" itemprop="dateCreated datePublished" datetime="2022-02-10T16:53:55+08:00">2022-02-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="页概述"><a href="#页概述" class="headerlink" title="页概述"></a>页概述</h1><p>InnoDB将数据划分为若干个页，InnoDB中数据页的默认大小为<strong>16KB</strong>。数据库管理存储空间的基本单位是<strong>页，数据库IO操作的最小单位是页</strong>。</p>
+<p><strong>页之间</strong>不在物理上相邻，通过<strong>双向链表</strong>相关联。<strong>数据页中</strong>的每条记录通过<strong>单向链表</strong>按照顺序连接</p>
+<h2 id="页的上层结构"><a href="#页的上层结构" class="headerlink" title="页的上层结构"></a>页的上层结构</h2><p>数据库中，还存在着区（Extent）、段（Segment）和表空间（Tablespace）的概念。它们的关系如下：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644575492204.png" alt="结构关系"></p>
+<p>区（Extent）：比页大一级的存储结构，在InnoDB中，一个区会分配<strong>64个连续的页</strong>。一个区的大小是64*16KB=<strong>1MB</strong></p>
+<p>段（Segment）：由一个或者多个区组成，区在文件系统中是一个连续的空间，在段中区之间不要求相邻。<strong>段是数据库中的分配单位，不同类型的数据库对象以不同的段形式存在</strong>。在创建数据表、索引的时候会创建相应的段</p>
+<p>表空间（Tablespace）：是一个<strong>逻辑容器</strong>，一个表空间中有一个或者多个段。数据库由一个或者多个表空间组成，表空间从管理上可以划分为<strong>系统表空间、用户表空间、撤销表空间、临时表空间</strong>等。    </p>
+<h1 id="页的内部结构"><a href="#页的内部结构" class="headerlink" title="页的内部结构"></a>页的内部结构</h1><p>页的内部结构可以分为7个部分，分别是文件头、页头、最大最小记录、用户记录、空闲空间、页目录、文件尾：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644576209279.png" alt="页结构示意图"></p>
+<span id="more"></span>
+
+<p>这7个部分的功能概述如下：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644576242708.png" alt="页结构功能"></p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644577361230.png" alt="完整的数据页结构"></p>
+<h2 id="第1部分：File-Header（文件头部）和File-Rrailer（文件尾部）"><a href="#第1部分：File-Header（文件头部）和File-Rrailer（文件尾部）" class="headerlink" title="第1部分：File Header（文件头部）和File Rrailer（文件尾部）"></a>第1部分：File Header（文件头部）和File Rrailer（文件尾部）</h2><h3 id="File-Header文件头部"><a href="#File-Header文件头部" class="headerlink" title="File Header文件头部"></a>File Header文件头部</h3><p>描述各种页的通用信息。（比如页的编号、其上一页、下一页是谁等）</p>
+<p>大小：38字节</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644576646887.png" alt="1644576646887"></p>
+<h4 id="FIL-PAGE-OFFSET（4字节）"><a href="#FIL-PAGE-OFFSET（4字节）" class="headerlink" title="FIL_PAGE_OFFSET（4字节）"></a>FIL_PAGE_OFFSET（4字节）</h4><p>每一个页都有一个单独的页号，InnoDB通过页号可以唯一定位一个页</p>
+<h4 id="FIL-PAGE-TYPE（2字节）"><a href="#FIL-PAGE-TYPE（2字节）" class="headerlink" title="FIL_PAGE_TYPE（2字节）"></a>FIL_PAGE_TYPE（2字节）</h4><p>代表当前页的类型</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644577511117.png" alt="页类型"></p>
+<h4 id="FIL-PAGE-PREV（4字节）和FIL-PAGE-NEXT（4字节）"><a href="#FIL-PAGE-PREV（4字节）和FIL-PAGE-NEXT（4字节）" class="headerlink" title="FIL_PAGE_PREV（4字节）和FIL_PAGE_NEXT（4字节）"></a>FIL_PAGE_PREV（4字节）和FIL_PAGE_NEXT（4字节）</h4><p>InnoDB都是以页为单位存放数据的，如果数据分散到多个不连续的页中存储的话需要把这些页关联起来，FIL_PAGE_PREV和FIL_PAGE_NEXT就分别代表本页的上一个和下一个页的页号。</p>
+<p>这样通过建立一个双向链表把许许多多的页就都串联起来了，保证这些页之间不需要是物理上的连续，而是逻辑上的连续。</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644577352808.png" alt="数据页之间组成双向链表"></p>
+<h4 id="FIL-PAGE-SPACE-OR-CHKSUM（4字节）"><a href="#FIL-PAGE-SPACE-OR-CHKSUM（4字节）" class="headerlink" title="FIL_PAGE_SPACE_OR_CHKSUM（4字节）"></a>FIL_PAGE_SPACE_OR_CHKSUM（4字节）</h4><p>校验和</p>
+<p>为了<strong>检测一个页是否完整</strong>（也就是在同步的时候有没有发生只同步一半的尴尬情况），这时可以通过<strong>文件尾的校验和与文件头的校验和做比对</strong>，如果两个值不相等则证明页的传输有问题，需要重新进行传输，否则认为页的传输已经完成</p>
+<p>每当一个页面在内存中修改了，在同步之前就要把它的校验和算出来，因为File Header在页面的前边，所以校验和会被首先同步到磁盘，当完全写完时，校验和也会被写到页的尾部，如果完全同步成功，则页的首部和尾部的校验和应该是一致的。如果写了一半儿断电了，那么在<strong>File Header中的校验和就代表着已经修改过的页，而在File Trailer中的校验和代表着原先的页，二者不同则意味着同步中间出了错</strong>。这里，校验方式就是采用 Hash 算法进行校验</p>
+<h4 id="FIL-PAGE-LSN（8字节）"><a href="#FIL-PAGE-LSN（8字节）" class="headerlink" title="FIL_PAGE_LSN（8字节）"></a>FIL_PAGE_LSN（8字节）</h4><p>页面被最后修改时对应的日志序列（Log Sequence Number）位置</p>
+<h3 id="File-Rrailer文件尾部"><a href="#File-Rrailer文件尾部" class="headerlink" title="File Rrailer文件尾部"></a>File Rrailer文件尾部</h3><ul>
+<li><p>前4个字节代表页的校验和：这个部分是和File Header中的校验和相对应的。</p>
+</li>
+<li><p>后4个字节代表页面被最后修改时对应的日志序列位置（LSN）：这个部分也是为了校验页的完整性的，如果首部和尾部的LSN值校验不成功的话，就说明同步过程出现了问题。</p>
+</li>
+</ul>
+<h2 id="第2部分：User-Records（用户记录）、最大最小记录、Free-Space（空闲空间）"><a href="#第2部分：User-Records（用户记录）、最大最小记录、Free-Space（空闲空间）" class="headerlink" title="第2部分：User Records（用户记录）、最大最小记录、Free Space（空闲空间）"></a>第2部分：User Records（用户记录）、最大最小记录、Free Space（空闲空间）</h2><h3 id="Free-Space空闲空间"><a href="#Free-Space空闲空间" class="headerlink" title="Free Space空闲空间"></a>Free Space空闲空间</h3><p>用户存储的记录会按照指定的<strong>行格式</strong>存储到User Records部分。但是在一开始生成页的时候，其实并没有User Records这个部分，<strong>每当我们插入一条记录，都会从Free Space部分，也就是尚未使用的存储空间中申请一个记录大小的空间划分到User Records部分</strong></p>
+<p><strong>当Free Space部分的空间全部被User Records部分替代掉之后，也就意味着这个页使用完了</strong>，如果还有新的记录插入的话，就需要去<strong>申请新的页</strong>了</p>
+<h3 id="User-Records用户记录"><a href="#User-Records用户记录" class="headerlink" title="User Records用户记录"></a>User Records用户记录</h3><p>User Records中的这些记录<strong>按照指定的行格式</strong>一条一条摆在User Records部分，相互之间形成<strong>单链表</strong></p>
+<h3 id="Infimum-Supremum最小最大记录"><a href="#Infimum-Supremum最小最大记录" class="headerlink" title="Infimum + Supremum最小最大记录"></a>Infimum + Supremum最小最大记录</h3><p>InnoDB规定的最小记录与最大记录这两条记录的构造十分简单，都是由5字节大小的记录头信息（<strong>同行格式中的记录头信息</strong>）和8字节大小的一个固定的部分组成的，如图所示：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644579361259.png" alt="最小最大记录结构示意图"></p>
+<p>这两条记录不是我们自己定义的记录，所以它们并不存放在页的User Records部分，他们被单独放在一个称为Infimum + Supremum的部分</p>
+<h2 id="第3部分：Page-Directory（页目录）、Page-Header（页面头部）"><a href="#第3部分：Page-Directory（页目录）、Page-Header（页面头部）" class="headerlink" title="第3部分：Page Directory（页目录）、Page Header（页面头部）"></a>第3部分：Page Directory（页目录）、Page Header（页面头部）</h2><h2 id="Page-Directory页目录"><a href="#Page-Directory页目录" class="headerlink" title="Page Directory页目录"></a>Page Directory页目录</h2><p><strong>为什么需要页目录？</strong></p>
+<p><strong>在页中，记录是以单向链表的形式进行存储的</strong>。单向链表的特点就是插入、删除非常方便，但是<strong>检索效率不高</strong>，最差的情况下需要遍历链表上的所有节点才能完成检索。因此在页结构中专门设计了页目录这个模块，<strong>专门给记录做一个目录</strong>，通过<strong>二分查找</strong>法的方式进行检索，提升效率</p>
+<p>使用页目录，进行二分查找：</p>
+<ol>
+<li>将所有的记录分成几个组，这些记录包括最小记录和最大记录，但不包括标记为“已删除”的记录</li>
+<li>第 1 组，也就是最小记录所在的分组只有 1 个记录；最后一组，就是最大记录所在的分组，会有 1-8 条记录；其余的组记录数量在 4-8 条之间。这样做的好处是，除了第 1 组（最小记录所在组）以外，其余组的记录数会<strong>尽量平分</strong></li>
+<li>在<strong>每个组中最后一条记录</strong>的头信息中会存储该组一共有多少条记录，作为 n_owned 字段</li>
+<li><strong>页目录用来存储每组最后一条记录的地址偏移量</strong>，这些地址偏移量会<strong>按照先后顺序存储</strong>起来，每组的地址偏移量也被称之为槽（slot），每个槽相当于指针指向了不同组的最后一个记录</li>
+</ol>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644580548953.png" alt="页目录示意图"></p>
+<h2 id="Page-Header页面头部"><a href="#Page-Header页面头部" class="headerlink" title="Page Header页面头部"></a>Page Header页面头部</h2><p>为了能得到一个数据页中存储的记录的状态信息，比如本页中已经存储了多少条记录，第一条记录的地址是什么，页目录中存储了多少个槽等等，特意在页中定义了一个叫Page Header的部分，这个部分占用固定的56个字节，专门存储各种状态信息</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644580733083.png" alt="页面头部"></p>
+<h1 id="行格式"><a href="#行格式" class="headerlink" title="行格式"></a>行格式</h1><h2 id="Compact行格式"><a href="#Compact行格式" class="headerlink" title="Compact行格式"></a>Compact行格式</h2><p>MySQL默认设置为Compact行格式。一条完整的记录其实可以被分为记录的额外信息和记录的真实数据两大部分</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578075714.png" alt="Compact行格式示意图"></p>
+<h3 id="变长字段长度列表"><a href="#变长字段长度列表" class="headerlink" title="变长字段长度列表"></a>变长字段长度列表</h3><p>MySQL支持一些变长的数据类型，比如VARCHAR(M)、VARBINARY(M)、TEXT类型，BLOB类型，这些数据类型修饰列称为变长字段，<strong>变长字段中存储多少字节的数据不是固定的，所以我们在存储真实数据的时候需要顺便把这些数据占用的字节数也存起来</strong>。在Compact行格式中，<strong>把所有变长字段的真实数据占用的字节长度都存放在记录的开头部位，从而形成一个变长字段长度列表</strong></p>
+<p>注意：这里面存储的<strong>变长长度和字段声明顺序是反过来的</strong>。比如两个varchar字段在表结构的顺序是a(10)，b(15)。那么在变长字段长度列表中存储的长度顺序就是15，10，是反过来的</p>
+<h3 id="NULL值列表"><a href="#NULL值列表" class="headerlink" title="NULL值列表"></a>NULL值列表</h3><p>Compact行格式会把可以为NULL的列统一管理起来，存在一个标记为NULL值列表中。如果表中没有允许存储 NULL 的列，则 NULL值列表也不存在了</p>
+<hr>
+<p><strong>为什么定义NULL值列表？</strong></p>
+<p>之所以要存储NULL是因为数据都是需要对齐的，<strong>如果没有标注出来NULL值的位置，就有可能在查询数据的时候出现混乱。如果使用一个特定的符号放到相应的数据位表示空置的话，虽然能达到效果，但是这样很浪费空间</strong>，所以直接就在行数据得头部开辟出一块空间专门用来记录该行数据哪些是非空数据，哪些是空数据，格式如下：</p>
+<ol>
+<li>二进制位的值为1时，代表该列的值为NULL</li>
+<li>二进制位的值为0时，代表该列的值不为NULL</li>
+</ol>
+<p><strong>因为主键肯定是非NULL且唯一的，在NULL值列表的数据中就会自动跳过主键</strong></p>
+<h3 id="记录头信息（5字节）"><a href="#记录头信息（5字节）" class="headerlink" title="记录头信息（5字节）"></a>记录头信息（5字节）</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> page_demo(</span><br><span class="line">    c1 <span class="type">INT</span>,</span><br><span class="line">    c2 <span class="type">INT</span>,</span><br><span class="line">    c3 <span class="type">VARCHAR</span>(<span class="number">10000</span>),</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (c1)</span><br><span class="line">) CHARSET<span class="operator">=</span>ascii ROW_FORMAT<span class="operator">=</span>Compact;</span><br></pre></td></tr></table></figure>
+
+<p>这个表中记录的行格式示意图：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578202509.png" alt="1644578202509"></p>
+<p>这些记录头信息中各个属性如下：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578226780.png" alt="记录头信息属性"></p>
+<p>简化后的行格式示意图：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644578248489.png" alt="简化后的记录头"></p>
+<h4 id="delete-mask"><a href="#delete-mask" class="headerlink" title="delete_mask"></a>delete_mask</h4><p>这个属性标记着当前记录<strong>是否被删除</strong>，占用1个二进制位。</p>
+<ul>
+<li>值为0：代表记录并没有被删除</li>
+<li>值为1：代表记录被删除掉了</li>
+</ul>
+<hr>
+<p><strong>为什么要进行逻辑上的删除？</strong></p>
+<p>这些被删除的记录之所以不立即从磁盘上移除，是因为<strong>移除它们之后其他的记录在磁盘上需要重新排列，导致性能消耗</strong>。所以只是打一个删除标记而已，所有被删除掉的记录都会组成一个所谓的<strong>垃圾链表</strong>，在这个链表中的记录占用的空间称之<strong>为可重用空间，之后如果有新记录插入到表中的话，可能把这些被删除的记录占用的存储空间覆盖掉</strong></p>
+<h4 id="min-rec-mask"><a href="#min-rec-mask" class="headerlink" title="min_rec_mask"></a>min_rec_mask</h4><p>B+树的每层<strong>非叶子节点</strong>中的<strong>最小记录</strong>都会添加该标记，min_rec_mask值为1</p>
+<h4 id="record-type"><a href="#record-type" class="headerlink" title="record_type"></a>record_type</h4><p>这个属性表示当前记录的类型，一共有4种类型的记录：</p>
+<ul>
+<li>0：表示普通记录</li>
+<li>1：表示B+树非叶节点记录</li>
+<li>2：表示最小记录</li>
+<li>3：表示最大记录</li>
+</ul>
+<h4 id="heap-no"><a href="#heap-no" class="headerlink" title="heap_no"></a>heap_no</h4><p>这个属性表示当前记录在本页中的位置。<strong>用户记录从2开始</strong></p>
+<hr>
+<p><strong>为什么用户记录的heap_no从2开始？</strong></p>
+<p>MySQL会自动给每个页里加了两个记录，由于这两个记录并不是我们自己插入的，所以有时候也称为伪记录或者虚拟记录。<strong>这两个伪记录一个代表最小记录，一个代表最大记录</strong>。最小记录和最大记录的heap_no值分别是0和1，也就是说<strong>它们的位置最靠前</strong>。</p>
+<h4 id="n-owned"><a href="#n-owned" class="headerlink" title="n_owned"></a>n_owned</h4><p>页目录中每个组中最后一条记录的头信息中会存储该组一共有多少条记录，作为 n_owned 字段</p>
+<h4 id="next-record"><a href="#next-record" class="headerlink" title="next_record"></a>next_record</h4><p>它表示从当前记录的真实数据<strong>到下一条记录的真实数据的地址偏移量</strong></p>
+<p><strong>注意，下一条记录指得并不是按照我们插入顺序的下一条记录，而是按照主键值由小到大的顺序的下一条记录</strong>。而且规定Infimum记录（也就是最小记录）的下一条记录就是本页中主键值最小的用户记录，而本页中主键值最大的用户记录的下一条记录就是 Supremum记录（也就是最大记录）</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644579703856.png" alt="数据页的详细表示"></p>
+<h3 id="记录的真实数据"><a href="#记录的真实数据" class="headerlink" title="记录的真实数据"></a>记录的真实数据</h3><p>记录的真实数据除了我们自己定义的列的数据以外，还会有三个<strong>隐藏列</strong>：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644581512041.png" alt="隐藏列"></p>
+<hr>
+<p><strong>关于row_id：</strong></p>
+<p>一个表没有手动定义主键，则会选取一个Unique键作为主键，如果连Unique键都没有定义的话，则会为表默认添加一个名为row_id的隐藏列作为主键。<strong>所以row_id是在没有自定义主键以及Unique键的情况下才会存在的</strong></p>
+<h3 id="行溢出"><a href="#行溢出" class="headerlink" title="行溢出"></a>行溢出</h3><p>MySQL对一条记录占用的最大存储空间是有限制的，除BLOB或者TEXT类型的列之外， 其他所有的列（不包括隐藏列和记录头信息）占用的字节长度<strong>加起来不能超过65535个字节</strong></p>
+<p>这个65535个字节除了列本身的数据之外，还<strong>包括一些其他的数据</strong>，以Compact行格式为例，比如说我们为了存储一个VARCHAR(M)类型的列，除了真实数据占有空间以外，<strong>还需要记录的额外信息</strong>。如果该VARCHAR类型的列没有NOT NULL属性，那最多只能存储65532个字节的数据，因为<strong>变长字段的长度占用 2个字节，NULL值标识需要占用1个字节。</strong>如果有NOT NULL属性，那么就不需要NULL值标识，也就<strong>可以多存储一个字节</strong>，即65533个字节。</p>
+<p>一个页的大小一般是16KB，也就是16384字节，而一个VARCHAR(M)类型的列就最多可以存储65533个字节，这样就<strong>可能出现一个页存放不了一条记录</strong>，这种现象称为<strong>行溢出</strong></p>
+<p>在Compact和Reduntant行格式中，对于占用存储空间非常大的列，<strong>在记录的真实数据处只会存储该列的一部分数据（前768字节）</strong>，把剩余的数据分散存储在几个其他的页中进行分页存储，然后记录的真实数据处<strong>用20个字节存储指向这些页的地址</strong>（当然这20个字节中还包括这些分散在其他页面中的数据的占用的字节数），从而可以找到剩余数据所在的页</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644583433620.png" alt="页扩展"></p>
+<h2 id="Dynamic和Compressed行格式"><a href="#Dynamic和Compressed行格式" class="headerlink" title="Dynamic和Compressed行格式"></a>Dynamic和Compressed行格式</h2><p>在<strong>MySQL 8.0中，默认行格式就是Dynamic</strong>。</p>
+<p>Dynamic、Compressed行格式和Compact行格式相似，只不过在<strong>处理行溢出数据时有分歧</strong>：</p>
+<ul>
+<li>Compressed和Dynamic两种记录格式对于存放在BLOB中的数据采用了<strong>完全的行溢出的方式</strong>。如图，在数据页中<strong>只存放20个字节的指针（溢出页的地址）</strong>，实际的数据都存放在Off Page（溢出页）中</li>
+</ul>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-4-InnoDB%E7%9A%84%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84/1644583708260.png" alt="完全行溢出"></p>
+<ul>
+<li>Compact和Redundant两种格式会在记录的真实数据处<strong>存储一部分数据</strong>（存放768个前缀字节）</li>
+</ul>
+<p>Compressed行记录格式的另一个功能就是，存储在其中的行数据会以zlib的算法进行压缩，因此对于BLOB、TEXT、VARCHAR这类大长度类型的数据能够进行非常有效的存储</p>
+<h1 id="区、段、碎片区"><a href="#区、段、碎片区" class="headerlink" title="区、段、碎片区"></a>区、段、碎片区</h1><h2 id="为什么要有区？"><a href="#为什么要有区？" class="headerlink" title="为什么要有区？"></a>为什么要有区？</h2><p>页之间不是连续存放的，而是通过<strong>双向链表</strong>相连接的。</p>
+<p>尽量<strong>使得逻辑上相邻的页物理上也相邻</strong>，所以引入区的概念。一个区是<strong>64个连续的页面</strong>，InnoDB中页的默认大小是16KB，所以一个区的大小是<strong>1MB</strong></p>
+<p>在<strong>表中数据量大</strong>的时候，为某个索引分配空间不再按照以页为单位分配了，而是<strong>以区为单位分配</strong>。数据量特别多时，甚至可以一次性分配多个连续的区。这样可以使逻辑上相邻的页物理上也相邻，磁盘可以顺序IO，提高效率</p>
+<h2 id="为什么要有段？"><a href="#为什么要有段？" class="headerlink" title="为什么要有段？"></a>为什么要有段？</h2><p>范围查找实际上是对B+树叶子节点的顺序扫描。如果不区分叶子节点和分支节点，在进行范围查找时，叶子、分支节点都会被加载到内存中，效率会降低</p>
+<p>InnoDB对B+树的<strong>叶子节点和分支节点区别对待</strong>，叶子节点的区的集合组成一个段，分支节点的区的集合组成一个段</p>
+<p>除了叶子节点段和分支节点段之外，InnoDB还为存储一些特殊的数据而定义的段，如回滚段。常见的段有<strong>数据段（叶子节点）、索引段（非叶子节点）、回滚段</strong></p>
+<p>段不对应表空间中的一片连续的物理区域，而是一个逻辑上的概念，有若干个<strong>零散的页面</strong>和<strong>完整的区</strong>组成</p>
+<h2 id="碎片区"><a href="#碎片区" class="headerlink" title="碎片区"></a>碎片区</h2><p>考虑以完整的区为单位分配给某段对于<strong>数据量较小</strong>的表太浪费存储空间的情况，InnoDB提出了<strong>碎片区</strong>的概念。在一个碎片区中的页面可以用于不同的目的，比如一些页面用于段A，一些页面用于段B，一些页哪个段都不属于。<strong>碎片区直属于表空间，不属于任何一个段</strong></p>
+<p>为某个段分配存储空间的策略：</p>
+<ul>
+<li>刚开始向表中插入数据时，段是从某个<strong>碎片区以单个页面</strong>为单位分配存储空间的</li>
+<li>当某个段已经占用<strong>了32个碎片区页面</strong>后，就会申请以<strong>完整的区</strong>为单位分配存储空间</li>
+</ul>
+<p>段更精确来说，应该是某些<strong>零散的页面</strong>以及一些<strong>完整的区</strong>的集合</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-13/" rel="prev" title="算法刷题笔记 (13) 多数元素 在排序数组中查找元素的第一个和最后一个位置 只出现一次的数字 比较版本号 对称二叉树">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (13) 多数元素 在排序数组中查找元素的第一个和最后一个位置 只出现一次的数字 比较版本号 对称二叉树
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/12/MySQL%E9%AB%98%E7%BA%A7-5-%E7%B4%A2%E5%BC%95%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/" rel="next" title="MySQL高级 (5) 索引设计原则">
+      MySQL高级 (5) 索引设计原则 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%A1%B5%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">页概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%A1%B5%E7%9A%84%E4%B8%8A%E5%B1%82%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">页的上层结构</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%A1%B5%E7%9A%84%E5%86%85%E9%83%A8%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">页的内部结构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC1%E9%83%A8%E5%88%86%EF%BC%9AFile-Header%EF%BC%88%E6%96%87%E4%BB%B6%E5%A4%B4%E9%83%A8%EF%BC%89%E5%92%8CFile-Rrailer%EF%BC%88%E6%96%87%E4%BB%B6%E5%B0%BE%E9%83%A8%EF%BC%89"><span class="nav-number">2.1.</span> <span class="nav-text">第1部分：File Header（文件头部）和File Rrailer（文件尾部）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#File-Header%E6%96%87%E4%BB%B6%E5%A4%B4%E9%83%A8"><span class="nav-number">2.1.1.</span> <span class="nav-text">File Header文件头部</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#FIL-PAGE-OFFSET%EF%BC%884%E5%AD%97%E8%8A%82%EF%BC%89"><span class="nav-number">2.1.1.1.</span> <span class="nav-text">FIL_PAGE_OFFSET（4字节）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#FIL-PAGE-TYPE%EF%BC%882%E5%AD%97%E8%8A%82%EF%BC%89"><span class="nav-number">2.1.1.2.</span> <span class="nav-text">FIL_PAGE_TYPE（2字节）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#FIL-PAGE-PREV%EF%BC%884%E5%AD%97%E8%8A%82%EF%BC%89%E5%92%8CFIL-PAGE-NEXT%EF%BC%884%E5%AD%97%E8%8A%82%EF%BC%89"><span class="nav-number">2.1.1.3.</span> <span class="nav-text">FIL_PAGE_PREV（4字节）和FIL_PAGE_NEXT（4字节）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#FIL-PAGE-SPACE-OR-CHKSUM%EF%BC%884%E5%AD%97%E8%8A%82%EF%BC%89"><span class="nav-number">2.1.1.4.</span> <span class="nav-text">FIL_PAGE_SPACE_OR_CHKSUM（4字节）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#FIL-PAGE-LSN%EF%BC%888%E5%AD%97%E8%8A%82%EF%BC%89"><span class="nav-number">2.1.1.5.</span> <span class="nav-text">FIL_PAGE_LSN（8字节）</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#File-Rrailer%E6%96%87%E4%BB%B6%E5%B0%BE%E9%83%A8"><span class="nav-number">2.1.2.</span> <span class="nav-text">File Rrailer文件尾部</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC2%E9%83%A8%E5%88%86%EF%BC%9AUser-Records%EF%BC%88%E7%94%A8%E6%88%B7%E8%AE%B0%E5%BD%95%EF%BC%89%E3%80%81%E6%9C%80%E5%A4%A7%E6%9C%80%E5%B0%8F%E8%AE%B0%E5%BD%95%E3%80%81Free-Space%EF%BC%88%E7%A9%BA%E9%97%B2%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">第2部分：User Records（用户记录）、最大最小记录、Free Space（空闲空间）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Free-Space%E7%A9%BA%E9%97%B2%E7%A9%BA%E9%97%B4"><span class="nav-number">2.2.1.</span> <span class="nav-text">Free Space空闲空间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#User-Records%E7%94%A8%E6%88%B7%E8%AE%B0%E5%BD%95"><span class="nav-number">2.2.2.</span> <span class="nav-text">User Records用户记录</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Infimum-Supremum%E6%9C%80%E5%B0%8F%E6%9C%80%E5%A4%A7%E8%AE%B0%E5%BD%95"><span class="nav-number">2.2.3.</span> <span class="nav-text">Infimum + Supremum最小最大记录</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC3%E9%83%A8%E5%88%86%EF%BC%9APage-Directory%EF%BC%88%E9%A1%B5%E7%9B%AE%E5%BD%95%EF%BC%89%E3%80%81Page-Header%EF%BC%88%E9%A1%B5%E9%9D%A2%E5%A4%B4%E9%83%A8%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">第3部分：Page Directory（页目录）、Page Header（页面头部）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Page-Directory%E9%A1%B5%E7%9B%AE%E5%BD%95"><span class="nav-number">2.4.</span> <span class="nav-text">Page Directory页目录</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Page-Header%E9%A1%B5%E9%9D%A2%E5%A4%B4%E9%83%A8"><span class="nav-number">2.5.</span> <span class="nav-text">Page Header页面头部</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%A1%8C%E6%A0%BC%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">行格式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Compact%E8%A1%8C%E6%A0%BC%E5%BC%8F"><span class="nav-number">3.1.</span> <span class="nav-text">Compact行格式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%98%E9%95%BF%E5%AD%97%E6%AE%B5%E9%95%BF%E5%BA%A6%E5%88%97%E8%A1%A8"><span class="nav-number">3.1.1.</span> <span class="nav-text">变长字段长度列表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NULL%E5%80%BC%E5%88%97%E8%A1%A8"><span class="nav-number">3.1.2.</span> <span class="nav-text">NULL值列表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%B0%E5%BD%95%E5%A4%B4%E4%BF%A1%E6%81%AF%EF%BC%885%E5%AD%97%E8%8A%82%EF%BC%89"><span class="nav-number">3.1.3.</span> <span class="nav-text">记录头信息（5字节）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#delete-mask"><span class="nav-number">3.1.3.1.</span> <span class="nav-text">delete_mask</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#min-rec-mask"><span class="nav-number">3.1.3.2.</span> <span class="nav-text">min_rec_mask</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#record-type"><span class="nav-number">3.1.3.3.</span> <span class="nav-text">record_type</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#heap-no"><span class="nav-number">3.1.3.4.</span> <span class="nav-text">heap_no</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#n-owned"><span class="nav-number">3.1.3.5.</span> <span class="nav-text">n_owned</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#next-record"><span class="nav-number">3.1.3.6.</span> <span class="nav-text">next_record</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%B0%E5%BD%95%E7%9A%84%E7%9C%9F%E5%AE%9E%E6%95%B0%E6%8D%AE"><span class="nav-number">3.1.4.</span> <span class="nav-text">记录的真实数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A1%8C%E6%BA%A2%E5%87%BA"><span class="nav-number">3.1.5.</span> <span class="nav-text">行溢出</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Dynamic%E5%92%8CCompressed%E8%A1%8C%E6%A0%BC%E5%BC%8F"><span class="nav-number">3.2.</span> <span class="nav-text">Dynamic和Compressed行格式</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8C%BA%E3%80%81%E6%AE%B5%E3%80%81%E7%A2%8E%E7%89%87%E5%8C%BA"><span class="nav-number">4.</span> <span class="nav-text">区、段、碎片区</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%89%E5%8C%BA%EF%BC%9F"><span class="nav-number">4.1.</span> <span class="nav-text">为什么要有区？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%89%E6%AE%B5%EF%BC%9F"><span class="nav-number">4.2.</span> <span class="nav-text">为什么要有段？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%A2%8E%E7%89%87%E5%8C%BA"><span class="nav-number">4.3.</span> <span class="nav-text">碎片区</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

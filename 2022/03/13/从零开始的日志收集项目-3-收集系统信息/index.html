@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="上一版的改进问题因为log agent可以部署在多台机器上，每一台机器上需要收集的日志可能不尽相同，所以需要针对不同机器部署不同的配置文件。 改进因为不同的机器上拥有不同的配置文件，所以etcd中每一台机器对应的配置文件的key应该是唯一可标识的，这样可以区分不同的机器。在key中加入IP地址以区别不同的key，故config.ini做出以下更改： 1234# 原来是collect_conf_ke">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零开始的日志收集项目 (3) 收集系统信息">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="上一版的改进问题因为log agent可以部署在多台机器上，每一台机器上需要收集的日志可能不尽相同，所以需要针对不同机器部署不同的配置文件。 改进因为不同的机器上拥有不同的配置文件，所以etcd中每一台机器对应的配置文件的key应该是唯一可标识的，这样可以区分不同的机器。在key中加入IP地址以区别不同的key，故config.ini做出以下更改： 1234# 原来是collect_conf_ke">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-03-13T12:29:02.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.804Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>从零开始的日志收集项目 (3) 收集系统信息 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          从零开始的日志收集项目 (3) 收集系统信息
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-13 20:29:02" itemprop="dateCreated datePublished" datetime="2022-03-13T20:29:02+08:00">2022-03-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="上一版的改进"><a href="#上一版的改进" class="headerlink" title="上一版的改进"></a>上一版的改进</h1><h2 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h2><p>因为log agent可以部署在多台机器上，每一台机器上需要收集的日志可能不尽相同，所以需要<strong>针对不同机器部署不同的配置文件</strong>。</p>
+<h2 id="改进"><a href="#改进" class="headerlink" title="改进"></a>改进</h2><p>因为不同的机器上拥有不同的配置文件，所以etcd中每一台机器对应的配置文件的key应该是唯一可标识的，这样可以区分不同的机器。在key中加入IP地址以区别不同的key，故<code>config.ini</code>做出以下更改：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 原来是collect_conf_key = collect_conf</span></span><br><span class="line"><span class="comment"># 改进版：</span></span><br><span class="line"><span class="comment"># 保存日志收集配置文件的key，根据IP地址(%s)得到key</span></span><br><span class="line"><span class="attr">collect_conf_key</span> = collect_%s_conf</span><br></pre></td></tr></table></figure>
+
+<p>相对应的增加一个获取IP地址的函数，用于获取IP地址：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// GetOutboundIP 获取本机的IP地址</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">GetOutboundIP</span><span class="params">()</span> <span class="params">(ip <span class="keyword">string</span>, err error)</span></span> &#123;</span><br><span class="line">	conn, err := net.Dial(<span class="string">&quot;udp&quot;</span>, <span class="string">&quot;8.8.8.8:80&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line"></span><br><span class="line">	localAddr := conn.LocalAddr().(*net.UDPAddr)</span><br><span class="line">	<span class="comment">// fmt.Println(localAddr.String())</span></span><br><span class="line">	ip = strings.Split(localAddr.IP.String(), <span class="string">&quot;:&quot;</span>)[<span class="number">0</span>]</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在<code>main</code>主函数中，首先获取本机的IP地址：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取本机ip</span></span><br><span class="line">ip, err := common.GetOutboundIP()</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;get local ip failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>根据配置文件中的<code>collect_conf_key = collect_%s_conf</code>项格式化字符串，替换配置文件结构体中的相应字段：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 用ip替换collect_conf_key中的%s</span></span><br><span class="line">configObj.EtcdConfig.CollectConfKey = fmt.Sprintf(configObj.EtcdConfig.CollectConfKey, ip)</span><br></pre></td></tr></table></figure>
+
+<h1 id="收集系统信息"><a href="#收集系统信息" class="headerlink" title="收集系统信息"></a>收集系统信息</h1><p>目前，已经完成了日志收集log agent的构建。</p>
+<p>现在来构建用于收集系统日志的sys info agent，需要收集的系统信息包括CPU、主存、磁盘、网络信息，将收集到的系统信息发送给Kafka。基本思路与log agent相同：</p>
+<ul>
+<li>首先根据配置文件获取Kafka的相关配置信息</li>
+<li>根据配置信息初始化Kafka<ul>
+<li>连接Kafka</li>
+<li>初始化消息管道，这个消息管道用于接收收集到的系统信息</li>
+<li>开启协程，从消息管道中取出消息，发送到Kafka</li>
+</ul>
+</li>
+<li>初始化系统信息收集系统，开启线程用于采集数据，每隔1秒收集一次</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="配置文件"><a href="#配置文件" class="headerlink" title="配置文件"></a>配置文件</h2><p>因为需要收集不同种类的信息，每一类系统信息下的属性不一样，所以需要区别不同种类的系统信息。为此，不同的系统信息可以对应Kafka的不同主题Topic，故在配置文件中需要指明各类Topic的名称：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 收集系统信息的配置文件</span></span><br><span class="line"></span><br><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 收集cpu信息的主题</span></span><br><span class="line"><span class="attr">cpu_topic</span> = cpu_info</span><br><span class="line"><span class="comment"># 收集主存信息的主题</span></span><br><span class="line"><span class="attr">mem_topic</span> = mem_info</span><br><span class="line"><span class="comment"># 收集磁盘信息的主题</span></span><br><span class="line"><span class="attr">disk_topic</span> = disk_info</span><br><span class="line"><span class="comment"># 收集网络信息的主题</span></span><br><span class="line"><span class="attr">net_topic</span> = net_info</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br></pre></td></tr></table></figure>
+
+<p>对应于配置文件的结构体：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 记录配置信息的结构体</span></span><br><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	KafkaConfig</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address   <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">	CpuTopic  <span class="keyword">string</span> <span class="string">`ini:&quot;cpu_topic&quot;`</span></span><br><span class="line">	MemTopic  <span class="keyword">string</span> <span class="string">`ini:&quot;mem_topic&quot;`</span></span><br><span class="line">	DiskTopic <span class="keyword">string</span> <span class="string">`ini:&quot;disk_topic&quot;`</span></span><br><span class="line">	NetTopic  <span class="keyword">string</span> <span class="string">`ini:&quot;net_topic&quot;`</span></span><br><span class="line">	ChanSize  <span class="keyword">int</span>    <span class="string">`int:&quot;chan_size&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="收集系统信息-1"><a href="#收集系统信息-1" class="headerlink" title="收集系统信息"></a>收集系统信息</h2><p>收集系统信息的流程都是大致相同的：</p>
+<ul>
+<li>获取相应的系统信息</li>
+<li>将系统信息json序列化</li>
+<li>封装为Kafka消息，发送到消息管道中</li>
+</ul>
+<h3 id="初始化系统信息收集模块"><a href="#初始化系统信息收集模块" class="headerlink" title="初始化系统信息收集模块"></a>初始化系统信息收集模块</h3><p>因为不同类别的系统信息对应不同的Topic，所以在初始化时需要对这类全局变量根据配置文件进行赋值。</p>
+<p>同时，需要启动一个线程，每隔1秒钟进行一次系统信息收集。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	cpuTopic  <span class="keyword">string</span></span><br><span class="line">	memTopic  <span class="keyword">string</span></span><br><span class="line">	diskTopic <span class="keyword">string</span></span><br><span class="line">	netTopic  <span class="keyword">string</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// Init 做系统信息收集的初始化工作</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(configObj *conf.Config)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 初始化全局变量</span></span><br><span class="line">	cpuTopic = configObj.KafkaConfig.CpuTopic</span><br><span class="line">	memTopic = configObj.KafkaConfig.MemTopic</span><br><span class="line">	diskTopic = configObj.KafkaConfig.DiskTopic</span><br><span class="line">	netTopic = configObj.KafkaConfig.NetTopic</span><br><span class="line">	<span class="comment">// 独立开启一个协程，用于采集数据</span></span><br><span class="line">	<span class="keyword">go</span> run()</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 每隔1s采集一次数据</span></span><br><span class="line">	ticker := time.Tick(time.Second)</span><br><span class="line">	<span class="keyword">for</span> _ = <span class="keyword">range</span> ticker &#123;</span><br><span class="line">		getCPUInfo()</span><br><span class="line">		getMemInfo()</span><br><span class="line">		getDiskInfo()</span><br><span class="line">		getNetInfo()</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="获取CPU信息"><a href="#获取CPU信息" class="headerlink" title="获取CPU信息"></a>获取CPU信息</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> CpuInfo <span class="keyword">struct</span> &#123;</span><br><span class="line">	Percent <span class="keyword">float64</span> <span class="string">`json:&quot;cpu_percent&quot;`</span> <span class="comment">// cpu使用率</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 获取CPU信息，发送到消息管道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">getCPUInfo</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取CPU使用率</span></span><br><span class="line">	percent, err := cpu.Percent(time.Second, <span class="literal">false</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;get cpu use percent failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 构造CpuInfo结构体</span></span><br><span class="line">	cpuInfo := CpuInfo&#123;</span><br><span class="line">		Percent: percent[<span class="number">0</span>],</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 将结构体JSON序列化</span></span><br><span class="line">	b, err := json.Marshal(cpuInfo)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;can not parse CpuInfo struct to json, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 将CPU信息封装为Kafka消息</span></span><br><span class="line">	msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">	msg.Topic = cpuTopic</span><br><span class="line">	msg.Value = sarama.ByteEncoder(b)</span><br><span class="line">	<span class="comment">// 放到通道中</span></span><br><span class="line">	kafka.PushMsg(msg)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="获取主存信息"><a href="#获取主存信息" class="headerlink" title="获取主存信息"></a>获取主存信息</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MemInfo <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// 总容量</span></span><br><span class="line">	Total <span class="keyword">int64</span> <span class="string">`json:&quot;total&quot;`</span></span><br><span class="line">	<span class="comment">// 可用空间</span></span><br><span class="line">	Available <span class="keyword">int64</span> <span class="string">`json:&quot;available&quot;`</span></span><br><span class="line">	<span class="comment">// 已用空间</span></span><br><span class="line">	Used <span class="keyword">int64</span> <span class="string">`json:&quot;used&quot;`</span></span><br><span class="line">	<span class="comment">// 已用空间的比例</span></span><br><span class="line">	UsedPercent <span class="keyword">float64</span> <span class="string">`json:&quot;used_percent&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">getMemInfo</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取内存信息</span></span><br><span class="line">	info, err := mem.VirtualMemory()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;get memory info failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 封装到MemInfo结构体中</span></span><br><span class="line">	memInfo := MemInfo&#123;</span><br><span class="line">		Total:       <span class="keyword">int64</span>(info.Total),</span><br><span class="line">		Available:   <span class="keyword">int64</span>(info.Available),</span><br><span class="line">		Used:        <span class="keyword">int64</span>(info.Used),</span><br><span class="line">		UsedPercent: info.UsedPercent,</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 将结构体json序列化</span></span><br><span class="line">	b, err := json.Marshal(memInfo)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;can not parse MemInfo struct to json, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 封装为Kafka消息</span></span><br><span class="line">	msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">	msg.Topic = memTopic</span><br><span class="line">	msg.Value = sarama.ByteEncoder(b)</span><br><span class="line">	<span class="comment">// 推送至消息管道中</span></span><br><span class="line">	kafka.PushMsg(msg)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="获取磁盘信息"><a href="#获取磁盘信息" class="headerlink" title="获取磁盘信息"></a>获取磁盘信息</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> DiskInfo <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// 盘符</span></span><br><span class="line">	Path <span class="keyword">string</span> <span class="string">`json:&quot;path&quot;`</span></span><br><span class="line">	<span class="comment">// 总容量</span></span><br><span class="line">	Total <span class="keyword">string</span> <span class="string">`json:&quot;total&quot;`</span></span><br><span class="line">	<span class="comment">// 空闲容量</span></span><br><span class="line">	Free <span class="keyword">string</span> <span class="string">`json:&quot;free&quot;`</span></span><br><span class="line">	<span class="comment">// 已使用容量</span></span><br><span class="line">	Used <span class="keyword">string</span> <span class="string">`json:&quot;used&quot;`</span></span><br><span class="line">	<span class="comment">// 已使用比例</span></span><br><span class="line">	UsedPercent <span class="keyword">string</span> <span class="string">`json:&quot;used_percent&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">getDiskInfo</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 取出各个分区</span></span><br><span class="line">	partitions, err := disk.Partitions(<span class="literal">true</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;get disk partitions failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 遍历各个分区，分别取出分区信息</span></span><br><span class="line">	<span class="keyword">for</span> _, partition := <span class="keyword">range</span> partitions &#123;</span><br><span class="line">		<span class="comment">// 开启一个协程独立获取分区信息并将信息送入消息管道</span></span><br><span class="line">		<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(partition *disk.PartitionStat)</span></span> &#123;</span><br><span class="line">			<span class="comment">// 获取分区的信息</span></span><br><span class="line">			info, err := disk.Usage(partition.Mountpoint)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Errorf(<span class="string">&quot;get partition %v info failed, err: %v\n&quot;</span>, partition.Mountpoint, err)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 构建DiskInfo结构体</span></span><br><span class="line">			diskInfo := DiskInfo&#123;</span><br><span class="line">				Path:        info.Path,</span><br><span class="line">				Total:       strconv.FormatUint(info.Total, <span class="number">10</span>),</span><br><span class="line">				Used:        strconv.FormatUint(info.Used, <span class="number">10</span>),</span><br><span class="line">				Free:        strconv.FormatUint(info.Free, <span class="number">10</span>),</span><br><span class="line">				UsedPercent: strconv.FormatFloat(info.UsedPercent, <span class="string">&#x27;f&#x27;</span>, <span class="number">5</span>, <span class="number">64</span>),</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 将结构体序列化为json格式</span></span><br><span class="line">			b, err := json.Marshal(diskInfo)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Error(<span class="string">&quot;can not parse DiskInfo struct to json, err:&quot;</span>, err)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 封装为Kafka消息</span></span><br><span class="line">			msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">			msg.Topic = diskTopic</span><br><span class="line">			msg.Value = sarama.ByteEncoder(b)</span><br><span class="line">			<span class="comment">// 推送到消息管道中</span></span><br><span class="line">			kafka.PushMsg(msg)</span><br><span class="line">		&#125;(&amp;partition)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="获取网络信息"><a href="#获取网络信息" class="headerlink" title="获取网络信息"></a>获取网络信息</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 记录即将向Kafka发送的网络信息</span></span><br><span class="line"><span class="keyword">type</span> NetInfo <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// 网卡名 interface name</span></span><br><span class="line">	Name <span class="keyword">string</span> <span class="string">`json:&quot;name&quot;`</span></span><br><span class="line">	<span class="comment">// 发送速率 字节/s</span></span><br><span class="line">	BytesSentRate <span class="keyword">float64</span> <span class="string">`json:&quot;bytes_sent_rate&quot;`</span></span><br><span class="line">	<span class="comment">// 接收速率 字节/s</span></span><br><span class="line">	BytesRecvRate <span class="keyword">float64</span> <span class="string">`json:&quot;bytes_recv_rate&quot;`</span></span><br><span class="line">	<span class="comment">// 包发送速率 包数/s</span></span><br><span class="line">	PacketsSentRate <span class="keyword">float64</span> <span class="string">`json:&quot;packets_sent_rate&quot;`</span></span><br><span class="line">	<span class="comment">// 包接收速率 包数/s</span></span><br><span class="line">	PacketsRecvRate <span class="keyword">float64</span> <span class="string">`json:&quot;packets_recv_rate&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 网络状态信息</span></span><br><span class="line"><span class="keyword">type</span> NetStat <span class="keyword">struct</span> &#123;</span><br><span class="line">	Name        <span class="keyword">string</span></span><br><span class="line">	BytesSent   <span class="keyword">int64</span></span><br><span class="line">	BytesRecv   <span class="keyword">int64</span></span><br><span class="line">	PacketsSent <span class="keyword">int64</span></span><br><span class="line">	PacketsRecv <span class="keyword">int64</span></span><br><span class="line">	TimeStamp   <span class="keyword">int64</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	<span class="comment">// 对于lastNetStatMap的互斥锁</span></span><br><span class="line">	mu sync.Mutex</span><br><span class="line">	<span class="comment">// 记录上一次获取到的网络状态，key为网卡名称</span></span><br><span class="line">	lastNetStatMap <span class="keyword">map</span>[<span class="keyword">string</span>]*NetStat = <span class="keyword">map</span>[<span class="keyword">string</span>]*NetStat&#123;&#125;</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">getNetInfo</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取各个网卡信息</span></span><br><span class="line">	infos, err := net.IOCounters(<span class="literal">true</span>)</span><br><span class="line">	<span class="comment">// 当前时间戳</span></span><br><span class="line">	curentTimeStamp := time.Now().Unix()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;get net info failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 获取各个网卡的信息</span></span><br><span class="line">	<span class="keyword">for</span> _, info := <span class="keyword">range</span> infos &#123;</span><br><span class="line">		<span class="comment">// 为每一个网卡起一个协程，放入到消息管道中</span></span><br><span class="line">		<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(info *net.IOCountersStat)</span></span> &#123;</span><br><span class="line">			mu.Lock()</span><br><span class="line">			<span class="keyword">defer</span> mu.Unlock()</span><br><span class="line">			netStat := &amp;NetStat&#123;</span><br><span class="line">				Name:        info.Name,</span><br><span class="line">				BytesSent:   <span class="keyword">int64</span>(info.BytesSent),</span><br><span class="line">				BytesRecv:   <span class="keyword">int64</span>(info.BytesRecv),</span><br><span class="line">				PacketsSent: <span class="keyword">int64</span>(info.PacketsSent),</span><br><span class="line">				PacketsRecv: <span class="keyword">int64</span>(info.PacketsRecv),</span><br><span class="line">				TimeStamp:   curentTimeStamp,</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> _, ok := lastNetStatMap[info.Name]; !ok &#123;</span><br><span class="line">				<span class="comment">// 没有上一次的网络状态信息，记录状态，返回</span></span><br><span class="line">				lastNetStatMap[info.Name] = netStat</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 根据网络状态计算速率</span></span><br><span class="line">			lastNetStat := lastNetStatMap[info.Name]</span><br><span class="line">			bytesSentRate := <span class="keyword">float64</span>(<span class="keyword">int64</span>(info.BytesSent)-lastNetStat.BytesSent) / <span class="keyword">float64</span>(curentTimeStamp-lastNetStat.TimeStamp)</span><br><span class="line">			bytesRecvRate := <span class="keyword">float64</span>(<span class="keyword">int64</span>(info.BytesRecv)-lastNetStat.BytesRecv) / <span class="keyword">float64</span>(curentTimeStamp-lastNetStat.TimeStamp)</span><br><span class="line">			packetsSentRate := <span class="keyword">float64</span>(<span class="keyword">int64</span>(info.PacketsSent)-lastNetStat.PacketsSent) / <span class="keyword">float64</span>(curentTimeStamp-lastNetStat.TimeStamp)</span><br><span class="line">			packetsRecvRate := <span class="keyword">float64</span>(<span class="keyword">int64</span>(info.PacketsRecv)-lastNetStat.PacketsRecv) / <span class="keyword">float64</span>(curentTimeStamp-lastNetStat.TimeStamp)</span><br><span class="line">			<span class="comment">// 构建NetInfo结构体</span></span><br><span class="line">			netInfo := NetInfo&#123;</span><br><span class="line">				Name:            info.Name,</span><br><span class="line">				BytesSentRate:   bytesSentRate,</span><br><span class="line">				BytesRecvRate:   bytesRecvRate,</span><br><span class="line">				PacketsSentRate: packetsSentRate,</span><br><span class="line">				PacketsRecvRate: packetsRecvRate,</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 序列化为json格式</span></span><br><span class="line">			b, err := json.Marshal(netInfo)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Error(<span class="string">&quot;can not parse DiskInfo struct to json, err:&quot;</span>, err)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 包装为kafka消息</span></span><br><span class="line">			msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">			msg.Topic = netTopic</span><br><span class="line">			msg.Value = sarama.ByteEncoder(b)</span><br><span class="line">			<span class="comment">// 推送到消息管道中</span></span><br><span class="line">			kafka.PushMsg(msg)</span><br><span class="line">			<span class="comment">// 记录状态</span></span><br><span class="line">			lastNetStatMap[info.Name] = netStat</span><br><span class="line">		&#125;(&amp;info)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h2><p>sys info agent的主函数流程为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 读配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> configObj = <span class="built_in">new</span>(conf.Config)</span><br><span class="line">	err = cfg.MapTo(configObj)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(configObj)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Kafka</span></span><br><span class="line">	err = kafka.Init([]<span class="keyword">string</span>&#123;configObj.KafkaConfig.Address&#125;, configObj.KafkaConfig.ChanSize)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init kafka failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init kafka success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化信息采集工作</span></span><br><span class="line">	sysInfo.Init(configObj)</span><br><span class="line">	logrus.Info(<span class="string">&quot;start collect system info...&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 阻塞主进程，防止主进程退出</span></span><br><span class="line">	<span class="keyword">select</span> &#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/" rel="prev" title="GO语言杂谈 (8) 操作influxDB">
+      <i class="fa fa-chevron-left"></i> GO语言杂谈 (8) 操作influxDB
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/" rel="next" title="ZooKeeper学习 (1) 介绍">
+      ZooKeeper学习 (1) 介绍 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%8A%E4%B8%80%E7%89%88%E7%9A%84%E6%94%B9%E8%BF%9B"><span class="nav-number">1.</span> <span class="nav-text">上一版的改进</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98"><span class="nav-number">1.1.</span> <span class="nav-text">问题</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%94%B9%E8%BF%9B"><span class="nav-number">1.2.</span> <span class="nav-text">改进</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF"><span class="nav-number">2.</span> <span class="nav-text">收集系统信息</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="nav-number">2.1.</span> <span class="nav-text">配置文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF-1"><span class="nav-number">2.2.</span> <span class="nav-text">收集系统信息</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF%E6%94%B6%E9%9B%86%E6%A8%A1%E5%9D%97"><span class="nav-number">2.2.1.</span> <span class="nav-text">初始化系统信息收集模块</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96CPU%E4%BF%A1%E6%81%AF"><span class="nav-number">2.2.2.</span> <span class="nav-text">获取CPU信息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96%E4%B8%BB%E5%AD%98%E4%BF%A1%E6%81%AF"><span class="nav-number">2.2.3.</span> <span class="nav-text">获取主存信息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96%E7%A3%81%E7%9B%98%E4%BF%A1%E6%81%AF"><span class="nav-number">2.2.4.</span> <span class="nav-text">获取磁盘信息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96%E7%BD%91%E7%BB%9C%E4%BF%A1%E6%81%AF"><span class="nav-number">2.2.5.</span> <span class="nav-text">获取网络信息</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B4%E4%BD%93%E6%B5%81%E7%A8%8B"><span class="nav-number">2.3.</span> <span class="nav-text">整体流程</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

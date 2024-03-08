@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="介绍go-ini官方网站 ini文件ini格式的文件是配置文件中常用的格式。  在ini文件中，每个键值对占用一行，中间使用&#x3D;隔开 以#开头的为注释 ini文件是以分区为组织的，分区以[name]作为标志  123456789[mysql]ip &#x3D; 127.0.0.1port &#x3D; 3306user &#x3D; rootpassword &#x3D; 123456database &#x3D; test[kafka]addre">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO语言杂谈 (6) go-ini的使用">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="介绍go-ini官方网站 ini文件ini格式的文件是配置文件中常用的格式。  在ini文件中，每个键值对占用一行，中间使用&#x3D;隔开 以#开头的为注释 ini文件是以分区为组织的，分区以[name]作为标志  123456789[mysql]ip &#x3D; 127.0.0.1port &#x3D; 3306user &#x3D; rootpassword &#x3D; 123456database &#x3D; test[kafka]addre">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-03-11T03:55:00.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.752Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO语言杂谈 (6) go-ini的使用 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO语言杂谈 (6) go-ini的使用
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-11 11:55:00" itemprop="dateCreated datePublished" datetime="2022-03-11T11:55:00+08:00">2022-03-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><p><a target="_blank" rel="noopener" href="https://ini.unknwon.io/">go-ini官方网站</a></p>
+<h2 id="ini文件"><a href="#ini文件" class="headerlink" title="ini文件"></a>ini文件</h2><p>ini格式的文件是配置文件中常用的格式。</p>
+<ul>
+<li>在ini文件中，每个<strong>键值对</strong>占用一行，中间使用<code>=</code>隔开</li>
+<li>以<code>#</code>开头的为<strong>注释</strong></li>
+<li>ini文件是以<strong>分区</strong>为组织的，分区以<code>[name]</code>作为标志</li>
+</ul>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[mysql]</span></span><br><span class="line"><span class="attr">ip</span> = <span class="number">127.0</span>.<span class="number">0.1</span></span><br><span class="line"><span class="attr">port</span> = <span class="number">3306</span></span><br><span class="line"><span class="attr">user</span> = root</span><br><span class="line"><span class="attr">password</span> = <span class="number">123456</span></span><br><span class="line"><span class="attr">database</span> = test</span><br><span class="line"></span><br><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="go-ini"><a href="#go-ini" class="headerlink" title="go-ini"></a>go-ini</h2><p>go-ini为GO语言提供了读写ini文件的功能。如使用go-ini读取上面的配置文件：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/go-ini/ini&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 加载配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Load config file failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 获取配置文件信息</span></span><br><span class="line">    </span><br><span class="line">	<span class="comment">// [mysql]分区</span></span><br><span class="line">	mysqlSection := cfg.Section(<span class="string">&quot;mysql&quot;</span>)</span><br><span class="line">	mysqlIP := mysqlSection.Key(<span class="string">&quot;ip&quot;</span>).String()</span><br><span class="line">	fmt.Println(<span class="string">&quot;mysql ip =&quot;</span>, mysqlIP)</span><br><span class="line">	mysqlPort, err := mysqlSection.Key(<span class="string">&quot;port&quot;</span>).Int()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;mysql port parse failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;mysql port =&quot;</span>, mysqlPort)</span><br><span class="line">    </span><br><span class="line">	<span class="comment">// [kafka]分区</span></span><br><span class="line">	kafkaAddress := cfg.Section(<span class="string">&quot;kafka&quot;</span>).Key(<span class="string">&quot;address&quot;</span>).String()</span><br><span class="line">	fmt.Println(<span class="string">&quot;kafka address=&quot;</span>, kafkaAddress)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用go-ini读取配置文件的步骤如下：</p>
+<ul>
+<li>调用<code>ini.Load</code>加载<strong>配置文件</strong>，得到配置对象<code>cfg</code></li>
+<li>调用<code>cfg.Section</code>获取<strong>分区对象</strong>，使用<code>Key</code>方法得到对应配置项的对象</li>
+<li><code>Key</code>对象需根据类型调用对应的方法<strong>返回具体类型</strong>，可以使用<code>String</code>、<code>Int</code>、<code>Float64</code>等方法。</li>
+</ul>
+<p>配置文件中存储的都是字符串，所以类型为字符串的配置项不会出现类型转换失败的，故<code>String</code>方法只返回一个值。但是<code>Int</code>和<code>Uint</code>等方法可能会转换失败，返回一个值和一个错误。</p>
+<p>如果每次取值都需要进行错误判断，那么代码写起来会非常繁琐。go-ini为此提供了对应的<code>MustType</code>方法（Type为<code>Int/Uint/Float64</code>等），这个方法<strong>只返回一个值</strong>。同时它接收可变参数，如果类型无法转换，取参数中第一个值返回，并且该参数设置为这个配置的值，下次调用返回这个值。</p>
+<h1 id="go-ini使用"><a href="#go-ini使用" class="headerlink" title="go-ini使用"></a>go-ini使用</h1><h2 id="分区操作"><a href="#分区操作" class="headerlink" title="分区操作"></a>分区操作</h2><h3 id="获取信息"><a href="#获取信息" class="headerlink" title="获取信息"></a>获取信息</h3><p>在加载配置之后</p>
+<ul>
+<li>通过<code>Sections</code>方法获取所有分区</li>
+<li><code>SectionStrings()</code>方法获取所有的分区名</li>
+<li><code>Section(name)</code>获取名为name的分区，如果该分区不存在，则自动创建一个分区并返回</li>
+<li><code>NewSection(name)</code>手动创建一个新分区，如果分区已存在，则返回错误</li>
+</ul>
+<h3 id="父子分区"><a href="#父子分区" class="headerlink" title="父子分区"></a>父子分区</h3><p>可以在分区名中使用<code>.</code>表示两个或多个分区之间的父子关系。</p>
+<p>例如<code>package.sub</code>的父分区为<code>package</code>，<code>package</code>的父分区为默认分区。如果某个键在子分区中不存在，则会在它的父分区中再次查找，直到没有父分区为止。</p>
+<h2 id="保存配置"><a href="#保存配置" class="headerlink" title="保存配置"></a>保存配置</h2><p>可以将生成的配置对象写入到文件中，保存有两种类型的接口，一种直接保存到文件，另一种写入到<code>io.Writer</code>中：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">err = cfg.SaveTo(<span class="string">&quot;my.ini&quot;</span>)</span><br><span class="line">err = cfg.SaveToIndent(<span class="string">&quot;my.ini&quot;</span>, <span class="string">&quot;\t&quot;</span>)	<span class="comment">// 有缩进</span></span><br><span class="line"></span><br><span class="line">cfg.WriteTo(writer)</span><br><span class="line">cfg.WriteToIndent(writer, <span class="string">&quot;\t&quot;</span>)		<span class="comment">// 有缩进</span></span><br></pre></td></tr></table></figure>
+
+<p><code>*Indent</code>方法会对分区下的键进行缩进。</p>
+<h2 id="分区与结构体字段映射"><a href="#分区与结构体字段映射" class="headerlink" title="分区与结构体字段映射"></a>分区与结构体字段映射</h2><p>定义结构变量，加载完配置文件后，调用<code>MapTo</code>将配置项赋值到结构变量的对应字段中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	MySQL MySQLConfig <span class="string">`ini:&quot;mysql&quot;`</span></span><br><span class="line">	Kafka KafkaConfig <span class="string">`ini:&quot;kafka&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MySQLConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	IP       <span class="keyword">string</span> <span class="string">`ini:&quot;ip&quot;`</span></span><br><span class="line">	Port     <span class="keyword">int</span>    <span class="string">`ini:&quot;port&quot;`</span></span><br><span class="line">	User     <span class="keyword">string</span> <span class="string">`ini:&quot;user&quot;`</span></span><br><span class="line">	Password <span class="keyword">string</span> <span class="string">`ini:&quot;password&quot;`</span></span><br><span class="line">	Database <span class="keyword">string</span> <span class="string">`ini:&quot;database&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Load config file failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 映射整个配置文件</span></span><br><span class="line">	c := &amp;Config&#123;&#125;</span><br><span class="line">	cfg.MapTo(c)</span><br><span class="line">	fmt.Println(c)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 只映射mysql分区</span></span><br><span class="line">	mysql := &amp;MySQLConfig&#123;&#125;</span><br><span class="line">	cfg.Section(<span class="string">&quot;mysql&quot;</span>).MapTo(mysql)</span><br><span class="line">	fmt.Println(mysql)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也可以通过结构体生成配置：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewIni</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cfg := ini.Empty()</span><br><span class="line">	<span class="comment">// 构造配置信息</span></span><br><span class="line">	c := Config&#123;</span><br><span class="line">		MySQL: MySQLConfig&#123;</span><br><span class="line">			IP:       <span class="string">&quot;192.168.1.2&quot;</span>,</span><br><span class="line">			Port:     <span class="number">3306</span>,</span><br><span class="line">			User:     <span class="string">&quot;Dawn&quot;</span>,</span><br><span class="line">			Password: <span class="string">&quot;123456&quot;</span>,</span><br><span class="line">			Database: <span class="string">&quot;dbname&quot;</span>,</span><br><span class="line">		&#125;,</span><br><span class="line">		Kafka: KafkaConfig&#123;</span><br><span class="line">			Address: <span class="string">&quot;127.0.0.1:9092&quot;</span>,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 通过结构体生成配置</span></span><br><span class="line">	err := ini.ReflectFrom(cfg, &amp;c)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;ReflectFrom failed: &quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 保存到文件</span></span><br><span class="line">	err = cfg.SaveTo(<span class="string">&quot;new-conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;SaveTo failed: &quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/" rel="prev" title="从零开始的日志收集项目 (1) 解析配置文件进行日志收集">
+      <i class="fa fa-chevron-left"></i> 从零开始的日志收集项目 (1) 解析配置文件进行日志收集
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/" rel="next" title="GO语言杂谈 (7) 操作etcd">
+      GO语言杂谈 (7) 操作etcd <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ini%E6%96%87%E4%BB%B6"><span class="nav-number">1.1.</span> <span class="nav-text">ini文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#go-ini"><span class="nav-number">1.2.</span> <span class="nav-text">go-ini</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#go-ini%E4%BD%BF%E7%94%A8"><span class="nav-number">2.</span> <span class="nav-text">go-ini使用</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E5%8C%BA%E6%93%8D%E4%BD%9C"><span class="nav-number">2.1.</span> <span class="nav-text">分区操作</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96%E4%BF%A1%E6%81%AF"><span class="nav-number">2.1.1.</span> <span class="nav-text">获取信息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%88%B6%E5%AD%90%E5%88%86%E5%8C%BA"><span class="nav-number">2.1.2.</span> <span class="nav-text">父子分区</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BF%9D%E5%AD%98%E9%85%8D%E7%BD%AE"><span class="nav-number">2.2.</span> <span class="nav-text">保存配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E5%8C%BA%E4%B8%8E%E7%BB%93%E6%9E%84%E4%BD%93%E5%AD%97%E6%AE%B5%E6%98%A0%E5%B0%84"><span class="nav-number">2.3.</span> <span class="nav-text">分区与结构体字段映射</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

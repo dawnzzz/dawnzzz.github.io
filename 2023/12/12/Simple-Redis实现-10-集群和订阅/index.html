@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本项目完整地址 simple-redis 集群Simple-Redis 的集群本质上就是一个分片集群，使用一致性哈希环实现。 结构体Cluster 结构体如下，其中：  peers 为一致性哈希，用于根据 key 选择节点。 getters 用于和远程节点通信。  以下三个属性与分布式事务相关：  idGenerator：雪花 ID（分布式 ID）生成器，用于生成分布式事务 ID。 transac">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Simple-Redis实现 (10) 集群和订阅">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本项目完整地址 simple-redis 集群Simple-Redis 的集群本质上就是一个分片集群，使用一致性哈希环实现。 结构体Cluster 结构体如下，其中：  peers 为一致性哈希，用于根据 key 选择节点。 getters 用于和远程节点通信。  以下三个属性与分布式事务相关：  idGenerator：雪花 ID（分布式 ID）生成器，用于生成分布式事务 ID。 transac">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-12T07:57:15.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.788Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis - 后端开发 - simple-redis">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Simple-Redis实现 (10) 集群和订阅 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Simple-Redis实现 (10) 集群和订阅
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-12 15:57:15" itemprop="dateCreated datePublished" datetime="2023-12-12T15:57:15+08:00">2023-12-12</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
+<h1 id="集群"><a href="#集群" class="headerlink" title="集群"></a>集群</h1><p>Simple-Redis 的集群本质上就是一个分片集群，使用一致性哈希环实现。</p>
+<h2 id="结构体"><a href="#结构体" class="headerlink" title="结构体"></a>结构体</h2><p>Cluster 结构体如下，其中：</p>
+<ul>
+<li>peers 为<strong>一致性哈希</strong>，用于根据 key 选择节点。</li>
+<li>getters 用于和远程节点通信。</li>
+</ul>
+<p>以下三个属性与分布式事务相关：</p>
+<ul>
+<li>idGenerator：雪花 ID（分布式 ID）生成器，用于生成分布式事务 ID。</li>
+<li>transactionMap：记录所有的分布式事务。</li>
+<li>coordinatorMap：记录所有的事物协调者。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cluster 用于和集群中的主机进行交互</span></span><br><span class="line"><span class="keyword">type</span> Cluster <span class="keyword">struct</span> &#123;</span><br><span class="line">    self    <span class="keyword">string</span>                        <span class="comment">// 本机地址，如 127.0.0.1:6107</span></span><br><span class="line">    peers   cluster.PeerPicker            <span class="comment">// 一致性哈希，用于选择节点</span></span><br><span class="line">    getters <span class="keyword">map</span>[<span class="keyword">string</span>]cluster.PeerGetter <span class="comment">// 用于和远程节点通信</span></span><br><span class="line"></span><br><span class="line">    idGenerator    *snowflake.Node  <span class="comment">// snowflake id生成器，用于生成分布式事务的id</span></span><br><span class="line">    transactionMap *dict.SimpleDict <span class="comment">// 记录所有的分布式事务（本地）</span></span><br><span class="line">    coordinatorMap *dict.SimpleDict <span class="comment">// 记录事务协调者</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="getter"><a href="#getter" class="headerlink" title="getter"></a>getter</h2><p>在和远程节点通信时，本节点就作为一个 Client。而一个 getter 维护一个远程节点的连接池（实际上一个 getter 维护多个连接池，一个数据库对应一个连接池。</p>
+<blockquote>
+<p>集群中节点之间的通信采用连接池，是为了：</p>
+<ul>
+<li>复用连接（复用空闲连接）。</li>
+<li>增加并发性能（节点之间有多个连接）。</li>
+<li>控制节点之间的连接数，不会因为节点之间的通信而影响客户端与节点之间的通信（有最大空闲连接数和最大活跃连接数的限制）。</li>
+</ul>
+</blockquote>
+<span id="more"></span>
+
+<h3 id="构造函数"><a href="#构造函数" class="headerlink" title="构造函数"></a>构造函数</h3><p>getter 的构造函数如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newGetter</span><span class="params">(addr <span class="keyword">string</span>)</span> *<span class="title">getter</span></span> &#123;</span><br><span class="line">    <span class="comment">// Client连接结束函数</span></span><br><span class="line">    finalizer := <span class="function"><span class="keyword">func</span><span class="params">(x <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">       <span class="keyword">if</span> c, ok := x.(*client.Client); ok &#123;</span><br><span class="line">          c.Close()</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    checkAlive := <span class="function"><span class="keyword">func</span><span class="params">(x <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">       <span class="keyword">if</span> c, ok := x.(*client.Client); ok &#123;</span><br><span class="line">          <span class="keyword">return</span> c.StatusClosed()</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 为每一个连接创建连接池</span></span><br><span class="line">    poolMap := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">int</span>]*pool.Pool, config.Properties.Databases)</span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; config.Properties.Databases; i++ &#123;</span><br><span class="line">       <span class="keyword">var</span> dbIndex = i</span><br><span class="line">       <span class="comment">// Client连接构造函数</span></span><br><span class="line">       factory := <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="params">(<span class="keyword">interface</span>&#123;&#125;, error)</span></span> &#123;</span><br><span class="line">          c, err := client.MakeClient(addr, config.Properties.Keepalive)</span><br><span class="line">          <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">             <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          c.Start()</span><br><span class="line">          <span class="comment">// 如果需要密码，先进行验证</span></span><br><span class="line">          <span class="keyword">if</span> config.Properties.Password != <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">             r := c.Send(utils.StringsToCmdLine(<span class="string">&quot;AUTH&quot;</span>, config.Properties.Password))</span><br><span class="line">             <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">                c.Close()</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">nil</span>, reply.MakeErrReply(<span class="string">&quot;ERR cluster password is required, please set same password in cluster&quot;</span>)</span><br><span class="line">             &#125;</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="comment">// 切换数据库</span></span><br><span class="line">          r := c.Send(utils.StringsToCmdLine(<span class="string">&quot;SELECT&quot;</span>, strconv.Itoa(dbIndex)))</span><br><span class="line">          <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">             c.Close()</span><br><span class="line">             <span class="keyword">return</span> <span class="literal">nil</span>, reply.MakeErrReply(<span class="string">&quot;ERR exec command failed&quot;</span>)</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="keyword">return</span> c, <span class="literal">nil</span></span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       poolMap[dbIndex] = pool.New(factory, finalizer, checkAlive, pool.Config&#123;</span><br><span class="line">          MaxIdleNum:   <span class="number">8</span>,</span><br><span class="line">          MaxActiveNum: <span class="number">16</span>,</span><br><span class="line">          MaxRetryNum:  <span class="number">1</span>,</span><br><span class="line">       &#125;)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> &amp;getter&#123;</span><br><span class="line">       addr:    addr,</span><br><span class="line">       poolMap: poolMap,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="连接池"><a href="#连接池" class="headerlink" title="连接池"></a>连接池</h3><p>连接池维护客户端与远程节点之间的<strong>活跃连接和空闲连接</strong>，并且有<strong>最大空闲连接数和最大活跃连接数</strong>的要求。</p>
+<p>在<strong>获取</strong>一个连接时：</p>
+<ul>
+<li>如果已有空闲连接，在检查是否存活后（CheckAliveFunc）直接返回一个空闲连接。</li>
+<li>如果没有空闲连接或者获取到的连接未存活，并且没有超过最大活跃连接数，则创建一个新的连接（FactoryFunc）。</li>
+</ul>
+<p>在<strong>放回</strong>一个连接时：</p>
+<ul>
+<li>如果空闲连接数已满，则结束连接（FinalizerFunc）。</li>
+<li>如果空闲连接数未满，则放入空闲连接队列中。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> (</span><br><span class="line">    FactoryFunc    <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="params">(<span class="keyword">interface</span>&#123;&#125;, error)</span></span></span><br><span class="line">    FinalizerFunc  <span class="function"><span class="keyword">func</span><span class="params">(x <span class="keyword">interface</span>&#123;&#125;)</span></span></span><br><span class="line">    CheckAliveFunc <span class="function"><span class="keyword">func</span><span class="params">(x <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">    ErrClosed    = errors.New(<span class="string">&quot;pool closed&quot;</span>)</span><br><span class="line">    ErrMaxActive = errors.New(<span class="string">&quot;active connections reached max num&quot;</span>)</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">    MaxIdleNum   <span class="keyword">int</span> <span class="comment">// 最大空闲连接数</span></span><br><span class="line">    MaxActiveNum <span class="keyword">int</span> <span class="comment">// 最大活跃连接数</span></span><br><span class="line">    MaxRetryNum  <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Pool 连接池</span></span><br><span class="line"><span class="keyword">type</span> Pool <span class="keyword">struct</span> &#123;</span><br><span class="line">    Config</span><br><span class="line"></span><br><span class="line">    factory       FactoryFunc      <span class="comment">// 创建连接</span></span><br><span class="line">    finalizer     FinalizerFunc    <span class="comment">// 关闭连接</span></span><br><span class="line">    checkAlive    CheckAliveFunc   <span class="comment">// 检查连接是否存活</span></span><br><span class="line">    idles         <span class="keyword">chan</span> <span class="keyword">interface</span>&#123;&#125; <span class="comment">// 空闲的连接</span></span><br><span class="line">    activeConnNum <span class="keyword">int</span>              <span class="comment">// 活跃连接数</span></span><br><span class="line">    closed        <span class="keyword">bool</span></span><br><span class="line"></span><br><span class="line">    mu sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="订阅发布"><a href="#订阅发布" class="headerlink" title="订阅发布"></a>订阅发布</h1><p>Simple-Redis 的订阅发布实现思想与 Redis 相同，一个发布订阅的管道维护了<strong>客户端连接的集合</strong>、一个<strong>消息管道</strong>。</p>
+<ul>
+<li>当有消息发布时，取所有的客户端连接，发布消息。</li>
+<li>当有客户端订阅时，将客户端连接加入到订阅者集合中。</li>
+<li>当客户端断开连接时，从订阅者集合中删除客户端连接。</li>
+</ul>
+<blockquote>
+<p>在集群模式下，Redis 和 Simple-Redis 是<strong>不同</strong>的：</p>
+<ul>
+<li>Redis 仅仅支持在同一节点上的发布订阅。</li>
+<li><strong>Simple-Redis 支持集群范围内的发布订阅</strong>，为了支持这一功能，定义了 publish 和 publishsingle 命令。<ul>
+<li><strong>publish 命令：</strong>客户端向集群中的一个节点发送 publish 命令，节点会<strong>向所有的 peers 转发这条发布消息</strong>。</li>
+<li><strong>publishsingle 命令：</strong>节点向所有 peers 转发发布的消息时，使用的是 publishsingle 命令，表明<strong>节点在收到消息后不用继续转发了</strong>（避免了节点转发再转发，造成的无限消息洪泛）。</li>
+</ul>
+</li>
+</ul>
+</blockquote>
+<h2 id="定义"><a href="#定义" class="headerlink" title="定义"></a>定义</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Publish <span class="keyword">struct</span> &#123;</span><br><span class="line">    channels <span class="keyword">map</span>[<span class="keyword">string</span>]*channel <span class="comment">// 维护各个管道，key为管道名字</span></span><br><span class="line">    mu       sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>发布订阅管道定义如下，其中维护了订阅者（Redis 中用链表实现，而 Simple-Redis 使用 map 实现）、一个消息 channel 用于向所有客户端发布消息。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> channel <span class="keyword">struct</span> &#123;</span><br><span class="line">    name          <span class="keyword">string</span>                        <span class="comment">// 管道名</span></span><br><span class="line">    messageCh     <span class="keyword">chan</span> []<span class="keyword">byte</span>                   <span class="comment">// 当前管道中待发送的消息</span></span><br><span class="line">    subscriberNum <span class="keyword">int</span>                           <span class="comment">// 订阅者的数量</span></span><br><span class="line">    subscribers   <span class="keyword">map</span>[redis.Connection]<span class="keyword">struct</span>&#123;&#125; <span class="comment">// 这个管道所有的订阅者，在redis中用链表实现，而在 simple-redis 中使用 map(set)</span></span><br><span class="line"></span><br><span class="line">    closed <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    wait   wait.Wait</span><br><span class="line">    mu     sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis-%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91-simple-redis/" rel="tag"># Redis - 后端开发 - simple-redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-9-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95/" rel="prev" title="Simple-Redis实现 (9) 性能测试">
+      <i class="fa fa-chevron-left"></i> Simple-Redis实现 (9) 性能测试
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/" rel="next" title="Simple-Redis实现 (11) 原子事务">
+      Simple-Redis实现 (11) 原子事务 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4"><span class="nav-number">1.</span> <span class="nav-text">集群</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">1.1.</span> <span class="nav-text">结构体</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#getter"><span class="nav-number">1.2.</span> <span class="nav-text">getter</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0"><span class="nav-number">1.2.1.</span> <span class="nav-text">构造函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5%E6%B1%A0"><span class="nav-number">1.2.2.</span> <span class="nav-text">连接池</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%AE%A2%E9%98%85%E5%8F%91%E5%B8%83"><span class="nav-number">2.</span> <span class="nav-text">订阅发布</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E4%B9%89"><span class="nav-number">2.1.</span> <span class="nav-text">定义</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

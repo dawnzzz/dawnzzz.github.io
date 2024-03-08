@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Redis 通信协议Redis 自 2.0 版本起使用了统一的协议 RESP（REdis Serialization Protocol，Redis 序列化协议），该协议易于实现，计算机可以高效的进行解析且易于被人类读懂。 RESP 是一个二进制安全的文本协议，工作于 TCP 协议上。RESP 以行作为单位，客户端和服务器发送的命令或数据一律以 \r\n （CRLF）作为换行符。 RESP 的五种格">
+<meta property="og:type" content="article">
+<meta property="og:title" content="godis源码阅读 (2) Redis协议解析器">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Redis 通信协议Redis 自 2.0 版本起使用了统一的协议 RESP（REdis Serialization Protocol，Redis 序列化协议），该协议易于实现，计算机可以高效的进行解析且易于被人类读懂。 RESP 是一个二进制安全的文本协议，工作于 TCP 协议上。RESP 以行作为单位，客户端和服务器发送的命令或数据一律以 \r\n （CRLF）作为换行符。 RESP 的五种格">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-01-06T02:12:36.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.795Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>godis源码阅读 (2) Redis协议解析器 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          godis源码阅读 (2) Redis协议解析器
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-06 10:12:36" itemprop="dateCreated datePublished" datetime="2023-01-06T10:12:36+08:00">2023-01-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Redis-通信协议"><a href="#Redis-通信协议" class="headerlink" title="Redis 通信协议"></a>Redis 通信协议</h1><p><strong>Redis 自 2.0 版本起使用了统一的协议 RESP（REdis Serialization Protocol，Redis 序列化协议）</strong>，该协议易于实现，计算机可以高效的进行解析且易于被人类读懂。</p>
+<p>RESP 是一个<strong>二进制安全</strong>的文本协议，工作于 TCP 协议上。RESP 以<strong>行</strong>作为单位，客户端和服务器发送的命令或数据一律以 \r\n （CRLF）作为换行符。</p>
+<h2 id="RESP-的五种格式"><a href="#RESP-的五种格式" class="headerlink" title="RESP 的五种格式"></a>RESP 的五种格式</h2><p>RESP 定义了 5 种格式：</p>
+<ul>
+<li><strong>简单字符串（Simple String）：</strong>服务器用来返回简单的结果，比如 OK。非二进制安全，不允许换行。</li>
+<li><strong>错误信息（Error）：</strong>服务器用来返回简单的错误信息，比如 ERR Invalid Synatx。非二进制安全，且不允许换行。</li>
+<li><strong>整数（Integer）：</strong>llen、scard 等命令的返回值，64位有符号整数。</li>
+<li><strong>字符串（Bulk String）：</strong>二进制安全字符串。</li>
+<li><strong>数组（Array，又称 Multi Bulk Strings）：</strong>Bulk String 数组，客户端发送指令以及 lrange 等命令响应的格式。</li>
+</ul>
+<p>RESP 通过第一个字符表示格式：</p>
+<ul>
+<li><strong>简单字符串：以 + 开始</strong>，如 +OK\r\n。</li>
+<li><strong>错误：以 - 开始</strong>，如 -ERR Invalid Syntax\r\n。</li>
+<li><strong>整数：以 : 开始</strong>，如 :1\r\n。</li>
+<li><strong>字符串：以 $ 开始</strong>。Bulk String 有两行，第一行为 $+正文长度，第二行为实际内容。$-1 表示 nil，当使用 get 查询一个不存在的 key 时，响应为 nil。</li>
+<li><strong>数组：以 * 开始</strong>。第一行为 *+数组长度，其后是相应数量的 Bulk String。</li>
+</ul>
+<span id="more"></span>
+
+<h1 id="协议解析器"><a href="#协议解析器" class="headerlink" title="协议解析器"></a>协议解析器</h1><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ParseStream reads data from io.Reader and send payloads through channel</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">ParseStream</span><span class="params">(reader io.Reader)</span> &lt;-<span class="title">chan</span> *<span class="title">Payload</span></span> &#123;</span><br><span class="line">   ch := <span class="built_in">make</span>(<span class="keyword">chan</span> *Payload)</span><br><span class="line">   <span class="keyword">go</span> parse0(reader, ch)</span><br><span class="line">   <span class="keyword">return</span> ch</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Payload"><a href="#Payload" class="headerlink" title="Payload"></a>Payload</h2><p>Payload 用于存储 Reply 和 错误信息 error。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Payload stores redis.Reply or error</span></span><br><span class="line"><span class="keyword">type</span> Payload <span class="keyword">struct</span> &#123;</span><br><span class="line">   Data redis.Reply</span><br><span class="line">   Err  error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Reply-实现-RESP-消息的接口"><a href="#Reply-实现-RESP-消息的接口" class="headerlink" title="Reply 实现 RESP 消息的接口"></a>Reply 实现 RESP 消息的接口</h3><p>Reply 是实现 RESP 消息的接口。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Reply is the interface of redis serialization protocol message</span></span><br><span class="line"><span class="keyword">type</span> Reply <span class="keyword">interface</span> &#123;</span><br><span class="line">   ToBytes() []<span class="keyword">byte</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>以 Bulk String 为例，进行说明。</p>
+<p><strong>BulkReply 是 BulkString 消息的  Reply 接口实现</strong>，ToBytes 函数封装 <strong>$+正文长度+CRLF+正文+CRLF</strong>，形成 RESP 消息体。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// BulkReply stores a binary-safe string</span></span><br><span class="line"><span class="keyword">type</span> BulkReply <span class="keyword">struct</span> &#123;</span><br><span class="line">   Arg []<span class="keyword">byte</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ToBytes marshal redis.Reply</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *BulkReply)</span> <span class="title">ToBytes</span><span class="params">()</span> []<span class="title">byte</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> r.Arg == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> nullBulkBytes</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> []<span class="keyword">byte</span>(<span class="string">&quot;$&quot;</span> + strconv.Itoa(<span class="built_in">len</span>(r.Arg)) + CRLF + <span class="keyword">string</span>(r.Arg) + CRLF)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="parse0-协议解析"><a href="#parse0-协议解析" class="headerlink" title="parse0 协议解析"></a>parse0 协议解析</h2><p>parse0 用于<strong>协议解析</strong>，将解析的结果 Payload 发送到通道中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">parse0</span><span class="params">(rawReader io.Reader, ch <span class="keyword">chan</span>&lt;- *Payload)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>首先初始化一个带有缓冲区的 reader，接着开启一个循环，不断读取行进行解析。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">reader := bufio.NewReader(rawReader)</span><br><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>在循环中，首先<strong>读取一行</strong>，若这一行的长度小于等于2且倒数第二个字符不是 <code>\r</code>（<strong>忽略空行，且检查结尾是不是 CRLF</strong>）则跳过。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">line, err := reader.ReadBytes(<span class="string">&#x27;\n&#x27;</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   ch &lt;- &amp;Payload&#123;Err: err&#125;</span><br><span class="line">   <span class="built_in">close</span>(ch)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line">length := <span class="built_in">len</span>(line)</span><br><span class="line"><span class="keyword">if</span> length &lt;= <span class="number">2</span> || line[length<span class="number">-2</span>] != <span class="string">&#x27;\r&#x27;</span> &#123;</span><br><span class="line">   <span class="comment">// there are some empty lines within replication traffic, ignore this error</span></span><br><span class="line">   <span class="comment">//protocolError(ch, &quot;empty line&quot;)</span></span><br><span class="line">   <span class="keyword">continue</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>检查行的<strong>第一个字符</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">line = bytes.TrimSuffix(line, []<span class="keyword">byte</span>&#123;<span class="string">&#x27;\r&#x27;</span>, <span class="string">&#x27;\n&#x27;</span>&#125;)</span><br><span class="line">  <span class="keyword">switch</span> line[<span class="number">0</span>] &#123;</span><br><span class="line">      ...</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**若是 +**，代表这是一个简单字符串，封装为 Payload 发往通道中。若内容中含有 FULLRESYNC，则代表这是一条 RDB 同步消息，调用 parseRDBBulkString 进行解析（因为 RDB 消息中，字符串正文内容没有 CRLF 结尾，所以需要特殊处理）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="string">&#x27;+&#x27;</span>:</span><br><span class="line">   content := <span class="keyword">string</span>(line[<span class="number">1</span>:])</span><br><span class="line">   ch &lt;- &amp;Payload&#123;</span><br><span class="line">      Data: protocol.MakeStatusReply(content),</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> strings.HasPrefix(content, <span class="string">&quot;FULLRESYNC&quot;</span>) &#123;</span><br><span class="line">      err = parseRDBBulkString(reader, ch)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         ch &lt;- &amp;Payload&#123;Err: err&#125;</span><br><span class="line">         <span class="built_in">close</span>(ch)</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**若是 -**，代表这是错误信息，封装为 Payload 发往通道中。</li>
+<li>**若是 :**，代表是个数字信息，将字符串解析为数字并封装为 Payload 发往通道中。</li>
+<li>**若是 $**，代表这是字符串，调用 parseBulkString 解析字符串。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="string">&#x27;$&#x27;</span>:</span><br><span class="line">   err = parseBulkString(line, reader, ch)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      ch &lt;- &amp;Payload&#123;Err: err&#125;</span><br><span class="line">      <span class="built_in">close</span>(ch)</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**若是 ***，代表这是数组，调用 parseArray 解析数组。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="string">&#x27;*&#x27;</span>:</span><br><span class="line">   err = parseArray(line, reader, ch)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      ch &lt;- &amp;Payload&#123;Err: err&#125;</span><br><span class="line">      <span class="built_in">close</span>(ch)</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>默认解析为字符串数组。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">default</span>:</span><br><span class="line">   args := bytes.Split(line, []<span class="keyword">byte</span>&#123;<span class="string">&#x27; &#x27;</span>&#125;)</span><br><span class="line">   ch &lt;- &amp;Payload&#123;</span><br><span class="line">      Data: protocol.MakeMultiBulkReply(args),</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="parseBulkString-解析字符串"><a href="#parseBulkString-解析字符串" class="headerlink" title="parseBulkString 解析字符串"></a>parseBulkString 解析字符串</h3><p>parseBulkString 用于<strong>解析字符串</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">parseBulkString</span><span class="params">(header []<span class="keyword">byte</span>, reader *bufio.Reader, ch <span class="keyword">chan</span>&lt;- *Payload)</span> <span class="title">error</span></span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>首先读取字符串长度。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">strLen, err := strconv.ParseInt(<span class="keyword">string</span>(header[<span class="number">1</span>:]), <span class="number">10</span>, <span class="number">64</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> || strLen &lt; <span class="number">-1</span> &#123;</span><br><span class="line">   protocolError(ch, <span class="string">&quot;illegal bulk string header: &quot;</span>+<span class="keyword">string</span>(header))</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> strLen == <span class="number">-1</span> &#123;</span><br><span class="line">   ch &lt;- &amp;Payload&#123;</span><br><span class="line">      Data: protocol.MakeNullBulkReply(),</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着利用 io.ReadFull 读取指定长度字符串正文内容，并且封装为 Payload，发送到通道中。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">body := <span class="built_in">make</span>([]<span class="keyword">byte</span>, strLen+<span class="number">2</span>)</span><br><span class="line">_, err = io.ReadFull(reader, body)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line">ch &lt;- &amp;Payload&#123;</span><br><span class="line">   Data: protocol.MakeBulkReply(body[:<span class="built_in">len</span>(body)<span class="number">-2</span>]),</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="parseArray-解析数组"><a href="#parseArray-解析数组" class="headerlink" title="parseArray 解析数组"></a>parseArray 解析数组</h3><p>parseArray 用于解析数组。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">parseArray</span><span class="params">(header []<span class="keyword">byte</span>, reader *bufio.Reader, ch <span class="keyword">chan</span>&lt;- *Payload)</span> <span class="title">error</span></span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>首先解析数组长度。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">nStrs, err := strconv.ParseInt(<span class="keyword">string</span>(header[<span class="number">1</span>:]), <span class="number">10</span>, <span class="number">64</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> || nStrs &lt; <span class="number">0</span> &#123;</span><br><span class="line">   protocolError(ch, <span class="string">&quot;illegal array header &quot;</span>+<span class="keyword">string</span>(header[<span class="number">1</span>:]))</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> nStrs == <span class="number">0</span> &#123;</span><br><span class="line">   ch &lt;- &amp;Payload&#123;</span><br><span class="line">      Data: protocol.MakeEmptyMultiBulkReply(),</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着<strong>解析数组中的每一个字符串</strong>，封装为 Payload，发送到通道中。<ul>
+<li>对于每一个字符串，首先读取字符串的第一行，<strong>获取字符串长度</strong>（-1 代表空）。</li>
+<li>接着<strong>利用 io.ReadFull 读取指定长度字符串正文内容</strong>。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">lines := <span class="built_in">make</span>([][]<span class="keyword">byte</span>, <span class="number">0</span>, nStrs)</span><br><span class="line"><span class="keyword">for</span> i := <span class="keyword">int64</span>(<span class="number">0</span>); i &lt; nStrs; i++ &#123;</span><br><span class="line">   <span class="keyword">var</span> line []<span class="keyword">byte</span></span><br><span class="line">   line, err = reader.ReadBytes(<span class="string">&#x27;\n&#x27;</span>)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> err</span><br><span class="line">   &#125;</span><br><span class="line">   length := <span class="built_in">len</span>(line)</span><br><span class="line">   <span class="keyword">if</span> length &lt; <span class="number">4</span> || line[length<span class="number">-2</span>] != <span class="string">&#x27;\r&#x27;</span> || line[<span class="number">0</span>] != <span class="string">&#x27;$&#x27;</span> &#123;</span><br><span class="line">      protocolError(ch, <span class="string">&quot;illegal bulk string header &quot;</span>+<span class="keyword">string</span>(line))</span><br><span class="line">      <span class="keyword">break</span></span><br><span class="line">   &#125;</span><br><span class="line">   strLen, err := strconv.ParseInt(<span class="keyword">string</span>(line[<span class="number">1</span>:length<span class="number">-2</span>]), <span class="number">10</span>, <span class="number">64</span>)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> || strLen &lt; <span class="number">-1</span> &#123;</span><br><span class="line">      protocolError(ch, <span class="string">&quot;illegal bulk string length &quot;</span>+<span class="keyword">string</span>(line))</span><br><span class="line">      <span class="keyword">break</span></span><br><span class="line">   &#125; <span class="keyword">else</span> <span class="keyword">if</span> strLen == <span class="number">-1</span> &#123;</span><br><span class="line">      lines = <span class="built_in">append</span>(lines, []<span class="keyword">byte</span>&#123;&#125;)</span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      body := <span class="built_in">make</span>([]<span class="keyword">byte</span>, strLen+<span class="number">2</span>)</span><br><span class="line">      _, err := io.ReadFull(reader, body)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         <span class="keyword">return</span> err</span><br><span class="line">      &#125;</span><br><span class="line">      lines = <span class="built_in">append</span>(lines, body[:<span class="built_in">len</span>(body)<span class="number">-2</span>])</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line">ch &lt;- &amp;Payload&#123;</span><br><span class="line">   Data: protocol.MakeMultiBulkReply(lines),</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span></span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/" rel="prev" title="godis源码阅读 (1) TCP服务器">
+      <i class="fa fa-chevron-left"></i> godis源码阅读 (1) TCP服务器
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/" rel="next" title="godis源码阅读 (3) 存储数据结构之Hash表和LockMap">
+      godis源码阅读 (3) 存储数据结构之Hash表和LockMap <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Redis-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE"><span class="nav-number">1.</span> <span class="nav-text">Redis 通信协议</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#RESP-%E7%9A%84%E4%BA%94%E7%A7%8D%E6%A0%BC%E5%BC%8F"><span class="nav-number">1.1.</span> <span class="nav-text">RESP 的五种格式</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8"><span class="nav-number">2.</span> <span class="nav-text">协议解析器</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Payload"><span class="nav-number">2.1.</span> <span class="nav-text">Payload</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Reply-%E5%AE%9E%E7%8E%B0-RESP-%E6%B6%88%E6%81%AF%E7%9A%84%E6%8E%A5%E5%8F%A3"><span class="nav-number">2.1.1.</span> <span class="nav-text">Reply 实现 RESP 消息的接口</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#parse0-%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90"><span class="nav-number">2.2.</span> <span class="nav-text">parse0 协议解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#parseBulkString-%E8%A7%A3%E6%9E%90%E5%AD%97%E7%AC%A6%E4%B8%B2"><span class="nav-number">2.2.1.</span> <span class="nav-text">parseBulkString 解析字符串</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#parseArray-%E8%A7%A3%E6%9E%90%E6%95%B0%E7%BB%84"><span class="nav-number">2.2.2.</span> <span class="nav-text">parseArray 解析数组</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

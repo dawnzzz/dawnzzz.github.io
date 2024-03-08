@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="授权授权的过程就是解决这样一个问题：谁拥有什么权限去操作哪些资源。 访问控制模型可以通过访问控制模型来解决授权问题，有常见的三种访问控制模型：DAC（自主访问控制）、MAC（强制访问控制）、RBAC（基于角色的访问控制）。 DAC自主访问控制就是资源的所有者，规定谁有权限访问它们。 Linux 文件的权限就是 DAC 的一种实现方式。 MAC主体和客体都有一个固定属性，系统用该安全属性来决定一个主">
+<meta property="og:type" content="article">
+<meta property="og:title" content="凤凰架构笔记 (6) 安全之授权和加密">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="授权授权的过程就是解决这样一个问题：谁拥有什么权限去操作哪些资源。 访问控制模型可以通过访问控制模型来解决授权问题，有常见的三种访问控制模型：DAC（自主访问控制）、MAC（强制访问控制）、RBAC（基于角色的访问控制）。 DAC自主访问控制就是资源的所有者，规定谁有权限访问它们。 Linux 文件的权限就是 DAC 的一种实现方式。 MAC主体和客体都有一个固定属性，系统用该安全属性来决定一个主">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/image-20230609155251566.png">
+<meta property="article:published_time" content="2023-06-09T03:11:10.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.814Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/image-20230609155251566.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>凤凰架构笔记 (6) 安全之授权和加密 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          凤凰架构笔记 (6) 安全之授权和加密
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-09 11:11:10" itemprop="dateCreated datePublished" datetime="2023-06-09T11:11:10+08:00">2023-06-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="授权"><a href="#授权" class="headerlink" title="授权"></a>授权</h1><p>授权的过程就是解决这样一个问题：谁拥有什么权限去操作哪些资源。</p>
+<h2 id="访问控制模型"><a href="#访问控制模型" class="headerlink" title="访问控制模型"></a>访问控制模型</h2><p>可以通过访问控制模型来解决授权问题，有常见的三种访问控制模型：DAC（自主访问控制）、MAC（强制访问控制）、RBAC（基于角色的访问控制）。</p>
+<h3 id="DAC"><a href="#DAC" class="headerlink" title="DAC"></a>DAC</h3><p>自主访问控制就是<strong>资源的所有者，规定谁有权限访问它们</strong>。</p>
+<p>Linux 文件的权限就是 DAC 的一种实现方式。</p>
+<h3 id="MAC"><a href="#MAC" class="headerlink" title="MAC"></a>MAC</h3><p>主体和客体都有一个<strong>固定属性</strong>，系统用该安全属性来决定一个主体是否可以访问某个客体。</p>
+<blockquote>
+<p>保护敏感信息一般用 MAC，需要用户提供灵活的保护，更多的考虑共享信息时，使用 DAC。</p>
+</blockquote>
+<h3 id="RBAC"><a href="#RBAC" class="headerlink" title="RBAC"></a>RBAC</h3><p>将权限从用户身上剥离，<strong>将权限分配在角色上，再给用户分配角色</strong>，这是最常用的访问控制模型。</p>
+<p>RBAC 有以下特点：</p>
+<ul>
+<li>通过角色实现用户和权限的<strong>解耦</strong>，具有很高的<strong>灵活性</strong>。</li>
+<li>同时还天然的满足<strong>最小分配原则</strong>。在 RBAC 模型中，角色拥有许可的数量是根据完成该角色工作职责所需的最小权限来赋予的。</li>
+<li>不同的<strong>角色</strong>之间可以有<strong>继承性</strong>，也可以有<strong>互斥性</strong>（角色的互斥约束可限制同一用户只能分配到一组互斥角色集合中至多一个角色）。</li>
+</ul>
+<h2 id="OAuth2"><a href="#OAuth2" class="headerlink" title="OAuth2"></a>OAuth2</h2><p>OAuth2 是<strong>面向于解决第三方应用</strong>的认证授权协议，以 token 代替密码访问资源服务器。整个授权的流程如下图所示：</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/image-20230609155251566.png" alt="image-20230609155251566"></p>
+<span id="more"></span>
+
+<h1 id="加密"><a href="#加密" class="headerlink" title="加密"></a>加密</h1><p>加密分为端上的加密和传输链路的加密。</p>
+<h2 id="链路上的加密"><a href="#链路上的加密" class="headerlink" title="链路上的加密"></a>链路上的加密</h2><p>链路上的<strong>加密</strong>一般的通用方法是：使用非对称加密交换对称密钥，使用对称密钥对通信内容进行加密。</p>
+<p>加密保证了信息的机密性，还需要保证信息的完整性。此时需要<strong>数字签名</strong>，使用私钥对消息摘要进行加密，就可以保证信息的完整性，同时也认证了消息发送者的身份。</p>
+<p>但是，不论是加密还是签名时使用公钥，都不能保证公钥在网络传输过程中被中间人篡改。也就是说公钥是不可信任的。</p>
+<h3 id="数字证书"><a href="#数字证书" class="headerlink" title="数字证书"></a>数字证书</h3><p>所以引入了 CA（数字证书认证中心），CA 作为<strong>受信任的第三方</strong>，承担公钥体系中公钥的合法性检验的责任。公钥存在于<strong>数字证书</strong>中，而数字证书由 CA 进行签发和验证。</p>
+<p>又有新的问题出现了，因为向 CA 确认认证证书时使用网络，网络上中间人攻击依然会使得 CA 不可靠，<strong>那么如何使得 CA 是可靠的呢？</strong></p>
+<p><strong>因为 CA 是有限的，所以解决方法就是浏览器中已经预置了权威（根） CA 中心的证书</strong>。使得我们能够在不依靠网络的前提下，使用权威 CA 证书的公钥信息对其签发的数字证书进行确认。</p>
+<h3 id="TLS"><a href="#TLS" class="headerlink" title="TLS"></a>TLS</h3><p>HTTPS 是基于 TLS 进行的安全 HTTP 协议，下面介绍 TLS 协议。</p>
+<p>TLS 在传输数据之前会进行<strong>握手</strong>，TLS 握手的作用就是交换证书（公钥）、对称密钥等信息。</p>
+<ol>
+<li><strong>客户端请求：</strong>会给服务器提供以下信息，支持 TLS 的版本、客户端生成的<strong>随机数</strong>、支持的加密算法等。</li>
+<li><strong>服务器响应：</strong>如果服务器接受客户端的请求，则向客户端回复响应。服务器同样会给客户端提供以下信息：确认使用的 TLS 版本、服务器生成的<strong>随机数</strong>、服务器选定的加密算法等。如果协商出的加密算法需要证书，则也会发送自己的证书。</li>
+<li><strong>客户端确认：</strong>此时通信采用协商出的加密方式进行，客户端向服务器发送的信息包括：客户端的证书（可选）、<strong>以服务器公钥加密的对称密钥</strong>（对称密钥通过两个随机数计算出）。</li>
+<li><strong>服务器确认：</strong>服务器通过私钥解密得到对称密钥，此后所有的通信通过对称密钥以对称加密的形式传输。                                       </li>
+</ol>
+<p>TLS 握手完成后，安全连接已经建立，之后的通信采用协商出的对称加密算法进行传输。因为 TLS 位于 TCP 和 HTTP 之间所以上层协议 HTTP 是对其<strong>无感知</strong>的。</p>
+<h2 id="端上的加密"><a href="#端上的加密" class="headerlink" title="端上的加密"></a>端上的加密</h2><p>当信息内容中有密码等敏感信息时，需要采用端上加密。端上的加密分为客户端加密和服务器端的加密：</p>
+<ul>
+<li><strong>客户端</strong>的加密主要防止密码在<strong>传输过程中泄漏</strong>。</li>
+<li><strong>服务器端</strong>的加密主要是为了<strong>安全的存储密码</strong>。</li>
+</ul>
+<blockquote>
+<p><strong>采用 HTTPS 时需要采用客户端加密吗？</strong></p>
+<p><strong>需要。</strong>因为 HTTPS 也不一定是安全的，如果客户端信任了中间人的证书，那么中间人就能与客户端、服务器之间建立两个 HTTPS 连接，直接的看到 HTTP 传输明文内容。</p>
+</blockquote>
+<h3 id="普通方案：哈希"><a href="#普通方案：哈希" class="headerlink" title="普通方案：哈希"></a>普通方案：哈希</h3><p>目前利用最多的方案就是对明文密码进行哈希之后，进行存储。常用的单向哈希算法包括 <strong>SHA-256, SHA-1, MD5</strong> 等。</p>
+<p><strong>缺点：</strong>考虑到多数人所使用的密码为常见的组合，攻击者可以将所有密码的常见组合进行单向哈希，得到一个摘要组合（<strong>彩虹表</strong>），然后与数据库中的摘要进行比对即可获得对应的密码。</p>
+<h3 id="进阶方案：哈希-盐"><a href="#进阶方案：哈希-盐" class="headerlink" title="进阶方案：哈希+盐"></a>进阶方案：哈希+盐</h3><p>可以采用加盐的方式来存储密码，常用的方式：</p>
+<ul>
+<li>对用户的明文密码进行一次<strong>哈希运算</strong>。</li>
+<li>将得到的摘要<strong>加上随机串（盐）</strong>，这个随机串中可以包括某些固定的串，也可以包括用户名（用来保证每个用户加密使用的密钥都不一样）。</li>
+<li>再进行一次<strong>哈希运算</strong>后，放入数据库中存储起来。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 假设用户名 abc，密码 123456</span></span><br><span class="line">h := md5.New()</span><br><span class="line">io.WriteString(h, <span class="string">&quot;需要加密的密码&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment">// pwmd5 等于 e10adc3949ba59abbe56e057f20f883e</span></span><br><span class="line">pwmd5 :=fmt.Sprintf(<span class="string">&quot;%x&quot;</span>, h.Sum(<span class="literal">nil</span>))</span><br><span class="line"></span><br><span class="line"><span class="comment">// 指定两个 salt： salt1 = @#$%   salt2 = ^&amp;*()</span></span><br><span class="line">salt1 := <span class="string">&quot;@#$%&quot;</span></span><br><span class="line">salt2 := <span class="string">&quot;^&amp;*()&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// salt1 + 用户名 + salt2 + MD5 拼接</span></span><br><span class="line">io.WriteString(h, salt1)</span><br><span class="line">io.WriteString(h, <span class="string">&quot;abc&quot;</span>)</span><br><span class="line">io.WriteString(h, salt2)</span><br><span class="line">io.WriteString(h, pwmd5)</span><br><span class="line"></span><br><span class="line">last :=fmt.Sprintf(<span class="string">&quot;%x&quot;</span>, h.Sum(<span class="literal">nil</span>))</span><br></pre></td></tr></table></figure>
+
+<h3 id="专家方案：慢哈希"><a href="#专家方案：慢哈希" class="headerlink" title="专家方案：慢哈希"></a>专家方案：慢哈希</h3><p>慢哈希是指执行时间是可以调节的哈希函数，通常是以控制调用次数来实现的。</p>
+<p>故意增加密码计算所需耗费的资源和时间，使得任何人都不可获得足够的资源建立所需的 <code>rainbow table</code>。</p>
+<blockquote>
+<p>由于慢哈希算法占用大量处理器资源，<strong>不建议在服务器端采用</strong>。</p>
+<p>可以在<strong>客户端</strong>采用<strong>慢哈希</strong>，<strong>服务器端</strong>采用<strong>哈希+盐</strong>的方式。</p>
+</blockquote>
+<p><strong>慢哈希算法包括但不限于 BCrypt 和 Scrypt</strong>，分别在 Golang 的 <code>golang.org/x/crypto/bcrypt</code> 和  <code>golang.org/x/crypto/scrypt</code> 已经支持。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/" rel="prev" title="凤凰架构笔记 (5) 安全之认证和凭证">
+      <i class="fa fa-chevron-left"></i> 凤凰架构笔记 (5) 安全之认证和凭证
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/" rel="next" title="凤凰架构笔记 (7) 服务调用之服务发现 网关路由 客户端负载均衡">
+      凤凰架构笔记 (7) 服务调用之服务发现 网关路由 客户端负载均衡 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8E%88%E6%9D%83"><span class="nav-number">1.</span> <span class="nav-text">授权</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.</span> <span class="nav-text">访问控制模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#DAC"><span class="nav-number">1.1.1.</span> <span class="nav-text">DAC</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MAC"><span class="nav-number">1.1.2.</span> <span class="nav-text">MAC</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RBAC"><span class="nav-number">1.1.3.</span> <span class="nav-text">RBAC</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#OAuth2"><span class="nav-number">1.2.</span> <span class="nav-text">OAuth2</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8A%A0%E5%AF%86"><span class="nav-number">2.</span> <span class="nav-text">加密</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%93%BE%E8%B7%AF%E4%B8%8A%E7%9A%84%E5%8A%A0%E5%AF%86"><span class="nav-number">2.1.</span> <span class="nav-text">链路上的加密</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E5%AD%97%E8%AF%81%E4%B9%A6"><span class="nav-number">2.1.1.</span> <span class="nav-text">数字证书</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#TLS"><span class="nav-number">2.1.2.</span> <span class="nav-text">TLS</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AB%AF%E4%B8%8A%E7%9A%84%E5%8A%A0%E5%AF%86"><span class="nav-number">2.2.</span> <span class="nav-text">端上的加密</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%99%AE%E9%80%9A%E6%96%B9%E6%A1%88%EF%BC%9A%E5%93%88%E5%B8%8C"><span class="nav-number">2.2.1.</span> <span class="nav-text">普通方案：哈希</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%9B%E9%98%B6%E6%96%B9%E6%A1%88%EF%BC%9A%E5%93%88%E5%B8%8C-%E7%9B%90"><span class="nav-number">2.2.2.</span> <span class="nav-text">进阶方案：哈希+盐</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%93%E5%AE%B6%E6%96%B9%E6%A1%88%EF%BC%9A%E6%85%A2%E5%93%88%E5%B8%8C"><span class="nav-number">2.2.3.</span> <span class="nav-text">专家方案：慢哈希</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

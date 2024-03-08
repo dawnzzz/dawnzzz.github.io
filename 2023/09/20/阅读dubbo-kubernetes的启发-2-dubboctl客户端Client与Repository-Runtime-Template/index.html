@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Clientdubbo-kubernetes 的命令行工具 dubboctl 用于构建项目、打包成镜像、推送至 registry、部署 kubernetes 等。 而 dubboctl 的核心在于 Client，表示 dubboctl 客户端，执行 dubboctl 的各种操作。Client 定义在 app&#x2F;dubboctl&#x2F;internal&#x2F;dubbo&#x2F;client.go 文件中，其结构如下。其">
+<meta property="og:type" content="article">
+<meta property="og:title" content="阅读dubbo-kubernetes的启发 (2) dubboctl客户端Client与Repository Runtime Template">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Clientdubbo-kubernetes 的命令行工具 dubboctl 用于构建项目、打包成镜像、推送至 registry、部署 kubernetes 等。 而 dubboctl 的核心在于 Client，表示 dubboctl 客户端，执行 dubboctl 的各种操作。Client 定义在 app&#x2F;dubboctl&#x2F;internal&#x2F;dubbo&#x2F;client.go 文件中，其结构如下。其">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/image-20230920175155155.png">
+<meta property="article:published_time" content="2023-09-20T09:25:34.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.835Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta property="article:tag" content="dubbo - 微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/image-20230920175155155.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>阅读dubbo-kubernetes的启发 (2) dubboctl客户端Client与Repository Runtime Template | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          阅读dubbo-kubernetes的启发 (2) dubboctl客户端Client与Repository Runtime Template
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-20 17:25:34" itemprop="dateCreated datePublished" datetime="2023-09-20T17:25:34+08:00">2023-09-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Client"><a href="#Client" class="headerlink" title="Client"></a>Client</h1><p>dubbo-kubernetes 的命令行工具 dubboctl 用于构建项目、打包成镜像、推送至 registry、部署 kubernetes 等。</p>
+<p>而 dubboctl 的<strong>核心在于 Client，表示 dubboctl 客户端，执行 dubboctl 的各种操作</strong>。Client 定义在 app/dubboctl/internal/dubbo/client.go 文件中，其结构如下。其中，Client 包含了 builder、pusher、deployer 等组件，用于打包镜像、推送、部署工作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Client <span class="keyword">struct</span> &#123;</span><br><span class="line">    repositoriesPath <span class="keyword">string</span>          <span class="comment">// path to repositories</span></span><br><span class="line">    repositoriesURI  <span class="keyword">string</span>          <span class="comment">// repo URI (overrides repositories path)</span></span><br><span class="line">    templates        *Templates      <span class="comment">// Templates management</span></span><br><span class="line">    repositories     *Repositories   <span class="comment">// Repositories management</span></span><br><span class="line">    builder          Builder         <span class="comment">// Builds a runnable image source</span></span><br><span class="line">    pusher           Pusher          <span class="comment">// Pushes function image to a remote</span></span><br><span class="line">    deployer         Deployer        <span class="comment">// Deploys or Updates a function&#125;</span></span><br><span class="line">    KubeCtl          *kube.CtlClient <span class="comment">// Kube Client</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化函数"><a href="#初始化函数" class="headerlink" title="初始化函数"></a>初始化函数</h2><p>New 用于初始化一个 Client，该函数根据配置 options 配置 Client，并且初始化 repository 和 template 管理器。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// New client for function management.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">(options ...Option)</span> *<span class="title">Client</span></span> &#123;</span><br><span class="line">    <span class="comment">// Instantiate client with static defaults.</span></span><br><span class="line">    c := &amp;Client&#123;&#125;</span><br><span class="line">    <span class="keyword">for</span> _, o := <span class="keyword">range</span> options &#123;</span><br><span class="line">       o(c)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Initialize sub-managers using now-fully-initialized client.</span></span><br><span class="line">    c.repositories = newRepositories(c)</span><br><span class="line">    c.templates = newTemplates(c)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> c</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="dubboctl-使用的默认初始化函数"><a href="#dubboctl-使用的默认初始化函数" class="headerlink" title="dubboctl 使用的默认初始化函数"></a>dubboctl 使用的默认初始化函数</h2><p>在 dubboctl 使用 Client 时，又封装了一<strong>个默认的初始化函数 NewClient，用于提供完整功能的 Client</strong>，包括配置：</p>
+<ul>
+<li>默认的本地 repository 地址，dubbo.WithRepositoriesPath。</li>
+<li>Builder 镜像构造器，dubbo.WithBuilder。</li>
+<li>Pusher 用于将镜像推送至 registry，dubbo.WithPusher。</li>
+<li>Deployer 用于部署应用至 kubernetes，dubbo.WithDeployer。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewClient</span><span class="params">(options ...dubbo.Option)</span> <span class="params">(*dubbo.Client, <span class="keyword">func</span>()</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">var</span> (</span><br><span class="line">       t = newTransport(<span class="literal">false</span>)</span><br><span class="line">       c = newCredentialsProvider(config.Dir(), t)</span><br><span class="line">       d = newDubboDeployer()</span><br><span class="line">       o = []dubbo.Option&#123;</span><br><span class="line">          dubbo.WithRepositoriesPath(config.RepositoriesPath()),</span><br><span class="line">          dubbo.WithBuilder(pack.NewBuilder()),</span><br><span class="line">          dubbo.WithPusher(docker.NewPusher(</span><br><span class="line">             docker.WithCredentialsProvider(c),</span><br><span class="line">             docker.WithTransport(t))),</span><br><span class="line">          dubbo.WithDeployer(d),</span><br><span class="line">       &#125;</span><br><span class="line">    )</span><br><span class="line">    <span class="comment">// Client is constructed with standard options plus any additional options</span></span><br><span class="line">    <span class="comment">// which either augment or override the defaults.</span></span><br><span class="line">    client := dubbo.New(<span class="built_in">append</span>(o, options...)...)</span><br><span class="line"></span><br><span class="line">    cleanup := <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;&#125;</span><br><span class="line">    <span class="keyword">return</span> client, cleanup</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="三层结构"><a href="#三层结构" class="headerlink" title="三层结构"></a>三层结构</h1><p>在 dubboctl 创建应用时，支持<strong>自定义应用模版</strong>。而在 dubboctl 中有<strong>三层</strong>结构的概念，分别是 repository，runtime，template。</p>
+<p>其中，repository 指的是一个仓库（可以是本地的或是远程的 git 仓库），而 runtime 指的是使用的编程语言，template 为创建应用的具体模版。</p>
+<p>如默认仓库 default 的结构如下，有两种 runtime 分别是 go 和 java，而每一种 runtime 中又指定了一个名为 common 的模版。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/image-20230920175155155.png" alt="image-20230920175155155"></p>
+<blockquote>
+<p>Repository Runtime Template 之间都是一对多的关系，一个 Repository 下有多个 Runtime，一个 Runtime 下有多个 Template。</p>
+</blockquote>
+<h2 id="Repository"><a href="#Repository" class="headerlink" title="Repository"></a>Repository</h2><p>Repository 被定义为存放 template 的仓库，这个仓库可以是本地的，也可以是远程的。<strong>至于 repository 是本地的还是远程的，取决于 uri</strong>，根据 uri 构造不同类型的文件系统，如上一篇文章所述，dubbo-kubernetes 抽象出了多种不同的文件系统。</p>
+<blockquote>
+<p>若 uri 以 file:// 为协议头，则表示这是一个本地仓库。</p>
+<p>若 uri 为 git 远程地址，则表示这是一个远程 git repository。</p>
+</blockquote>
+<p>在 repository 的根目录下可以保存一个 manifes.yaml，用于保存 repository 的配置信息 repositoryConfig，包括名字、版本号（这个目前没有用到）、template 存放地址（默认在仓库的根目录下）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Repository represents a collection of runtimes, each containing templates.</span></span><br><span class="line"><span class="keyword">type</span> Repository <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// Name of the repository</span></span><br><span class="line">    <span class="comment">// This can be for instance:</span></span><br><span class="line">    <span class="comment">// directory name on FS or last part of git URL or arbitrary value defined by the Template author.</span></span><br><span class="line">    Name <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Runtimes containing Templates loaded from the repo</span></span><br><span class="line">    Runtimes []Runtime</span><br><span class="line">    fs       filesystem.Filesystem</span><br><span class="line">    uri      <span class="keyword">string</span> <span class="comment">// URI which was used when initially creating</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> repositoryConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// DefaultName is the name indicated by the repository author.</span></span><br><span class="line">    <span class="comment">// Stored in the yaml attribute &quot;name&quot;, it is only consulted during initial</span></span><br><span class="line">    <span class="comment">// addition of the repo as the default option.</span></span><br><span class="line">    DefaultName <span class="keyword">string</span> <span class="string">`yaml:&quot;name,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Version of the repository.</span></span><br><span class="line">    Version <span class="keyword">string</span> <span class="string">`yaml:&quot;version,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// TemplatesPath defines an optional path within the repository at which</span></span><br><span class="line">    <span class="comment">// templates are stored.  By default this is the repository root.</span></span><br><span class="line">    TemplatesPath <span class="keyword">string</span> <span class="string">`yaml:&quot;templates,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Client 不直接操作 Repository，而是通过 Repository 管理器 Repositories 操作仓库。</p>
+</blockquote>
+<h2 id="Runtime"><a href="#Runtime" class="headerlink" title="Runtime"></a>Runtime</h2><p>Runtime 表示不同的语言，在 Repository 中维护了 Runtime 切片，在 Runtime 中维护了 Template 切片。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Runtime is a division of templates within a repository of templates for a</span></span><br><span class="line"><span class="comment">// given runtime (source language plus environmentally available services</span></span><br><span class="line"><span class="comment">// and libraries)</span></span><br><span class="line"><span class="keyword">type</span> Runtime <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// Name of the runtime</span></span><br><span class="line">    Name <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Templates defined for the runtime</span></span><br><span class="line">    Templates []Template</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 Repository 中，读取 repositoryConfig.TempatesPath（默认为 Repository 根目录）下的所有子文件夹，每一个子文件夹的名称就是一个 Runtime：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// repositoryRuntimes returns runtimes defined in this repository&#x27;s filesystem.</span></span><br><span class="line"><span class="comment">// The views are denormalized, using the parent repository&#x27;s values</span></span><br><span class="line"><span class="comment">// for inherited fields BuildConfig and HealthEndpoints as the default values</span></span><br><span class="line"><span class="comment">// for the runtimes and templates.  The runtimes and templates themselves can</span></span><br><span class="line"><span class="comment">// override these values by specifying new values in thir config files.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">repositoryRuntimes</span><span class="params">(fs filesystem.Filesystem, repoName <span class="keyword">string</span>, repoConfig repositoryConfig)</span> <span class="params">(runtimes []Runtime, err error)</span></span> &#123;</span><br><span class="line">    runtimes = []Runtime&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Load runtimes</span></span><br><span class="line">    fis, err := fs.ReadDir(repoConfig.TemplatesPath)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span> _, fi := <span class="keyword">range</span> fis &#123;</span><br><span class="line">       <span class="comment">// ignore files and hidden dirs</span></span><br><span class="line">       <span class="keyword">if</span> !fi.IsDir() || strings.HasPrefix(fi.Name(), <span class="string">&quot;.&quot;</span>) &#123;</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line">       <span class="comment">// Runtime, defaulted to values inherited from the repository</span></span><br><span class="line">       runtime := Runtime&#123;</span><br><span class="line">          Name: fi.Name(),</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// Runtime Templates</span></span><br><span class="line">       <span class="comment">// Load from repo filesystem for runtime. Will inherit values from the</span></span><br><span class="line">       <span class="comment">// runtime such as BuildConfig, HealthEndpoints etc.</span></span><br><span class="line">       runtime.Templates, err = runtimeTemplates(fs, repoConfig.TemplatesPath, repoName, runtime.Name)</span><br><span class="line">       <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       &#125;</span><br><span class="line">       runtimes = <span class="built_in">append</span>(runtimes, runtime)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<h2 id="Template"><a href="#Template" class="headerlink" title="Template"></a>Template</h2><p>Template 表示某个应用模版，在创建应用时，最终的操作就是<strong>将模版复制到指定的文件夹下</strong>。template 维护了一个 filesystem.Filesystem，表示以当前模版为根目录的文件系统。</p>
+<blockquote>
+<p>在创建模版时，遍历 repositoryConfig.TemplatesPath/RuntimeName 下的每一个文件夹，文件夹的名字作为模版名字，<strong>使用 subFS 作为模版文件系统的实现</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Template, defaulted to values inherited from the runtime</span></span><br><span class="line">t := template&#123;</span><br><span class="line">    name:       fi.Name(),</span><br><span class="line">    repository: repoName,</span><br><span class="line">    runtime:    runtimeName,</span><br><span class="line">    fs:         filesystem.NewSubFS(path.Join(runtimePath, fi.Name()), fs),</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Template is a function project template.</span></span><br><span class="line"><span class="comment">// It can be used to instantiate new function project.</span></span><br><span class="line"><span class="keyword">type</span> Template <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Name of this template.</span></span><br><span class="line">    Name() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Runtime for which this template applies.</span></span><br><span class="line">    Runtime() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Repository within which this template is contained.  Value is set to the</span></span><br><span class="line">    <span class="comment">// currently effective name of the repository, which may vary. It is user-</span></span><br><span class="line">    <span class="comment">// defined when the repository is added, and can be set to &quot;default&quot; when</span></span><br><span class="line">    <span class="comment">// the client is loaded in single repo mode. I.e. not canonical.</span></span><br><span class="line">    Repository() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Fullname is a calculated field of [repo]/[name] used</span></span><br><span class="line">    <span class="comment">// to uniquely reference a template which may share a name</span></span><br><span class="line">    <span class="comment">// with one in another repository.</span></span><br><span class="line">    Fullname() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Write updates fields of function f and writes project files to path pointed by f.Root.</span></span><br><span class="line">    Write(ctx context.Context, f *Dubbo) error</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// template default implementation</span></span><br><span class="line"><span class="keyword">type</span> template <span class="keyword">struct</span> &#123;</span><br><span class="line">    name       <span class="keyword">string</span></span><br><span class="line">    runtime    <span class="keyword">string</span></span><br><span class="line">    repository <span class="keyword">string</span></span><br><span class="line">    fs         filesystem.Filesystem</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="写入"><a href="#写入" class="headerlink" title="写入"></a>写入</h3><p>在写入时，使用了 maskingFS，用于<strong>屏蔽</strong>当前模版下的 manifest 文件（虽然现在 manifest 没有什么用，并没有起到配置 template 的作用）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t template)</span> <span class="title">Write</span><span class="params">(ctx context.Context, f *Dubbo)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    mask := <span class="function"><span class="keyword">func</span><span class="params">(p <span class="keyword">string</span>)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">       _, f := path.Split(p)</span><br><span class="line">       <span class="keyword">return</span> f == templateManifest</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> filesystem.CopyFromFS(<span class="string">&quot;.&quot;</span>, f.Root, filesystem.NewMaskingFS(mask, t.fs)) <span class="comment">// copy everything but manifest.yaml</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+              <a href="/tags/dubbo-%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># dubbo - 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/" rel="prev" title="阅读dubbo-kubernetes的启发 (1) 抽象文件系统">
+      <i class="fa fa-chevron-left"></i> 阅读dubbo-kubernetes的启发 (1) 抽象文件系统
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-3-OCI%E4%B8%8EBuildpack/" rel="next" title="阅读dubbo-kubernetes的启发 (3) OCI与Buildpack">
+      阅读dubbo-kubernetes的启发 (3) OCI与Buildpack <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Client"><span class="nav-number">1.</span> <span class="nav-text">Client</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96%E5%87%BD%E6%95%B0"><span class="nav-number">1.1.</span> <span class="nav-text">初始化函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#dubboctl-%E4%BD%BF%E7%94%A8%E7%9A%84%E9%BB%98%E8%AE%A4%E5%88%9D%E5%A7%8B%E5%8C%96%E5%87%BD%E6%95%B0"><span class="nav-number">1.2.</span> <span class="nav-text">dubboctl 使用的默认初始化函数</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%89%E5%B1%82%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">三层结构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Repository"><span class="nav-number">2.1.</span> <span class="nav-text">Repository</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Runtime"><span class="nav-number">2.2.</span> <span class="nav-text">Runtime</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Template"><span class="nav-number">2.3.</span> <span class="nav-text">Template</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%99%E5%85%A5"><span class="nav-number">2.3.1.</span> <span class="nav-text">写入</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

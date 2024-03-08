@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="认证认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。 HTTP 认证HTTP 认证通过 Authication Header 实现，服务器告知客户端应该采用哪种认证方式： 12WWW-Authenticate: &lt;认证方案&gt; realm&#x3D;&lt;安全区域&gt;Proxy-Authenticate:">
+<meta property="og:type" content="article">
+<meta property="og:title" content="凤凰架构笔记 (5) 安全之认证和凭证">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="认证认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。 HTTP 认证HTTP 认证通过 Authication Header 实现，服务器告知客户端应该采用哪种认证方式： 12WWW-Authenticate: &lt;认证方案&gt; realm&#x3D;&lt;安全区域&gt;Proxy-Authenticate:">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/image-20230608212857650.png">
+<meta property="article:published_time" content="2023-06-08T13:09:35.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.814Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/image-20230608212857650.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>凤凰架构笔记 (5) 安全之认证和凭证 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          凤凰架构笔记 (5) 安全之认证和凭证
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-08 21:09:35" itemprop="dateCreated datePublished" datetime="2023-06-08T21:09:35+08:00">2023-06-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h1><p>认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。</p>
+<h2 id="HTTP-认证"><a href="#HTTP-认证" class="headerlink" title="HTTP 认证"></a>HTTP 认证</h2><p>HTTP 认证<strong>通过 Authication Header 实现</strong>，服务器告知客户端应该采用哪种认证方式：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">WWW-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br><span class="line"><span class="attribute">Proxy-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br></pre></td></tr></table></figure>
+
+<p>客户端进行响应：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br><span class="line"><span class="attribute">Proxy-Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br></pre></td></tr></table></figure>
+
+<p>认证方案如下：</p>
+<ul>
+<li><strong>Basic：</strong>让用户输入用户名和密码，经过 Base64 编码后作为凭证内容。</li>
+<li><strong>Digest：</strong>HTTP 摘要认证，Digest 认证把用户名和密码加盐（Nonce）后通过哈希后发送出去。</li>
+<li><strong>Bearer：</strong>基于 OAuth 2 规范来完成认证。</li>
+</ul>
+<h2 id="Web-认证"><a href="#Web-认证" class="headerlink" title="Web 认证"></a>Web 认证</h2><p>Web 认证就是通过 Web 表单让用户去填写用户名密码等信息。</p>
+<blockquote>
+<p>这种认证方法<strong>没有固定的标准</strong>，没有一个统一的标准去规定用户名、密码、验证码是否需要加密，并且用何种方法进行加密。这不是缺点，<strong>反而是一大优点</strong>，因为足够的<strong>自主性</strong>，可以设计出符合需求的各种认证方式。</p>
+</blockquote>
+<p>请注意，Web 认证是可以基于 HTTP 认证实现的，也就是说可以使用 HTTP Authentication Header 记录认证信息。</p>
+<h3 id="WebAuthn"><a href="#WebAuthn" class="headerlink" title="WebAuthn"></a>WebAuthn</h3><p>2019 年 W3C 起草了<strong>第一份 Web 内容认证标准 WebAuthn</strong>，WebAuthn 彻底抛弃了传统的密码登录方式，改为直接采用<strong>生物识别</strong>（指纹、人脸、虹膜、声纹）或者<strong>实体密钥</strong>（以 USB、蓝牙、NFC 连接的物理密钥容器）来作为身份凭证。所以，这个规范不关注界面该是什么样子、要不要验证码、是否要前端校验这些问题。</p>
+<p>WebAuthn包含注册和登录两大流程。</p>
+<span id="more"></span>
+
+<h4 id="注册"><a href="#注册" class="headerlink" title="注册"></a>注册</h4><p>注册的流程为：</p>
+<ol>
+<li>用户进入系统的注册页面，这个页面的格式、内容和用户注册时需要填写的信息均不包含在 WebAuthn 标准的定义范围内。</li>
+<li>当用户填写完信息，点击提交后，服务端先暂存用户提交的数据，<strong>生成一个随机字符串（规范中称为 Challenge）和 User ID 返回给客户端</strong>。</li>
+<li>客户端的 WebAuthn API 将 Challenge 和 User ID，把这些信息发送给<strong>验证器</strong>，验证器可理解为用户设备上 TouchID、FaceID、实体密钥等认证设备的统一接口。</li>
+<li>验证器提示用户进行验证，产生一个<strong>密钥对</strong>，由<strong>验证器保存私钥、用户信息、服务器域名</strong>。然后<strong>使用私钥对 Challenge 进行签名</strong>，将签名结果、UserID 和公钥一起返回客户端。</li>
+<li>浏览器将验证器返回的结果转发给服务器。</li>
+<li>服务器<strong>核验信息</strong>，检查 UserID 与之前发送的是否一致，并<strong>用公钥解密后得到的结果与之前发送的 Challenge 相比较</strong>，一致即表明注册通过，由<strong>服务端存储该 UserID 对应的公钥</strong>。</li>
+</ol>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/image-20230608212857650.png" alt="image-20230608212857650"></p>
+<h4 id="登录"><a href="#登录" class="headerlink" title="登录"></a>登录</h4><p>登录过程与注册过程类似，流程如下：</p>
+<ul>
+<li>用户访问登录页面，填入用户名后即可点击登录按钮。</li>
+<li>服务器返回 Challenge、User ID。</li>
+<li>浏览器将 Challenge 和 User ID 发送给验证器进行验证。</li>
+<li>验证器通过<strong>私钥加密 Challenge</strong>，返回给浏览器。</li>
+<li>服务端接收到浏览器转发来的被私钥加密的 Challenge，以此前注册时存储的公钥进行解密，如果解密成功则宣告登录成功。</li>
+</ul>
+<h1 id="凭证"><a href="#凭证" class="headerlink" title="凭证"></a>凭证</h1><p>服务器认证完成后，会返回给客户端一个<strong>凭证（token，访问令牌）</strong>。客户端之后的请求都会携带这个 token 作为凭证。</p>
+<p>关于认证状态存储在哪里，有两种解决方案，一种是存储在服务器（Cookie-Session），一种是存储在客户端（JWT）。</p>
+<h2 id="Cookie-Session"><a href="#Cookie-Session" class="headerlink" title="Cookie-Session"></a>Cookie-Session</h2><p>通过<strong>在 Cookie 中携带 Session ID，服务器以 Session ID 为 key存储用户状态上下文信息</strong>。通过这种方式，可以很容易的实现强制用户下线的功能，同时通过同源策略和 HTTPS 可以避免上下文信息被篡改和泄漏的情况。</p>
+<p>但是在集群部署时，Cookie-Session 就发生了问题，由于 Session 存储在服务器中，设计者必须选择以下方案：</p>
+<ul>
+<li><strong>牺牲一致性：</strong>通过<strong>负载均衡</strong>算法，使得根据特定用户访问到同一个节点上，如果这个节点崩溃则用户信息丢失。</li>
+<li><strong>牺牲可用性：</strong>在集群节点之间<strong>同步复制 Session 信息</strong>，这种同步通常代价很高。</li>
+<li><strong>牺牲分区容错性：</strong>将 Session 信息保存到所有服务器节点都能访问到的<strong>数据节点中存储</strong>，但是数据节点会成为单点，一旦宕机整个集群不可用。</li>
+</ul>
+<h2 id="JWT"><a href="#JWT" class="headerlink" title="JWT"></a>JWT</h2><p>JWT（JSON Web Token）是一种广泛使用的令牌格式，它分为三个部分：令牌头、负载、签名。这三个部分都用 base64 编码，用 <code>.</code> 分隔开。</p>
+<blockquote>
+<p>注意，令牌头和负载是<strong>明文</strong>传输的，签名解决篡改的问题，默认是不加密的。</p>
+</blockquote>
+<p>JWT 使客户端保存用户状态信息，有效的解决的服务集群部署的问题。但是它有几个缺陷：</p>
+<ul>
+<li><strong>难以主动失效：</strong>token 一旦签发就交由客户端保管了，在到期之前始终有效。如果实现主动失效的逻辑，就必须在服务端设计一个黑名单的逻辑，把要主动失效的令牌集中存储起来（这会让服务器退化为有状态，但是维护的数据量很小，也是常用的设计方法）。</li>
+<li><strong>携带额外的数据：</strong>HTTP 协议并没有强制约束 Header 的最大长度，但是各种浏览器、服务器都有限制。在令牌中存储过多的数据不仅耗费传输带宽，还有额外的出错风险。</li>
+</ul>
+<h3 id="令牌头"><a href="#令牌头" class="headerlink" title="令牌头"></a>令牌头</h3><p>第一部分是<strong>令牌头（Header）</strong>，它记录了<strong>签名算法</strong>和<strong>类型</strong>（统一为 JWT）。</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">&quot;alg&quot;</span>: <span class="string">&quot;HS256&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;typ&quot;</span>: <span class="string">&quot;JWT&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="负载"><a href="#负载" class="headerlink" title="负载"></a>负载</h3><p>第二部分为负载（Payload），这是令牌<strong>真正需要向服务端传递的信息</strong>。WT 在 RFC 7519 中推荐了七项声明名称（Claim Name）：</p>
+<ul>
+<li>iss（Issuer）：签发人。</li>
+<li>exp（Expiration Time）：令牌过期时间。</li>
+<li>sub（Subject）：主题。</li>
+<li>aud （Audience）：令牌受众。</li>
+<li>nbf （Not Before）：令牌生效时间。</li>
+<li>iat （Issued At）：令牌签发时间。</li>
+<li>jti （JWT ID）：令牌编号。</li>
+</ul>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">&quot;username&quot;</span>: <span class="string">&quot;icyfenix&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;authorities&quot;</span>: [</span><br><span class="line">    <span class="string">&quot;ROLE_USER&quot;</span>,</span><br><span class="line">    <span class="string">&quot;ROLE_ADMIN&quot;</span></span><br><span class="line">  ],</span><br><span class="line">  <span class="attr">&quot;scope&quot;</span>: [</span><br><span class="line">    <span class="string">&quot;ALL&quot;</span></span><br><span class="line">  ],</span><br><span class="line">  <span class="attr">&quot;exp&quot;</span>: <span class="number">1584948947</span>,</span><br><span class="line">  <span class="attr">&quot;jti&quot;</span>: <span class="string">&quot;9d77586a-3f4f-4cbb-9924-fe2f77dfa33d&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;client_id&quot;</span>: <span class="string">&quot;bookstore_frontend&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="签名"><a href="#签名" class="headerlink" title="签名"></a>签名</h3><p>第三部分是签名，签名<strong>保证了 header 和 payload 没有被篡改</strong>。通过以下公式得到，密钥 Secret 保证了签发人的身份（只有它知道密钥）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">HMACSHA256(base64UrlEncode(header) + <span class="string">&quot;.&quot;</span> + base64UrlEncode(payload) , secret)</span><br></pre></td></tr></table></figure>
+
+<p>可以采用<strong>非对称加密</strong>算法进行签名，这时候除了<strong>授权服务端</strong>持有的可以用于签名的<strong>私钥</strong>外，还会对<strong>其他服务器</strong>公开一个<strong>公钥</strong>。公钥不能用来签名，但是能被其他服务用于<strong>验证签名是否由私钥所签发</strong>的。这样其他服务器也能不依赖授权服务器、无须远程通信即可独立判断 JWT 令牌中的信息的真伪。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                </p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/" rel="prev" title="凤凰架构笔记 (4) 透明多级分流系统之传输链路">
+      <i class="fa fa-chevron-left"></i> 凤凰架构笔记 (4) 透明多级分流系统之传输链路
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/" rel="next" title="凤凰架构笔记 (6) 安全之授权和加密">
+      凤凰架构笔记 (6) 安全之授权和加密 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%AE%A4%E8%AF%81"><span class="nav-number">1.</span> <span class="nav-text">认证</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-%E8%AE%A4%E8%AF%81"><span class="nav-number">1.1.</span> <span class="nav-text">HTTP 认证</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Web-%E8%AE%A4%E8%AF%81"><span class="nav-number">1.2.</span> <span class="nav-text">Web 认证</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#WebAuthn"><span class="nav-number">1.2.1.</span> <span class="nav-text">WebAuthn</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B3%A8%E5%86%8C"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">注册</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%99%BB%E5%BD%95"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">登录</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%87%AD%E8%AF%81"><span class="nav-number">2.</span> <span class="nav-text">凭证</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Cookie-Session"><span class="nav-number">2.1.</span> <span class="nav-text">Cookie-Session</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#JWT"><span class="nav-number">2.2.</span> <span class="nav-text">JWT</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BB%A4%E7%89%8C%E5%A4%B4"><span class="nav-number">2.2.1.</span> <span class="nav-text">令牌头</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B4%9F%E8%BD%BD"><span class="nav-number">2.2.2.</span> <span class="nav-text">负载</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AD%BE%E5%90%8D"><span class="nav-number">2.2.3.</span> <span class="nav-text">签名</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

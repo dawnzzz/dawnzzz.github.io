@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="如何定义一个微服务架构定义一个应用程序的微服务架构分为三步式流程，注意这些只是一个大概的方法。  第一步，定义系统操作。系统操作指的是应用程序必须处理的请求的一种抽象描述，所以这一步就是将需求提炼为各种关键请求。 第二步，定义服务。就是如何分解服务。 第三步，定义服务 API 和协作方式。确定每一个服务的 API，将第一步中标识的系统操作分配给服务，服务可以独立的实现操作，也可能需要与其他服务进行">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务架构设计模式 (2) 服务的拆分策略">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="如何定义一个微服务架构定义一个应用程序的微服务架构分为三步式流程，注意这些只是一个大概的方法。  第一步，定义系统操作。系统操作指的是应用程序必须处理的请求的一种抽象描述，所以这一步就是将需求提炼为各种关键请求。 第二步，定义服务。就是如何分解服务。 第三步，定义服务 API 和协作方式。确定每一个服务的 API，将第一步中标识的系统操作分配给服务，服务可以独立的实现操作，也可能需要与其他服务进行">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517172041533.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517191137693.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517192809010.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517194024800.png">
+<meta property="article:published_time" content="2023-05-17T08:23:59.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.816Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517172041533.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务架构设计模式 (2) 服务的拆分策略 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务架构设计模式 (2) 服务的拆分策略
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-17 16:23:59" itemprop="dateCreated datePublished" datetime="2023-05-17T16:23:59+08:00">2023-05-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="如何定义一个微服务架构"><a href="#如何定义一个微服务架构" class="headerlink" title="如何定义一个微服务架构"></a>如何定义一个微服务架构</h1><p>定义一个应用程序的微服务架构分为三步式流程，注意这些只是一个大概的方法。</p>
+<ul>
+<li><strong>第一步，定义系统操作</strong>。系统操作指的是应用程序必须处理的请求的一种抽象描述，所以这一步就是将需求提炼为各种关键请求。</li>
+<li><strong>第二步，定义服务</strong>。就是如何分解服务。</li>
+<li><strong>第三步，定义服务 API 和协作方式</strong>。确定每一个服务的 API，将第一步中标识的系统操作分配给服务，服务可以独立的实现操作，也可能需要与其他服务进行写作。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517172041533.png" alt="image-20230517172041533"></p>
+<span id="more"></span>
+
+<h2 id="定义系统操作"><a href="#定义系统操作" class="headerlink" title="定义系统操作"></a>定义系统操作</h2><p>定义系统操作有两个步骤：</p>
+<ul>
+<li>第一步，创建由抽象类组成的<strong>抽象领域模型</strong>，领域模型主要源自于需求中所提及的名词。</li>
+<li>第二部，<strong>确定系统操作</strong>，系统操作主要源自于需求中所提及的动词。有两类系统操作：<ul>
+<li><strong>命令型</strong>：创建、更新或者删除数据的系统操作。</li>
+<li><strong>查询型</strong>：查询和读取数据的系统操作。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517191137693.png" alt="image-20230517191137693"></p>
+<blockquote>
+<p>抽象的领域模型和系统操作能够回答这个应用<strong>做什么</strong>这一问题。</p>
+</blockquote>
+<h2 id="定义服务（服务拆分）"><a href="#定义服务（服务拆分）" class="headerlink" title="定义服务（服务拆分）"></a>定义服务（服务拆分）</h2><p>在定义完系统操作后，下一步要做的就是进行服务的识别。有多种拆分策略可以选择。</p>
+<h3 id="根据业务能力进行服务拆分"><a href="#根据业务能力进行服务拆分" class="headerlink" title="根据业务能力进行服务拆分"></a>根据业务能力进行服务拆分</h3><p>组织的业务能力指的是这个组织的业务是<strong>做什么</strong>，它们通常都是<strong>稳定</strong>的。而采用<strong>何种方式</strong>实现业务能力，是<strong>不断变化</strong>着的。</p>
+<p>一旦识别出业务能力，就可以为每一个能力或者能力组（这部分是非常主观的）定义服务。一个例子如下，为一个送餐应用定义的服务：</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517192809010.png" alt="image-20230517192809010"></p>
+<h3 id="根据子域进行服务拆分"><a href="#根据子域进行服务拆分" class="headerlink" title="根据子域进行服务拆分"></a>根据子域进行服务拆分</h3><p>根据子域进行服务拆分就是<strong>根据 DDD 的子域设计服务</strong>。</p>
+<p>DDD（领域驱动设计）为每一个子域定义单独的领域模型，识别子域跟识别业务能力一样所以结果也非常接近。可以<strong>通过 DDD 的方式定义子域</strong>，并把<strong>子域对应位一个服务</strong>，这样就完成了服务的拆分。</p>
+<blockquote>
+<p><strong>DDD 和微服务是天生一对</strong></p>
+<ul>
+<li>DDD 的子域可以很好的和微服务架构中的服务进行匹配。</li>
+<li>而微服务架构中的自治化团队负责开发的概念，也跟 DDD 中每个领域模型都有一个独立团队负责开发的概念吻合。</li>
+<li>子域为<strong>消除上帝类</strong>和优化服务拆分提供了好办法。</li>
+</ul>
+</blockquote>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/image-20230517194024800.png" alt="image-20230517194024800"></p>
+<h3 id="服务拆分的原则指导"><a href="#服务拆分的原则指导" class="headerlink" title="服务拆分的原则指导"></a>服务拆分的原则指导</h3><p>在应用微服务架构时，可以采用面向对象设计中的一些原则。</p>
+<ul>
+<li><p><strong>单一职责原则：</strong>在面向对象中，指的是所定义的类应该只有一个职责（如果承载了多个职责，那么这个类会非常不稳定，任意一个职责变更都会引起类的修改）。在<strong>微服务架构</strong>中，设计<strong>小的、内聚的、仅仅含有单一职责</strong>的服务，这会<strong>缩小服务的大小并提升它的稳定性</strong>。</p>
+</li>
+<li><p><strong>闭包原则：</strong>在面向对象中，如果两个类之间是耦合的，那么就应该把它们放在同一个包内（如果对包做出修改，那么需要调整的类都应该在这个包内）。闭包原则极大的改善了应用程序的可维护性。在<strong>微服务架构</strong>中，把<strong>根据同样原因进行变化的服务</strong>放在<strong>一个组件</strong>内，这样可以控制服务的<strong>数量</strong>。</p>
+</li>
+</ul>
+<h2 id="定义服务API"><a href="#定义服务API" class="headerlink" title="定义服务API"></a>定义服务API</h2><p>定义服务 API 首先<strong>将系统操作分配给服务</strong>。某些系统操作可以由单个服务处理，但是还有很多系统操作跨越多个服务，所以接下来需要<strong>确定</strong>为了完成系统操作所需要的<strong>服务之间的协作</strong>。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-1-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%BB%8B%E7%BB%8D/" rel="prev" title="微服务架构设计模式 (1) 微服务架构介绍">
+      <i class="fa fa-chevron-left"></i> 微服务架构设计模式 (1) 微服务架构介绍
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/" rel="next" title="微服务架构设计模式 (3) 进程间的通信">
+      微服务架构设计模式 (3) 进程间的通信 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%AE%9A%E4%B9%89%E4%B8%80%E4%B8%AA%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">如何定义一个微服务架构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E4%B9%89%E7%B3%BB%E7%BB%9F%E6%93%8D%E4%BD%9C"><span class="nav-number">1.1.</span> <span class="nav-text">定义系统操作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E4%B9%89%E6%9C%8D%E5%8A%A1%EF%BC%88%E6%9C%8D%E5%8A%A1%E6%8B%86%E5%88%86%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">定义服务（服务拆分）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B9%E6%8D%AE%E4%B8%9A%E5%8A%A1%E8%83%BD%E5%8A%9B%E8%BF%9B%E8%A1%8C%E6%9C%8D%E5%8A%A1%E6%8B%86%E5%88%86"><span class="nav-number">1.2.1.</span> <span class="nav-text">根据业务能力进行服务拆分</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B9%E6%8D%AE%E5%AD%90%E5%9F%9F%E8%BF%9B%E8%A1%8C%E6%9C%8D%E5%8A%A1%E6%8B%86%E5%88%86"><span class="nav-number">1.2.2.</span> <span class="nav-text">根据子域进行服务拆分</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E6%8B%86%E5%88%86%E7%9A%84%E5%8E%9F%E5%88%99%E6%8C%87%E5%AF%BC"><span class="nav-number">1.2.3.</span> <span class="nav-text">服务拆分的原则指导</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E4%B9%89%E6%9C%8D%E5%8A%A1API"><span class="nav-number">1.3.</span> <span class="nav-text">定义服务API</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

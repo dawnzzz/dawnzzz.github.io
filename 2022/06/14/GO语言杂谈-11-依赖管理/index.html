@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Go 依赖管理演进Go 语言中，依赖管理的演进分为三个阶段，依次是：  GOPATH Go Vendor Go Module  GOPATH配置环境变量 $GOPATH，GOPATH 下有以下三个文件夹：  bin：项目编译的二进制文件 pkg：项目编译的中间产物，用于加速编译 src：项目源码  项目的代码直接依赖于 src 下的代码，可以通过 go get 命令将依赖包下载到 src 下。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO语言杂谈 (11) 依赖管理">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/06/14/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Go 依赖管理演进Go 语言中，依赖管理的演进分为三个阶段，依次是：  GOPATH Go Vendor Go Module  GOPATH配置环境变量 $GOPATH，GOPATH 下有以下三个文件夹：  bin：项目编译的二进制文件 pkg：项目编译的中间产物，用于加速编译 src：项目源码  项目的代码直接依赖于 src 下的代码，可以通过 go get 命令将依赖包下载到 src 下。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655220603232.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655220918315.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655221776213.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655221901310.png">
+<meta property="article:published_time" content="2022-06-14T15:15:29.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.749Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655220603232.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/06/14/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO语言杂谈 (11) 依赖管理 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/06/14/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO语言杂谈 (11) 依赖管理
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-06-14 23:15:29" itemprop="dateCreated datePublished" datetime="2022-06-14T23:15:29+08:00">2022-06-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Go-依赖管理演进"><a href="#Go-依赖管理演进" class="headerlink" title="Go 依赖管理演进"></a>Go 依赖管理演进</h1><p>Go 语言中，依赖管理的演进分为<strong>三个阶段</strong>，依次是：</p>
+<ul>
+<li><strong>GOPATH</strong></li>
+<li><strong>Go Vendor</strong></li>
+<li><strong>Go Module</strong></li>
+</ul>
+<h2 id="GOPATH"><a href="#GOPATH" class="headerlink" title="GOPATH"></a>GOPATH</h2><p>配置环境变量 <code>$GOPATH</code>，GOPATH 下有以下三个文件夹：</p>
+<ul>
+<li>bin：项目编译的二进制文件</li>
+<li>pkg：项目编译的中间产物，用于加速编译</li>
+<li>src：项目源码</li>
+</ul>
+<p><strong>项目的代码直接依赖于 src 下的代码</strong>，可以通过 <code>go get</code> 命令将依赖包下载到 src 下。</p>
+<hr>
+<p>GOPATH 的<strong>缺点</strong>在于：无法实现对 package 的<strong>多版本控制</strong>。</p>
+<p>若 A 和 B 依赖于某一 package 的不同版本，这样的情况 GOPATH 无法解决。</p>
+<h2 id="Go-Vendor"><a href="#Go-Vendor" class="headerlink" title="Go Vendor"></a>Go Vendor</h2><p>项目目录下<strong>增加 vendor 文件夹</strong>，所有依赖包的<strong>副本</strong>存放在项目下的 vendor 文件夹中。</p>
+<p>若 vendor 中没有依赖包，则会在 GOPATH 下去寻找。</p>
+<hr>
+<p>Go Vendor 的<strong>缺点</strong>在于：无法控制依赖的版本、更新项目可能出现依赖冲突。</p>
+<p>若一个项目依赖于 package B 和 packag C，而 package B 依赖于 package D-V1 版本；package C 依赖于 package D-V2 版本。这样的场景下，Go Vendor 无法很好的解决。</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655220603232.png" alt="1655220603232"></p>
+<h2 id="Go-Module"><a href="#Go-Module" class="headerlink" title="Go Module"></a>Go Module</h2><p>Go Module 通过 <strong>go.mod 文件</strong>管理依赖包版本。</p>
+<p>通过 go get / go mod 工具，管理依赖包。</p>
+<h1 id="Go-Module-详解"><a href="#Go-Module-详解" class="headerlink" title="Go Module 详解"></a>Go Module 详解</h1><h2 id="依赖管理三要素"><a href="#依赖管理三要素" class="headerlink" title="依赖管理三要素"></a>依赖管理三要素</h2><p>Go Module 中，依赖管理需要三要素：</p>
+<ul>
+<li><strong>go.mod</strong>：配置文件，描述依赖。</li>
+<li><strong>Proxy</strong>：中心仓库管理依赖库。</li>
+<li><strong>go get/mod</strong>：本地工具。</li>
+</ul>
+<h3 id="go-mod"><a href="#go-mod" class="headerlink" title="go.mod"></a>go.mod</h3><p>go.mod 文件主要由三部分构成：</p>
+<ul>
+<li>依赖管理基本单元：标识了这个模块可以在哪里找到（被其他人引用）。</li>
+<li>原生库：Go 的版本号。</li>
+<li>单元依赖：描述依赖关系，主要两部分组成。<ul>
+<li>包名（Module Path）</li>
+<li>版本号</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655220918315.png" alt="1655220918315"></p>
+<p>其中，可以看到单元依赖的一些配置：</p>
+<ul>
+<li>version：<ul>
+<li><strong>语义化版本</strong>：<code>$&#123;MAJOR&#125;.$&#123;MINOR&#125;.$&#123;PATCH&#125;</code>，<strong>MAJOR</strong> 是一个大版本，不同 MAJOR 可以<strong>不兼容</strong>。<strong>MINOR</strong> 做出了一些新增函数，同一个 MAJOR 下需要<strong>相互兼容</strong>。<strong>PATCH</strong> 做了一些 bug 修复。</li>
+<li><strong>基于 commit 伪版本</strong>：<code>vx.0.0-yyyymmddhhmmss-abcdefgh1234</code>。</li>
+</ul>
+</li>
+<li>indirect：对于没有直接依赖的 package，就用 indirect 标识出来。</li>
+<li>incompatible：如果 MAJOR 版本大于 1 时，其<strong>版本号还需要体现在 Module 名字</strong>中（如 <code>xxx/xx/v2</code>）。但是如果 Module 名字未遵循这条规则，则会打上 incompatible 标记。</li>
+</ul>
+<hr>
+<p>Go 在选择版本时，会选择<strong>最低的兼容版本</strong>：</p>
+<p>如下图中，最终编译时所使用的 C 项目版本为 1.4 版本。</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655221776213.png" alt="1655221776213"></p>
+<h3 id="Proxy"><a href="#Proxy" class="headerlink" title="Proxy"></a>Proxy</h3><p><strong>Go Proxy 是一个服务站点</strong>，他会缓存源站中的软件内容，缓存的软件版本不会改变，源站软件删除后依然可用。</p>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-11-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86/1655221901310.png" alt="1655221901310"></p>
+<p><code>GOPROXY=&quot;https://proxy1.cn,https://proxy2.cn,direct&quot;</code>，含义是<strong>依次</strong>从 proxy1、proxy2、源站中获取 package。</p>
+<h3 id="go-get-mod"><a href="#go-get-mod" class="headerlink" title="go get/mod"></a>go get/mod</h3><ul>
+<li><p><strong>go get</strong>：<code>go get example.org/pkg</code>，参数如下：</p>
+<ul>
+<li><code>@update</code>：默认，获取最新版本。</li>
+<li><code>@none</code>：删除依赖。</li>
+<li><code>@v1.1.1</code>：语义化版本。</li>
+<li><code>@45dfsf</code>：特定的 commit。</li>
+<li><code>@master</code>：分支的最新 commit。</li>
+</ul>
+</li>
+<li><p><strong>go mod</strong>：参数如下：</p>
+<ul>
+<li><code>init</code>：初始化，创建 go.mod 文件。</li>
+<li><code>download</code>：下载模块到本地。</li>
+<li><code>tidy</code>：增加需要的依赖，删除不需要的依赖。</li>
+</ul>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/05/31/NLP%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-BERT%E5%8F%8A%E5%85%B6%E5%AE%B6%E6%97%8F/" rel="prev" title="NLP学习笔记 (3) BERT及其家族">
+      <i class="fa fa-chevron-left"></i> NLP学习笔记 (3) BERT及其家族
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/06/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-12-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E5%92%8C%E7%BC%96%E8%AF%91%E5%99%A8%E4%BC%98%E5%8C%96/" rel="next" title="GO语言杂谈 (12) 内存管理和编译器优化">
+      GO语言杂谈 (12) 内存管理和编译器优化 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Go-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86%E6%BC%94%E8%BF%9B"><span class="nav-number">1.</span> <span class="nav-text">Go 依赖管理演进</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#GOPATH"><span class="nav-number">1.1.</span> <span class="nav-text">GOPATH</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Go-Vendor"><span class="nav-number">1.2.</span> <span class="nav-text">Go Vendor</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Go-Module"><span class="nav-number">1.3.</span> <span class="nav-text">Go Module</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Go-Module-%E8%AF%A6%E8%A7%A3"><span class="nav-number">2.</span> <span class="nav-text">Go Module 详解</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86%E4%B8%89%E8%A6%81%E7%B4%A0"><span class="nav-number">2.1.</span> <span class="nav-text">依赖管理三要素</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#go-mod"><span class="nav-number">2.1.1.</span> <span class="nav-text">go.mod</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Proxy"><span class="nav-number">2.1.2.</span> <span class="nav-text">Proxy</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#go-get-mod"><span class="nav-number">2.1.3.</span> <span class="nav-text">go get&#x2F;mod</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

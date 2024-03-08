@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="I&#x2F;O分类缓冲 I&#x2F;O 与直接 I&#x2F;O不管是文件 I&#x2F;O 还是网络 I&#x2F;O，最基本的分为两种类型：缓冲 I&#x2F;O 和直接 I&#x2F;O：  缓冲 I&#x2F;O：读写操作都进行三次数据拷贝操作，以读操作为例，数据从磁盘进入内核缓冲区（Page Cache，操作系统会把数据以 Page 为单位存储在操作系统内存空间中），从内核缓冲区进入用户缓冲区（避免频繁的切换内核态，所以设立用户缓冲区，每次都读满缓冲区），最后从">
+<meta property="og:type" content="article">
+<meta property="og:title" content="软件架构设计读书笔记 (1) I&#x2F;O">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="I&#x2F;O分类缓冲 I&#x2F;O 与直接 I&#x2F;O不管是文件 I&#x2F;O 还是网络 I&#x2F;O，最基本的分为两种类型：缓冲 I&#x2F;O 和直接 I&#x2F;O：  缓冲 I&#x2F;O：读写操作都进行三次数据拷贝操作，以读操作为例，数据从磁盘进入内核缓冲区（Page Cache，操作系统会把数据以 Page 为单位存储在操作系统内存空间中），从内核缓冲区进入用户缓冲区（避免频繁的切换内核态，所以设立用户缓冲区，每次都读满缓冲区），最后从">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111345104.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111358424.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619112432185.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619113753783.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619161051618.png">
+<meta property="article:published_time" content="2023-06-19T02:59:50.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.833Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111345104.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>软件架构设计读书笔记 (1) I/O | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          软件架构设计读书笔记 (1) I/O
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-19 10:59:50" itemprop="dateCreated datePublished" datetime="2023-06-19T10:59:50+08:00">2023-06-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="I-O"><a href="#I-O" class="headerlink" title="I/O"></a>I/O</h1><h2 id="分类"><a href="#分类" class="headerlink" title="分类"></a>分类</h2><h3 id="缓冲-I-O-与直接-I-O"><a href="#缓冲-I-O-与直接-I-O" class="headerlink" title="缓冲 I/O 与直接 I/O"></a>缓冲 I/O 与直接 I/O</h3><p>不管是文件 I/O 还是网络 I/O，最基本的分为两种类型：缓冲 I/O 和直接 I/O：</p>
+<ul>
+<li><strong>缓冲 I/O：</strong>读写操作都进行<strong>三次数据拷贝</strong>操作，以读操作为例，数据从<strong>磁盘</strong>进入<strong>内核缓冲区</strong>（Page Cache，操作系统会把数据<strong>以 Page 为单位</strong>存储在操作系统内存空间中），从内核缓冲区进入<strong>用户缓冲区</strong>（<strong>避免频繁的切换内核态</strong>，所以设立用户缓冲区，每次都读满缓冲区），最后从用户缓冲区进入<strong>应用程序内存</strong>。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111345104.png" alt="image-20230619111345104"></p>
+<ul>
+<li><strong>直接 I/O：</strong>直接 I/O 的读写操作会进行<strong>两次数据拷贝</strong>，与缓冲 I/O 不同的是，直接 I/O 中<strong>内核缓冲区直接与应用程序内存打交道</strong>。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111358424.png" alt="image-20230619111358424"></p>
+<h3 id="内存映射文件与零拷贝"><a href="#内存映射文件与零拷贝" class="headerlink" title="内存映射文件与零拷贝"></a>内存映射文件与零拷贝</h3><p>在读写操作时的拷贝消耗了 CPU 和内存资源，为了进一步减少拷贝，又引入了内存映射文件和零拷贝技术。</p>
+<ul>
+<li><strong>内存映射文件：</strong>内存映射文件中，<strong>拷贝次数为一次</strong>。在<strong>应用程序中的地址</strong>为<strong>指向系统内核缓冲区</strong>的<strong>逻辑地址</strong>，所以在读操作时只需要将数据从<strong>磁盘</strong>读入<strong>内核缓冲区</strong>，应用程序通过内存映射就可以使用这些数据了。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619112432185.png" alt="image-20230619112432185"></p>
+<ul>
+<li><strong>零拷贝：</strong>零拷贝应用于<strong>避免数据从一个内核缓冲区拷贝到另一个内核缓冲区</strong>的场景（比如读取一个文件，然后将文件内容通过 socket 发送出去）。具体的做法是，直接使得一个内核缓冲区<strong>映射</strong>到另一个内核缓冲区中，两个内核缓冲区共用同一片内存空间。实际上这是有两次拷贝的，零拷贝指的是内存内部不需要拷贝操作。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619113753783.png" alt="image-20230619113753783"></p>
+<blockquote>
+<p>Golang 中内存映射文件使用 syscall.mmap，零拷贝使用 syscall.sendfile。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="网络-I-O"><a href="#网络-I-O" class="headerlink" title="网络 I/O"></a>网络 I/O</h2><p>当发生一次网络请求发生后，将会按顺序经历，<strong>等待数据从远程主机到达缓冲区</strong>和<strong>将数据从缓冲区拷贝到应用程序地址空间</strong>两个阶段。</p>
+<p>把网络 I/O 模型分为两类，五种模型：</p>
+<ul>
+<li><strong>异步 I/O：</strong>异步 I/O 中数据到达缓冲区后，不需要由调用进程主动进行从缓冲区复制数据的操作，而是<strong>复制完成后</strong>由操作系统向线程发送<strong>信号</strong>。</li>
+<li><strong>同步 I/O：</strong><ul>
+<li><strong>阻塞 I/O：</strong>等待数据到达时就进入<strong>阻塞</strong>，直到数据到达唤醒线程，线程唤醒后将数据复制到自己的内存空间。这种方法节省 CPU 资源，但缺点就是线程休眠所带来的上下文切换。</li>
+<li><strong>非阻塞 I/O：</strong>非阻塞 I/O 中，线程不会进入阻塞状态，而是会一直<strong>轮询</strong>直到数据到达。这种方法会浪费 CPU 资源，不常用。</li>
+<li><strong>多路复用 I/O：</strong>多路 I/O 就是<strong>一个线程在多个描述符（一个描述符看作是一个连接）上等待</strong>，而不是每一个描述符一个线程。具体又分为 select、poll、epoll：<ul>
+<li><strong>select：</strong>有数据到达后，每一次<strong>轮询</strong>所有等待的描述符，找出数据进行操作。</li>
+<li><strong>poll：</strong>本质上和 select 没有区别，但是<strong>没有最大连接数的限制</strong>，因为是基于链表的。</li>
+<li><strong>epoll：</strong>会把哪个文件描述符发生的<strong>事件</strong>（读取或者写入）<strong>通知</strong>给我们，不用轮询。</li>
+</ul>
+</li>
+<li><strong>信号驱动 I/O：</strong>等待<strong>数据到达后会发出信号</strong>，应用程序会自行将数据复制到自己的内存空间中。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p><strong>信号驱动 I/O 和异步 I/O 的区别：</strong></p>
+<p>区别在于<strong>从缓冲区获取数据</strong>这个步骤，<strong>信号驱动 I/O 是应用程序自己将数据复制</strong>到自己的内存区域。而<strong>异步 I/O 是已经复制完成后</strong>，才发出信号。</p>
+</blockquote>
+<blockquote>
+<p>epoll 相比于 select 和 poll，<strong>性能是最好</strong>的，所以 epoll 是最常用的。</p>
+<p>epoll 里面有两种模式，LT（水平触发）和 ET（边缘触发）：</p>
+<ul>
+<li><strong>LT（水平触发）：</strong>读缓冲区不为空，则一直触发；写缓冲区不满，则一直触发。对于 LT，在写完数据后要取消写事件，否则会进入写死循环。</li>
+<li><strong>ET（边缘触发）：</strong>读缓冲区从空转为非空时触发一次；写缓冲区从满转换为非满时触发一次。对于 ET，要注意读完读缓冲区中未满的数据，否则会数据丢失。</li>
+</ul>
+<p>LT 是更为常用的模式，因为 LT 更加安全不会丢失数据。</p>
+</blockquote>
+<h3 id="服务器-1-N-M-模型"><a href="#服务器-1-N-M-模型" class="headerlink" title="服务器 1+N+M 模型"></a>服务器 1+N+M 模型</h3><p>通常服务器都会采用 epoll 进行编程，进一步分为三个步骤交给三种不同的线程完成，即服务器的 1+N+M 模型。</p>
+<ul>
+<li><strong>监听线程：</strong>负责 <strong>accept</strong> 事件，和每一个新来的客户端建立连接之后，<strong>将 socket 交给 I/O 线程</strong>。完成之后，继续监听。</li>
+<li><strong>I/O 线程：</strong>负责 <strong>read/write</strong> 事件，即负责从 socket 中读取数据或者写入数据。<strong>将读取到的数据放入 Request 队列，交由 Worker 线程处理</strong>。从 Response 队列中读取 Worker 线程处理过的返回结果，写入到 socket 中。</li>
+<li><strong>Worker 线程：业务</strong>线程，根据收到的数据进行处理，并返回数据。</li>
+</ul>
+<blockquote>
+<p>具体的实现可能会有差异，不一定与上方描述的完全一样。</p>
+</blockquote>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619161051618.png" alt="image-20230619161051618"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/10/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/" rel="prev" title="凤凰架构笔记 (9) 可观测性之日志 追踪 度量">
+      <i class="fa fa-chevron-left"></i> 凤凰架构笔记 (9) 可观测性之日志 追踪 度量
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/" rel="next" title="软件架构设计读书笔记 (2) HTTP HTTPS QUIC">
+      软件架构设计读书笔记 (2) HTTP HTTPS QUIC <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#I-O"><span class="nav-number">1.</span> <span class="nav-text">I&#x2F;O</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E7%B1%BB"><span class="nav-number">1.1.</span> <span class="nav-text">分类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BC%93%E5%86%B2-I-O-%E4%B8%8E%E7%9B%B4%E6%8E%A5-I-O"><span class="nav-number">1.1.1.</span> <span class="nav-text">缓冲 I&#x2F;O 与直接 I&#x2F;O</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84%E6%96%87%E4%BB%B6%E4%B8%8E%E9%9B%B6%E6%8B%B7%E8%B4%9D"><span class="nav-number">1.1.2.</span> <span class="nav-text">内存映射文件与零拷贝</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C-I-O"><span class="nav-number">1.2.</span> <span class="nav-text">网络 I&#x2F;O</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%99%A8-1-N-M-%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.2.1.</span> <span class="nav-text">服务器 1+N+M 模型</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

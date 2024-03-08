@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="channel 的三种状态和操作结果：    操作 空值(nil) 非空已关闭 非空未关闭    关闭 panic panic 成功关闭   发送数据 永久阻塞 panic 阻塞或成功发送   接收数据 永久阻塞 永不阻塞 阻塞或者成功接收    在 select 中，如果其中的全部通道都被关闭，则一定不会执行 defaul 而是随机选择其中一个被关闭的 case 去执行。  关闭通道 通道关闭原">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Go语言高性能编程 (4) 并发编程——关闭通道">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="channel 的三种状态和操作结果：    操作 空值(nil) 非空已关闭 非空未关闭    关闭 panic panic 成功关闭   发送数据 永久阻塞 panic 阻塞或成功发送   接收数据 永久阻塞 永不阻塞 阻塞或者成功接收    在 select 中，如果其中的全部通道都被关闭，则一定不会执行 defaul 而是随机选择其中一个被关闭的 case 去执行。  关闭通道 通道关闭原">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-03-26T14:00:21.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.760Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Go语言高性能编程 (4) 并发编程——关闭通道 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Go语言高性能编程 (4) 并发编程——关闭通道
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-26 22:00:21" itemprop="dateCreated datePublished" datetime="2023-03-26T22:00:21+08:00">2023-03-26</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>channel 的三种状态和操作结果：</p>
+<table>
+<thead>
+<tr>
+<th align="left">操作</th>
+<th align="left">空值(nil)</th>
+<th align="left">非空已关闭</th>
+<th align="left">非空未关闭</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">关闭</td>
+<td align="left">panic</td>
+<td align="left">panic</td>
+<td align="left">成功关闭</td>
+</tr>
+<tr>
+<td align="left">发送数据</td>
+<td align="left">永久阻塞</td>
+<td align="left">panic</td>
+<td align="left">阻塞或成功发送</td>
+</tr>
+<tr>
+<td align="left">接收数据</td>
+<td align="left">永久阻塞</td>
+<td align="left">永不阻塞</td>
+<td align="left">阻塞或者成功接收</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>在 select 中，如果<strong>其中的全部通道都被关闭</strong>，则<strong>一定不</strong>会执行 defaul 而是随机选择其中一个被关闭的 case 去执行。</p>
+</blockquote>
+<h1 id="关闭通道"><a href="#关闭通道" class="headerlink" title="关闭通道"></a>关闭通道</h1><blockquote>
+<p><strong>通道关闭原则：</strong></p>
+<p>一个常用的使用 Go 通道的原则是<strong>不要在数据接收方或者在有多个发送者的情况下关闭通道</strong>。换句话说，我们<strong>只应该让一个通道唯一的发送者关闭此通道</strong>。</p>
+</blockquote>
+<p>关闭 channel 的方法有以下几种方法。</p>
+<h2 id="粗鲁的方法"><a href="#粗鲁的方法" class="headerlink" title="粗鲁的方法"></a>粗鲁的方法</h2><p>如果关闭已经关闭的通道，则会触发 panic，可以<strong>用 recover 使得程序回复正常</strong>。</p>
+<p>这种方法违反了通道关闭原则，因为这种方法使得多个协程都可以关闭通道。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">SafeClose</span><span class="params">(ch <span class="keyword">chan</span> T)</span> <span class="params">(justClosed <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="keyword">if</span> <span class="built_in">recover</span>() != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">// 一个函数的返回结果可以在defer调用中修改。</span></span><br><span class="line">			justClosed = <span class="literal">false</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 假设ch != nil。</span></span><br><span class="line">	<span class="built_in">close</span>(ch)   <span class="comment">// 如果 ch 已关闭，将 panic</span></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">true</span> <span class="comment">// &lt;=&gt; justClosed = true; return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="礼貌的方式"><a href="#礼貌的方式" class="headerlink" title="礼貌的方式"></a>礼貌的方式</h2><p><strong>使用 sync.Once 或者互斥锁</strong>来保证 channel 只被关闭一次。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyChannel <span class="keyword">struct</span> &#123;</span><br><span class="line">	C    <span class="keyword">chan</span> T</span><br><span class="line">	once sync.Once</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(mc *MyChannel)</span> <span class="title">SafeClose</span><span class="params">()</span></span> &#123;</span><br><span class="line">	mc.once.Do(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="built_in">close</span>(mc.C)</span><br><span class="line">	&#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也可以使用 sync.Mutex 来关闭通道，维护一个布尔值来表示通道是否已经被关闭（需要用 sync.Mutex 保证互斥访问）：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyChannel <span class="keyword">struct</span> &#123;</span><br><span class="line">	C      <span class="keyword">chan</span> T</span><br><span class="line">	closed <span class="keyword">bool</span></span><br><span class="line">	mutex  sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="优雅的方式"><a href="#优雅的方式" class="headerlink" title="优雅的方式"></a>优雅的方式</h2><ul>
+<li>情形一：<strong>M 个接收者和一个发送者</strong>，发送者通过关闭用来传输数据的通道来传递发送结束信号。</li>
+<li>情形二：<strong>一个接收者和 N 个发送者</strong>，此唯一接收者通过关闭一个额外的信号通道来通知发送者不要再发送数据了。</li>
+<li>情形三：<strong>M 个接收者和 N 个发送者</strong>，它们中的任何协程都可以让一个中间调解协程帮忙发出停止数据传送的信号。</li>
+</ul>
+<span id="more"></span>
+
+<h3 id="多个接收者-一个发送者"><a href="#多个接收者-一个发送者" class="headerlink" title="多个接收者 一个发送者"></a>多个接收者 一个发送者</h3><p>此时<strong>发送者</strong>通过<strong>关闭用来传输数据的通道</strong>来传递发送结束信号。</p>
+<p>发送者：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sender</span><span class="params">(dataCh <span class="keyword">chan</span> <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> value := rand.Intn(<span class="number">100</span>); value == <span class="number">0</span> &#123;</span><br><span class="line">			<span class="comment">// 此唯一的发送者可以安全地关闭此数据通道。</span></span><br><span class="line">			<span class="built_in">close</span>(dataCh)</span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			dataCh &lt;- value</span><br><span class="line">		&#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接收者：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">receiver</span><span class="params">(dataCh <span class="keyword">chan</span> <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> value := <span class="keyword">range</span> dataCh &#123;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="一个接收者-多个发送者"><a href="#一个接收者-多个发送者" class="headerlink" title="一个接收者 多个发送者"></a>一个接收者 多个发送者</h3><p>这种情况下，不能让接收者关闭用来传输数据的通道来停止数据传输，因为这样做违反了<strong>通道关闭原则</strong>。 但是可以<strong>让接收者关闭一个额外的信号通道</strong>来<strong>通知发送者不要再发送数据了</strong>。</p>
+<p>发送者：注意有两个 select，在第二个 select 中，在 stopCh 已经关闭时可能迟迟不会选中第一个分支及时结束协程，所以<strong>需要第一个 select 尽早的退出</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sender</span><span class="params">(dataCh <span class="keyword">chan</span> <span class="keyword">int</span>, stopCh <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="comment">// 尝试让发送者尽早的退出</span></span><br><span class="line">        <span class="keyword">select</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> &lt;- stopCh:</span><br><span class="line">            	<span class="keyword">return</span></span><br><span class="line">            <span class="keyword">default</span>:</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">select</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> &lt;- stopCh:</span><br><span class="line">            	<span class="keyword">return</span></span><br><span class="line">            <span class="keyword">case</span> dataCh &lt;- rand.Intn(<span class="number">100</span>):</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接收者：直接关闭通道即可。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">receiver</span><span class="params">(dataCh <span class="keyword">chan</span> <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> value := <span class="keyword">range</span> dataCh &#123;</span><br><span class="line">        <span class="keyword">if</span> value == <span class="number">0</span> &#123;</span><br><span class="line">            <span class="comment">// 此唯一的接收者同时也是stopCh通道的</span></span><br><span class="line">			<span class="comment">// 唯一发送者。尽管它不能安全地关闭dataCh数</span></span><br><span class="line">			<span class="comment">// 据通道，但它可以安全地关闭stopCh通道。</span></span><br><span class="line">            <span class="built_in">close</span>(stopCh)</span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>数据通道 <code>dataCh</code> 并没有被关闭。<strong>是的，不必关闭它</strong>。 当一个通道不再被任何协程所使用后，它将逐渐被垃圾回收掉，无论它是否已经被关闭。 </p>
+</blockquote>
+<h3 id="多个接收者-多个发送者"><a href="#多个接收者-多个发送者" class="headerlink" title="多个接收者 多个发送者"></a>多个接收者 多个发送者</h3><p>我们不能让接收者和发送者中的任何一个关闭用来传输数据的通道，我们也不能让多个接收者之一关闭一个额外的信号通道。 这两种做法都违反了<strong>通道关闭原则</strong>。 然而，可以<strong>引入一个中间调解者角色</strong>并<strong>让其关闭额外的信号通道来通知所有的接收者和发送者结束工作</strong>。 </p>
+<blockquote>
+<p><strong>管道</strong>还可以<strong>限制协程并发数量</strong>，用带缓冲区的管道实现：</p>
+<ul>
+<li><strong>缓冲区的大小就是最大的并发协程数量</strong>。</li>
+<li>在<strong>新创建协程之前</strong>，先尝试在管道中<strong>写入一个数据</strong>。在<strong>结束协程时</strong>，从管道中<strong>取出一个数据</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    wg sync.WaitGroup</span><br><span class="line">    ch := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;, <span class="number">3</span>)		<span class="comment">// 这里为最大并发数量</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="number">10</span>; i++ &#123;</span><br><span class="line">        ch &lt;- <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">        wg.Add(<span class="number">1</span>)</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">            <span class="keyword">defer</span> wg.Done()</span><br><span class="line">            <span class="comment">// ....</span></span><br><span class="line">            time.Sleep(time.Second)</span><br><span class="line">            &lt;-ch</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    wg.Wait()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>很多第三方库实现了协程池，可以很方便地用来控制协程的并发数量：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/Jeffail/tunny">Jeffail/tunny</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/panjf2000/ants">panjf2000/ants</a></li>
+</ul>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/" rel="prev" title="Go语言高性能编程 (3) 常用数据结构——空结构体和内存对齐">
+      <i class="fa fa-chevron-left"></i> Go语言高性能编程 (3) 常用数据结构——空结构体和内存对齐
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/" rel="next" title="Go语言高性能编程 (5) 并发编程——Pool Once Cond">
+      Go语言高性能编程 (5) 并发编程——Pool Once Cond <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93"><span class="nav-number">1.</span> <span class="nav-text">关闭通道</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B2%97%E9%B2%81%E7%9A%84%E6%96%B9%E6%B3%95"><span class="nav-number">1.1.</span> <span class="nav-text">粗鲁的方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%A4%BC%E8%B2%8C%E7%9A%84%E6%96%B9%E5%BC%8F"><span class="nav-number">1.2.</span> <span class="nav-text">礼貌的方式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BC%98%E9%9B%85%E7%9A%84%E6%96%B9%E5%BC%8F"><span class="nav-number">1.3.</span> <span class="nav-text">优雅的方式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%9A%E4%B8%AA%E6%8E%A5%E6%94%B6%E8%80%85-%E4%B8%80%E4%B8%AA%E5%8F%91%E9%80%81%E8%80%85"><span class="nav-number">1.3.1.</span> <span class="nav-text">多个接收者 一个发送者</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E4%B8%AA%E6%8E%A5%E6%94%B6%E8%80%85-%E5%A4%9A%E4%B8%AA%E5%8F%91%E9%80%81%E8%80%85"><span class="nav-number">1.3.2.</span> <span class="nav-text">一个接收者 多个发送者</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%9A%E4%B8%AA%E6%8E%A5%E6%94%B6%E8%80%85-%E5%A4%9A%E4%B8%AA%E5%8F%91%E9%80%81%E8%80%85"><span class="nav-number">1.3.3.</span> <span class="nav-text">多个接收者 多个发送者</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

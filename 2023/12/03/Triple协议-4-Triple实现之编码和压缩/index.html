@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="从本节开始，来阅读 Triple 源码，地址为：https:&#x2F;&#x2F;github.com&#x2F;apache&#x2F;dubbo-go&#x2F;tree&#x2F;main&#x2F;protocol&#x2F;triple&#x2F;triple_protocol 编码Triple 支持 protobuf、json 多种编码方法，这些编码方法都实现了 Codec 接口：  Name 方法：返回编码名称，如 proto 和 json。 Marshal 方法：用于">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triple协议 (4) Triple实现之编码和压缩">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="从本节开始，来阅读 Triple 源码，地址为：https:&#x2F;&#x2F;github.com&#x2F;apache&#x2F;dubbo-go&#x2F;tree&#x2F;main&#x2F;protocol&#x2F;triple&#x2F;triple_protocol 编码Triple 支持 protobuf、json 多种编码方法，这些编码方法都实现了 Codec 接口：  Name 方法：返回编码名称，如 proto 和 json。 Marshal 方法：用于">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-03T06:00:48.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.792Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="dubbo-go - 云原生 - triple">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Triple协议 (4) Triple实现之编码和压缩 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Triple协议 (4) Triple实现之编码和压缩
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-03 14:00:48" itemprop="dateCreated datePublished" datetime="2023-12-03T14:00:48+08:00">2023-12-03</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>从本节开始，来阅读 Triple 源码，地址为：<a target="_blank" rel="noopener" href="https://github.com/apache/dubbo-go/tree/main/protocol/triple/triple_protocol">https://github.com/apache/dubbo-go/tree/main/protocol/triple/triple_protocol</a></p>
+<h1 id="编码"><a href="#编码" class="headerlink" title="编码"></a>编码</h1><p><strong>Triple 支持 protobuf、json 多种编码方法</strong>，这些编码方法都实现了 Codec 接口：</p>
+<ul>
+<li>Name 方法：返回编码名称，如 proto 和 json。</li>
+<li>Marshal 方法：用于序列化。</li>
+<li>Unmarshal 方法：用于反序列化。</li>
+</ul>
+<span id="more"></span>
+
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Codec marshals structs (typically generated from a schema) to and from bytes.</span></span><br><span class="line"><span class="keyword">type</span> Codec <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Name returns the name of the Codec.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// This may be used as part of the Content-Type within HTTP. For example,</span></span><br><span class="line">    <span class="comment">// with gRPC this is the content subtype, so &quot;application/grpc+proto&quot; will</span></span><br><span class="line">    <span class="comment">// map to the Codec with name &quot;proto&quot;.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Names must not be empty.</span></span><br><span class="line">    Name() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Marshal marshals the given message.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Marshal may expect a specific type of message, and will error if this type</span></span><br><span class="line">    <span class="comment">// is not given.</span></span><br><span class="line">    Marshal(<span class="keyword">interface</span>&#123;&#125;) ([]<span class="keyword">byte</span>, error)</span><br><span class="line">    <span class="comment">// Unmarshal unmarshals the given message.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Unmarshal may expect a specific type of message, and will error if this</span></span><br><span class="line">    <span class="comment">// type is not given.</span></span><br><span class="line">    Unmarshal([]<span class="keyword">byte</span>, <span class="keyword">interface</span>&#123;&#125;) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Codec-接口实现"><a href="#Codec-接口实现" class="headerlink" title="Codec 接口实现"></a>Codec 接口实现</h2><h3 id="proto-编码"><a href="#proto-编码" class="headerlink" title="proto 编码"></a>proto 编码</h3><p>protobuf 编码实现如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> protoBinaryCodec <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> _ Codec = (*protoBinaryCodec)(<span class="literal">nil</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *protoBinaryCodec)</span> <span class="title">Name</span><span class="params">()</span> <span class="title">string</span></span> &#123; <span class="keyword">return</span> codecNameProto &#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *protoBinaryCodec)</span> <span class="title">Marshal</span><span class="params">(message <span class="keyword">interface</span>&#123;&#125;)</span> <span class="params">([]<span class="keyword">byte</span>, error)</span></span> &#123;</span><br><span class="line">    protoMessage, ok := message.(proto.Message)</span><br><span class="line">    <span class="keyword">if</span> !ok &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="literal">nil</span>, errNotProto(message)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> proto.Marshal(protoMessage)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *protoBinaryCodec)</span> <span class="title">Unmarshal</span><span class="params">(data []<span class="keyword">byte</span>, message <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    protoMessage, ok := message.(proto.Message)</span><br><span class="line">    <span class="keyword">if</span> !ok &#123;</span><br><span class="line">       <span class="keyword">return</span> errNotProto(message)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> proto.Unmarshal(data, protoMessage)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="json-编码"><a href="#json-编码" class="headerlink" title="json 编码"></a>json 编码</h3><p>json 编码实现如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> protoJSONCodec <span class="keyword">struct</span> &#123;</span><br><span class="line">    name <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> _ Codec = (*protoJSONCodec)(<span class="literal">nil</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *protoJSONCodec)</span> <span class="title">Name</span><span class="params">()</span> <span class="title">string</span></span> &#123; <span class="keyword">return</span> c.name &#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *protoJSONCodec)</span> <span class="title">Marshal</span><span class="params">(message <span class="keyword">interface</span>&#123;&#125;)</span> <span class="params">([]<span class="keyword">byte</span>, error)</span></span> &#123;</span><br><span class="line">    protoMessage, ok := message.(proto.Message)</span><br><span class="line">    <span class="keyword">if</span> !ok &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="literal">nil</span>, errNotProto(message)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">var</span> options protojson.MarshalOptions</span><br><span class="line">    <span class="keyword">return</span> options.Marshal(protoMessage)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *protoJSONCodec)</span> <span class="title">Unmarshal</span><span class="params">(binary []<span class="keyword">byte</span>, message <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    protoMessage, ok := message.(proto.Message)</span><br><span class="line">    <span class="keyword">if</span> !ok &#123;</span><br><span class="line">       <span class="keyword">return</span> errNotProto(message)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(binary) == <span class="number">0</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> errors.New(<span class="string">&quot;zero-length payload is not a valid JSON object&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">var</span> options protojson.UnmarshalOptions</span><br><span class="line">    <span class="keyword">return</span> options.Unmarshal(binary, protoMessage)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="编码方法字典"><a href="#编码方法字典" class="headerlink" title="编码方法字典"></a>编码方法字典</h2><p>为了集成编码方法，实现了一个<strong>只读的编码方法字典</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// readOnlyCodecs is a read-only interface to a map of named codecs.</span></span><br><span class="line"><span class="keyword">type</span> readOnlyCodecs <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Get gets the Codec with the given name.</span></span><br><span class="line">    Get(<span class="keyword">string</span>) Codec</span><br><span class="line">    <span class="comment">// Protobuf gets the user-supplied protobuf codec, falling back to the default</span></span><br><span class="line">    <span class="comment">// implementation if necessary.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// This is helpful in the gRPC protocol, where the wire protocol requires</span></span><br><span class="line">    <span class="comment">// marshaling protobuf structs to binary even if the RPC procedures were</span></span><br><span class="line">    <span class="comment">// generated from a different IDL.</span></span><br><span class="line">    Protobuf() Codec</span><br><span class="line">    <span class="comment">// Names returns a copy of the registered codec names. The returned slice is</span></span><br><span class="line">    <span class="comment">// safe for the caller to mutate.</span></span><br><span class="line">    Names() []<span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newReadOnlyCodecs</span><span class="params">(nameToCodec <span class="keyword">map</span>[<span class="keyword">string</span>]Codec)</span> <span class="title">readOnlyCodecs</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;codecMap&#123;</span><br><span class="line">       nameToCodec: nameToCodec,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> codecMap <span class="keyword">struct</span> &#123;</span><br><span class="line">    nameToCodec <span class="keyword">map</span>[<span class="keyword">string</span>]Codec</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m *codecMap)</span> <span class="title">Get</span><span class="params">(name <span class="keyword">string</span>)</span> <span class="title">Codec</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> m.nameToCodec[name]</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m *codecMap)</span> <span class="title">Protobuf</span><span class="params">()</span> <span class="title">Codec</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> pb, ok := m.nameToCodec[codecNameProto]; ok &#123;</span><br><span class="line">       <span class="keyword">return</span> pb</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &amp;protoBinaryCodec&#123;&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m *codecMap)</span> <span class="title">Names</span><span class="params">()</span> []<span class="title">string</span></span> &#123;</span><br><span class="line">    names := <span class="built_in">make</span>([]<span class="keyword">string</span>, <span class="number">0</span>, <span class="built_in">len</span>(m.nameToCodec))</span><br><span class="line">    <span class="keyword">for</span> name := <span class="keyword">range</span> m.nameToCodec &#123;</span><br><span class="line">       names = <span class="built_in">append</span>(names, name)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> names</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="压缩"><a href="#压缩" class="headerlink" title="压缩"></a>压缩</h1><p>Triple 协议<strong>支持 gzip 压缩</strong>，对编码（protobuf 或者 json）后的数据再进行压缩，为了抽象出压缩和解压缩方法，分别定义了两个接口。</p>
+<h2 id="压缩-解压缩接口"><a href="#压缩-解压缩接口" class="headerlink" title="压缩/解压缩接口"></a>压缩/解压缩接口</h2><p>Triple 分别定义了 Decompressor 和 Compressor 接口，用于解压缩和压缩。</p>
+<p>Decompressor 接口定义了解压缩方法，他继承了 io.Reader：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// A Decompressor is a reusable wrapper that decompresses an underlying data</span></span><br><span class="line"><span class="comment">// source. The standard library&#x27;s [*gzip.Reader] implements Decompressor.</span></span><br><span class="line"><span class="keyword">type</span> Decompressor <span class="keyword">interface</span> &#123;</span><br><span class="line">    io.Reader</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Close closes the Decompressor, but not the underlying data source. It may</span></span><br><span class="line">    <span class="comment">// return an error if the Decompressor wasn&#x27;t read to EOF.</span></span><br><span class="line">    Close() error</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Reset discards the Decompressor&#x27;s internal state, if any, and prepares it</span></span><br><span class="line">    <span class="comment">// to read from a new source of compressed data.</span></span><br><span class="line">    Reset(io.Reader) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Compressor 接口定义了压缩方法，他继承了 io.Reader：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// A Compressor is a reusable wrapper that compresses data written to an</span></span><br><span class="line"><span class="comment">// underlying sink. The standard library&#x27;s [*gzip.Writer] implements Compressor.</span></span><br><span class="line"><span class="keyword">type</span> Compressor <span class="keyword">interface</span> &#123;</span><br><span class="line">    io.Writer</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Close flushes any buffered data to the underlying sink, then closes the</span></span><br><span class="line">    <span class="comment">// Compressor. It must not close the underlying sink.</span></span><br><span class="line">    Close() error</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Reset discards the Compressor&#x27;s internal state, if any, and prepares it to</span></span><br><span class="line">    <span class="comment">// write compressed data to a new sink.</span></span><br><span class="line">    Reset(io.Writer)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>基于这两个接口，定义 compressionPool，作用是复用压缩/解压缩对象。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> compressionPool <span class="keyword">struct</span> &#123;</span><br><span class="line">    decompressors sync.Pool</span><br><span class="line">    compressors   sync.Pool</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newCompressionPool</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    newDecompressor <span class="keyword">func</span>()</span> <span class="title">Decompressor</span>,</span></span><br><span class="line">    newCompressor <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">Compressor</span>,</span></span><br><span class="line">) *compressionPool &#123;</span><br><span class="line">    <span class="keyword">if</span> newDecompressor == <span class="literal">nil</span> &amp;&amp; newCompressor == <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &amp;compressionPool&#123;</span><br><span class="line">       decompressors: sync.Pool&#123;</span><br><span class="line">          New: <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123; <span class="keyword">return</span> newDecompressor() &#125;,</span><br><span class="line">       &#125;,</span><br><span class="line">       compressors: sync.Pool&#123;</span><br><span class="line">          New: <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">interface</span></span>&#123;&#125; &#123; <span class="keyword">return</span> newCompressor() &#125;,</span><br><span class="line">       &#125;,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="压缩方法字典"><a href="#压缩方法字典" class="headerlink" title="压缩方法字典"></a>压缩方法字典</h2><p>与 Codec 接口类似，关于压缩和解压缩，Triple 也定义了一个字典，用于<strong>记录自己支持的压缩方法</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// readOnlyCompressionPools is a read-only interface to a map of named</span></span><br><span class="line"><span class="comment">// compressionPools.</span></span><br><span class="line"><span class="keyword">type</span> readOnlyCompressionPools <span class="keyword">interface</span> &#123;</span><br><span class="line">    Get(<span class="keyword">string</span>) *compressionPool</span><br><span class="line">    Contains(<span class="keyword">string</span>) <span class="keyword">bool</span></span><br><span class="line">    <span class="comment">// Wordy, but clarifies how this is different from readOnlyCodecs.Names().</span></span><br><span class="line">    CommaSeparatedNames() <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newReadOnlyCompressionPools</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    nameToPool <span class="keyword">map</span>[<span class="keyword">string</span>]*compressionPool,</span></span></span><br><span class="line"><span class="params"><span class="function">    reversedNames []<span class="keyword">string</span>,</span></span></span><br><span class="line"><span class="params"><span class="function">)</span> <span class="title">readOnlyCompressionPools</span></span> &#123;</span><br><span class="line">    <span class="comment">// Client and handler configs keep compression names in registration order,</span></span><br><span class="line">    <span class="comment">// but we want the last registered to be the most preferred.</span></span><br><span class="line">    names := <span class="built_in">make</span>([]<span class="keyword">string</span>, <span class="number">0</span>, <span class="built_in">len</span>(reversedNames))</span><br><span class="line">    seen := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;, <span class="built_in">len</span>(reversedNames))</span><br><span class="line">    <span class="keyword">for</span> i := <span class="built_in">len</span>(reversedNames) - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i-- &#123;</span><br><span class="line">       name := reversedNames[i]</span><br><span class="line">       <span class="keyword">if</span> _, ok := seen[name]; ok &#123;</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line">       seen[name] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">       names = <span class="built_in">append</span>(names, name)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &amp;namedCompressionPools&#123;</span><br><span class="line">       nameToPool:          nameToPool,</span><br><span class="line">       commaSeparatedNames: strings.Join(names, <span class="string">&quot;,&quot;</span>),</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> namedCompressionPools <span class="keyword">struct</span> &#123;</span><br><span class="line">    nameToPool          <span class="keyword">map</span>[<span class="keyword">string</span>]*compressionPool</span><br><span class="line">    commaSeparatedNames <span class="keyword">string</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/dubbo-go-%E4%BA%91%E5%8E%9F%E7%94%9F-triple/" rel="tag"># dubbo-go - 云原生 - triple</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/" rel="prev" title="Triple协议 (3) gRPC协议">
+      <i class="fa fa-chevron-left"></i> Triple协议 (3) gRPC协议
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/" rel="next" title="Triple协议 (5) Triple实现之全双工通信">
+      Triple协议 (5) Triple实现之全双工通信 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BC%96%E7%A0%81"><span class="nav-number">1.</span> <span class="nav-text">编码</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Codec-%E6%8E%A5%E5%8F%A3%E5%AE%9E%E7%8E%B0"><span class="nav-number">1.1.</span> <span class="nav-text">Codec 接口实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#proto-%E7%BC%96%E7%A0%81"><span class="nav-number">1.1.1.</span> <span class="nav-text">proto 编码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#json-%E7%BC%96%E7%A0%81"><span class="nav-number">1.1.2.</span> <span class="nav-text">json 编码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%96%E7%A0%81%E6%96%B9%E6%B3%95%E5%AD%97%E5%85%B8"><span class="nav-number">1.2.</span> <span class="nav-text">编码方法字典</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8E%8B%E7%BC%A9"><span class="nav-number">2.</span> <span class="nav-text">压缩</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%8B%E7%BC%A9-%E8%A7%A3%E5%8E%8B%E7%BC%A9%E6%8E%A5%E5%8F%A3"><span class="nav-number">2.1.</span> <span class="nav-text">压缩&#x2F;解压缩接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%8B%E7%BC%A9%E6%96%B9%E6%B3%95%E5%AD%97%E5%85%B8"><span class="nav-number">2.2.</span> <span class="nav-text">压缩方法字典</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

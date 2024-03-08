@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Docker介绍什么是DockerDocker是基于Go语言开发并实现的，基于Linux内核的cgroups（control groups，控制群组，是Linux内核的一个功能，用来限制、控制与分离一个进程组的资源，如CPU、内存等）、namespace（是Linux内核用来隔离内核资源的方式，通过namespace可以让一些进程只能看到与自己相关的一部分资源，而另外一些进程也只能看到与它们自己相">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Docker学习笔记 (1) 基本概念">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/05/09/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Docker介绍什么是DockerDocker是基于Go语言开发并实现的，基于Linux内核的cgroups（control groups，控制群组，是Linux内核的一个功能，用来限制、控制与分离一个进程组的资源，如CPU、内存等）、namespace（是Linux内核用来隔离内核资源的方式，通过namespace可以让一些进程只能看到与自己相关的一部分资源，而另外一些进程也只能看到与它们自己相">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/virtualization.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/docker.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/image-20221223111944166.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/image-20221223112458661.png">
+<meta property="article:published_time" content="2022-05-09T12:48:11.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.739Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="docker">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/virtualization.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/05/09/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Docker学习笔记 (1) 基本概念 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/09/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Docker学习笔记 (1) 基本概念
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-09 20:48:11" itemprop="dateCreated datePublished" datetime="2022-05-09T20:48:11+08:00">2022-05-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Docker介绍"><a href="#Docker介绍" class="headerlink" title="Docker介绍"></a>Docker介绍</h1><h2 id="什么是Docker"><a href="#什么是Docker" class="headerlink" title="什么是Docker"></a>什么是Docker</h2><p>Docker是基于Go语言开发并实现的，基于Linux内核的<strong>cgroups</strong>（control groups，控制群组，是Linux内核的一个功能，用来限制、控制与分离一个进程组的资源，如CPU、内存等）、<strong>namespace</strong>（是Linux内核用来隔离内核资源的方式，通过namespace可以让一些进程只能看到与自己相关的一部分资源，而另外一些进程也只能看到与它们自己相关的资源）以及<strong>Union FS</strong>等技术，对进程进行封装隔离，属于<strong>操作系统层面的虚拟化技术</strong>。</p>
+<blockquote>
+<p><strong>Docker和传统虚拟化技术的不同：</strong></p>
+<p>传统虚拟机技术是<strong>虚拟出一套硬件</strong>后，在其上运行一个<strong>完整操作系统</strong>，在该系统上再运行所需应用进程：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/virtualization.png" alt="传统虚拟化"></p>
+<p>Docker容器内的应用进程<strong>直接运行于宿主的内核</strong>，容器内没有自己的内核，而且也没有进行硬件虚拟。因此容器要比传统虚拟机更为轻便：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/docker.png" alt="Docker"></p>
+</blockquote>
+<!--more--->
+
+<h2 id="为什么使用Docker"><a href="#为什么使用Docker" class="headerlink" title="为什么使用Docker"></a>为什么使用Docker</h2><p>Docker与传统虚拟化技术相比，有如下<strong>优点</strong>：</p>
+<ul>
+<li><strong>更高效的利用系统资源：</strong>Docker不需要对硬件虚拟化以及运行完整的操作系统等额外开销，所以Docker对系统资源的利用更有效。在相同配置下，Docker可以运行更多的应用程序。</li>
+<li><strong>更快速的启动时间：</strong>Docker容器运行于宿主内核，启动速度可以达到秒级。</li>
+<li><strong>一致的运行环境：</strong>Docker镜像提供了除内核外完整的运行时环境，确保了应用运行环境一致性。</li>
+<li><strong>持续交付和部署：</strong>一次创建或配置，可以在任意地方正常运行。</li>
+<li><strong>更轻松的迁移：</strong>Docker确保了执行环境的一致性，使得应用的迁移更加容易。</li>
+<li><strong>更轻松的维护和扩展：</strong>Docker使用的分层存储以及镜像的技术，使得应用重复部分的复用更为容易，也使得应用的维护更新更加简单，基于基础镜像进一步扩展镜像也变得非常简单。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">特性</th>
+<th align="left">Docker容器</th>
+<th align="left">传统虚拟机</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">启动</td>
+<td align="left">秒级</td>
+<td align="left">分钟级</td>
+</tr>
+<tr>
+<td align="left">硬盘使用</td>
+<td align="left">一般为 <code>MB</code></td>
+<td align="left">一般为 <code>GB</code></td>
+</tr>
+<tr>
+<td align="left">性能</td>
+<td align="left">接近原生</td>
+<td align="left">弱于</td>
+</tr>
+<tr>
+<td align="left">系统支持量</td>
+<td align="left">单机支持上千个容器</td>
+<td align="left">一般几十个</td>
+</tr>
+</tbody></table>
+<h1 id="基本概念"><a href="#基本概念" class="headerlink" title="基本概念"></a>基本概念</h1><p>Docker包括三个基本概念：</p>
+<ul>
+<li>镜像（Image）</li>
+<li>容器（Container）</li>
+<li>仓库（Repository）</li>
+</ul>
+<h2 id="镜像"><a href="#镜像" class="headerlink" title="镜像"></a>镜像</h2><p>对于 Linux 而言，内核启动后，会挂载 <code>root</code> 文件系统为其提供用户空间支持。而 Docker 镜像（Image），就相当于是一个 <code>root</code> 文件系统。</p>
+<p><strong>Docker 镜像是一个特殊的文件系统</strong>，除了提供容器运行时所需的程序、库、资源、配置等文件外，还包含了一些为运行时准备的一些配置参数（如匿名卷、环境变量、用户等）。<strong>镜像不包含任何动态数据，其内容在构建之后也不会被改变。</strong></p>
+<h3 id="分层存储"><a href="#分层存储" class="headerlink" title="分层存储"></a>分层存储</h3><p>Docker设计时，就充分利用了<strong>Union FS（联合文件系统）</strong>技术，将其设计为<strong>分层存储</strong>的结构。</p>
+<p>镜像只是一个虚拟的概念，其实际体现并非由一个文件组成，而是由一组（<strong>多层</strong>）文件系统组成。</p>
+<p>镜像构建时，<strong>会一层层构建，前一层是后一层的基础</strong>。每一层构建完就不会再发生改变，<strong>后一层上的任何改变只发生在自己这一层</strong>。比如，删除前一层文件的操作，实际不是真的删除前一层的文件，而是仅在当前层标记为该文件已删除。在最终容器运行的时候，虽然不会看到这个文件，但是实际上该文件会一直跟随镜像。因此，在构建镜像的时候，需要额外小心，每一层尽量只包含该层需要添加的东西，任何额外的东西应该在该层构建结束前清理掉。</p>
+<p>分层存储使得镜像的复用、定制更加容易，<strong>可以用之前构建好的镜像作为基础层，然后进一步添加新的层</strong>，以定制自己所需的内容，构建新的镜像。</p>
+<h3 id="docker镜像加载原理"><a href="#docker镜像加载原理" class="headerlink" title="docker镜像加载原理"></a>docker镜像加载原理</h3><p>docker的镜像实际上由一层一层的文件系统组成。</p>
+<ul>
+<li><p><strong>bootfs（boot file system）</strong>主要包含bootloader和kernel。<strong>bootloader主要是引导加载kernel</strong>，Linux刚启动时会加载bootfs文件系统，在<strong>Docker镜像的最底层是引导文件系统bootfs</strong>。这一层与典型的Linux/Unix系统是一样的，包含boot加载器和内核。当boot加载完成之后整个内核就都在内存中了，此时内存的使用权已由bootfs转交给内核，此时系统也会卸载bootfs。</p>
+</li>
+<li><p><strong>rootfs（root file system）</strong>，在bootfs之上。包含的就是典型 Linux 系统中的/dev、/proc、/bin、/etc等标准目录和文件。<strong>rootfs就是各种不同的操作系统发行版</strong>，如Ubuntu、CentOS等。</p>
+</li>
+</ul>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/image-20221223111944166.png" alt="image-20221223111944166"></p>
+<blockquote>
+<p>对于一个精简的OS，rootfs可以很小，只需要包括最基本的命令、工具和程序库就可以了，因为底层直接用Host的kernel，自己只需要提供 rootfs 就行了。由此可见对于不同的linux发行版, bootfs基本是一致的, rootfs会有差别, 因此不同的发行版可以公用bootfs。</p>
+</blockquote>
+<h2 id="容器"><a href="#容器" class="headerlink" title="容器"></a>容器</h2><p>镜像和容器的关系，就像是类和实例的关系。镜像是<strong>静态</strong>的定义，容器是镜像<strong>运行时</strong>的实体。容器可以被创建、启动、停止、删除、暂停等。</p>
+<p>容器的实质是进程，但与直接在宿主执行的进程不同，容器进程运行于属于自己的独立的命名空间。因此容器可以拥有自己的 <code>root</code> 文件系统、自己的网络配置、自己的进程空间，甚至自己的用户 ID 空间。容器内的经常运行在一个隔离的环境里，因此也更加的安全。</p>
+<h3 id="容器存储层"><a href="#容器存储层" class="headerlink" title="容器存储层"></a>容器存储层</h3><p>容器也使用<strong>分层存储</strong>，每一个容器运行时，以镜像为基础层，在其上创建一个当前容器的存储层用于容器运行时的读写，称为<strong>容器存储层</strong>。只有<strong>容器层是可写的</strong>，容器层下面的所有<strong>镜像层都是只读的</strong>。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/image-20221223112458661.png" alt="image-20221223112458661"></p>
+<p><strong>容器存储层的生存周期和容器一样</strong>，容器消亡时，容器存储层也随之消亡。因此，任何保存于容器存储层的信息都会随容器删除而丢失。因此所有的文件写入操作，都应该使用<strong>数据卷（Volume）</strong>，数据卷的生存周期独立于容器，容器消亡，数据卷不会消亡。因此，使用数据卷后，容器删除或者重新运行之后，数据却不会丢失。</p>
+<h2 id="仓库"><a href="#仓库" class="headerlink" title="仓库"></a>仓库</h2><p>Docker Registry用于提供集中的<strong>存储、分发镜像</strong>的服务。</p>
+<p>一个Docker Registry中可以包含多个<strong>仓库</strong>（Repository），每个仓库包含多个<strong>标签</strong>（Tag，标签用于指明镜像的版本），每个标签对应一个<strong>镜像</strong>。</p>
+<p>可以通过<code>&lt;仓库名&gt;:&lt;标签&gt;</code>指定哪个版本的镜像，默认标签为<code>latest</code>。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/docker/" rel="tag"># docker</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/04/13/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-31/" rel="prev" title="算法刷题笔记 (31) 整数反转">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (31) 整数反转
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/05/10/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%95%9C%E5%83%8F%E6%93%8D%E4%BD%9C/" rel="next" title="Docker学习笔记 (2) 镜像操作">
+      Docker学习笔记 (2) 镜像操作 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Docker%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">Docker介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFDocker"><span class="nav-number">1.1.</span> <span class="nav-text">什么是Docker</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BD%BF%E7%94%A8Docker"><span class="nav-number">1.2.</span> <span class="nav-text">为什么使用Docker</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="nav-number">2.</span> <span class="nav-text">基本概念</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%95%9C%E5%83%8F"><span class="nav-number">2.1.</span> <span class="nav-text">镜像</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E5%B1%82%E5%AD%98%E5%82%A8"><span class="nav-number">2.1.1.</span> <span class="nav-text">分层存储</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#docker%E9%95%9C%E5%83%8F%E5%8A%A0%E8%BD%BD%E5%8E%9F%E7%90%86"><span class="nav-number">2.1.2.</span> <span class="nav-text">docker镜像加载原理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8"><span class="nav-number">2.2.</span> <span class="nav-text">容器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E5%AD%98%E5%82%A8%E5%B1%82"><span class="nav-number">2.2.1.</span> <span class="nav-text">容器存储层</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%93%E5%BA%93"><span class="nav-number">2.3.</span> <span class="nav-text">仓库</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本节讨论主从复制、多主节点复制和无主节点复制。冗余复制有多个好处：  降低延迟。 提高可用性。 提高读吞吐。  主从复制 主从复制需要注意因为读取不同从数据库、或者从数据库与主数据库的不同步，而造成的暂时不一致性。  主从复制的原理如下：  指定某一个副本为主节点。当客户端写数据库时，必须将写请求发给主节点，主节点首先将新数据写入本地存储。 其他副本为从节点。主节点将日志发送给所有的从节点，从节点">
+<meta property="og:type" content="article">
+<meta property="og:title" content="数据密集型应用系统设计 (4) 数据复制">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本节讨论主从复制、多主节点复制和无主节点复制。冗余复制有多个好处：  降低延迟。 提高可用性。 提高读吞吐。  主从复制 主从复制需要注意因为读取不同从数据库、或者从数据库与主数据库的不同步，而造成的暂时不一致性。  主从复制的原理如下：  指定某一个副本为主节点。当客户端写数据库时，必须将写请求发给主节点，主节点首先将新数据写入本地存储。 其他副本为从节点。主节点将日志发送给所有的从节点，从节点">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-3.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-4.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-5.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/1634524795875-25e044c1-fc7d-47dc-a871-1af2fb3f5edd.png">
+<meta property="article:published_time" content="2023-08-03T03:16:25.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.819Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-3.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>数据密集型应用系统设计 (4) 数据复制 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          数据密集型应用系统设计 (4) 数据复制
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-03 11:16:25" itemprop="dateCreated datePublished" datetime="2023-08-03T11:16:25+08:00">2023-08-03</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本节讨论主从复制、多主节点复制和无主节点复制。冗余复制有多个好处：</p>
+<ul>
+<li>降低延迟。</li>
+<li>提高可用性。</li>
+<li>提高读吞吐。</li>
+</ul>
+<h1 id="主从复制"><a href="#主从复制" class="headerlink" title="主从复制"></a>主从复制</h1><blockquote>
+<p>主从复制需要注意因为读取不同从数据库、或者从数据库与主数据库的不同步，而造成的暂时不一致性。</p>
+</blockquote>
+<p>主从复制的原理如下：</p>
+<ul>
+<li><strong>指定某一个副本为主节点。</strong>当客户端写数据库时，必须将写请求发给主节点，主节点首先将新数据写入本地存储。</li>
+<li><strong>其他副本为从节点。</strong>主节点将日志发送给所有的从节点，从节点收到日志后应用到本地存储。</li>
+<li>客户端可以从主节点或者从节点中执行查询操作。</li>
+</ul>
+<blockquote>
+<p>主从复制中，只有主节点是可写的，从节点仅可读。</p>
+</blockquote>
+<h2 id="同步复制-异步复制"><a href="#同步复制-异步复制" class="headerlink" title="同步复制 异步复制"></a>同步复制 异步复制</h2><p>复制分为同步复制和异步复制。</p>
+<ul>
+<li><strong>同步复制：</strong> 主节点发送消息，等待从节点响应。同步复制的优点是，从库保证有与主库一致的最新数据副本。缺点是，如果同步从库没有响应，主库就无法处理写入操作。</li>
+<li><strong>异步复制：</strong>主节点发送消息，但不等待从节点的响应。异步复制的速度快、效率高，但是可能会出现数据丢失的情形。</li>
+</ul>
+<p>基于同步复制和异步复制的优缺点，所以通常情况下采用<strong>半同步复制</strong>。半同步复制就是有既有同步从节点（一个），又有异步从节点。当所有的同步从节点响应后完成写入操作。</p>
+<h2 id="从节点的日志同步"><a href="#从节点的日志同步" class="headerlink" title="从节点的日志同步"></a>从节点的日志同步</h2><p>在新的从节点出现时，需要同步主节点中所有的数据。过程如下：</p>
+<ul>
+<li>在第一次同步时，主节点会给从节点发送某个时刻的一致性<strong>快照</strong>。</li>
+<li>从节点同步快照后，此后的同步，就是<strong>增量</strong>拉取所有的数据变更。</li>
+</ul>
+<h2 id="处理节点宕机"><a href="#处理节点宕机" class="headerlink" title="处理节点宕机"></a>处理节点宕机</h2><p>在分布式系统中，任何节点都可能发生宕机。所以必须处理节点的宕机行为，保证集群的高可用。</p>
+<h3 id="从库失效：追赶恢复"><a href="#从库失效：追赶恢复" class="headerlink" title="从库失效：追赶恢复"></a>从库失效：追赶恢复</h3><p>如果是从节点失效了，则恢复比较<strong>容易</strong>。从节点可以从日志中知道，在发生故障之前<strong>处理的最后一个事务</strong>。从库因此可以向主库请求<strong>同步之后的所有数据变更</strong>，直到追上主节点的数据。</p>
+<h3 id="主库失效：故障切换"><a href="#主库失效：故障切换" class="headerlink" title="主库失效：故障切换"></a>主库失效：故障切换</h3><p>如果是主节点失效了，则恢复起来非常<strong>棘手</strong>。其中<strong>一个从库需要被提升为新的主库</strong>，并且需要重新配<strong>置客户端中主库的地址</strong>，其他从节点需要拉取新的主节点的数据变更，这个过程就是<strong>故障切换</strong>。</p>
+<p>故障切换可以手动进行（通过数据库管理员），或者是自动进行。自动故障切换的过程如下：</p>
+<ul>
+<li><strong>确认主库失效。</strong>大多数系统只是简单使用 <strong>超时</strong>：节点频繁地相互来回传递<strong>心跳</strong>，并且如果一个节点在一段时间内没有响应，就认为它挂了。</li>
+<li><strong>选择一个新的主库。</strong>通过<strong>选举过程</strong>（这是<strong>共识</strong>问题）来完成，或者可以由之前选定的<strong>控制器节点</strong>来指定新的主库。主库的<strong>最佳人选通常是拥有旧主库最新数据副本的从库</strong>。</li>
+</ul>
+<blockquote>
+<p>故障切换回导致很多问题：</p>
+<ul>
+<li>如果采用<strong>异步复制</strong>，则可能出现写入操作<strong>丢失</strong>的情况。</li>
+<li><strong>新老主节点数据冲突。</strong>新主副本在上位前没有同步完所有日志，旧主副本恢复后，可能会发现和新主副本数据冲突。</li>
+<li>发生<strong>脑裂</strong>，集群内部出现多个主节点。</li>
+<li><strong>超时阈值选取</strong>。如果超时阈值选取的过小，在不稳定的网络环境中可能会造成主副本频繁的切换。</li>
+</ul>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="复制日志的实现"><a href="#复制日志的实现" class="headerlink" title="复制日志的实现"></a>复制日志的实现</h2><p>下面是主库发送给从库的复制日志的几种实践方式。</p>
+<h3 id="基于语句的复制"><a href="#基于语句的复制" class="headerlink" title="基于语句的复制"></a>基于语句的复制</h3><p>最简单的情形，就是主库记录每一个写入语句，将这些语句发送给从数据库，从数据库解析并执行该SQL语句，就像从客户端收到一样。</p>
+<p>虽然听上去很合理，但是又有很多问题：</p>
+<ul>
+<li>任何调用<strong>非确定性函数（nondeterministic）</strong>的语句，可能会在每个副本上生成不同的值。例如，<code>NOW()</code> 函数或者 <code>RAND()</code> 函数。</li>
+<li>如果语句使用了<strong>自增列（auto increment）</strong>，或者<strong>依赖于数据库中的现有数据</strong>（例如，<code>UPDATE ... WHERE &lt;某些条件&gt;</code>），则必须在每个副本上按照完全相同的顺序执行它们，否则可能会产生不同的效果。当有多个并发执行的事务时，这可能成为一个限制。</li>
+<li>触发器和、存储过程、用户定义的函数，可能会在每个副本上产生不同的结果。</li>
+</ul>
+<p>的确有办法绕开这些问题 ——例如，当语句被记录时，主库可以用固定的返回值替换任何不确定的函数调用，以便从库获得相同的值。但是由于边缘情况实在太多了，现在通常会选择其他的复制方法。</p>
+<blockquote>
+<p>基于语句的复制在 5.1 版本前的MySQL中使用。但现在在默认情况下，如果语句中存在任何不确定性，MySQL 会切换到基于行的复制。</p>
+</blockquote>
+<h3 id="传输预写日志-WAL"><a href="#传输预写日志-WAL" class="headerlink" title="传输预写日志 WAL"></a>传输预写日志 WAL</h3><p>不管是基于 B+ 树的数据库，还是基于 LSM 树的数据库，都需要记录追加写入的预写日志。所以可以<strong>将追加写入的日志复制给从节点，作为同步日志</strong>。</p>
+<p><strong>主要缺点是日志记录的数据非常底层：</strong>包含哪个字节发生了变化，这使得复制与存储引擎紧密关联，通常<strong>不可能在主节点和从节点之间使用不同版本的存储引擎</strong>。</p>
+<h3 id="基于行（逻辑）日志复制"><a href="#基于行（逻辑）日志复制" class="headerlink" title="基于行（逻辑）日志复制"></a>基于行（逻辑）日志复制</h3><p><strong>复制和存储引擎使用不同的日志格式</strong>，这样可以使复制日志从存储引擎内部分离出来。</p>
+<p>关系数据库的逻辑日志通常是以<strong>行</strong>的粒度描述对数据库表的写入的记录序列（MySQL binlog 就是这种方式）。</p>
+<p> 对于外部应用程序来说，逻辑日志格式也更容易解析。</p>
+<h3 id="基于触发器的复制"><a href="#基于触发器的复制" class="headerlink" title="基于触发器的复制"></a>基于触发器的复制</h3><p><strong>触发器</strong>有机会<strong>将更改记录到一个单独的表中</strong>，使用外部程序<strong>读取这个表</strong>，再加上任何<strong>业务逻辑处理</strong>，会后将数据变更复制到另一个系统去。</p>
+<p>触发器虽然有更高的开销、也更加复杂，但是更具有灵活性。</p>
+<blockquote>
+<p>存储过程同理，数据库直接执行用户代码。</p>
+</blockquote>
+<h2 id="复制滞后问题"><a href="#复制滞后问题" class="headerlink" title="复制滞后问题"></a>复制滞后问题</h2><p><strong>同步</strong>复制可以保证主节点和从节点的同步，但是性能低，多副本时容易<strong>阻塞写入</strong>。在<strong>异步</strong>复制时，某些从节点的进度会落后于主节点，即<strong>复制滞后</strong>。经过一段时间后，多副本会进入<strong>最终一致性</strong>。</p>
+<h3 id="读你所写"><a href="#读你所写" class="headerlink" title="读你所写"></a>读你所写</h3><p>同一个客户端，写入<strong>主副本</strong>后返回；稍后再去读一个落后的<strong>从副本</strong>，会发现没有内容。</p>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-3.png" alt="img"></p>
+<p>所以引入新的一致性，写后读一致性（read-after-write consistency），对于<strong>单个客户端</strong>来说，就一定能够读到其所写变动。提供这种一致性的可能方案：</p>
+<ul>
+<li><strong>按内容分类</strong>。对于客户端可能修改的内容集，<strong>只从主副本读取</strong>。如社交网络上的个人资料，读自己的资料时，从主副本读取；但读其他人资料时，可以向从副本读。</li>
+<li><strong>按时间分类</strong>。 近期（<strong>阈值</strong>值得关注）内有过改动的数据，从主副本读，其他的向从副本读。</li>
+<li><strong>利用时间戳</strong>。客户端记录写入<strong>时间戳</strong>，如果读取到的时间戳早于写入时间戳，则换一个副本读取。</li>
+</ul>
+<h3 id="单调读"><a href="#单调读" class="headerlink" title="单调读"></a>单调读</h3><p>同一个客户端读<strong>取两个同步进度不同的副本</strong>，可能会读取到更早的数据。</p>
+<p>所以，再引入一种一致性保证，单调读。使用以下方法实现：</p>
+<ul>
+<li>一个客户端只从<strong>一个从节点读数据</strong>（可以根据哈希）。</li>
+<li>写后读一致性中的<strong>时间戳机制</strong>。</li>
+</ul>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-4.png" alt="img"></p>
+<blockquote>
+<p>读写一致性和单调读有什么区别？<br>写后读保证的是写后读顺序，单调读保证的是<strong>多次读</strong>之间的顺序。</p>
+</blockquote>
+<h3 id="一致前缀读"><a href="#一致前缀读" class="headerlink" title="一致前缀读"></a>一致前缀读</h3><p>如果数据库由多个<strong>分区（Partition）</strong>组成，而<strong>分区间的事件顺序无法保证</strong>。此时，如果有因果关系的两个事件落在了不同分区，则有可能会出现<strong>因果倒置</strong>。</p>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/fig5-5.png" alt="img"></p>
+<p>所以引入<strong>一致前缀读（consistent prefix reads）</strong>。实现这种一致性保证的方法：</p>
+<ul>
+<li>不分区。</li>
+<li>让所有有因果关系的事件路由到一个分区，如何确定事件之间的因果关系是个难题。</li>
+</ul>
+<h3 id="终极解决方案-分布式事务"><a href="#终极解决方案-分布式事务" class="headerlink" title="终极解决方案 - 分布式事务"></a>终极解决方案 - 分布式事务</h3><p>分布式事务可以解决复制滞后带来的一致性问题。</p>
+<h1 id="多主节点复制"><a href="#多主节点复制" class="headerlink" title="多主节点复制"></a>多主节点复制</h1><p>配置多个主节点可以<strong>防止单点故障</strong>，每一个主节点都可以写入，同时<strong>扮演其他主节点的从节点</strong>。</p>
+<p>多主节点之间的复制拓扑结构有三种：环形（MySQL 默认仅支持环形）、星型、洪范结构。</p>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/1634524795875-25e044c1-fc7d-47dc-a871-1af2fb3f5edd.png" alt="image.png"></p>
+<blockquote>
+<p>环形和星型依然有单点故障的问题，就可用性而言洪范结构更好。但是洪范结构也有问题：就是消息同步复制错乱（添加时间戳是不够的，因为无法保证时钟完全同步，解决办法是<strong>版本向量技术</strong>）。</p>
+</blockquote>
+<h1 id="无主节点复制"><a href="#无主节点复制" class="headerlink" title="无主节点复制"></a>无主节点复制</h1><p> 一些数据存储系统采用不同的方法，放弃主库的概念，并允许任何副本直接接受来自客户端的写入。</p>
+<blockquote>
+<p>从 Amazon 的 Dynamo 论文开始，无主模型又重新大放异彩，Riak，Cassandra 和 Voldemort 都受其启发，可以统称为 <strong>Dynamo 流（Dynamo-style）</strong>。</p>
+</blockquote>
+<p>Dynamo 流派的存储中通常有两种机制：</p>
+<ol>
+<li><strong>读时修复（read repair）</strong>，本质上是一种捎带修复，在读取时发现旧的就顺手修了。</li>
+<li><strong>反熵过程（Anti-entropy process）</strong>，本质上是一种兜底修复，读时修复不可能覆盖所有过期数据，因此需要一些后台进程，持续进行扫描，寻找陈旧数据，然后更新。</li>
+</ol>
+<h2 id="Quorum-读写"><a href="#Quorum-读写" class="headerlink" title="Quorum 读写"></a>Quorum 读写</h2><p>如果副本总数为 n，写入 w 个副本才认定写入成功，并且在查询时最少需要读取 r 个节点。<strong>只要满足 w + r &gt; n</strong>，我们就能读到最新的数据（<strong>鸽巢原理</strong>）。此时 r 和 w 的值称为 <strong>quorum 读写</strong>。即这个约束是保证数据有效所需的最低票数。</p>
+<p>在 Dynamo 流派的存储中，n、r 和 w 通常是可以配置的：</p>
+<ol>
+<li>n 越大冗余度就越高，也就越可靠。</li>
+<li>r 和 w 都常都选择超过半数，如 <code>(n+1)/2</code></li>
+<li>w = n 时，可以让 r = 1。此时是牺牲写入性能换来读取性能。</li>
+</ol>
+<blockquote>
+<p>虽然 Quorum 读写看起来能够保证返回最新值，但在工程实践中有很多不一致的情况，很多细节需要处理。</p>
+</blockquote>
+<h2 id="Soft-Quorum"><a href="#Soft-Quorum" class="headerlink" title="Soft Quorum"></a>Soft Quorum</h2><p>大型集群<strong>（总节点数目 &gt; n）</strong>中，可能最初选中的 n 台机器，由于种种原因，导致无法达到法定读写数目，则此时有两种选择：</p>
+<ol>
+<li>对于所有无法达到 r 或 w 个法定数目的读写，直接报错。</li>
+<li>仍然接受写入，并且将新的写入暂时交给一些正常节点<strong>（不在 n 之内的节点）</strong>。</li>
+</ol>
+<p>后者被称为 <strong>Soft Quorum：</strong>写和读仍然<strong>需要 w 和 r 个成功返回</strong>，只不过可能一些节点不在 n 内，只是<strong>暂时</strong>的保留写入，<strong>之后</strong>再进行数据迁移。</p>
+<blockquote>
+<p>一旦宕机节点恢复，由<strong>反熵后台进程</strong>将数据迁移回应该在的节点之中（n 内的节点）。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-3-%E7%BC%96%E7%A0%81%E4%B8%8E%E6%BC%94%E5%8C%96/" rel="prev" title="数据密集型应用系统设计 (3) 编码与演化">
+      <i class="fa fa-chevron-left"></i> 数据密集型应用系统设计 (3) 编码与演化
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/" rel="next" title="数据密集型应用系统设计 (5) 数据分区">
+      数据密集型应用系统设计 (5) 数据分区 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6"><span class="nav-number">1.</span> <span class="nav-text">主从复制</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%90%8C%E6%AD%A5%E5%A4%8D%E5%88%B6-%E5%BC%82%E6%AD%A5%E5%A4%8D%E5%88%B6"><span class="nav-number">1.1.</span> <span class="nav-text">同步复制 异步复制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8E%E8%8A%82%E7%82%B9%E7%9A%84%E6%97%A5%E5%BF%97%E5%90%8C%E6%AD%A5"><span class="nav-number">1.2.</span> <span class="nav-text">从节点的日志同步</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E8%8A%82%E7%82%B9%E5%AE%95%E6%9C%BA"><span class="nav-number">1.3.</span> <span class="nav-text">处理节点宕机</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BB%8E%E5%BA%93%E5%A4%B1%E6%95%88%EF%BC%9A%E8%BF%BD%E8%B5%B6%E6%81%A2%E5%A4%8D"><span class="nav-number">1.3.1.</span> <span class="nav-text">从库失效：追赶恢复</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BB%E5%BA%93%E5%A4%B1%E6%95%88%EF%BC%9A%E6%95%85%E9%9A%9C%E5%88%87%E6%8D%A2"><span class="nav-number">1.3.2.</span> <span class="nav-text">主库失效：故障切换</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%8D%E5%88%B6%E6%97%A5%E5%BF%97%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">1.4.</span> <span class="nav-text">复制日志的实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E8%AF%AD%E5%8F%A5%E7%9A%84%E5%A4%8D%E5%88%B6"><span class="nav-number">1.4.1.</span> <span class="nav-text">基于语句的复制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%A0%E8%BE%93%E9%A2%84%E5%86%99%E6%97%A5%E5%BF%97-WAL"><span class="nav-number">1.4.2.</span> <span class="nav-text">传输预写日志 WAL</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E8%A1%8C%EF%BC%88%E9%80%BB%E8%BE%91%EF%BC%89%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6"><span class="nav-number">1.4.3.</span> <span class="nav-text">基于行（逻辑）日志复制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E8%A7%A6%E5%8F%91%E5%99%A8%E7%9A%84%E5%A4%8D%E5%88%B6"><span class="nav-number">1.4.4.</span> <span class="nav-text">基于触发器的复制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%8D%E5%88%B6%E6%BB%9E%E5%90%8E%E9%97%AE%E9%A2%98"><span class="nav-number">1.5.</span> <span class="nav-text">复制滞后问题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%BB%E4%BD%A0%E6%89%80%E5%86%99"><span class="nav-number">1.5.1.</span> <span class="nav-text">读你所写</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%95%E8%B0%83%E8%AF%BB"><span class="nav-number">1.5.2.</span> <span class="nav-text">单调读</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E8%87%B4%E5%89%8D%E7%BC%80%E8%AF%BB"><span class="nav-number">1.5.3.</span> <span class="nav-text">一致前缀读</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BB%88%E6%9E%81%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1"><span class="nav-number">1.5.4.</span> <span class="nav-text">终极解决方案 - 分布式事务</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%A4%9A%E4%B8%BB%E8%8A%82%E7%82%B9%E5%A4%8D%E5%88%B6"><span class="nav-number">2.</span> <span class="nav-text">多主节点复制</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%97%A0%E4%B8%BB%E8%8A%82%E7%82%B9%E5%A4%8D%E5%88%B6"><span class="nav-number">3.</span> <span class="nav-text">无主节点复制</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Quorum-%E8%AF%BB%E5%86%99"><span class="nav-number">3.1.</span> <span class="nav-text">Quorum 读写</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Soft-Quorum"><span class="nav-number">3.2.</span> <span class="nav-text">Soft Quorum</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

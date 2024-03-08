@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="高并发读缓存在高并发读的场景下，首先想到的就是加缓存。  本地缓存或者 Redis&#x2F;Memcached 集中式缓存。在缓存时，注意缓存的一致性、以及缓存雪崩缓存击穿等问题。 MySQL 的 Master&#x2F;Slave。如果查询是多张表的联合查询结果，而不是 kv 对（当然也可以用 kv 来缓存，但缺点就是任何一张数据库表变化了，缓存都需要更新），可以采用 MySQL 的 Master&#x2F;Slave 集">
+<meta property="og:type" content="article">
+<meta property="og:title" content="软件架构设计读书笔记 (4) 高并发">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="高并发读缓存在高并发读的场景下，首先想到的就是加缓存。  本地缓存或者 Redis&#x2F;Memcached 集中式缓存。在缓存时，注意缓存的一致性、以及缓存雪崩缓存击穿等问题。 MySQL 的 Master&#x2F;Slave。如果查询是多张表的联合查询结果，而不是 kv 对（当然也可以用 kv 来缓存，但缺点就是任何一张数据库表变化了，缓存都需要更新），可以采用 MySQL 的 Master&#x2F;Slave 集">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/image-20230629151531310.png">
+<meta property="article:published_time" content="2023-06-29T06:07:32.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.834Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="后端开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/image-20230629151531310.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>软件架构设计读书笔记 (4) 高并发 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          软件架构设计读书笔记 (4) 高并发
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-29 14:07:32" itemprop="dateCreated datePublished" datetime="2023-06-29T14:07:32+08:00">2023-06-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="高并发读"><a href="#高并发读" class="headerlink" title="高并发读"></a>高并发读</h1><h2 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h2><p>在高并发读的场景下，首先想到的就是加<strong>缓存</strong>。</p>
+<ul>
+<li><strong>本地缓存或者 Redis/Memcached 集中式缓存。</strong>在缓存时，注意缓存的一致性、以及缓存雪崩缓存击穿等问题。</li>
+<li><strong>MySQL 的 Master/Slave。</strong>如果查询是多张表的联合查询结果，而不是 kv 对（当然也可以用 kv 来缓存，但缺点就是任何一张数据库表变化了，缓存都需要更新），可以采用 MySQL 的 Master/Slave 集群，<strong>通过 Slave 来分担读压力</strong>。</li>
+<li><strong>CDN。</strong>对于<strong>静态文件</strong>，如图片、HTML、CSS、JS 等文件，可以采用 CDN 内容分发网络，CDN 的本质就是在<strong>传输链路上做就近缓存</strong>。</li>
+</ul>
+<h2 id="并发读"><a href="#并发读" class="headerlink" title="并发读"></a>并发读</h2><p>将串行操作改为<strong>并行</strong>操作是常用的优化策略。</p>
+<ul>
+<li><strong>异步 RPC。</strong>当查询的内容没有依赖关系时，可以采用异步 RPC 来减少查询时间。</li>
+<li><strong>冗余请求。</strong>如果在集群中，每一个节点都可能以很小的概率出现调用延迟，可以对同一种请求<strong>发出多个冗余请求</strong>，取出最快的响应作为查询结果。</li>
+</ul>
+<h2 id="重写轻读"><a href="#重写轻读" class="headerlink" title="重写轻读"></a>重写轻读</h2><p>在查询数据时需要聚合数据的场景下，可以采用<strong>重写轻读</strong>的方式进行优化。重写轻读的思路，就是<strong>将聚合数据的操作，提前到写入数据时完成，查询的是已经聚合过的数据</strong>。</p>
+<h3 id="推送-拉取"><a href="#推送-拉取" class="headerlink" title="推送 拉取"></a>推送 拉取</h3><p>比如某个用户需要获取他关注的人发的微博，可以分为两种获取方式：</p>
+<ul>
+<li><strong>推送：</strong>在用户发微博时，写入自己的数据库就成功返回。然后利用后台程序，把这条微博<strong>主动推送给所有粉丝的收件箱</strong>（可以采用 Redis 实现，收件箱可以是一个 list，记录被推送的微博）中。</li>
+<li><strong>拉取：</strong>如果用户粉丝数量很大，那么推送给全部的粉丝这一操作本身就是十分耗时的。所以在查询时还可以<strong>主动的从数据库中拉取数据</strong>。</li>
+</ul>
+<blockquote>
+<p>在实际应用中，可以采用<strong>推拉结合</strong>的方式。</p>
+<p>对于<strong>粉丝数量少</strong>的用户，可以采用<strong>推送</strong>的方式。对于<strong>粉丝数量多</strong>的用户，只<strong>推送给在线粉丝</strong>，<strong>离线粉丝</strong>采用主动<strong>拉取</strong>的方式。</p>
+<p>对于<strong>读取的一方</strong>，有的是推送给他的、有的是主动拉取的，返回查询结果时，需要把二者再<strong>聚合</strong>起来。</p>
+</blockquote>
+<h2 id="总结-CQRS"><a href="#总结-CQRS" class="headerlink" title="总结 - CQRS"></a>总结 - CQRS</h2><p>上述的方法本质上都是<strong>读写分离</strong>，也就是 CQRS（Command Query Responsibility Separation）。CQRS 的特点如下：</p>
+<ul>
+<li><strong>读写两侧可以采用不同的数据结构：</strong>在写入的一侧通常采用 MySQL 这类关系型数据库，可以采用分库分表缓解读压力。而在读的这一侧则根据业务需求选择合适的数据库。</li>
+<li><strong>读和写的串联：</strong>可以在读写之间加入消息队列，来保证读写的<strong>最终一致性</strong>。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/image-20230629151531310.png" alt="image-20230629151531310"></p>
+<span id="more"></span>
+
+<h1 id="高并发写"><a href="#高并发写" class="headerlink" title="高并发写"></a>高并发写</h1><h2 id="数据分片"><a href="#数据分片" class="headerlink" title="数据分片"></a>数据分片</h2><p>在高并发写的场景下，需要进行数据分片，对分片的数据可以做到并发写入操作。</p>
+<p>最常见的数据分片操作就是数据库的<strong>分库分表</strong>。<strong>分表</strong>后，可以更加充分的利用 CPU、内存等资源。<strong>分库</strong>后，可以利用多台机器的资源。</p>
+<h2 id="任务分片"><a href="#任务分片" class="headerlink" title="任务分片"></a>任务分片</h2><p>除了在数据上进行分片，也可以对<strong>处理应用程序本身进行分片</strong>。</p>
+<p>典型的任务分片为 Map/Reduce、服务器的 1+N+M 网络模型。</p>
+<h2 id="异步化"><a href="#异步化" class="headerlink" title="异步化"></a>异步化</h2><p>在应用程序和数据库之间，通过<strong>消息队列</strong>进行连接，通过异步操作写入数据库。</p>
+<p>异步化的操作有两个好处：<strong>削峰</strong>和<strong>更快的用户响应速度</strong>。</p>
+<blockquote>
+<p>短信验证码就是一个典型的异步应用。</p>
+</blockquote>
+<h2 id="批量写入"><a href="#批量写入" class="headerlink" title="批量写入"></a>批量写入</h2><p>将<strong>写请求合并后，批量写入</strong>，这也是高并发写的优化思路。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/" rel="tag"># 后端开发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/" rel="prev" title="软件架构设计读书笔记 (3) 数据库">
+      <i class="fa fa-chevron-left"></i> 软件架构设计读书笔记 (3) 数据库
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/" rel="next" title="数据密集型应用系统设计 (1) 数据模型与查询语言">
+      数据密集型应用系统设计 (1) 数据模型与查询语言 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%AB%98%E5%B9%B6%E5%8F%91%E8%AF%BB"><span class="nav-number">1.</span> <span class="nav-text">高并发读</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%93%E5%AD%98"><span class="nav-number">1.1.</span> <span class="nav-text">缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B9%B6%E5%8F%91%E8%AF%BB"><span class="nav-number">1.2.</span> <span class="nav-text">并发读</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%87%8D%E5%86%99%E8%BD%BB%E8%AF%BB"><span class="nav-number">1.3.</span> <span class="nav-text">重写轻读</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A8%E9%80%81-%E6%8B%89%E5%8F%96"><span class="nav-number">1.3.1.</span> <span class="nav-text">推送 拉取</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93-CQRS"><span class="nav-number">1.4.</span> <span class="nav-text">总结 - CQRS</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%AB%98%E5%B9%B6%E5%8F%91%E5%86%99"><span class="nav-number">2.</span> <span class="nav-text">高并发写</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%88%86%E7%89%87"><span class="nav-number">2.1.</span> <span class="nav-text">数据分片</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%BB%E5%8A%A1%E5%88%86%E7%89%87"><span class="nav-number">2.2.</span> <span class="nav-text">任务分片</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%82%E6%AD%A5%E5%8C%96"><span class="nav-number">2.3.</span> <span class="nav-text">异步化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%89%B9%E9%87%8F%E5%86%99%E5%85%A5"><span class="nav-number">2.4.</span> <span class="nav-text">批量写入</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

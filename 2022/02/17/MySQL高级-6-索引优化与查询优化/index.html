@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="SQL查询优化大致上可以分为两种：  物理查询优化：通过索引和表连接方式等技术进行优化 逻辑查询优化：通过SQL等价变换来提升查询效率  索引创建的基本原则联合索引优于单值索引若WHERE过滤条件中有涉及到多个列，那么对多个列创建联合索引的查询效率高于对单个列创建的索引查询效率 最佳左前缀法则在MySQL建立联合索引时，会遵循最佳左前缀匹配原则，在检索数据时从联合索引的最左边开始匹配。也就是说，过">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (6) 索引优化与查询优化">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/17/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="SQL查询优化大致上可以分为两种：  物理查询优化：通过索引和表连接方式等技术进行优化 逻辑查询优化：通过SQL等价变换来提升查询效率  索引创建的基本原则联合索引优于单值索引若WHERE过滤条件中有涉及到多个列，那么对多个列创建联合索引的查询效率高于对单个列创建的索引查询效率 最佳左前缀法则在MySQL建立联合索引时，会遵循最佳左前缀匹配原则，在检索数据时从联合索引的最左边开始匹配。也就是说，过">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645253419167.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645253487801.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645254460999.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645256176290.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645257059090.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645256548459.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645262546756.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645262800396.png">
+<meta property="article:published_time" content="2022-02-17T14:32:08.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.781Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645253419167.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/17/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (6) 索引优化与查询优化 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/17/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (6) 索引优化与查询优化
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-17 22:32:08" itemprop="dateCreated datePublished" datetime="2022-02-17T22:32:08+08:00">2022-02-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>SQL查询优化大致上可以分为<strong>两种</strong>：</p>
+<ul>
+<li><strong>物理查询优化</strong>：通过<strong>索引</strong>和<strong>表连接方式</strong>等技术进行优化</li>
+<li><strong>逻辑查询优化</strong>：通过SQL<strong>等价变换</strong>来提升查询效率</li>
+</ul>
+<h1 id="索引创建的基本原则"><a href="#索引创建的基本原则" class="headerlink" title="索引创建的基本原则"></a>索引创建的基本原则</h1><h2 id="联合索引优于单值索引"><a href="#联合索引优于单值索引" class="headerlink" title="联合索引优于单值索引"></a>联合索引优于单值索引</h2><p>若<code>WHERE</code>过滤条件中有<strong>涉及到多个列</strong>，那么对<strong>多个列创建联合索引</strong>的查询效率<strong>高于</strong>对单个列创建的索引查询效率</p>
+<h2 id="最佳左前缀法则"><a href="#最佳左前缀法则" class="headerlink" title="最佳左前缀法则"></a>最佳左前缀法则</h2><p>在MySQL建立联合索引时，会遵循最佳左前缀匹配原则，在检索数据时从<strong>联合索引的最左边开始匹配</strong>。也就是说，<strong>过滤条件要使用索引必须按照索引建立时的顺序，一旦某个顺序与联合索引的顺序不匹配，后面的字段无法使用索引</strong>。</p>
+<p>引文件具有B-Tree的最左前缀匹配特性，如果左边的值未确定，那么无法使用此索引。</p>
+<span id="more"></span>
+
+<h1 id="索引失效的情况"><a href="#索引失效的情况" class="headerlink" title="索引失效的情况"></a>索引失效的情况</h1><p>索引对于<strong>查询速度</strong>至关重要：</p>
+<ul>
+<li>使用索引时，可以利用<strong>B+树的查找</strong>，快速找到某条记录</li>
+<li>没有使用索引，就会<strong>顺序扫描</strong>表中的所有记录</li>
+</ul>
+<p>但是，用不用索引最终都是<strong>优化器</strong>说了算。SQL语句是否使用索引，与<strong>数据库版本、数据量、数据选择度</strong>（如查询所有记录）有关</p>
+<h2 id="主键插入顺序"><a href="#主键插入顺序" class="headerlink" title="主键插入顺序"></a>主键插入顺序</h2><p>若不按照顺序插入主键，就可能引起<strong>页分裂</strong>，产生性能损耗。最好让插入的记录的<strong>主键值依次递增</strong>，这样就不会发生这样的性能损耗了。<br><strong>建议</strong>：</p>
+<ul>
+<li>让主键具有<code>AUTO_INCREMENT</code>，让存储引擎自己为表生成主键，而不是我们手动插入</li>
+</ul>
+<h2 id="计算、函数导致索引失效"><a href="#计算、函数导致索引失效" class="headerlink" title="计算、函数导致索引失效"></a>计算、函数导致索引失效</h2><ul>
+<li>使用<strong>函数</strong>时，不会用到索引：</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EXPLAIN <span class="keyword">SELECT</span> SQL_NO_CACHE <span class="operator">*</span> <span class="keyword">FROM</span> student <span class="keyword">WHERE</span> <span class="keyword">LEFT</span>(student.name,<span class="number">3</span>) <span class="operator">=</span> <span class="string">&#x27;abc&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645253419167.png" alt="函数会使得索引失效"></p>
+<ul>
+<li>进行<strong>运算</strong>时，不会用到索引：</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EXPLAIN <span class="keyword">SELECT</span> SQL_NO_CACHE id, stuno, NAME <span class="keyword">FROM</span> student <span class="keyword">WHERE</span> stuno<span class="operator">+</span><span class="number">1</span> <span class="operator">=</span> <span class="number">900001</span>;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645253487801.png" alt="运算会使得索引失效"></p>
+<h2 id="类型转换导致索引失效"><a href="#类型转换导致索引失效" class="headerlink" title="类型转换导致索引失效"></a>类型转换导致索引失效</h2><p>不管是<strong>显示的还是隐式的</strong>类型转换，都会导致索引失效：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"># 索引失效</span><br><span class="line"><span class="keyword">SELECT</span> SQL_NO_CACHE <span class="operator">*</span> <span class="keyword">FROM</span> student <span class="keyword">WHERE</span> name<span class="operator">=</span><span class="number">123</span>;</span><br><span class="line"></span><br><span class="line"># 使用到了索引</span><br><span class="line"><span class="keyword">SELECT</span> SQL_NO_CACHE <span class="operator">*</span> <span class="keyword">FROM</span> student <span class="keyword">WHERE</span> name<span class="operator">=</span><span class="string">&#x27;123&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="范围条件右侧的列索引失效"><a href="#范围条件右侧的列索引失效" class="headerlink" title="范围条件右侧的列索引失效"></a>范围条件右侧的列索引失效</h2><p><strong>范围查找</strong>所对应<strong>列应该放到联合索引的最右侧</strong>，否则会导致范围查找右侧的列索引失效：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"># 对classid进行范围查找，但是没有放在联合索引的最右侧</span><br><span class="line"><span class="keyword">CREATE</span> index idx_age_classid_name <span class="keyword">ON</span> student(age,classid,name);</span><br><span class="line"></span><br><span class="line"># name的索引失效</span><br><span class="line"><span class="keyword">SELECT</span> SQL_NO_CACHE <span class="operator">*</span> </span><br><span class="line"><span class="keyword">FROM</span> student </span><br><span class="line"><span class="keyword">WHERE</span> student.age<span class="operator">=</span><span class="number">30</span> <span class="keyword">AND</span> student.name <span class="operator">=</span> <span class="string">&#x27;abc&#x27;</span> <span class="keyword">AND</span> student.classId<span class="operator">&gt;</span><span class="number">20</span>;</span><br><span class="line"></span><br><span class="line"># classid被放在了联合索引的最右侧，name可以使用索引</span><br><span class="line"><span class="keyword">CREATE</span> index idx_age_name_classid <span class="keyword">ON</span> student(age,name,classid);</span><br></pre></td></tr></table></figure>
+
+<h2 id="不等于导致索引失效"><a href="#不等于导致索引失效" class="headerlink" title="不等于导致索引失效"></a>不等于导致索引失效</h2><p>过滤条件中使用<strong>不等于</strong>符号<code>!=</code>或者<code>&lt;&gt;</code>，会导致索引失效</p>
+<h2 id="is-null可以使用索引，is-not-null无法使用索引"><a href="#is-null可以使用索引，is-not-null无法使用索引" class="headerlink" title="is null可以使用索引，is not null无法使用索引"></a>is null可以使用索引，is not null无法使用索引</h2><h2 id="like以通配符-开头索引失效"><a href="#like以通配符-开头索引失效" class="headerlink" title="like以通配符%开头索引失效"></a>like以通配符%开头索引失效</h2><p>左模糊或者全模糊搜索，会导致索引失效：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EXPLAIN <span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> student <span class="keyword">WHERE</span> name <span class="keyword">LIKE</span> <span class="string">&#x27;%ab&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645254460999.png" alt="左模糊或者全模糊搜索，会导致索引失效"></p>
+<h2 id="OR-前后存在非索引的列，索引失效"><a href="#OR-前后存在非索引的列，索引失效" class="headerlink" title="OR 前后存在非索引的列，索引失效"></a>OR 前后存在非索引的列，索引失效</h2><h2 id="字符集不统一导致索引失效"><a href="#字符集不统一导致索引失效" class="headerlink" title="字符集不统一导致索引失效"></a>字符集不统一导致索引失效</h2><p><strong>不同的字符集</strong>进行比较前需要进行<strong>转换</strong>，会造成索引失效</p>
+<h1 id="关联查询优化"><a href="#关联查询优化" class="headerlink" title="关联查询优化"></a>关联查询优化</h1><p>在进行外连接/内连接查询时，在<strong>被驱动表上建立索引更好</strong>：</p>
+<ul>
+<li>外连接，以左外连接为例，被驱动表是右边的表：</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># 在book.card上建立索引可以避免全表扫描，此时book是被驱动表</span><br><span class="line">EXPLAIN <span class="keyword">SELECT</span> SQL_NO_CACHE <span class="operator">*</span> <span class="keyword">FROM</span> `type` <span class="keyword">LEFT</span> <span class="keyword">JOIN</span> book <span class="keyword">ON</span> type.card <span class="operator">=</span> book.card;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>内连接，内连接中的两个表都是同等地位的，由<strong>优化器</strong>决定谁是被驱动表：</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># 在type.card或者book.card上建立索引都可</span><br><span class="line"><span class="keyword">SELECT</span> SQL_NO_CACHE <span class="operator">*</span> <span class="keyword">FROM</span> type <span class="keyword">INNER</span> <span class="keyword">JOIN</span> book <span class="keyword">ON</span> type.card<span class="operator">=</span>book.card;</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<p><strong>注意：</strong></p>
+<p>对于内连接来说，若两个表上都有索引，优化器会选择小表作为驱动表，大表作为被驱动表（<strong>小表驱动大表</strong>）</p>
+<h2 id="JOIN语句的原理"><a href="#JOIN语句的原理" class="headerlink" title="JOIN语句的原理"></a>JOIN语句的原理</h2><p>前两种是 Nested-Loop Join 嵌套循环连接的方式</p>
+<p>MySQL 8.0推出新特性，Hash Join 哈希连接</p>
+<h3 id="被驱动表上没有索引"><a href="#被驱动表上没有索引" class="headerlink" title="被驱动表上没有索引"></a>被驱动表上没有索引</h3><p>若表A是驱动表，表B是被驱动表。若没有索引，会对<strong>被驱动表上进行全表扫描</strong>。</p>
+<p>JOIN语句的执行流程是：依次取出表A中的数据，一行一行的遍历表B</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645256176290.png" alt="简单嵌套循环连接"></p>
+<p><strong>优化：</strong>对于驱动表而言，一条一条取数据会进行很多次IO。为了减少IO，可以<strong>一次性读取多条驱动表中的数据组成一个块</strong>，放入内存中的join buffer中，<strong>被驱动表的每条记录一次性和join buffer中所有驱动表记录进行匹配</strong>：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645257059090.png" alt="块嵌套循环连接"></p>
+<h3 id="被驱动表示有索引"><a href="#被驱动表示有索引" class="headerlink" title="被驱动表示有索引"></a>被驱动表示有索引</h3><p>若A是驱动表，B是被驱动表，被驱动表上有索引</p>
+<p>JOIN语句的执行流程是：依次从A中取出数据，根据<strong>索引查询</strong>被驱动表B</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645256548459.png" alt="索引嵌套循环连接"></p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><ol>
+<li>小表驱动大表（为了减少外层循环的次数，外层循环即驱动表的数据量）</li>
+<li>为被驱动表添加索引</li>
+<li>增加join buffer大小</li>
+</ol>
+<h3 id="MySQL-8-0新特性：hash-join"><a href="#MySQL-8-0新特性：hash-join" class="headerlink" title="MySQL 8.0新特性：hash join"></a>MySQL 8.0新特性：hash join</h3><p>hash join（哈希连接）分为两个阶段：</p>
+<ul>
+<li>选择一个表（一般情况下是<strong>较小的那个表</strong>，以减少建立哈希表的时间和空间），对其中每个元组上的连接属性采用哈希函数得到哈希值，从而<strong>建立一个哈希表</strong></li>
+<li>对另一个表，扫描它的每一行并计算连接属性的哈希值，从哈希表中进行匹配</li>
+</ul>
+<h1 id="子查询优化"><a href="#子查询优化" class="headerlink" title="子查询优化"></a>子查询优化</h1><p>子查询<strong>执行效率不高</strong>，原因：</p>
+<ul>
+<li>执行子查询时，MySQL需要为内层查询语句的查询结果<strong>建立一个临时表</strong>，然后外层查询语句从临时表中查询记录。查询完毕后，再<strong>撤销这些临时表</strong>。这样会消耗过多的CPU和IO资源，产生大量的慢查询</li>
+<li>子查询的结果集存储的临时表，不论是<strong>内存临时表还是磁盘临时表都 不会存在索引</strong> ，所以查询性能会受到一定的影响</li>
+</ul>
+<p><strong>优化思路：可以使用连接（JOIN）查询来替代子查询</strong>。连接查询<strong>不需要建立临时表</strong>，其速度比子查询要快，如果查询中使用<strong>索引</strong>的话，性能就会更好</p>
+<h1 id="排序优化"><a href="#排序优化" class="headerlink" title="排序优化"></a>排序优化</h1><h2 id="MySQL排序方式"><a href="#MySQL排序方式" class="headerlink" title="MySQL排序方式"></a>MySQL排序方式</h2><p>在MySQL种，支持两种排序方式，分别是<code>FileSort</code>和<code>Index</code>：</p>
+<ul>
+<li><code>Index</code>排序中，<strong>索引可以保证数据的有效性</strong>，无需进行排序，效率高</li>
+<li><code>FileSort</code>排序在内存中利用排序算法进行排序，效率低</li>
+</ul>
+<h2 id="优化思路"><a href="#优化思路" class="headerlink" title="优化思路"></a>优化思路</h2><p>基本思想是：</p>
+<p>在<strong>需要排序的列上建立索引</strong>，避免使用<code>FileSort</code>进行排序，而是使用<code>Index</code>进行排序</p>
+<h1 id="优先使用覆盖索引"><a href="#优先使用覆盖索引" class="headerlink" title="优先使用覆盖索引"></a>优先使用覆盖索引</h1><p>在非聚簇索引（覆盖索引也记录主键）中，<strong>建索引的字段正好是覆盖查询条件中所涉及的字段</strong>，此时<strong>不用回表</strong>操作，这样的索引是覆盖索引</p>
+<p>注意：<strong>回表是随机IO</strong>，所以覆盖索引在范围查询时，可以将随机IO变为顺序IO</p>
+<h1 id="索引下推"><a href="#索引下推" class="headerlink" title="索引下推"></a>索引下推</h1><p><strong>索引下推</strong>Index Condition Pushdown(ICP)是MySQL 5.6中的新特性，是一种在<strong>存储引擎层</strong>使用索引过滤数据的一种优化方式。</p>
+<p>ICP可以<strong>减少存储引擎访问基表（主键索引）的次数</strong>以及<strong>MySQL服务器访问存储引擎的次数</strong>。</p>
+<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>在联合索引中，过滤条件<strong>使用到了索引的字段，但是部分索引失效了</strong>，可以使用索引条件下推<strong>在回表之前进行数据过滤</strong></p>
+<h2 id="不使用ICP"><a href="#不使用ICP" class="headerlink" title="不使用ICP"></a>不使用ICP</h2><p>在不使用ICP时，存储引擎在查询索引时，<strong>对索引失效的字段不做过滤</strong>，回表后再一并使用过滤条件进行过滤：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645262546756.png" alt="不使用ICP"></p>
+<h3 id="使用ICP"><a href="#使用ICP" class="headerlink" title="使用ICP"></a>使用ICP</h3><p>在使用ICP时，存储引擎在查询索引时，对于<strong>索引失效的字段先进行条件过滤</strong>，再进行回表操作：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-6-%E7%B4%A2%E5%BC%95%E4%BC%98%E5%8C%96%E4%B8%8E%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96/1645262800396.png" alt="使用ICP"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/17/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-17/" rel="prev" title="算法刷题笔记 (17) 搜索二维矩阵II 最大正方形 最长公共前缀 岛屿的最大面积">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (17) 搜索二维矩阵II 最大正方形 最长公共前缀 岛屿的最大面积
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/18/GO%E8%AF%AD%E8%A8%80%E5%9C%A3%E7%BB%8F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E6%96%B9%E6%B3%95%E5%92%8C%E5%B0%81%E8%A3%85/" rel="next" title="GO语言圣经学习笔记 (5) 方法和封装">
+      GO语言圣经学习笔记 (5) 方法和封装 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E5%88%9B%E5%BB%BA%E7%9A%84%E5%9F%BA%E6%9C%AC%E5%8E%9F%E5%88%99"><span class="nav-number">1.</span> <span class="nav-text">索引创建的基本原则</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%81%94%E5%90%88%E7%B4%A2%E5%BC%95%E4%BC%98%E4%BA%8E%E5%8D%95%E5%80%BC%E7%B4%A2%E5%BC%95"><span class="nav-number">1.1.</span> <span class="nav-text">联合索引优于单值索引</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%80%E4%BD%B3%E5%B7%A6%E5%89%8D%E7%BC%80%E6%B3%95%E5%88%99"><span class="nav-number">1.2.</span> <span class="nav-text">最佳左前缀法则</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88%E7%9A%84%E6%83%85%E5%86%B5"><span class="nav-number">2.</span> <span class="nav-text">索引失效的情况</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BB%E9%94%AE%E6%8F%92%E5%85%A5%E9%A1%BA%E5%BA%8F"><span class="nav-number">2.1.</span> <span class="nav-text">主键插入顺序</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%A1%E7%AE%97%E3%80%81%E5%87%BD%E6%95%B0%E5%AF%BC%E8%87%B4%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.2.</span> <span class="nav-text">计算、函数导致索引失效</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B1%BB%E5%9E%8B%E8%BD%AC%E6%8D%A2%E5%AF%BC%E8%87%B4%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.3.</span> <span class="nav-text">类型转换导致索引失效</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%8C%83%E5%9B%B4%E6%9D%A1%E4%BB%B6%E5%8F%B3%E4%BE%A7%E7%9A%84%E5%88%97%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.4.</span> <span class="nav-text">范围条件右侧的列索引失效</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8D%E7%AD%89%E4%BA%8E%E5%AF%BC%E8%87%B4%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.5.</span> <span class="nav-text">不等于导致索引失效</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#is-null%E5%8F%AF%E4%BB%A5%E4%BD%BF%E7%94%A8%E7%B4%A2%E5%BC%95%EF%BC%8Cis-not-null%E6%97%A0%E6%B3%95%E4%BD%BF%E7%94%A8%E7%B4%A2%E5%BC%95"><span class="nav-number">2.6.</span> <span class="nav-text">is null可以使用索引，is not null无法使用索引</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#like%E4%BB%A5%E9%80%9A%E9%85%8D%E7%AC%A6-%E5%BC%80%E5%A4%B4%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.7.</span> <span class="nav-text">like以通配符%开头索引失效</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#OR-%E5%89%8D%E5%90%8E%E5%AD%98%E5%9C%A8%E9%9D%9E%E7%B4%A2%E5%BC%95%E7%9A%84%E5%88%97%EF%BC%8C%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.8.</span> <span class="nav-text">OR 前后存在非索引的列，索引失效</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AD%97%E7%AC%A6%E9%9B%86%E4%B8%8D%E7%BB%9F%E4%B8%80%E5%AF%BC%E8%87%B4%E7%B4%A2%E5%BC%95%E5%A4%B1%E6%95%88"><span class="nav-number">2.9.</span> <span class="nav-text">字符集不统一导致索引失效</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%85%B3%E8%81%94%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96"><span class="nav-number">3.</span> <span class="nav-text">关联查询优化</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#JOIN%E8%AF%AD%E5%8F%A5%E7%9A%84%E5%8E%9F%E7%90%86"><span class="nav-number">3.1.</span> <span class="nav-text">JOIN语句的原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A2%AB%E9%A9%B1%E5%8A%A8%E8%A1%A8%E4%B8%8A%E6%B2%A1%E6%9C%89%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.1.</span> <span class="nav-text">被驱动表上没有索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A2%AB%E9%A9%B1%E5%8A%A8%E8%A1%A8%E7%A4%BA%E6%9C%89%E7%B4%A2%E5%BC%95"><span class="nav-number">3.1.2.</span> <span class="nav-text">被驱动表示有索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.1.3.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MySQL-8-0%E6%96%B0%E7%89%B9%E6%80%A7%EF%BC%9Ahash-join"><span class="nav-number">3.1.4.</span> <span class="nav-text">MySQL 8.0新特性：hash join</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AD%90%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96"><span class="nav-number">4.</span> <span class="nav-text">子查询优化</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8E%92%E5%BA%8F%E4%BC%98%E5%8C%96"><span class="nav-number">5.</span> <span class="nav-text">排序优化</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#MySQL%E6%8E%92%E5%BA%8F%E6%96%B9%E5%BC%8F"><span class="nav-number">5.1.</span> <span class="nav-text">MySQL排序方式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BC%98%E5%8C%96%E6%80%9D%E8%B7%AF"><span class="nav-number">5.2.</span> <span class="nav-text">优化思路</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BC%98%E5%85%88%E4%BD%BF%E7%94%A8%E8%A6%86%E7%9B%96%E7%B4%A2%E5%BC%95"><span class="nav-number">6.</span> <span class="nav-text">优先使用覆盖索引</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B4%A2%E5%BC%95%E4%B8%8B%E6%8E%A8"><span class="nav-number">7.</span> <span class="nav-text">索引下推</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E7%90%86"><span class="nav-number">7.1.</span> <span class="nav-text">原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8D%E4%BD%BF%E7%94%A8ICP"><span class="nav-number">7.2.</span> <span class="nav-text">不使用ICP</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8ICP"><span class="nav-number">7.2.1.</span> <span class="nav-text">使用ICP</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

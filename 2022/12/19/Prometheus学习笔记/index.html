@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="PrometheusPrometheus 是新一代的云原生监控系统，是一个开源的完整监控解决方案，形成了基于中央化的规则计算、统一分析和告警的新模型。 特点Prometheus 作为一种云原生监控系统，有以下特点： 易于管理 Prometheus 核心部分只有一个单独的二进制文件，不存在任何的第三方依赖（数据库、缓存等），因此不会存在级联故障。 Prometheus 基于 Pull 模型的架构方式">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Prometheus学习笔记">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/12/19/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="PrometheusPrometheus 是新一代的云原生监控系统，是一个开源的完整监控解决方案，形成了基于中央化的规则计算、统一分析和告警的新模型。 特点Prometheus 作为一种云原生监控系统，有以下特点： 易于管理 Prometheus 核心部分只有一个单独的二进制文件，不存在任何的第三方依赖（数据库、缓存等），因此不会存在级联故障。 Prometheus 基于 Pull 模型的架构方式">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/image-20221219101506892.png">
+<meta property="article:published_time" content="2022-12-19T01:44:23.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.784Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Prometheus">
+<meta property="article:tag" content="监控系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/image-20221219101506892.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/12/19/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Prometheus学习笔记 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/19/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Prometheus学习笔记
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-19 09:44:23" itemprop="dateCreated datePublished" datetime="2022-12-19T09:44:23+08:00">2022-12-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Prometheus学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Prometheus"><a href="#Prometheus" class="headerlink" title="Prometheus"></a>Prometheus</h1><p>Prometheus 是新一代的云原生监控系统，是一个开源的完整监控解决方案，形成了基于中央化的规则计算、统一分析和告警的新模型。</p>
+<h2 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h2><p>Prometheus 作为一种云原生监控系统，有以下特点：</p>
+<h3 id="易于管理"><a href="#易于管理" class="headerlink" title="易于管理"></a>易于管理</h3><ul>
+<li>Prometheus 核心部分只有一个<strong>单独的二进制</strong>文件，不存在任何的第三方依赖（数据库、缓存等），因此不会存在<strong>级联故障</strong>。</li>
+<li>Prometheus <strong>基于 Pull 模型</strong>的架构方式，可以在任何地方搭建监控系统。</li>
+<li>对于一些复杂的情况，还可以使用 Prometheus <strong>服务发现</strong>功能动态管理监控目标。</li>
+</ul>
+<h3 id="监控服务的内部运行状态"><a href="#监控服务的内部运行状态" class="headerlink" title="监控服务的内部运行状态"></a><strong>监控服务的内部运行状态</strong></h3><ul>
+<li>Pometheus 鼓励用户监控<strong>服务的内部状态</strong>，基于 Prometheus 丰富的 Client 库，用户可以轻松的在应用程序中添加对 Prometheus 的支持，从而让用户可以获取服务和应用内部真正的运行状态。</li>
+</ul>
+<h3 id="强大的数据模型"><a href="#强大的数据模型" class="headerlink" title="强大的数据模型"></a>强大的数据模型</h3><ul>
+<li>所有采集的监控数据均以<strong>指标（metric）</strong>的形式保存在<strong>内置的时间序列数据库</strong>当中。所有的样本除了基本的<strong>指标名称</strong>以外，还包含一组用于描述该样本特征的<strong>标签</strong>。每一条时间序列由<strong>指标名称（Metrics Name）</strong>以及一组<strong>标签（Labels）</strong>唯一标识。如下所示：</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">http_request_status&#123;code=&#x27;200&#x27;,content_path=&#x27;/api/path&#x27;,environment=&#x27;produment&#x27;&#125; =&gt; </span><br><span class="line">[value1@timestamp1,value2@timestamp2...]</span><br></pre></td></tr></table></figure>
+
+<p>其中，<code>http_request_status</code> 为指标名称，<code>code</code>、<code>content_path</code> 等为标签，<code>[value1@timestamp1,value2@timestamp2...]</code> 按照时间的先后顺序存储的值。</p>
+<h3 id="强大的查询语言-PromQL"><a href="#强大的查询语言-PromQL" class="headerlink" title="强大的查询语言 PromQL"></a>强大的查询语言 PromQL</h3><ul>
+<li>Prometheus 内置了一个强大的<strong>数据查询语言 PromQL</strong>。 通过 PromQL 可以实现对监控数据的查询、聚合。同时 PromQL 也被应用于数据可视化（如 Grafana）以及告警当中。</li>
+</ul>
+<h3 id="可扩展"><a href="#可扩展" class="headerlink" title="可扩展"></a>可扩展</h3><ul>
+<li>Prometheus 对于联邦集群的支持，可以让多个 Prometheus 实例产生一个逻辑<strong>集群</strong>，当单实例 Prometheus Server 处理的任务量过大时，通过使用功能分区 + 联邦集群可以对其进行扩展。</li>
+</ul>
+<h2 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h2><p>Prometheus 整体上可以分为三个模块：</p>
+<ul>
+<li>采集层</li>
+<li>存储计算层</li>
+<li>应用层</li>
+</ul>
+<p><img src="/../images/Prometheus%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/image-20221219101506892.png" alt="image-20221219101506892"></p>
+<span id="more"></span>
+
+<h3 id="采集层"><a href="#采集层" class="headerlink" title="采集层"></a>采集层</h3><p>采集层主要用于采集被监控的数据，层分为两类，一类是生命周期较短的作业，还有一类是生命周期较长的作业（这种对应于监控特定的机器）。</p>
+<ul>
+<li>短作业：直接通过 API，在<strong>退出时将指标推送给 Pushgateway</strong>（推送网关，短作业将指标推送给推送网关，之后 Prometheus server 中的 Retrieval 统一从推送网关中拉取短作业的监控数据）。</li>
+<li>长作业：Retrieval 组件直接从 Job 或者 Exporter（Exporter 为专门为一些应用开发的数据获取组件，如 mysqld_exporter、node_exporter 等）拉取数据。</li>
+</ul>
+<h3 id="存储计算层"><a href="#存储计算层" class="headerlink" title="存储计算层"></a>存储计算层</h3><p>存储计算层包含两个主要组件，Prometheus server 和 Service discovery。</p>
+<ul>
+<li><strong>Prometheus server：</strong><ul>
+<li><strong>Retrieval：</strong>取数据组件，它会<strong>主动从 Pushgateway 或者 Exporter 中拉取</strong>指标数据。</li>
+<li><strong>TSDB：</strong>时序数据库，提供数据核心<strong>存储与查询</strong>。</li>
+<li><strong>HTTP server：</strong>对外提供 HTTP 服务。</li>
+</ul>
+</li>
+<li><strong>Service discovery：</strong>可以动态发现要监控的目标。</li>
+</ul>
+<h3 id="应用层"><a href="#应用层" class="headerlink" title="应用层"></a>应用层</h3><p>应用层主要分为两种，AlertManager 和数据可视化。</p>
+<ul>
+<li>AlertManager：专门用于处理告警的组件。</li>
+<li>数据可视化：用于数据可视化或者向外提供 API 用于提供监控数据，数据可视化可以采用 Prometheus Web UI、Grafana。</li>
+</ul>
+<h1 id="PromQL"><a href="#PromQL" class="headerlink" title="PromQL"></a>PromQL</h1><p>Prometheus 通过<strong>指标名称（metrics name）以及对应的一组标签（labelset）唯一定义一条时间序列</strong>。指标名称反映了监控样本的基本标识，而标签则在这个基本特征上为采集到的数据提供了多种特征维度。</p>
+<p>用户可以基于这些特征维度过滤，聚合，统计从而产生新的计算后的一条时间序列。PromQL 是 Prometheus <strong>内置的数据查询语言</strong>，其提供对时间序列数据丰富的查询，聚合以及逻辑运算能力的支持。并且被广泛应用在 Prometheus的日常应用当中，包括对数据查询、可视化、告警处理当中。</p>
+<blockquote>
+<p>详细的语法查询 Prometheus 官方文档即可：<a target="_blank" rel="noopener" href="https://prometheus.io/docs/prometheus/latest/getting_started/">https://prometheus.io/docs/prometheus/latest/getting_started/</a></p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Prometheus/" rel="tag"># Prometheus</a>
+              <a href="/tags/%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F/" rel="tag"># 监控系统</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/17/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-HacRED-A-Large-Scale-Relation-Extraction-Dataset-Toward-Hard-Cases-in-Practical-Applications/" rel="prev" title="关系抽取论文 HacRED: A Large-Scale Relation Extraction Dataset Toward Hard Cases in Practical Applications">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 HacRED: A Large-Scale Relation Extraction Dataset Toward Hard Cases in Practical Applications
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/19/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84/" rel="next" title="夜莺监控系统学习笔记 (1) 架构">
+      夜莺监控系统学习笔记 (1) 架构 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Prometheus"><span class="nav-number">1.</span> <span class="nav-text">Prometheus</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%B9%E7%82%B9"><span class="nav-number">1.1.</span> <span class="nav-text">特点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%98%93%E4%BA%8E%E7%AE%A1%E7%90%86"><span class="nav-number">1.1.1.</span> <span class="nav-text">易于管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7%E6%9C%8D%E5%8A%A1%E7%9A%84%E5%86%85%E9%83%A8%E8%BF%90%E8%A1%8C%E7%8A%B6%E6%80%81"><span class="nav-number">1.1.2.</span> <span class="nav-text">监控服务的内部运行状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%BA%E5%A4%A7%E7%9A%84%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.3.</span> <span class="nav-text">强大的数据模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%BA%E5%A4%A7%E7%9A%84%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80-PromQL"><span class="nav-number">1.1.4.</span> <span class="nav-text">强大的查询语言 PromQL</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%AF%E6%89%A9%E5%B1%95"><span class="nav-number">1.1.5.</span> <span class="nav-text">可扩展</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84"><span class="nav-number">1.2.</span> <span class="nav-text">架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%87%87%E9%9B%86%E5%B1%82"><span class="nav-number">1.2.1.</span> <span class="nav-text">采集层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AD%98%E5%82%A8%E8%AE%A1%E7%AE%97%E5%B1%82"><span class="nav-number">1.2.2.</span> <span class="nav-text">存储计算层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BA%94%E7%94%A8%E5%B1%82"><span class="nav-number">1.2.3.</span> <span class="nav-text">应用层</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#PromQL"><span class="nav-number">2.</span> <span class="nav-text">PromQL</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

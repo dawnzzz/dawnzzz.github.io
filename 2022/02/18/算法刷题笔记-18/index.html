@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="字符串解码字符串解码 解题思路利用两个栈，numStack记录需要重复的次数k，strStack记录扫描到的字符串。从左向右扫描字符串：  若遇到数字：压入numStack中 若遇到左括号或者字母：压入strStack中 若遇到右括号：需要字符串解码 strStack中的字符串依次出栈组成待重复的子串subStr，直到遇到左括号为止 弹出numStack栈顶元素k，使subStr重复k次并重新压入">
+<meta property="og:type" content="article">
+<meta property="og:title" content="算法刷题笔记 (18) 字符串解码 手撕堆排序 二叉搜索树的第k大节点 二叉树的后序遍历">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-18/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="字符串解码字符串解码 解题思路利用两个栈，numStack记录需要重复的次数k，strStack记录扫描到的字符串。从左向右扫描字符串：  若遇到数字：压入numStack中 若遇到左括号或者字母：压入strStack中 若遇到右括号：需要字符串解码 strStack中的字符串依次出栈组成待重复的子串subStr，直到遇到左括号为止 弹出numStack栈顶元素k，使subStr重复k次并重新压入">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-02-18T13:49:15.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.828Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-18/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>算法刷题笔记 (18) 字符串解码 手撕堆排序 二叉搜索树的第k大节点 二叉树的后序遍历 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-18/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          算法刷题笔记 (18) 字符串解码 手撕堆排序 二叉搜索树的第k大节点 二叉树的后序遍历
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-18 21:49:15" itemprop="dateCreated datePublished" datetime="2022-02-18T21:49:15+08:00">2022-02-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="字符串解码"><a href="#字符串解码" class="headerlink" title="字符串解码"></a>字符串解码</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/decode-string">字符串解码</a></p>
+<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>利用两个<strong>栈</strong>，<code>numStack</code>记录需要重复的次数<code>k</code>，<code>strStack</code>记录扫描到的字符串。从左向右扫描字符串：</p>
+<ul>
+<li>若遇到<strong>数字</strong>：压入<code>numStack</code>中</li>
+<li>若遇到<strong>左括号或者字母</strong>：压入<code>strStack</code>中</li>
+<li>若遇到<strong>右括号</strong>：需要字符串解码<ul>
+<li><code>strStack</code>中的字符串依次出栈组成待重复的子串<code>subStr</code>，直到遇到左括号为止</li>
+<li>弹出<code>numStack</code>栈顶元素<code>k</code>，使<code>subStr</code>重复<code>k</code>次并重新压入<code>strStack</code>中</li>
+</ul>
+</li>
+<li>最后从底向顶扫描<code>strStack</code>，依次组成返回结果</li>
+</ul>
+<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">decodeString</span><span class="params">(s <span class="keyword">string</span>)</span> <span class="title">string</span></span> &#123;</span><br><span class="line">    numStack := <span class="built_in">make</span>([]<span class="keyword">int</span>, <span class="number">0</span>)      <span class="comment">// 记录需要重复的次数</span></span><br><span class="line">    strStack := <span class="built_in">make</span>([]<span class="keyword">string</span>, <span class="number">0</span>)   <span class="comment">// 记录待解码的字符串</span></span><br><span class="line">    i := <span class="number">0</span>      <span class="comment">// 扫描字符串的下标</span></span><br><span class="line">    <span class="keyword">for</span> i &lt; <span class="built_in">len</span>(s) &#123;</span><br><span class="line">        <span class="keyword">if</span> <span class="string">&#x27;0&#x27;</span> &lt;= s[i] &amp;&amp; s[i] &lt;= <span class="string">&#x27;9&#x27;</span> &#123;     <span class="comment">// 若扫描到数字</span></span><br><span class="line">            k := <span class="keyword">int</span>(s[i]-<span class="string">&#x27;0&#x27;</span>)      <span class="comment">// 重复次数k</span></span><br><span class="line">            j := i+<span class="number">1</span></span><br><span class="line">            <span class="keyword">for</span> ; j &lt; <span class="built_in">len</span>(s) &amp;&amp; <span class="string">&#x27;0&#x27;</span> &lt;= s[j] &amp;&amp; s[j] &lt;= <span class="string">&#x27;9&#x27;</span>; j++ &#123;   <span class="comment">// 转化为int型</span></span><br><span class="line">                k = k*<span class="number">10</span> + <span class="keyword">int</span>(s[j]-<span class="string">&#x27;0&#x27;</span>)</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 重复次数入栈</span></span><br><span class="line">            numStack = <span class="built_in">append</span>(numStack, k)</span><br><span class="line">            <span class="comment">// 更新下标</span></span><br><span class="line">            i = j</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> s[i] == <span class="string">&#x27;]&#x27;</span> &#123;     <span class="comment">// 扫描到右括号，需要解码</span></span><br><span class="line">            <span class="keyword">var</span> subStr <span class="keyword">string</span>      <span class="comment">// 待解码的字符串</span></span><br><span class="line">            <span class="comment">// 依次出栈，直到遇到左括号</span></span><br><span class="line">            cur := strStack[<span class="built_in">len</span>(strStack)<span class="number">-1</span>]</span><br><span class="line">            <span class="keyword">for</span> cur != <span class="string">&quot;[&quot;</span> &#123;</span><br><span class="line">                subStr = cur + subStr</span><br><span class="line">                strStack = strStack[:<span class="built_in">len</span>(strStack)<span class="number">-1</span>]</span><br><span class="line">                cur = strStack[<span class="built_in">len</span>(strStack)<span class="number">-1</span>]</span><br><span class="line">            &#125;</span><br><span class="line">            strStack = strStack[:<span class="built_in">len</span>(strStack)<span class="number">-1</span>]   <span class="comment">// 弹出左括号</span></span><br><span class="line">            <span class="comment">// 弹出一个重复数字</span></span><br><span class="line">            k := numStack[<span class="built_in">len</span>(numStack)<span class="number">-1</span>]</span><br><span class="line">            numStack = numStack[:<span class="built_in">len</span>(numStack)<span class="number">-1</span>]</span><br><span class="line">            <span class="comment">// 重复k次，加入到栈中</span></span><br><span class="line">            <span class="keyword">var</span> encoded <span class="keyword">string</span></span><br><span class="line">            <span class="keyword">for</span> ; k &gt; <span class="number">0</span>; k-- &#123;</span><br><span class="line">                encoded = encoded + subStr</span><br><span class="line">            &#125;</span><br><span class="line">            strStack = <span class="built_in">append</span>(strStack, encoded)</span><br><span class="line">            i++</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;    <span class="comment">// 扫描到字母、左括号时直接入栈</span></span><br><span class="line">            strStack = <span class="built_in">append</span>(strStack, <span class="keyword">string</span>(s[i]))</span><br><span class="line">            i++</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> res <span class="keyword">string</span>      <span class="comment">// 返回结果</span></span><br><span class="line">    <span class="comment">// 从底向顶扫描栈，依次加入结果</span></span><br><span class="line">    <span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="built_in">len</span>(strStack); i++ &#123;</span><br><span class="line">        res += strStack[i]</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="手撕堆排序"><a href="#手撕堆排序" class="headerlink" title="手撕堆排序"></a>手撕堆排序</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/sort-an-array">手撕堆排序</a></p>
+<h2 id="解题思路-1"><a href="#解题思路-1" class="headerlink" title="解题思路"></a>解题思路</h2><p><strong>堆排序</strong>过程：</p>
+<ul>
+<li>首先<strong>建成大根堆</strong>：从最后一个分支节点开始，向上调整</li>
+<li>依次将<strong>大根堆的根节点与最后一个节点交换</strong>，使大根堆的长度减一，再从新的根节点开始向下调整；直到大根堆只剩一个元素</li>
+</ul>
+<h2 id="解题代码-1"><a href="#解题代码-1" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sortArray</span><span class="params">(nums []<span class="keyword">int</span>)</span> []<span class="title">int</span></span> &#123;</span><br><span class="line">    <span class="built_in">len</span> := <span class="built_in">len</span>(nums)</span><br><span class="line">    heapSort(nums, <span class="built_in">len</span>)     <span class="comment">// 堆排序</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> nums</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">heapSort</span><span class="params">(nums []<span class="keyword">int</span>, <span class="built_in">len</span> <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">    <span class="comment">// 建成大根堆</span></span><br><span class="line">    buildHeap(nums, <span class="built_in">len</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> <span class="built_in">len</span> &gt; <span class="number">1</span> &#123;</span><br><span class="line">        <span class="comment">// 大根堆的根节点放到最后</span></span><br><span class="line">        nums[<span class="number">0</span>], nums[<span class="built_in">len</span><span class="number">-1</span>] = nums[<span class="built_in">len</span><span class="number">-1</span>], nums[<span class="number">0</span>]</span><br><span class="line">        <span class="comment">// 剩余节点重新调整为大根堆</span></span><br><span class="line">        <span class="built_in">len</span>--</span><br><span class="line">        adjestHeap(nums, <span class="number">0</span>, <span class="built_in">len</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">buildHeap</span><span class="params">(nums []<span class="keyword">int</span>, <span class="built_in">len</span> <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> i := (<span class="built_in">len</span>/<span class="number">2</span>)<span class="number">-1</span>; i &gt;= <span class="number">0</span>; i-- &#123;   <span class="comment">// 从最后一个分支节点开始，依次向上调整堆</span></span><br><span class="line">        adjestHeap(nums, i, <span class="built_in">len</span>)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">adjestHeap</span><span class="params">(nums []<span class="keyword">int</span>, i, <span class="built_in">len</span> <span class="keyword">int</span>)</span></span> &#123;   <span class="comment">// 以nums[i]为根节点调整成大根堆</span></span><br><span class="line">    <span class="keyword">for</span> <span class="number">2</span>*(i+<span class="number">1</span>) &lt;= <span class="built_in">len</span> &#123;     <span class="comment">// 自上而下调整</span></span><br><span class="line">        leftChild := <span class="number">2</span>*(i+<span class="number">1</span>)<span class="number">-1</span>      <span class="comment">// 左孩子下标</span></span><br><span class="line">        rightChild := leftChild+<span class="number">1</span>   <span class="comment">// 右孩子下标</span></span><br><span class="line">        <span class="keyword">var</span> larger <span class="keyword">int</span>  <span class="comment">// 左右孩子中较大者的下标</span></span><br><span class="line">        <span class="keyword">if</span> rightChild &lt; <span class="built_in">len</span> &amp;&amp; nums[rightChild] &gt; nums[leftChild] &#123;</span><br><span class="line">            <span class="comment">// 右孩子较大</span></span><br><span class="line">            larger = rightChild</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 左孩子较大</span></span><br><span class="line">            larger = leftChild</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> nums[i] &lt; nums[larger] &#123;</span><br><span class="line">            <span class="comment">// 孩子节点更大，则交换</span></span><br><span class="line">             nums[i], nums[larger] = nums[larger], nums[i]</span><br><span class="line">        &#125;</span><br><span class="line">        i = larger</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="二叉搜索树的第k大节点"><a href="#二叉搜索树的第k大节点" class="headerlink" title="二叉搜索树的第k大节点"></a>二叉搜索树的第k大节点</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/er-cha-sou-suo-shu-de-di-kda-jie-dian-lcof/">二叉搜索树的第k大节点</a></p>
+<h2 id="解题思路-2"><a href="#解题思路-2" class="headerlink" title="解题思路"></a>解题思路</h2><p>求出右子树的节点个数<code>rightNodeNum</code>：</p>
+<ul>
+<li>若<code>k == rightNodeNum+1</code>，<strong>当前根节点</strong>就是第<code>k</code>大的节点，返回根节点的值</li>
+<li>若<code>k &lt;= rightNodeNum</code>，说明第<code>k</code>大的节点在<strong>右子树</strong>中，递归寻找右子树的第<code>k</code>大节点</li>
+<li>否则第<code>k</code>大的节点在<strong>左子树</strong>中，递归寻找左子树的第<code>(k-1-rightNodeNum)</code>大的节点</li>
+</ul>
+<h2 id="解题代码-2"><a href="#解题代码-2" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a binary tree node.</span></span><br><span class="line"><span class="comment"> * type TreeNode struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Left *TreeNode</span></span><br><span class="line"><span class="comment"> *     Right *TreeNode</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">kthLargest</span><span class="params">(root *TreeNode, k <span class="keyword">int</span>)</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    rightNodeNum := nodeNum(root.Right)    <span class="comment">// 右子树节点个数</span></span><br><span class="line">    <span class="keyword">if</span> k == rightNodeNum+<span class="number">1</span> &#123;</span><br><span class="line">        <span class="comment">// 当前根节点就是第k大节点</span></span><br><span class="line">        <span class="keyword">return</span> root.Val</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> k &lt;= rightNodeNum &#123;</span><br><span class="line">        <span class="comment">// 第k大节点在右子树中</span></span><br><span class="line">        <span class="keyword">return</span> kthLargest(root.Right, k)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 第k大节点在左子树中</span></span><br><span class="line">        <span class="comment">// 在左子树中找第(k-1-rightNodeNum)大的节点</span></span><br><span class="line">        <span class="keyword">return</span> kthLargest(root.Left, k<span class="number">-1</span>-rightNodeNum)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">nodeNum</span><span class="params">(root *TreeNode)</span> <span class="title">int</span></span> &#123;      <span class="comment">// 求以root为根节点的树的节点总数</span></span><br><span class="line">    <span class="keyword">if</span> root != <span class="literal">nil</span> &#123;</span><br><span class="line">        left := nodeNum(root.Left)      <span class="comment">// 左子树的节点个数</span></span><br><span class="line">        right := nodeNum(root.Right)    <span class="comment">// 右子树的节点个数</span></span><br><span class="line">        </span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>+left+right</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="二叉树的后序遍历"><a href="#二叉树的后序遍历" class="headerlink" title="二叉树的后序遍历"></a>二叉树的后序遍历</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/binary-tree-postorder-traversal">二叉树的后序遍历</a></p>
+<h2 id="解题思路-3"><a href="#解题思路-3" class="headerlink" title="解题思路"></a>解题思路</h2><ol>
+<li>递归法</li>
+<li>非递归法</li>
+</ol>
+<h2 id="解题代码-3"><a href="#解题代码-3" class="headerlink" title="解题代码"></a>解题代码</h2><ol>
+<li>递归</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a binary tree node.</span></span><br><span class="line"><span class="comment"> * type TreeNode struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Left *TreeNode</span></span><br><span class="line"><span class="comment"> *     Right *TreeNode</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">postorderTraversal</span><span class="params">(root *TreeNode)</span> []<span class="title">int</span></span> &#123;</span><br><span class="line">    res := []<span class="keyword">int</span>&#123;&#125;</span><br><span class="line">    <span class="keyword">var</span> postorder <span class="function"><span class="keyword">func</span><span class="params">(root *TreeNode)</span></span></span><br><span class="line">    postorder = <span class="function"><span class="keyword">func</span><span class="params">(root *TreeNode)</span></span> &#123;</span><br><span class="line">        <span class="keyword">if</span> root != <span class="literal">nil</span> &#123;</span><br><span class="line">            postorder(root.Left)</span><br><span class="line">            postorder(root.Right)</span><br><span class="line">            res = <span class="built_in">append</span>(res, root.Val)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    postorder(root)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>非递归</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a binary tree node.</span></span><br><span class="line"><span class="comment"> * type TreeNode struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Left *TreeNode</span></span><br><span class="line"><span class="comment"> *     Right *TreeNode</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">postorderTraversal</span><span class="params">(root *TreeNode)</span> []<span class="title">int</span></span> &#123;</span><br><span class="line">    res := <span class="built_in">make</span>([]<span class="keyword">int</span>, <span class="number">0</span>)</span><br><span class="line">    stack := <span class="built_in">make</span>([]*TreeNode, <span class="number">0</span>)</span><br><span class="line">    cur := root</span><br><span class="line">    <span class="keyword">var</span> pre *TreeNode</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> <span class="built_in">len</span>(stack) &gt; <span class="number">0</span> || cur != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">for</span> cur != <span class="literal">nil</span> &#123;</span><br><span class="line">            stack = <span class="built_in">append</span>(stack, cur)</span><br><span class="line">            cur = cur.Left</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> <span class="built_in">len</span>(stack) &gt; <span class="number">0</span> &#123;</span><br><span class="line">            cur = stack[<span class="built_in">len</span>(stack)<span class="number">-1</span>]</span><br><span class="line">            <span class="keyword">if</span> cur.Right == <span class="literal">nil</span> || pre == cur.Right &#123;</span><br><span class="line">                <span class="comment">// 若栈顶节点右子树为空，或者刚刚遍历过右子树</span></span><br><span class="line">                <span class="comment">// 遍历栈顶节点并弹出</span></span><br><span class="line">                res = <span class="built_in">append</span>(res, cur.Val)</span><br><span class="line">                pre = cur</span><br><span class="line">                stack = stack[:<span class="built_in">len</span>(stack)<span class="number">-1</span>]</span><br><span class="line">                cur = <span class="literal">nil</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// 否则进入右子树</span></span><br><span class="line">                cur = cur.Right</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%AE%97%E6%B3%95/" rel="tag"># 算法</a>
+              <a href="/tags/leetcode/" rel="tag"># leetcode</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/18/GO%E8%AF%AD%E8%A8%80%E5%9C%A3%E7%BB%8F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-%E6%8E%A5%E5%8F%A3/" rel="prev" title="GO语言圣经学习笔记 (6) 接口">
+      <i class="fa fa-chevron-left"></i> GO语言圣经学习笔记 (6) 接口
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/19/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-19/" rel="next" title="算法刷题笔记 (19) 移动零 调整数组顺序使奇数位于偶数前面 手撕归并排序 最小的k个数">
+      算法刷题笔记 (19) 移动零 调整数组顺序使奇数位于偶数前面 手撕归并排序 最小的k个数 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AD%97%E7%AC%A6%E4%B8%B2%E8%A7%A3%E7%A0%81"><span class="nav-number">1.</span> <span class="nav-text">字符串解码</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E6%80%9D%E8%B7%AF"><span class="nav-number">1.1.</span> <span class="nav-text">解题思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E4%BB%A3%E7%A0%81"><span class="nav-number">1.2.</span> <span class="nav-text">解题代码</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%89%8B%E6%92%95%E5%A0%86%E6%8E%92%E5%BA%8F"><span class="nav-number">2.</span> <span class="nav-text">手撕堆排序</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E6%80%9D%E8%B7%AF-1"><span class="nav-number">2.1.</span> <span class="nav-text">解题思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E4%BB%A3%E7%A0%81-1"><span class="nav-number">2.2.</span> <span class="nav-text">解题代码</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91%E7%9A%84%E7%AC%ACk%E5%A4%A7%E8%8A%82%E7%82%B9"><span class="nav-number">3.</span> <span class="nav-text">二叉搜索树的第k大节点</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E6%80%9D%E8%B7%AF-2"><span class="nav-number">3.1.</span> <span class="nav-text">解题思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E4%BB%A3%E7%A0%81-2"><span class="nav-number">3.2.</span> <span class="nav-text">解题代码</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E5%90%8E%E5%BA%8F%E9%81%8D%E5%8E%86"><span class="nav-number">4.</span> <span class="nav-text">二叉树的后序遍历</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E6%80%9D%E8%B7%AF-3"><span class="nav-number">4.1.</span> <span class="nav-text">解题思路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%A7%A3%E9%A2%98%E4%BB%A3%E7%A0%81-3"><span class="nav-number">4.2.</span> <span class="nav-text">解题代码</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

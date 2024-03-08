@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="范式在关系型数据库中，关于数据表设计得基本原则&#x2F;规则，就称为范式（Normal Form，NF）。目前关系型数据库有六种常见范式，按照范式级别从低到高分别是：第一范式（1NF）、第二范式（2NF）、第三范式（3NF）、巴斯-科德范式（BCNF）、第四范式（4NF）和第五范式（5NF） 数据库得范式设计越高阶，冗余度越低，同时高阶范式一定满足低阶范式得要求。一般在关系型数据库设计中，最高也就遵循到B">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL高级 (7) 数据库设计规范">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/20/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="范式在关系型数据库中，关于数据表设计得基本原则&#x2F;规则，就称为范式（Normal Form，NF）。目前关系型数据库有六种常见范式，按照范式级别从低到高分别是：第一范式（1NF）、第二范式（2NF）、第三范式（3NF）、巴斯-科德范式（BCNF）、第四范式（4NF）和第五范式（5NF） 数据库得范式设计越高阶，冗余度越低，同时高阶范式一定满足低阶范式得要求。一般在关系型数据库设计中，最高也就遵循到B">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645337351928.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645337407279.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338120107.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338814124.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338879059.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338887880.png">
+<meta property="article:published_time" content="2022-02-20T05:43:07.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.781Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="MySQL高级">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645337351928.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/20/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MySQL高级 (7) 数据库设计规范 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/20/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MySQL高级 (7) 数据库设计规范
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-20 13:43:07" itemprop="dateCreated datePublished" datetime="2022-02-20T13:43:07+08:00">2022-02-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="范式"><a href="#范式" class="headerlink" title="范式"></a>范式</h1><p>在关系型数据库中，关于数据表设计得基本原则/规则，就称为<strong>范式</strong>（Normal Form，NF）。目前关系型数据库有六种常见范式，按照范式级别从低到高分别是：<strong>第一范式（1NF）、第二范式（2NF）、第三范式（3NF）、巴斯-科德范式（BCNF）、第四范式（4NF）和第五范式（5NF）</strong></p>
+<p>数据库得范式设计<strong>越高阶，冗余度越低</strong>，同时<strong>高阶范式一定满足低阶范式得要求</strong>。一般在关系型数据库设计中，最高也就遵循到<strong>BCNF</strong>，普遍还是<strong>3NF</strong>。但是有些时候为了提高查询性能，还需要破坏范式规则，称为<strong>反规范化</strong>。</p>
+<span id="more"></span>
+
+<h2 id="键和相关属性"><a href="#键和相关属性" class="headerlink" title="键和相关属性"></a>键和相关属性</h2><p>范式得定义会使用到主键和候选键，数据库中的键由一个或者多个属性组成。数据库中常用得几种键和属性得定义如下：</p>
+<ul>
+<li><strong>超键</strong>：能唯一标识元组得属性集叫做超键</li>
+<li><strong>候选键</strong>：如果超键<strong>不包括多余的属性</strong>，那么这个超键就是候选键</li>
+<li><strong>主键</strong>：用户可以从候选键中选择一个作为主键</li>
+<li><strong>外键</strong>：如果数据表R1中的某属性集不是R1的主键，而是另一个表R2的主键，那么这个属性集就是数据表R1的外键</li>
+<li><strong>主属性</strong>：包含在任一候选键中的属性称为主属性</li>
+<li><strong>非主属性</strong>：不包含在任何一个候选键中的属性</li>
+</ul>
+<h2 id="第一范式"><a href="#第一范式" class="headerlink" title="第一范式"></a>第一范式</h2><p>第一范式主要确保数据表中的每个字段的值必须具有<strong>原子性</strong>，也就是说数据表中的每个字段的值都是<strong>不可再拆分</strong>的最小数据单元</p>
+<p>如user表的设计不符合第一范式，user_info字段为用户信息，可以进一步拆分成更小粒度的字段，不符合数据库设计对第一范式的要求：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645337351928.png" alt="不符合第一范式"></p>
+<p>应该将user_info进一步拆分，才符合第一范式：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645337407279.png" alt="符合第一范式"></p>
+<h2 id="第二范式"><a href="#第二范式" class="headerlink" title="第二范式"></a>第二范式</h2><p>第二范式要求，在满足第一范式的基础上，还要满足<strong>数据表中的每一条数据记录，都是唯一可标识的。而且所有的非主键字段，都必须完全依赖主键，不能只依赖主键的一部分</strong>。如果知道主键的所有属性的值，就可以检索到任何行的任何属性任何值。</p>
+<p>如比赛表里面包含球员编号、姓名、年龄、比赛编号、比赛时间和比赛场地等属性，这里候选键和主键都为（球员编号，比赛编号），我们可以通过候选键（或主键）来决定如下的关系：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(球员编号, 比赛编号) → (姓名, 年龄, 比赛时间, 比赛场地，得分)</span><br></pre></td></tr></table></figure>
+
+<p>但是这个数据表不满足第二范式，因为数据表中的字段之间还存在着如下的对应关系：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(球员编号) → (姓名，年龄)</span><br><span class="line">(比赛编号) → (比赛时间, 比赛场地)</span><br></pre></td></tr></table></figure>
+
+<p>对于非主属性而言，并<strong>非完全依赖于候选键</strong>，会产生以下<strong>问题</strong>：</p>
+<ul>
+<li><strong>数据冗余：</strong>如果一个球员可以参加 m 场比赛，那么球员的姓名和年龄就重复了 m-1 次。一个比赛也可能会有 n 个球员参加，比赛的时间和地点就重复了 n-1 次</li>
+<li><strong>插入异常：</strong>如果我们想要添加一场新的比赛，但是这时还没有确定参加的球员都有谁，那么就没法插入</li>
+<li><strong>删除异常：</strong>如果我要删除某个球员编号，如果没有单独保存比赛表的话，就会同时把比赛信息删<br>除掉</li>
+<li><strong>更新异常：</strong>如果我们调整了某个比赛的时间，那么数据表中所有这个比赛的时间都需要进行调整，否则就会出现一场比赛时间不同的情况</li>
+</ul>
+<p>为了避免以上情况，可以把比赛表划分为多个表，这些表都满足第二范式：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338120107.png" alt="满足第二范式"></p>
+<hr>
+<p><strong>1NF 告诉我们字段属性需要是原子性的，而 2NF 告诉我们一张表就是一个独立的对象，一张表只</strong><br><strong>表达一个意思</strong></p>
+<h2 id="第三范式"><a href="#第三范式" class="headerlink" title="第三范式"></a>第三范式</h2><p>第三范式是在第二范式的基础上，确保数据表中的每个非主键字段和主键字段直接相关。也就是说，<strong>要求数据表中的所有非主键字段不能依赖于其他非主键字段</strong>。所有的非主键属性之间<strong>不能存在依赖关系</strong>，必须<strong>相互独立</strong>。</p>
+<p>如商品类别名称依赖于商品类别编号，不符合第三范式：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338814124.png" alt="不符合第三范式"></p>
+<p>符合第三范式的<strong>商品类别表</strong>的设计：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338879059.png" alt="符合第三范式的商品类别表"></p>
+<p>符合第三范式的<strong>商品表</strong>的设计：</p>
+<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/1645338887880.png" alt="符合第三范式的商品表"></p>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>对于三种范式：</p>
+<ul>
+<li>第一范式：确保每列数据的<strong>原子性</strong></li>
+<li>第二范式：确保每列和主键<strong>完全依赖</strong></li>
+<li>第三范式：确保每列和主键<strong>直接相关</strong>，而不是间接相关（非主属性之间不能存在依赖关系）</li>
+</ul>
+<h1 id="反范式化"><a href="#反范式化" class="headerlink" title="反范式化"></a>反范式化</h1><h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>应该遵循<strong>业务优先</strong>的原则，首先满足业务需求，再尽量减少冗余。范式化可能在查询时产生大量关联，有时为了<strong>提高查询效率</strong>可以进行<strong>反范式化</strong>。通过在数据表中<strong>增加冗余字段</strong>来提高数据库的读性能。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">规范化 vs 性能：</span><br><span class="line">1. 为满足某种商业目标 , 数据库性能比规范化数据库更重要</span><br><span class="line">2. 在数据规范化的同时 , 要综合考虑数据库的性能</span><br><span class="line">3. 通过在给定的表中添加额外的字段，以大量减少需要从中搜索信息所需的时间</span><br><span class="line">4. 通过在给定的表中插入计算列，以方便查询</span><br></pre></td></tr></table></figure>
+
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p>员工的信息存储在<code>employees</code>表 中，部门信息存储在<code>departments</code>表 中。通过<code>employees</code>表中的<code>department_id</code>字段与<code>departments</code> 表建立关联关系。如果要查询一个员工所在部门的名称：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">select</span> employee_id,department_name</span><br><span class="line"><span class="keyword">from</span> employees e <span class="keyword">join</span> departments d</span><br><span class="line"><span class="keyword">on</span> e.department_id <span class="operator">=</span> d.department_id;</span><br></pre></td></tr></table></figure>
+
+<p>如果经常需要进行这个操作，连接查询就会浪费很多时间。可以在<code>employees</code>表中增加一个冗余字段<code>department_name</code>，这样就不用每次都进行连接操作了</p>
+<h2 id="反范式化的问题"><a href="#反范式化的问题" class="headerlink" title="反范式化的问题"></a>反范式化的问题</h2><ul>
+<li>存储<strong>空间变大</strong>了</li>
+<li>一个表中字段做了修改，另一个表中冗余的字段也需要做<strong>同步修改</strong>，否则<strong>数据不一致</strong></li>
+<li>若采用存储过程来支持数据的更新、删除等额外操作，如果更新频繁，会非常<strong>消耗系统资源</strong></li>
+<li>在<strong>数据量小</strong>的情况下，反范式不能体现性能的优势，可能还会让数据库的设计更加<strong>复杂</strong></li>
+</ul>
+<h1 id="巴斯-第四范式"><a href="#巴斯-第四范式" class="headerlink" title="巴斯 第四范式"></a>巴斯 第四范式</h1><h2 id="巴斯范式"><a href="#巴斯范式" class="headerlink" title="巴斯范式"></a>巴斯范式</h2><p>在第三范式的基础上，提出了巴斯范式（巴斯-科德范式）。巴斯范式没有新的设计规范加入，只对第三范式中设计规范的<strong>要求更强</strong>，使得数据库的冗余度更小：</p>
+<p>若一个关系达到第三范式，并且<strong>只有一个候选键，或者每个候选键都是单属性的</strong>，则达到了巴斯范式。</p>
+<p>引入巴斯范式，<strong>它在 3NF 的基础上消除了主属性对候选键的部分依赖或者传递依赖关系</strong></p>
+<h2 id="第四范式"><a href="#第四范式" class="headerlink" title="第四范式"></a>第四范式</h2><p>多值依赖的概念：</p>
+<ul>
+<li><strong>多值依赖</strong>即属性之间的一对多关系，记为<code>K→→A</code></li>
+<li><strong>函数依赖</strong>事实上是单值依赖，不能表达属性值之间一对多的关系</li>
+<li><strong>平凡的多值依赖</strong>：全集U=K+A，一个K可以对应多个A，即<code>K→→A</code>。此时整个表是一组一对多的关系</li>
+<li><strong>非平凡的多值依赖</strong>：全集U=K+A+B，一个K可以对应多个A，也可以对应多个B，即<code>K→→A</code>、<code>K→→B</code>。整个表有多组一对多关系</li>
+</ul>
+<p>第四范式，就是在满足巴斯范式的基础上，<strong>消除非平凡并且非函数依赖的多值依赖</strong>。（把同一个表中的多对多关系删除）</p>
+<h1 id="ER模型"><a href="#ER模型" class="headerlink" title="ER模型"></a>ER模型</h1><h2 id="概述-1"><a href="#概述-1" class="headerlink" title="概述"></a>概述</h2><p>ER模型用于描述/设计数据库。ER 模型中有<strong>三个要素</strong>，分别是<strong>实体、属性和关系</strong>：</p>
+<ul>
+<li><strong>实体（表） ：</strong>可以看做是<strong>数据对象</strong>，往往对应于现实生活中的真实存在的个体。在 ER 模型中，用<strong>矩形</strong>来表示。实体分为两类，分别是<strong>强实体</strong>和<strong>弱实体</strong><ul>
+<li>强实体是指不依赖于其他实体的实体</li>
+<li>弱实体是指对另一个实体有很强的依赖关系的实体</li>
+</ul>
+</li>
+<li><strong>属性（列）：</strong>指实体的<strong>特性</strong>。在 ER 模型中用<strong>椭圆形</strong>表示</li>
+<li><strong>关系：</strong>则是指实体之间的<strong>联系</strong>。在 ER 模型中用<strong>菱形</strong>表示</li>
+</ul>
+<h2 id="关系的类型"><a href="#关系的类型" class="headerlink" title="关系的类型"></a>关系的类型</h2><p>关系可以分成三类：一对一、一对多、多对多（、自我引用）</p>
+<h3 id="一对一关系"><a href="#一对一关系" class="headerlink" title="一对一关系"></a>一对一关系</h3><ul>
+<li>一个表中的一条记录，对应另一张表的一条记录。</li>
+<li>在实际开发中<strong>应用不多</strong>（可以将<strong>常用信息与非常用信息拆开</strong>成为两张表，形成一对一关系），因为<strong>可以制成一张表</strong>。</li>
+<li>两种建表原则：<ul>
+<li>外键唯一：主表的主键和从表的外键，形成主外键关系，外键唯一</li>
+<li>外键是主键：主表的主键和从表的主键，形成主外键关系</li>
+</ul>
+</li>
+</ul>
+<h3 id="一对多关系"><a href="#一对多关系" class="headerlink" title="一对多关系"></a>一对多关系</h3><ul>
+<li>常见关系：客户表和订单表，分类表和商品表，部门表和员工表，学生表和成绩表</li>
+<li>一对多建表原则：在从表（多方）创建一个字段，字段作为外键指向主表（一方）的主键</li>
+</ul>
+<h3 id="多对多关系"><a href="#多对多关系" class="headerlink" title="多对多关系"></a>多对多关系</h3><ul>
+<li>要表示多对多的关系，必须创建第三个表，称为<strong>联接表</strong>，将<strong>多对多关系划分为两个一对多关系</strong>，将这两个表的主键都插入第三个表中。</li>
+<li>例如：<ul>
+<li>学生信息表、课程信息表、选课信息表（联接表）：一个学生可以选多门课，一门课可以被多个学生选择</li>
+<li>产品表、订单表、订单明细表（联接表）</li>
+</ul>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/MySQL/" rel="tag"># MySQL</a>
+              <a href="/tags/MySQL%E9%AB%98%E7%BA%A7/" rel="tag"># MySQL高级</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/20/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/" rel="prev" title="GO语言杂谈 (2) RPC">
+      <i class="fa fa-chevron-left"></i> GO语言杂谈 (2) RPC
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/20/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-20/" rel="next" title="算法刷题笔记 (20) 螺旋矩阵II 单词搜索 旋转图像 零钱兑换">
+      算法刷题笔记 (20) 螺旋矩阵II 单词搜索 旋转图像 零钱兑换 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%8C%83%E5%BC%8F"><span class="nav-number">1.</span> <span class="nav-text">范式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%94%AE%E5%92%8C%E7%9B%B8%E5%85%B3%E5%B1%9E%E6%80%A7"><span class="nav-number">1.1.</span> <span class="nav-text">键和相关属性</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E8%8C%83%E5%BC%8F"><span class="nav-number">1.2.</span> <span class="nav-text">第一范式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E8%8C%83%E5%BC%8F"><span class="nav-number">1.3.</span> <span class="nav-text">第二范式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E8%8C%83%E5%BC%8F"><span class="nav-number">1.4.</span> <span class="nav-text">第三范式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B0%8F%E7%BB%93"><span class="nav-number">1.5.</span> <span class="nav-text">小结</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8F%8D%E8%8C%83%E5%BC%8F%E5%8C%96"><span class="nav-number">2.</span> <span class="nav-text">反范式化</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A6%82%E8%BF%B0"><span class="nav-number">2.1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BE%E4%BE%8B"><span class="nav-number">2.2.</span> <span class="nav-text">举例</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%8D%E8%8C%83%E5%BC%8F%E5%8C%96%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">2.3.</span> <span class="nav-text">反范式化的问题</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B7%B4%E6%96%AF-%E7%AC%AC%E5%9B%9B%E8%8C%83%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">巴斯 第四范式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B7%B4%E6%96%AF%E8%8C%83%E5%BC%8F"><span class="nav-number">3.1.</span> <span class="nav-text">巴斯范式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E5%9B%9B%E8%8C%83%E5%BC%8F"><span class="nav-number">3.2.</span> <span class="nav-text">第四范式</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#ER%E6%A8%A1%E5%9E%8B"><span class="nav-number">4.</span> <span class="nav-text">ER模型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A6%82%E8%BF%B0-1"><span class="nav-number">4.1.</span> <span class="nav-text">概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E7%B3%BB%E7%9A%84%E7%B1%BB%E5%9E%8B"><span class="nav-number">4.2.</span> <span class="nav-text">关系的类型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E5%AF%B9%E4%B8%80%E5%85%B3%E7%B3%BB"><span class="nav-number">4.2.1.</span> <span class="nav-text">一对一关系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E5%AF%B9%E5%A4%9A%E5%85%B3%E7%B3%BB"><span class="nav-number">4.2.2.</span> <span class="nav-text">一对多关系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%9A%E5%AF%B9%E5%A4%9A%E5%85%B3%E7%B3%BB"><span class="nav-number">4.2.3.</span> <span class="nav-text">多对多关系</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

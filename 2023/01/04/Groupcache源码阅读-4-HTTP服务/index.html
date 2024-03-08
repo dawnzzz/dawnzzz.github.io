@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="groupcache 的其中一个特定就是，它既是一个客户端，也是一个服务器。它连接到自己的 peer，形成分布式缓存。 所以，groupcache 中的 HTTP 服务即包括客户端也包括服务端。  HTTP 服务客户端groupcache 中，节点之间的通信是通过 protobuf 完成的，HTTP 客户端需要实现 ProtoGetter 接口。 1234&#x2F;&#x2F; ProtoGetter is th">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Groupcache源码阅读 (4) HTTP服务">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/01/04/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-HTTP%E6%9C%8D%E5%8A%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="groupcache 的其中一个特定就是，它既是一个客户端，也是一个服务器。它连接到自己的 peer，形成分布式缓存。 所以，groupcache 中的 HTTP 服务即包括客户端也包括服务端。  HTTP 服务客户端groupcache 中，节点之间的通信是通过 protobuf 完成的，HTTP 客户端需要实现 ProtoGetter 接口。 1234&#x2F;&#x2F; ProtoGetter is th">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-01-04T13:50:37.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.762Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/01/04/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-HTTP%E6%9C%8D%E5%8A%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Groupcache源码阅读 (4) HTTP服务 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/04/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-HTTP%E6%9C%8D%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Groupcache源码阅读 (4) HTTP服务
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-04 21:50:37" itemprop="dateCreated datePublished" datetime="2023-01-04T21:50:37+08:00">2023-01-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">Groupcache源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>groupcache 的其中一个特定就是，它<strong>既是一个客户端，也是一个服务器</strong>。它连接到自己的 peer，形成分布式缓存。</p>
+<p>所以，groupcache 中的 HTTP 服务即包括客户端也包括服务端。</p>
+</blockquote>
+<h1 id="HTTP-服务"><a href="#HTTP-服务" class="headerlink" title="HTTP 服务"></a>HTTP 服务</h1><h2 id="客户端"><a href="#客户端" class="headerlink" title="客户端"></a>客户端</h2><p>groupcache 中，<strong>节点之间的通信是通过 protobuf 完成的</strong>，HTTP 客户端需要实现 ProtoGetter 接口。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ProtoGetter is the interface that must be implemented by a peer.</span></span><br><span class="line"><span class="keyword">type</span> ProtoGetter <span class="keyword">interface</span> &#123;</span><br><span class="line">   Get(ctx context.Context, in *pb.GetRequest, out *pb.GetResponse) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="httpGetter-结构体"><a href="#httpGetter-结构体" class="headerlink" title="httpGetter 结构体"></a>httpGetter 结构体</h3><p>httpGetter 结构体维护<strong>与某一个节点的 protobuf 通信</strong>，其中 baseURL 就记录了节点的远程 HTTP 地址。httpGetter 节点就实现了 ProtoGetter 接口。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> httpGetter <span class="keyword">struct</span> &#123;</span><br><span class="line">	transport <span class="function"><span class="keyword">func</span><span class="params">(context.Context)</span> <span class="title">http</span>.<span class="title">RoundTripper</span></span></span><br><span class="line">	baseURL   <span class="keyword">string</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="服务端"><a href="#服务端" class="headerlink" title="服务端"></a>服务端</h2><h3 id="HTTPPool-结构体"><a href="#HTTPPool-结构体" class="headerlink" title="HTTPPool 结构体"></a>HTTPPool 结构体</h3><p>HTTPPool 结构体<strong>实现了 PeerPicker 接口和 http.Handler 接口</strong>。实现 PeerPicker 用于选择获取数据的节点；实现 http.Handler 接口用于实现 HTTP 服务端。</p>
+<p>其中重要的字段如下：</p>
+<ul>
+<li>self：记录自己的本地 URL。</li>
+<li>peers：一致性哈希环，用于决定从哪一个节点中获取数据。</li>
+<li>httpGetters：保存所有的 httpGetter，存储远程节点的 baseURL 与其对应的 httpGetter 的映射。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// HTTPPool implements PeerPicker for a pool of HTTP peers.</span></span><br><span class="line"><span class="keyword">type</span> HTTPPool <span class="keyword">struct</span> &#123;</span><br><span class="line">   <span class="comment">// Context optionally specifies a context for the server to use when it</span></span><br><span class="line">   <span class="comment">// receives a request.</span></span><br><span class="line">   <span class="comment">// If nil, the server uses the request&#x27;s context</span></span><br><span class="line">   Context <span class="function"><span class="keyword">func</span><span class="params">(*http.Request)</span> <span class="title">context</span>.<span class="title">Context</span></span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// Transport optionally specifies an http.RoundTripper for the client</span></span><br><span class="line">   <span class="comment">// to use when it makes a request.</span></span><br><span class="line">   <span class="comment">// If nil, the client uses http.DefaultTransport.</span></span><br><span class="line">   Transport <span class="function"><span class="keyword">func</span><span class="params">(context.Context)</span> <span class="title">http</span>.<span class="title">RoundTripper</span></span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// this peer&#x27;s base URL, e.g. &quot;https://example.net:8000&quot;</span></span><br><span class="line">   self <span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// opts specifies the options.</span></span><br><span class="line">   opts HTTPPoolOptions</span><br><span class="line"></span><br><span class="line">   mu          sync.Mutex <span class="comment">// guards peers and httpGetters</span></span><br><span class="line">   peers       *consistenthash.Map</span><br><span class="line">   httpGetters <span class="keyword">map</span>[<span class="keyword">string</span>]*httpGetter <span class="comment">// keyed by e.g. &quot;http://10.0.0.2:8008&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="实现-PeerPicker-接口"><a href="#实现-PeerPicker-接口" class="headerlink" title="实现 PeerPicker 接口"></a>实现 PeerPicker 接口</h3><p>HTTPPool 实现了 PeerPicker 接口，<strong>在一致性哈希环中根据 key 查找节点</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *HTTPPool)</span> <span class="title">PickPeer</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="params">(ProtoGetter, <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">   p.mu.Lock()</span><br><span class="line">   <span class="keyword">defer</span> p.mu.Unlock()</span><br><span class="line">   <span class="keyword">if</span> p.peers.IsEmpty() &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> peer := p.peers.Get(key); peer != p.self &#123;</span><br><span class="line">      <span class="keyword">return</span> p.httpGetters[peer], <span class="literal">true</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同时它还<strong>定义了 Set 方法</strong>：</p>
+<ul>
+<li>在一致性哈希环 peers 中<strong>添加节点</strong>。</li>
+<li>同时完成节点与 httpGetter 的映射关系。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Set updates the pool&#x27;s list of peers.</span></span><br><span class="line"><span class="comment">// Each peer value should be a valid base URL,</span></span><br><span class="line"><span class="comment">// for example &quot;http://example.net:8000&quot;.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *HTTPPool)</span> <span class="title">Set</span><span class="params">(peers ...<span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">   p.mu.Lock()</span><br><span class="line">   <span class="keyword">defer</span> p.mu.Unlock()</span><br><span class="line">   p.peers = consistenthash.New(p.opts.Replicas, p.opts.HashFn)</span><br><span class="line">   p.peers.Add(peers...)</span><br><span class="line">   p.httpGetters = <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*httpGetter, <span class="built_in">len</span>(peers))</span><br><span class="line">   <span class="keyword">for</span> _, peer := <span class="keyword">range</span> peers &#123;</span><br><span class="line">      p.httpGetters[peer] = &amp;httpGetter&#123;transport: p.Transport, baseURL: peer + p.opts.BasePath&#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="实现-http-Handler-接口"><a href="#实现-http-Handler-接口" class="headerlink" title="实现 http.Handler 接口"></a>实现 http.Handler 接口</h3><p>HTTPPool 通过定义 ServeHTTP 方法，实现了 http.Handler 接口。ServeHTTP 方法流程如下：</p>
+<ul>
+<li>首先<strong>解析请求</strong>，从请求中<strong>解析出 group name 和 key</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Parse request.</span></span><br><span class="line"><span class="keyword">if</span> !strings.HasPrefix(r.URL.Path, p.opts.BasePath) &#123;</span><br><span class="line">   <span class="built_in">panic</span>(<span class="string">&quot;HTTPPool serving unexpected path: &quot;</span> + r.URL.Path)</span><br><span class="line">&#125;</span><br><span class="line">parts := strings.SplitN(r.URL.Path[<span class="built_in">len</span>(p.opts.BasePath):], <span class="string">&quot;/&quot;</span>, <span class="number">2</span>)</span><br><span class="line"><span class="keyword">if</span> <span class="built_in">len</span>(parts) != <span class="number">2</span> &#123;</span><br><span class="line">   http.Error(w, <span class="string">&quot;bad request&quot;</span>, http.StatusBadRequest)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line">groupName := parts[<span class="number">0</span>]</span><br><span class="line">key := parts[<span class="number">1</span>]</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>通过 group name 得到相应的 group。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Fetch the value for this group/key.</span></span><br><span class="line">group := GetGroup(groupName)</span><br><span class="line"><span class="keyword">if</span> group == <span class="literal">nil</span> &#123;</span><br><span class="line">   http.Error(w, <span class="string">&quot;no such group: &quot;</span>+groupName, http.StatusNotFound)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>调用 group 中的 Get 方法获取 key 相应的数据</strong>。Get 方法会从<strong>本地</strong>或者<strong>远程节点</strong>中获取数据，并将缓存数据返回。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">group.Stats.ServerRequests.Add(<span class="number">1</span>)</span><br><span class="line"><span class="keyword">var</span> value []<span class="keyword">byte</span></span><br><span class="line">err := group.Get(ctx, key, AllocatingByteSliceSink(&amp;value))</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   http.Error(w, err.Error(), http.StatusInternalServerError)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>将获取到的数据，以 protobuf 消息的方式，<strong>写入的 HTTP 响应体中</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Write the value to the response body as a proto message.</span></span><br><span class="line">body, err := proto.Marshal(&amp;pb.GetResponse&#123;Value: value&#125;)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   http.Error(w, err.Error(), http.StatusInternalServerError)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line">w.Header().Set(<span class="string">&quot;Content-Type&quot;</span>, <span class="string">&quot;application/x-protobuf&quot;</span>)</span><br><span class="line">w.Write(body)</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/04/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-Getter%E3%80%81PeerPicker%E5%92%8CGroup/" rel="prev" title="Groupcache源码阅读 (3) Getter、PeerPicker和Group">
+      <i class="fa fa-chevron-left"></i> Groupcache源码阅读 (3) Getter、PeerPicker和Group
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/" rel="next" title="godis源码阅读 (1) TCP服务器">
+      godis源码阅读 (1) TCP服务器 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#HTTP-%E6%9C%8D%E5%8A%A1"><span class="nav-number">1.</span> <span class="nav-text">HTTP 服务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">1.1.</span> <span class="nav-text">客户端</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#httpGetter-%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">1.1.1.</span> <span class="nav-text">httpGetter 结构体</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E7%AB%AF"><span class="nav-number">1.2.</span> <span class="nav-text">服务端</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTPPool-%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">1.2.1.</span> <span class="nav-text">HTTPPool 结构体</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0-PeerPicker-%E6%8E%A5%E5%8F%A3"><span class="nav-number">1.2.2.</span> <span class="nav-text">实现 PeerPicker 接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0-http-Handler-%E6%8E%A5%E5%8F%A3"><span class="nav-number">1.2.3.</span> <span class="nav-text">实现 http.Handler 接口</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

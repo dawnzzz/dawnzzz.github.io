@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="全双工通信Triple 协议中的全双工通信请求指的是从客户端发出请求，到从服务端收到响应的全双工通信。全双工通信请求 duplexHTTPCall 重要的字段如下：  httpClient：HTTP 客户端，用于发出 HTTP 请求。 streamType：通信类型，包括 Unary 和 Streaming。 requestBodyReader 和 requestBodyWriter：由于写入请求">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triple协议 (5) Triple实现之全双工通信">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="全双工通信Triple 协议中的全双工通信请求指的是从客户端发出请求，到从服务端收到响应的全双工通信。全双工通信请求 duplexHTTPCall 重要的字段如下：  httpClient：HTTP 客户端，用于发出 HTTP 请求。 streamType：通信类型，包括 Unary 和 Streaming。 requestBodyReader 和 requestBodyWriter：由于写入请求">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-03T07:17:57.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.792Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="dubbo-go - 云原生 - triple">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Triple协议 (5) Triple实现之全双工通信 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Triple协议 (5) Triple实现之全双工通信
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-03 15:17:57" itemprop="dateCreated datePublished" datetime="2023-12-03T15:17:57+08:00">2023-12-03</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="全双工通信"><a href="#全双工通信" class="headerlink" title="全双工通信"></a>全双工通信</h1><p>Triple 协议中的全双工通信请求指的是<strong>从客户端发出请求</strong>，到从服务端<strong>收到响应</strong>的全双工通信。全双工通信请求 duplexHTTPCall 重要的字段如下：</p>
+<ul>
+<li><strong>httpClient：</strong>HTTP 客户端，用于发出 HTTP 请求。</li>
+<li><strong>streamType：</strong>通信类型，包括 Unary 和 Streaming。</li>
+<li><strong>requestBodyReader 和 requestBodyWriter：</strong>由于写入请求 Body 是<strong>通过 io.Pipe 实现</strong>的，所以需要记录 writer 和 reader，在写入 writer 后，HTTP 请求的 Body 通过 Reader 读取写入的内容。</li>
+<li><strong>request 和 response：</strong>HTTP 请求和响应。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// duplexHTTPCall is a full-duplex stream between the client and server. The</span></span><br><span class="line"><span class="comment">// request body is the stream from client to server, and the response body is</span></span><br><span class="line"><span class="comment">// the reverse.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// Be warned: we need to use some lesser-known APIs to do this with net/http.</span></span><br><span class="line"><span class="keyword">type</span> duplexHTTPCall <span class="keyword">struct</span> &#123;</span><br><span class="line">    ctx              context.Context</span><br><span class="line">    httpClient       HTTPClient</span><br><span class="line">    streamType       StreamType</span><br><span class="line">    validateResponse <span class="function"><span class="keyword">func</span><span class="params">(*http.Response)</span> *<span class="title">Error</span></span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// We&#x27;ll use a pipe as the request body. We hand the read side of the pipe to</span></span><br><span class="line">    <span class="comment">// net/http, and we write to the write side (naturally). The two ends are</span></span><br><span class="line">    <span class="comment">// safe to use concurrently.</span></span><br><span class="line">    requestBodyReader *io.PipeReader</span><br><span class="line">    requestBodyWriter *io.PipeWriter</span><br><span class="line"></span><br><span class="line">    sendRequestOnce sync.Once</span><br><span class="line">    responseReady   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    request         *http.Request</span><br><span class="line">    response        *http.Response</span><br><span class="line"></span><br><span class="line">    errMu sync.Mutex</span><br><span class="line">    err   error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h2><p>全双工通信的初始化如下，<strong>请求通过 io.Pipe 实现</strong>，用户（可以多次，即 client streaming ）<strong>向 writer 中写入请求内容</strong>，请求 Body 读取请求内容并发送请求。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newDuplexHTTPCall</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    ctx context.Context,</span></span></span><br><span class="line"><span class="params"><span class="function">    httpClient HTTPClient,</span></span></span><br><span class="line"><span class="params"><span class="function">    url *url.URL,</span></span></span><br><span class="line"><span class="params"><span class="function">    spec Spec,</span></span></span><br><span class="line"><span class="params"><span class="function">    header http.Header,</span></span></span><br><span class="line"><span class="params"><span class="function">)</span> *<span class="title">duplexHTTPCall</span></span> &#123;</span><br><span class="line">    <span class="comment">// ensure we make a copy of the url before we pass along to the</span></span><br><span class="line">    <span class="comment">// Request. This ensures if a transport out of our control wants</span></span><br><span class="line">    <span class="comment">// to mutate the req.URL, we don&#x27;t feel the effects of it.</span></span><br><span class="line">    url = cloneURL(url)</span><br><span class="line">    pipeReader, pipeWriter := io.Pipe()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// todo(DMwangnima): remove cloneURL logic in WithContext</span></span><br><span class="line">    <span class="comment">// This is mirroring what http.NewRequestContext did, but</span></span><br><span class="line">    <span class="comment">// using an already parsed url.URL object, rather than a string</span></span><br><span class="line">    <span class="comment">// and parsing it again. This is a bit funny with HTTP/1.1</span></span><br><span class="line">    <span class="comment">// explicitly, but this is logic copied over from</span></span><br><span class="line">    <span class="comment">// NewRequestContext and doesn&#x27;t effect the actual version</span></span><br><span class="line">    <span class="comment">// being transmitted.</span></span><br><span class="line">    request := (&amp;http.Request&#123;</span><br><span class="line">       Method:     http.MethodPost,</span><br><span class="line">       URL:        url,</span><br><span class="line">       Header:     header,</span><br><span class="line">       Proto:      <span class="string">&quot;HTTP/1.1&quot;</span>,</span><br><span class="line">       ProtoMajor: <span class="number">1</span>,</span><br><span class="line">       ProtoMinor: <span class="number">1</span>,</span><br><span class="line">       Body:       pipeReader,</span><br><span class="line">       Host:       url.Host,</span><br><span class="line">    &#125;).WithContext(ctx)</span><br><span class="line">    <span class="keyword">return</span> &amp;duplexHTTPCall&#123;</span><br><span class="line">       ctx:               ctx,</span><br><span class="line">       httpClient:        httpClient,</span><br><span class="line">       streamType:        spec.StreamType,</span><br><span class="line">       requestBodyReader: pipeReader,</span><br><span class="line">       requestBodyWriter: pipeWriter,</span><br><span class="line">       request:           request,</span><br><span class="line">       responseReady:     <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;),</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="写请求"><a href="#写请求" class="headerlink" title="写请求"></a>写请求</h2><p>写请求 Body 如下，通过向 requestBodyWriter 写入实现。但是可以注意到，<strong>在写入之前</strong>，首先调用了 d.ensureRequestMade  确保双工的通信流已经被初始化。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Write to the request body. Returns an error wrapping io.EOF after SetError</span></span><br><span class="line"><span class="comment">// is called.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">Write</span><span class="params">(data []<span class="keyword">byte</span>)</span> <span class="params">(<span class="keyword">int</span>, error)</span></span> &#123;</span><br><span class="line">    <span class="comment">// ensure stream has been initialized</span></span><br><span class="line">    d.ensureRequestMade()</span><br><span class="line">    <span class="comment">// Before we send any data, check if the context has been canceled.</span></span><br><span class="line">    <span class="keyword">if</span> err := d.ctx.Err(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, wrapIfContextError(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// It&#x27;s safe to write to this side of the pipe while net/http concurrently</span></span><br><span class="line">    <span class="comment">// reads from the other side.</span></span><br><span class="line">    bytesWritten, err := d.requestBodyWriter.Write(data)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &amp;&amp; errors.Is(err, io.ErrClosedPipe) &#123;</span><br><span class="line">       <span class="comment">// Signal that the stream is closed with the more-typical io.EOF instead of</span></span><br><span class="line">       <span class="comment">// io.ErrClosedPipe. This makes it easier for protocol-specific wrappers to</span></span><br><span class="line">       <span class="comment">// match grpc-go&#x27;s behavior.</span></span><br><span class="line">       <span class="keyword">return</span> bytesWritten, io.EOF</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> bytesWritten, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="确保双工流被初始化"><a href="#确保双工流被初始化" class="headerlink" title="确保双工流被初始化"></a>确保双工流被初始化</h3><p>在 ensureRequestMade 方法中，只会执行一次 <code>go d.makeRequest</code> 用于创建一个请求。在调用 httpClient.Do 方法发出一个 message 后，客户端返回一个 response，用于表示响应流。</p>
+<p>在返回 response 后，关闭 responseReady 表示可以读取响应了。这个建立流的过程是异步的，这样不会阻塞 Write 写入 message 方法。</p>
+<blockquote>
+<p>由于 streaming 通信模式：</p>
+<ul>
+<li>客户端可以<strong>通过 request Body 多次写入</strong>，发送多个 message</li>
+<li>同样的，服务器的响应<strong>通过多次读取 response Body</strong>，接收多个 message。</li>
+</ul>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">ensureRequestMade</span><span class="params">()</span></span> &#123;</span><br><span class="line">    d.sendRequestOnce.Do(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="keyword">go</span> d.makeRequest()</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">makeRequest</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="comment">// This runs concurrently with Write and CloseWrite. Read and CloseRead wait</span></span><br><span class="line">    <span class="comment">// on d.responseReady, so we can&#x27;t race with them.</span></span><br><span class="line">    <span class="keyword">defer</span> <span class="built_in">close</span>(d.responseReady)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Once we send a message to the server, they send a message back and</span></span><br><span class="line">    <span class="comment">// establish the receive side of the stream.</span></span><br><span class="line">    response, err := d.httpClient.Do(d.request) <span class="comment">//nolint:bodyclose</span></span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="comment">// stream knowledge</span></span><br><span class="line">       err = wrapIfContextError(err)</span><br><span class="line">       err = wrapIfLikelyH2CNotConfiguredError(d.request, err)</span><br><span class="line">       err = wrapIfLikelyWithGRPCNotUsedError(err)</span><br><span class="line">       err = wrapIfRSTError(err)</span><br><span class="line">       <span class="keyword">if</span> _, ok := asError(err); !ok &#123;</span><br><span class="line">          err = NewError(CodeUnavailable, err)</span><br><span class="line">       &#125;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    d.response = response</span><br><span class="line">    <span class="keyword">if</span> err := d.validateResponse(response); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (d.streamType&amp;StreamTypeBidi) == StreamTypeBidi &amp;&amp; response.ProtoMajor &lt; <span class="number">2</span> &#123;</span><br><span class="line">       <span class="comment">// If we somehow dialed an HTTP/1.x server, fail with an explicit message</span></span><br><span class="line">       <span class="comment">// rather than returning a more cryptic error later on.</span></span><br><span class="line">       d.SetError(errorf(</span><br><span class="line">          CodeUnimplemented,</span><br><span class="line">          <span class="string">&quot;response from %v is HTTP/%d.%d: bidi streams require at least HTTP/2&quot;</span>,</span><br><span class="line">          d.request.URL,</span><br><span class="line">          response.ProtoMajor,</span><br><span class="line">          response.ProtoMinor,</span><br><span class="line">       ))</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="读响应"><a href="#读响应" class="headerlink" title="读响应"></a>读响应</h2><p>读响应 Body 很简单（可以多次读取），只是在读之前需要调用 BlockUntilResponseReady 阻塞，<strong>确保响应流已经准备好</strong>，可以进行读取。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Read from the response body. Returns the first error passed to SetError.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">Read</span><span class="params">(data []<span class="keyword">byte</span>)</span> <span class="params">(<span class="keyword">int</span>, error)</span></span> &#123;</span><br><span class="line">    <span class="comment">// For sure that server-to-client stream has been initialized</span></span><br><span class="line">    <span class="comment">// First, we wait until we&#x27;ve gotten the response headers and established the</span></span><br><span class="line">    <span class="comment">// server-to-client side of the stream.</span></span><br><span class="line">    d.BlockUntilResponseReady()</span><br><span class="line">    <span class="keyword">if</span> err := d.getError(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="comment">// The stream is already closed or corrupted.</span></span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// Before we read, check if the context has been canceled.</span></span><br><span class="line">    <span class="keyword">if</span> err := d.ctx.Err(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, wrapIfContextError(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> d.response == <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, fmt.Errorf(<span class="string">&quot;nil response from %v&quot;</span>, d.request.URL)</span><br><span class="line">    &#125;</span><br><span class="line">    n, err := d.response.Body.Read(data)</span><br><span class="line">    <span class="keyword">return</span> n, wrapIfRSTError(err)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">BlockUntilResponseReady</span><span class="params">()</span></span> &#123;</span><br><span class="line">	&lt;-d.responseReady</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/dubbo-go-%E4%BA%91%E5%8E%9F%E7%94%9F-triple/" rel="tag"># dubbo-go - 云原生 - triple</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/" rel="prev" title="Triple协议 (4) Triple实现之编码和压缩">
+      <i class="fa fa-chevron-left"></i> Triple协议 (4) Triple实现之编码和压缩
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/" rel="next" title="Triple协议 (6) Triple实现之协议接口定义">
+      Triple协议 (6) Triple实现之协议接口定义 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1"><span class="nav-number">1.</span> <span class="nav-text">全双工通信</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">1.1.</span> <span class="nav-text">初始化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%99%E8%AF%B7%E6%B1%82"><span class="nav-number">1.2.</span> <span class="nav-text">写请求</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A1%AE%E4%BF%9D%E5%8F%8C%E5%B7%A5%E6%B5%81%E8%A2%AB%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">1.2.1.</span> <span class="nav-text">确保双工流被初始化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%BB%E5%93%8D%E5%BA%94"><span class="nav-number">1.3.</span> <span class="nav-text">读响应</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

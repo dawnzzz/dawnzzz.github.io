@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="TimerTimer 指定一段时间后，通过本身提供的一个 channel 通知触发一个事件，Timer 只执行一次就结束。 数据结构TimerTimer 有两个成员：  C：一个 channel，用于通知时间已经到达。 r：runtime 定时器，该定时器即系统管理的定时器，对上层应用不可见。  1234type Timer struct &amp;#123; &#x2F;&#x2F; Timer代表一次定时，时间到来后仅发">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO专家编程读书笔记 (6) 定时器之Timer和Ticker">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/03/21/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="TimerTimer 指定一段时间后，通过本身提供的一个 channel 通知触发一个事件，Timer 只执行一次就结束。 数据结构TimerTimer 有两个成员：  C：一个 channel，用于通知时间已经到达。 r：runtime 定时器，该定时器即系统管理的定时器，对上层应用不可见。  1234type Timer struct &amp;#123; &#x2F;&#x2F; Timer代表一次定时，时间到来后仅发">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_9b30d59765c6121152602b693e73d48d_r.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_eb16ba16afba116e650b0389b0ee69ec_r.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_9a706f47e567a3b95c44acb2537d96b3_r.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_b35406e39f3a444eb3356ac7ba5fb4b9_r.png">
+<meta property="article:published_time" content="2023-03-21T13:49:42.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.745Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_9b30d59765c6121152602b693e73d48d_r.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/03/21/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO专家编程读书笔记 (6) 定时器之Timer和Ticker | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/21/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO专家编程读书笔记 (6) 定时器之Timer和Ticker
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-21 21:49:42" itemprop="dateCreated datePublished" datetime="2023-03-21T21:49:42+08:00">2023-03-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go专家编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Timer"><a href="#Timer" class="headerlink" title="Timer"></a>Timer</h1><p>Timer 指定一段时间后，通过本身提供的一个 channel 通知触发一个事件，Timer 只执行一次就结束。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="Timer-1"><a href="#Timer-1" class="headerlink" title="Timer"></a>Timer</h3><p>Timer 有两个成员：</p>
+<ul>
+<li><strong>C：</strong>一个 channel，用于<strong>通知</strong>时间已经到达。</li>
+<li><strong>r：</strong>runtime 定时器，该定时器即<strong>系统管理的定时器</strong>，对上层应用不可见。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Timer <span class="keyword">struct</span> &#123; <span class="comment">// Timer代表一次定时，时间到来后仅发生一个事件。</span></span><br><span class="line">    C &lt;-<span class="keyword">chan</span> Time</span><br><span class="line">    r runtimeTimer</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="runtimeTimer"><a href="#runtimeTimer" class="headerlink" title="runtimeTimer"></a>runtimeTimer</h3><p>创建一个 Timer 实质上是<strong>把一个定时任务交给专门的协程进行监控</strong>，这个任务的载体便是 runtimeTimer。<strong>创建一个 Timer 就是创建一个 runtimeTimer，把它交给系统进行监控</strong>，当 runtimeTimer 到期后像 Timer.C 管道中发送一个消息。</p>
+<p>runtimeTimer 的结构如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> runtimeTimer <span class="keyword">struct</span> &#123;</span><br><span class="line">    tb <span class="keyword">uintptr</span>                          <span class="comment">// 存储当前定时器的数组地址</span></span><br><span class="line">    i  <span class="keyword">int</span>                              <span class="comment">// 存储当前定时器的数组下标</span></span><br><span class="line"></span><br><span class="line">    when   <span class="keyword">int64</span>                        <span class="comment">// 当前定时器触发时间</span></span><br><span class="line">    period <span class="keyword">int64</span>                        <span class="comment">// 当前定时器周期触发间隔</span></span><br><span class="line">    f      <span class="function"><span class="keyword">func</span><span class="params">(<span class="keyword">interface</span>&#123;&#125;, <span class="keyword">uintptr</span>)</span>   // 定时器触发时执行的函数</span></span><br><span class="line">    arg    <span class="keyword">interface</span>&#123;&#125;                  <span class="comment">// 定时器触发时执行函数传递的参数一</span></span><br><span class="line">    seq    <span class="keyword">uintptr</span>                      <span class="comment">// 定时器触发时执行函数传递的参数二(该参数只在网络收发场景下使用)</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>所有 Timer 中的 runtimeTimer 由统一的底层协程进行管理，这个协程是系统协程。</p>
+<p><strong>系统协程把 runtimeTimer 存放在数组！！中</strong>，并按照 runtimeTimer.when 进行<strong>堆排序</strong>，定时器触发时<strong>执行预定义的函数 runtimeTimer.f</strong>，即完成了一次定时任务。</p>
+<h3 id="创建-Timer"><a href="#创建-Timer" class="headerlink" title="创建 Timer"></a>创建 Timer</h3><p>创建 Timer 的过程：</p>
+<ul>
+<li>首先会<strong>初始化一个管道 C</strong>，用于通知上层应用。</li>
+<li>接着会<strong>创建一个 runtimeTimer</strong>，并且调用 startTimer 启动定时器（由系统协程维护）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewTimer</span><span class="params">(d Duration)</span> *<span class="title">Timer</span></span> &#123;</span><br><span class="line">    c := <span class="built_in">make</span>(<span class="keyword">chan</span> Time, <span class="number">1</span>)  <span class="comment">// 创建一个管道</span></span><br><span class="line">    t := &amp;Timer&#123; <span class="comment">// 构造Timer数据结构</span></span><br><span class="line">        C: c,               <span class="comment">// 新创建的管道</span></span><br><span class="line">        r: runtimeTimer&#123;</span><br><span class="line">            when: when(d),  <span class="comment">// 触发时间</span></span><br><span class="line">            f:    sendTime, <span class="comment">// 触发后执行函数sendTime</span></span><br><span class="line">            arg:  c,        <span class="comment">// 触发后执行函数sendTime时附带的参数</span></span><br><span class="line">        &#125;,</span><br><span class="line">    &#125;</span><br><span class="line">    startTimer(&amp;t.r) <span class="comment">// 此处启动定时器，只是把runtimeTimer放到系统协程的堆中，由系统协程维护</span></span><br><span class="line">    <span class="keyword">return</span> t</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>when 方法用于计算下一次定时器触发的绝对时间，即当前时间 + d。</p>
+<p>sendTime 方法用于定时器触发时，向管道 C 中发送当前时间：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sendTime</span><span class="params">(c <span class="keyword">interface</span>&#123;&#125;, seq <span class="keyword">uintptr</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">select</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> c.(<span class="keyword">chan</span> Time) &lt;- Now():</span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>因为 Timer 创建时，初始化了一个缓冲区长度为 1 的管道（<code>make(chan Time, 1)</code>），所以 Timer 触发时向管道写入时间永远不会阻塞，<strong>sendTime 写完即退出</strong>。</p>
+<p><strong>之所以 sendTime 使用 select 并搭配一个空的 default 分支，是因为 Ticker 也复用 sendTime</strong>。Ticker 触发时也会向管道中写入时间，但无法保证之前的数据已被取走，所以使用 select 并搭配一个空的 default 分支，<strong>确保 sendTime 不会阻塞</strong>。Ticker 触发时，<strong>如果管道中还有值，则本次不再向管道中写入时间</strong>，本次触发的事件直接丢弃。</p>
+</blockquote>
+<p>startTimer 函数的主要作用就是<strong>将 runtimeTimer 写入到系统协程的数组中</strong>，并启动系统协程（如果系统协程还未开始运行的话）。</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_9b30d59765c6121152602b693e73d48d_r.png" alt="img"></p>
+<span id="more"></span>
+
+<h3 id="停止-Timer"><a href="#停止-Timer" class="headerlink" title="停止 Timer"></a>停止 Timer</h3><p>停止 Timer 只需要把 runtimeTimer 从系统协程的数组中移除即可：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *Timer)</span> <span class="title">Stop</span><span class="params">()</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">    <span class="keyword">return</span> stopTimer(&amp;t.r)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>系统协程只是移除 runtimeTimer 并不会关闭管道，以避免用户协程读取错误。</p>
+</blockquote>
+<p>Timer 已经触发返回 true；Timer 没有触发返回 false。</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_eb16ba16afba116e650b0389b0ee69ec_r.png" alt="img"></p>
+<h3 id="重置-Timer"><a href="#重置-Timer" class="headerlink" title="重置 Timer"></a>重置 Timer</h3><p>重置 Timer 时会先把 runtimeTimer 冲系统协程中删除，然后修改触发时间后再添加到系统协程的数组中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *Timer)</span> <span class="title">Reset</span><span class="params">(d Duration)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">    w := when(d)</span><br><span class="line">    active := stopTimer(&amp;t.r)</span><br><span class="line">    t.r.when = w</span><br><span class="line">    startTimer(&amp;t.r)</span><br><span class="line">    <span class="keyword">return</span> active</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_9a706f47e567a3b95c44acb2537d96b3_r.png" alt="img"></p>
+<h1 id="Ticker"><a href="#Ticker" class="headerlink" title="Ticker"></a>Ticker</h1><blockquote>
+<p>不使用的 Ticker 需要显式地 Stop，否则会产生资源泄露。</p>
+<p>因为系统协程会一致定期的触发事件。</p>
+</blockquote>
+<h2 id="数据结构-1"><a href="#数据结构-1" class="headerlink" title="数据结构"></a>数据结构</h2><p>Ticker 的数据结构和 Timer 完全一致：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Ticker <span class="keyword">struct</span> &#123;</span><br><span class="line">    C &lt;-<span class="keyword">chan</span> Time <span class="comment">// The channel on which the ticks are delivered.</span></span><br><span class="line">    r runtimeTimer</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="实现原理-1"><a href="#实现原理-1" class="headerlink" title="实现原理"></a>实现原理</h2><h3 id="创建-Ticker"><a href="#创建-Ticker" class="headerlink" title="创建 Ticker"></a>创建 Ticker</h3><p>创建 Ticker 与创建 Timer 的过程差不多，其步骤都是：首先会<strong>初始化一个管道 C</strong>，用于通知上层应用。接着会<strong>创建一个 runtimeTimer</strong>，并且调用 startTimer 启动定时器（由系统协程维护）。</p>
+<p>但是与 Timer 不同的是，<strong>Ticker 在创建 runtimeTimer 时提供了 period 参数，据此决定 runtimeTimer 是一次性的，还是周期性的</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewTicker</span><span class="params">(d Duration)</span> *<span class="title">Ticker</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> d &lt;= <span class="number">0</span> &#123;</span><br><span class="line">        <span class="built_in">panic</span>(errors.New(<span class="string">&quot;non-positive interval for NewTicker&quot;</span>))</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// Give the channel a 1-element time buffer.</span></span><br><span class="line">    <span class="comment">// If the client falls behind while reading, we drop ticks</span></span><br><span class="line">    <span class="comment">// on the floor until the client catches up.</span></span><br><span class="line">    c := <span class="built_in">make</span>(<span class="keyword">chan</span> Time, <span class="number">1</span>)</span><br><span class="line">    t := &amp;Ticker&#123;</span><br><span class="line">        C: c,</span><br><span class="line">        r: runtimeTimer&#123;</span><br><span class="line">            when:   when(d),</span><br><span class="line">            period: <span class="keyword">int64</span>(d), <span class="comment">// Ticker跟Timer的重要区就是提供了period这个参数，据此决定timer是一次性的，还是周期性的</span></span><br><span class="line">            f:      sendTime,</span><br><span class="line">            arg:    c,</span><br><span class="line">        &#125;,</span><br><span class="line">    &#125;</span><br><span class="line">    startTimer(&amp;t.r)</span><br><span class="line">    <span class="keyword">return</span> t</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Ticker.C 是一个缓冲区长度为 1 的管道，Ticker 触发的事件是周期性的，<strong>如果管道中的数据没有被取走，那么 sendTime 也不会阻塞，而是直接退出</strong>，带来的后果是本次事件会丢失。</p>
+</blockquote>
+<p>停止 Ticker 与 Timer 一样，这里不做过多赘述。</p>
+<h1 id="系统协程"><a href="#系统协程" class="headerlink" title="系统协程"></a>系统协程</h1><p>因为 Timer 和 Ticker 创建好一个 runtimeTimer 后，统一交给系统协程进行管理，下文将说明系统协程如何管理这些定时器的。</p>
+<h2 id="定时器存储"><a href="#定时器存储" class="headerlink" title="定时器存储"></a>定时器存储</h2><p>在 time 包中，系统协程维护的对象名称为 runtimeTimer，而<strong>在 runtime 包中对应的是 timer</strong>。</p>
+<h3 id="数据结构-2"><a href="#数据结构-2" class="headerlink" title="数据结构"></a>数据结构</h3><p>timer 的数据结构如下，其中，<strong>timer.tb（timersBucket）是系统协程存储 timer 的容器，里面有个切片来存储 timer，timer.i 是当前所在的下标</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> timer <span class="keyword">struct</span> &#123;</span><br><span class="line">    tb *timersBucket <span class="comment">// the bucket the timer lives in   // 当前定时器寄存于系统timer堆的地址</span></span><br><span class="line">    i  <span class="keyword">int</span>           <span class="comment">// heap index                      // 当前定时器寄存于系统timer堆的下标</span></span><br><span class="line"></span><br><span class="line">    when   <span class="keyword">int64</span>                                     <span class="comment">// 当前定时器下次触发时间</span></span><br><span class="line">    period <span class="keyword">int64</span>                                     <span class="comment">// 当前定时器周期触发间隔（如果是Timer，间隔为0，表示不重复触发）</span></span><br><span class="line">    f      <span class="function"><span class="keyword">func</span><span class="params">(<span class="keyword">interface</span>&#123;&#125;, <span class="keyword">uintptr</span>)</span>                // 定时器触发时执行的函数</span></span><br><span class="line">    arg    <span class="keyword">interface</span>&#123;&#125;                               <span class="comment">// 定时器触发时执行函数传递的参数一</span></span><br><span class="line">    seq    <span class="keyword">uintptr</span>                                   <span class="comment">// 定时器触发时执行函数传递的参数二(该参数只在网络收发场景下使用)</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>而 timersBucket 的数据结构如下：</p>
+<ul>
+<li>lock：互斥锁，在 timer 增加和删除时需要使用；</li>
+<li>gp：事件处理协程，就是系统协程，这个协程在首次创建 Timer 或 Ticker 时生成；</li>
+<li>created：状态值，表示系统协程是否创建；</li>
+<li>sleeping：系统协程是否在睡眠；</li>
+<li>rescheduling：系统协程是否已暂停；</li>
+<li>sleepUntil：系统协程睡眠到指定的时间（如果有新的定时任务可能会提前唤醒）；</li>
+<li>waitnote：提前唤醒时使用的通知；</li>
+<li>t：保存 timer 的切片，当调用 NewTimer 或 NewTicker 时便会有新的 timer 存到此切片中。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> timersBucket <span class="keyword">struct</span> &#123;</span><br><span class="line">    lock         mutex</span><br><span class="line">    gp           *g          <span class="comment">// 处理堆中事件的协程</span></span><br><span class="line">    created      <span class="keyword">bool</span>        <span class="comment">// 事件处理协程是否已创建，默认为false，添加首个定时器时置为true</span></span><br><span class="line">    sleeping     <span class="keyword">bool</span>        <span class="comment">// 事件处理协程（gp）是否在睡眠(如果t中有定时器，还未到触发的时间，那么gp会投入睡眠)</span></span><br><span class="line">    rescheduling <span class="keyword">bool</span>        <span class="comment">// 事件处理协程（gp）是否已暂停（如果t中定时器均已删除，那么gp会暂停）</span></span><br><span class="line">    sleepUntil   <span class="keyword">int64</span>       <span class="comment">// 事件处理协程睡眠时间</span></span><br><span class="line">    waitnote     note        <span class="comment">// 事件处理协程睡眠事件（据此唤醒协程）</span></span><br><span class="line">    t            []*timer    <span class="comment">// 定时器切片</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>假如创建了三个 Ticker，则 Ticker、timer 和 timersBucket 的存储示意图如下：</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_b35406e39f3a444eb3356ac7ba5fb4b9_r.png" alt="img"></p>
+<h3 id="timersBucket-数组"><a href="#timersBucket-数组" class="headerlink" title="timersBucket 数组"></a>timersBucket 数组</h3><p>通过 timersBucket 数据结构可以看到，系统协程负责计时并维护其中的多个 timer，<strong>一个 timersBucket 包含一个系统协程</strong>。</p>
+<p>当系统中定时器非常多时，一个系统协程可能处理能力跟不上，所以 Go 在实现时实际上<strong>提供了多个 timersBucket</strong>，也就有多个系统协程来处理定时器。</p>
+<p>Go <strong>预留了 64 个 timersBucket</strong>，每当协程创建定时器时，使用<strong>协程所属的 ProcessID%64 来计算定时器存入的 timersBucket</strong>。</p>
+<h2 id="定时器运行机制"><a href="#定时器运行机制" class="headerlink" title="定时器运行机制"></a>定时器运行机制</h2><h3 id="创建定时器"><a href="#创建定时器" class="headerlink" title="创建定时器"></a>创建定时器</h3><p>在创建一个 Timer 或者 Ticker 时，其步骤都是相同的：首先创建一个管道；接着创建一个 runtimeTimer（timer），并启动。</p>
+<p>在第二步创建一个 timer 的过程中，<strong>首先要进行的是选择一个 timersBucket</strong>，就是<strong>当前协程所属的 Processor ID 与 timersBucket 取模</strong>得到下标：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> timersLen = <span class="number">64</span></span><br><span class="line"><span class="keyword">var</span> timers [timersLen]<span class="keyword">struct</span> &#123; <span class="comment">// timersBucket数组，长度为64</span></span><br><span class="line">    timersBucket</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *timer)</span> <span class="title">assignBucket</span><span class="params">()</span> *<span class="title">timersBucket</span></span> &#123;</span><br><span class="line">    id := <span class="keyword">uint8</span>(getg().m.p.ptr().id) % timersLen <span class="comment">// Processor ID 与数组长度求模，得到下标</span></span><br><span class="line">    t.tb = &amp;timers[id].timersBucket</span><br><span class="line">    <span class="keyword">return</span> t.tb</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接着就是将 timer 加入到 timersBucket 中，而 timer 在 timersBucket 中是以<strong>小根堆</strong>的形式维护的：</p>
+<ul>
+<li>如果 timer 的时间是负值，那么会被修改为很大的值，来保证后续定时算法的正确性。</li>
+<li>先把定时器<strong>插入到小根堆的堆尾，并且重新调整堆</strong>。</li>
+<li>新加入 timer 后，如果新的 timer 跑到了<strong>栈顶</strong>，需要<strong>唤醒</strong>系统协程来处理。</li>
+<li>如果是<strong>当前 timersBucket 的首个 timer</strong>，则启动利用 <code>go timerproc(tb)</code> 启动一个系统协程来处理堆中的定时器。</li>
+</ul>
+<blockquote>
+<p>Go 使用的是<strong>四叉堆</strong>而不是二叉堆，好处是堆的维度降低，调整堆更快。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tb *timersBucket)</span> <span class="title">addtimerLocked</span><span class="params">(t *timer)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> t.when &lt; <span class="number">0</span> &#123;</span><br><span class="line">        t.when = <span class="number">1</span>&lt;&lt;<span class="number">63</span> - <span class="number">1</span></span><br><span class="line">    &#125;</span><br><span class="line">    t.i = <span class="built_in">len</span>(tb.t)                 <span class="comment">// 先把定时器插入到堆尾</span></span><br><span class="line">    tb.t = <span class="built_in">append</span>(tb.t, t)          <span class="comment">// 保存定时器</span></span><br><span class="line">    <span class="keyword">if</span> !siftupTimer(tb.t, t.i) &#123;    <span class="comment">// 堆中插入数据，触发堆重新排序</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> t.i == <span class="number">0</span> &#123; <span class="comment">// 堆排序后，发现新插入的定时器跑到了栈顶，需要唤醒协程来处理</span></span><br><span class="line">        <span class="comment">// siftup moved to top: new earliest deadline.</span></span><br><span class="line">        <span class="keyword">if</span> tb.sleeping &#123;                 <span class="comment">// 协程在睡眠，唤醒协程来处理新加入的定时器</span></span><br><span class="line">            tb.sleeping = <span class="literal">false</span></span><br><span class="line">            notewakeup(&amp;tb.waitnote)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> tb.rescheduling &#123;             <span class="comment">// 协程已暂停，唤醒协程来处理新加入的定时器</span></span><br><span class="line">            tb.rescheduling = <span class="literal">false</span></span><br><span class="line">            goready(tb.gp, <span class="number">0</span>)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> !tb.created &#123;       <span class="comment">// 如果是系统首个定时器，则启动协程处理堆中的定时器</span></span><br><span class="line">        tb.created = <span class="literal">true</span></span><br><span class="line">        <span class="keyword">go</span> timerproc(tb)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="删除定时器"><a href="#删除定时器" class="headerlink" title="删除定时器"></a>删除定时器</h3><p>删除 timer 就是从 timersBuckets 的小根堆中删除 timer，然后调整小根堆。</p>
+<h3 id="timerproc"><a href="#timerproc" class="headerlink" title="timerproc"></a>timerproc</h3><p><strong>timerproc 为系统协程的具体实现</strong>。它是在<strong>首次</strong>创建定时器创建并启动的，<strong>一旦启动永不销毁</strong>。</p>
+<ul>
+<li><p>如果 timersBucket 中有定时器，<strong>取出堆顶定时器，计算睡眠时间，然后进入睡眠，醒来后触发事件</strong>。</p>
+</li>
+<li><p><strong>某个 timer 的事件触发后</strong>，根据其是否是周期性定时器来<strong>决定将其删除还是修改时间后重新加入堆</strong>。</p>
+</li>
+<li><p>如果堆中已<strong>没有事件</strong>需要触发，则系统协程将<strong>进入暂停态</strong>，也可认为是无限时睡眠，<strong>直到有新的 timer 加入才会被唤醒</strong>。</p>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/19/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-5-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BContext/" rel="prev" title="GO专家编程读书笔记 (5) 常见控制结构实现原理之Context">
+      <i class="fa fa-chevron-left"></i> GO专家编程读书笔记 (5) 常见控制结构实现原理之Context
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/03/22/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/" rel="next" title="关系抽取论文 A Unified Multi-Task Learning Framework for Joint Extraction of Entities and Relations">
+      关系抽取论文 A Unified Multi-Task Learning Framework for Joint Extraction of Entities and Relations <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Timer"><span class="nav-number">1.</span> <span class="nav-text">Timer</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Timer-1"><span class="nav-number">1.1.1.</span> <span class="nav-text">Timer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#runtimeTimer"><span class="nav-number">1.1.2.</span> <span class="nav-text">runtimeTimer</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86"><span class="nav-number">1.2.</span> <span class="nav-text">实现原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA-Timer"><span class="nav-number">1.2.1.</span> <span class="nav-text">创建 Timer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%81%9C%E6%AD%A2-Timer"><span class="nav-number">1.2.2.</span> <span class="nav-text">停止 Timer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%87%8D%E7%BD%AE-Timer"><span class="nav-number">1.2.3.</span> <span class="nav-text">重置 Timer</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Ticker"><span class="nav-number">2.</span> <span class="nav-text">Ticker</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-1"><span class="nav-number">2.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86-1"><span class="nav-number">2.2.</span> <span class="nav-text">实现原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA-Ticker"><span class="nav-number">2.2.1.</span> <span class="nav-text">创建 Ticker</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%B3%BB%E7%BB%9F%E5%8D%8F%E7%A8%8B"><span class="nav-number">3.</span> <span class="nav-text">系统协程</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E6%97%B6%E5%99%A8%E5%AD%98%E5%82%A8"><span class="nav-number">3.1.</span> <span class="nav-text">定时器存储</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-2"><span class="nav-number">3.1.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#timersBucket-%E6%95%B0%E7%BB%84"><span class="nav-number">3.1.2.</span> <span class="nav-text">timersBucket 数组</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E6%97%B6%E5%99%A8%E8%BF%90%E8%A1%8C%E6%9C%BA%E5%88%B6"><span class="nav-number">3.2.</span> <span class="nav-text">定时器运行机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E5%AE%9A%E6%97%B6%E5%99%A8"><span class="nav-number">3.2.1.</span> <span class="nav-text">创建定时器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%A0%E9%99%A4%E5%AE%9A%E6%97%B6%E5%99%A8"><span class="nav-number">3.2.2.</span> <span class="nav-text">删除定时器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#timerproc"><span class="nav-number">3.2.3.</span> <span class="nav-text">timerproc</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Triple 协议接口定义如下，包括两个方法：有 grpcProtocol 和 tripleProtocol 实现了这个接口，其中 grpc 用于处理 gRPC 协议（包括 Unary 和 Streaming，Triple 协议底层的 Streaming 通信用 gRPC 实现）和 Triple 协议（仅仅支持 Unary，但是同时支持 HTTP 1 和 HTTP 2）。  NewHandler：">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triple协议 (6) Triple实现之协议接口定义">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Triple 协议接口定义如下，包括两个方法：有 grpcProtocol 和 tripleProtocol 实现了这个接口，其中 grpc 用于处理 gRPC 协议（包括 Unary 和 Streaming，Triple 协议底层的 Streaming 通信用 gRPC 实现）和 Triple 协议（仅仅支持 Unary，但是同时支持 HTTP 1 和 HTTP 2）。  NewHandler：">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-03T09:04:55.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.793Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="dubbo-go - 云原生 - triple">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Triple协议 (6) Triple实现之协议接口定义 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Triple协议 (6) Triple实现之协议接口定义
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-03 17:04:55" itemprop="dateCreated datePublished" datetime="2023-12-03T17:04:55+08:00">2023-12-03</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>Triple 协议接口定义如下，包括两个方法：<strong>有 grpcProtocol 和 tripleProtocol 实现了这个接口</strong>，其中 grpc 用于处理 gRPC 协议（包括 Unary 和 Streaming，Triple 协议底层的 Streaming 通信用 gRPC 实现）和 Triple 协议（仅仅支持 Unary，但是同时支持 HTTP 1 和 HTTP 2）。</p>
+<ul>
+<li><strong>NewHandler：</strong>创建服务端 Handler 的方法，输入为 Handler 的参数，输出为 protocolHandler。</li>
+<li><strong>NewClient：</strong>创建客户端 Client 的方法，输入为 Client 的参数，输出为 protocolClient。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// A Protocol defines the HTTP semantics to use when sending and receiving</span></span><br><span class="line"><span class="comment">// messages. It ties together codecs, compressors, and net/http to produce</span></span><br><span class="line"><span class="comment">// Senders and Receivers.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// For example, triple supports the gRPC protocol using this abstraction. Among</span></span><br><span class="line"><span class="comment">// many other things, the protocol implementation is responsible for</span></span><br><span class="line"><span class="comment">// translating timeouts from Go contexts to HTTP and vice versa. For gRPC, it</span></span><br><span class="line"><span class="comment">// converts timeouts to and from strings (for example, 10*time.Second &lt;-&gt;</span></span><br><span class="line"><span class="comment">// &quot;10S&quot;), and puts those strings into the &quot;Grpc-Timeout&quot; HTTP header. Other</span></span><br><span class="line"><span class="comment">// protocols might encode durations differently, put them into a different HTTP</span></span><br><span class="line"><span class="comment">// header, or ignore them entirely.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// We don&#x27;t have any short-term plans to export this interface; it&#x27;s just here</span></span><br><span class="line"><span class="comment">// to separate the protocol-specific portions of triple from the</span></span><br><span class="line"><span class="comment">// protocol-agnostic plumbing.</span></span><br><span class="line"><span class="keyword">type</span> protocol <span class="keyword">interface</span> &#123;</span><br><span class="line">    NewHandler(*protocolHandlerParams) protocolHandler</span><br><span class="line">    NewClient(*protocolClientParams) (protocolClient, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Handler"><a href="#Handler" class="headerlink" title="Handler"></a>Handler</h1><p>Handler 在 Triple 协议总被定义为服务器。</p>
+<h2 id="Handler-配置"><a href="#Handler-配置" class="headerlink" title="Handler 配置"></a>Handler 配置</h2><p>Handler 配置 protocolHandlerParams 定义如下：</p>
+<ul>
+<li><strong>Spec：</strong>定义了 handler spec，包括传输类型、请求 Path（Procedure）、是否为客户端、IdempotencyLevel。</li>
+<li><strong>Codecs：</strong>保存了这个 Handler 支持的<strong>编码</strong>类型。</li>
+<li><strong>CompressionPools：</strong>保存了这个 Handler 支持的<strong>压缩</strong>方法。</li>
+<li><strong>CompressMinBytes：</strong>当小于这个值时，不进行压缩，即<strong>进行压缩的最小长度</strong>。</li>
+<li><strong>BufferPool：</strong>当接受请求或者发送响应时，进行编码和压缩时用的 buffer，这些 buffer 通过 BufferPool 进行<strong>复用</strong>（底层为 sync.Pool）。</li>
+<li><strong>ReadMaxBytes：</strong>最大请求读取长度。</li>
+<li><strong>SendMaxBytes：</strong>最大响应写入长度。</li>
+<li><strong>RequireTripleProtocolHeader：</strong>是否需要检测 Triple-Protocol-Version Header，如果<strong>可以通过这个 Header 快速判断是否为 Triple 请求</strong>。</li>
+<li>IdempotencyLevel：幂等等级。</li>
+</ul>
+<span id="more"></span>
+
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// HandlerParams are the arguments provided to a Protocol&#x27;s NewHandler</span></span><br><span class="line"><span class="comment">// method, bundled into a struct to allow backward-compatible argument</span></span><br><span class="line"><span class="comment">// additions. Protocol implementations should take care to use the supplied</span></span><br><span class="line"><span class="comment">// Spec rather than constructing their own, since new fields may have been</span></span><br><span class="line"><span class="comment">// added.</span></span><br><span class="line"><span class="keyword">type</span> protocolHandlerParams <span class="keyword">struct</span> &#123;</span><br><span class="line">    Spec                        Spec</span><br><span class="line">    Codecs                      readOnlyCodecs</span><br><span class="line">    CompressionPools            readOnlyCompressionPools</span><br><span class="line">    CompressMinBytes            <span class="keyword">int</span></span><br><span class="line">    BufferPool                  *bufferPool</span><br><span class="line">    ReadMaxBytes                <span class="keyword">int</span></span><br><span class="line">    SendMaxBytes                <span class="keyword">int</span></span><br><span class="line">    RequireTripleProtocolHeader <span class="keyword">bool</span></span><br><span class="line">    IdempotencyLevel            IdempotencyLevel</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Handler-定义"><a href="#Handler-定义" class="headerlink" title="Handler 定义"></a>Handler 定义</h2><p>Handler 的抽象定义如下，在 Triple 实现时，<strong>grpcHandler</strong>（用于 streaming 通信和 unary gRPC 通信）和 <strong>tripleHandler</strong>（仅用于实现 triple unary 通信）实现了这个接口。定义的方法如下：</p>
+<ul>
+<li><strong>Methods：</strong>返回可以处理的 HTTP 方法。</li>
+<li><strong>ContentTypes：</strong>返回可以处理的 Content-Type 类型。</li>
+<li><strong>SetTimeout：</strong>通过读取请求中的 timeout Header（Triple-Timeout-Ms，Grpc-Timeout），来设置处理的超时时间，返回带超时时间的 context。</li>
+<li><strong>CanHandlePayload：</strong>返回是否可以处理 HTTP 请求。</li>
+<li><strong>NewConn：</strong>Handler 的核心函数，用与创建一会与客户端的连接，可以读取 request，写入 response。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Handler is the server side of a protocol. HTTP handlers typically support</span></span><br><span class="line"><span class="comment">// multiple protocols, codecs, and compressors.</span></span><br><span class="line"><span class="keyword">type</span> protocolHandler <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Methods is the set of HTTP methods the protocol can handle.</span></span><br><span class="line">    Methods() <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ContentTypes is the set of HTTP Content-Types that the protocol can</span></span><br><span class="line">    <span class="comment">// handle.</span></span><br><span class="line">    ContentTypes() <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// SetTimeout runs before NewStream. Implementations may inspect the HTTP</span></span><br><span class="line">    <span class="comment">// request, parse any timeout set by the client, and return a modified</span></span><br><span class="line">    <span class="comment">// context and cancellation function.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// If the client didn&#x27;t send a timeout, SetTimeout should return the</span></span><br><span class="line">    <span class="comment">// request&#x27;s context, a nil cancellation function, and a nil error.</span></span><br><span class="line">    SetTimeout(*http.Request) (context.Context, context.CancelFunc, error)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// CanHandlePayload returns true if the protocol can handle an HTTP request.</span></span><br><span class="line">    <span class="comment">// This is called after the request method is validated, so we only need to</span></span><br><span class="line">    <span class="comment">// be concerned with the content type/payload specifically.</span></span><br><span class="line">    CanHandlePayload(*http.Request, <span class="keyword">string</span>) <span class="keyword">bool</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// NewConn constructs a HandlerConn for the message exchange.</span></span><br><span class="line">    NewConn(http.ResponseWriter, *http.Request) (handlerConnCloser, <span class="keyword">bool</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Client"><a href="#Client" class="headerlink" title="Client"></a>Client</h1><p>Client 在 Triple 协议中被定义为客户端。</p>
+<h2 id="Client-配置"><a href="#Client-配置" class="headerlink" title="Client 配置"></a>Client 配置</h2><p>Client 配置 protocolClientParams 定义如下：</p>
+<ul>
+<li><strong>CompressionName：</strong>此次请求使用的压缩方法名。</li>
+<li><strong>CompressionPools：</strong>客户端支持的压缩方法。</li>
+<li><strong>Codec：</strong>客户端支持的编码方法。</li>
+<li><strong>CompressMinBytes：</strong>当小于这个值时，不进行压缩，即<strong>进行压缩的最小长度</strong>。</li>
+<li><strong>HTTPClient：</strong>HTTPClient，发出 HTTP 请求的客户端，即 http.Client。</li>
+<li><strong>URL：</strong>请求的 URL。</li>
+<li><strong>BufferPool：</strong>当接受请求或者发送响应时，进行编码和压缩时用的 buffer，这些 buffer 通过 BufferPool 进行<strong>复用</strong>（底层为 sync.Pool）。</li>
+<li><strong>ReadMaxBytes：</strong>最大响应读取长度。</li>
+<li><strong>SendMaxBytes：</strong>最大请求写入长度。</li>
+<li><strong>Protobuf：</strong>protobuf 编码方式。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ClientParams are the arguments provided to a Protocol&#x27;s NewClient method,</span></span><br><span class="line"><span class="comment">// bundled into a struct to allow backward-compatible argument additions.</span></span><br><span class="line"><span class="comment">// Protocol implementations should take care to use the supplied Spec rather</span></span><br><span class="line"><span class="comment">// than constructing their own, since new fields may have been added.</span></span><br><span class="line"><span class="keyword">type</span> protocolClientParams <span class="keyword">struct</span> &#123;</span><br><span class="line">    CompressionName  <span class="keyword">string</span></span><br><span class="line">    CompressionPools readOnlyCompressionPools</span><br><span class="line">    Codec            Codec</span><br><span class="line">    CompressMinBytes <span class="keyword">int</span></span><br><span class="line">    HTTPClient       HTTPClient</span><br><span class="line">    URL              *url.URL</span><br><span class="line">    BufferPool       *bufferPool</span><br><span class="line">    ReadMaxBytes     <span class="keyword">int</span></span><br><span class="line">    SendMaxBytes     <span class="keyword">int</span></span><br><span class="line">    EnableGet        <span class="keyword">bool</span></span><br><span class="line">    GetURLMaxBytes   <span class="keyword">int</span></span><br><span class="line">    GetUseFallback   <span class="keyword">bool</span></span><br><span class="line">    <span class="comment">// The gRPC family of protocols always needs access to a Protobuf codec to</span></span><br><span class="line">    <span class="comment">// marshal and unmarshal errors.</span></span><br><span class="line">    Protobuf Codec</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Client-定义"><a href="#Client-定义" class="headerlink" title="Client 定义"></a>Client 定义</h2><p>Client 的抽象定义如下，同样的，在 Triple 实现时，<strong>grpcClient</strong>（用于 streaming 通信和 unary gRPC 通信）和 <strong>tripleClient</strong>（仅用于实现 triple unary 通信）实现了这个接口。定义的方法如下：</p>
+<ul>
+<li><strong>Peer：</strong>返回 RPC 请求的 Server 信息，包括地址，协议，url query 参数。</li>
+<li><strong>WriteRequestHander：</strong>向 HTTP Header 中写入<strong>协议相关</strong>的 Header（Triple 或者 gRPC 特有的 Header）。</li>
+<li><strong>NewConn：</strong>Client 的核心方法，用于与服务器之间创建一条<strong>连接</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Client is the client side of a protocol. HTTP clients typically use a single</span></span><br><span class="line"><span class="comment">// protocol, codec, and compressor to send requests.</span></span><br><span class="line"><span class="keyword">type</span> protocolClient <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Peer describes the server for the RPC.</span></span><br><span class="line">    Peer() Peer</span><br><span class="line"></span><br><span class="line">    <span class="comment">// WriteRequestHeader writes any protocol-specific request headers.</span></span><br><span class="line">    WriteRequestHeader(StreamType, http.Header)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// NewConn constructs a StreamingClientConn for the message exchange.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Implementations should assume that the supplied HTTP headers have already</span></span><br><span class="line">    <span class="comment">// been populated by WriteRequestHeader. When constructing a stream for a</span></span><br><span class="line">    <span class="comment">// unary call, implementations may assume that the Sender&#x27;s Send and Close</span></span><br><span class="line">    <span class="comment">// methods return before the Receiver&#x27;s Receive or Close methods are called.</span></span><br><span class="line">    NewConn(context.Context, Spec, http.Header) StreamingClientConn</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="连接的抽象"><a href="#连接的抽象" class="headerlink" title="连接的抽象"></a>连接的抽象</h1><p>在 Handler 和 Client 接口中，都有 NewConn 方法，返回一个连接。在 Triple 中，客户端和服务器之间的连接也进行了抽象。并且分别以客户端和服务器的视角，分别进行了定义。</p>
+<ul>
+<li><strong>StreamingHandlerConn：</strong>以服务器的视角，描述了服务器所接受的客户端的连接。<ul>
+<li>类似于 http.ResponseWriter，<strong>在第一次向客户端响应信息时，写入 Response Header</strong>，后续的更改实际上是没有用的。</li>
+<li>当客户端完成发送数据时，Receive 返回一个包装 io.EOF 的错误。</li>
+<li>以 <code>Triple-</code> 和 <code>Grpc-</code> 开头的头部和尾部是 gRPC 和 Triple 协议保留的，应用可以读取它们但不能写入它们。</li>
+<li>保证所有返回的错误都是 Triple 协议定义的标准错误。</li>
+</ul>
+</li>
+<li><strong>StreamingClientConn：</strong>以客户端的视角，描述了客户端与服务器之间的连接。<ul>
+<li><strong>在第一次向服务器发送请求时，写入 Request Header</strong>，后续的更改实际上是没有用的。</li>
+<li>当服务器完成发送数据时，StreamingClientConn 的 Receive 方法将返回一个错误，该错误包装了 io.EOF。</li>
+<li>以 <code>Triple-</code> 和 <code>Grpc-</code> 开头的头部和尾部是 gRPC 和 Triple 协议保留的，应用可以读取它们但不能写入它们。</li>
+<li>保证所有返回的错误都是 Triple 协议定义的标准错误。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// StreamingHandlerConn is the server&#x27;s view of a bidirectional message</span></span><br><span class="line"><span class="comment">// exchange. Interceptors for streaming RPCs may wrap StreamingHandlerConns.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// Like the standard library&#x27;s [http.ResponseWriter], StreamingHandlerConns write</span></span><br><span class="line"><span class="comment">// response headers to the network with the first call to Send. Any subsequent</span></span><br><span class="line"><span class="comment">// mutations are effectively no-ops. Handlers may mutate response trailers at</span></span><br><span class="line"><span class="comment">// any time before returning. When the client has finished sending data,</span></span><br><span class="line"><span class="comment">// Receive returns an error wrapping [io.EOF]. Handlers should check for this</span></span><br><span class="line"><span class="comment">// using the standard library&#x27;s [errors.Is].</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// Headers and trailers beginning with &quot;Triple-&quot; and &quot;Grpc-&quot; are reserved for</span></span><br><span class="line"><span class="comment">// use by the gRPC and Triple protocols: applications may read them but</span></span><br><span class="line"><span class="comment">// shouldn&#x27;t write them.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// StreamingHandlerConn implementations provided by this module guarantee that</span></span><br><span class="line"><span class="comment">// all returned errors can be cast to [*Error] using the standard library&#x27;s</span></span><br><span class="line"><span class="comment">// [errors.As].</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// StreamingHandlerConn implementations do not need to be safe for concurrent use.</span></span><br><span class="line"><span class="keyword">type</span> StreamingHandlerConn <span class="keyword">interface</span> &#123;</span><br><span class="line">    Spec() Spec</span><br><span class="line">    Peer() Peer</span><br><span class="line"></span><br><span class="line">    Receive(<span class="keyword">interface</span>&#123;&#125;) error</span><br><span class="line">    RequestHeader() http.Header</span><br><span class="line"></span><br><span class="line">    Send(<span class="keyword">interface</span>&#123;&#125;) error</span><br><span class="line">    ResponseHeader() http.Header</span><br><span class="line">    ResponseTrailer() http.Header</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// StreamingClientConn is the client&#x27;s view of a bidirectional message exchange.</span></span><br><span class="line"><span class="comment">// Interceptors for streaming RPCs may wrap StreamingClientConn.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// StreamingClientConn write request headers to the network with the first</span></span><br><span class="line"><span class="comment">// call to Send. Any subsequent mutations are effectively no-ops. When the</span></span><br><span class="line"><span class="comment">// server is done sending data, the StreamingClientConn&#x27;s Receive method</span></span><br><span class="line"><span class="comment">// returns an error wrapping [io.EOF]. Clients should check for this using the</span></span><br><span class="line"><span class="comment">// standard library&#x27;s [errors.Is] or [IsEnded]. If the server encounters an error</span></span><br><span class="line"><span class="comment">// during processing, subsequent calls to the StreamingClientConn&#x27;s Send method</span></span><br><span class="line"><span class="comment">// will return an error wrapping [io.EOF]; clients may then call Receive to</span></span><br><span class="line"><span class="comment">// unmarshal the error.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// Headers and trailers beginning with &quot;Triple-&quot; and &quot;Grpc-&quot; are reserved for</span></span><br><span class="line"><span class="comment">// use by the gRPC and Triple protocols: applications may read them but</span></span><br><span class="line"><span class="comment">// shouldn&#x27;t write them.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// StreamingClientConn implementations provided by this module guarantee that</span></span><br><span class="line"><span class="comment">// all returned errors can be cast to [*Error] using the standard library&#x27;s</span></span><br><span class="line"><span class="comment">// [errors.As].</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// In order to support bidirectional streaming RPCs, all StreamingClientConn</span></span><br><span class="line"><span class="comment">// implementations must support limited concurrent use. See the comments on</span></span><br><span class="line"><span class="comment">// each group of methods for details.</span></span><br><span class="line"><span class="keyword">type</span> StreamingClientConn <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Spec and Peer must be safe to call concurrently with all other methods.</span></span><br><span class="line">    Spec() Spec</span><br><span class="line">    Peer() Peer</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Send, RequestHeader, and CloseRequest may race with each other, but must</span></span><br><span class="line">    <span class="comment">// be safe to call concurrently with all other methods.</span></span><br><span class="line">    Send(<span class="keyword">interface</span>&#123;&#125;) error</span><br><span class="line">    RequestHeader() http.Header</span><br><span class="line">    CloseRequest() error</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Receive, ResponseHeader, ResponseTrailer, and CloseResponse may race with</span></span><br><span class="line">    <span class="comment">// each other, but must be safe to call concurrently with all other methods.</span></span><br><span class="line">    Receive(<span class="keyword">interface</span>&#123;&#125;) error</span><br><span class="line">    ResponseHeader() http.Header</span><br><span class="line">    ResponseTrailer() http.Header</span><br><span class="line">    CloseResponse() error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/dubbo-go-%E4%BA%91%E5%8E%9F%E7%94%9F-triple/" rel="tag"># dubbo-go - 云原生 - triple</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/" rel="prev" title="Triple协议 (5) Triple实现之全双工通信">
+      <i class="fa fa-chevron-left"></i> Triple协议 (5) Triple实现之全双工通信
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/08/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1/" rel="next" title="用户增长 增长平台方案设计">
+      用户增长 增长平台方案设计 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Handler"><span class="nav-number">1.</span> <span class="nav-text">Handler</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Handler-%E9%85%8D%E7%BD%AE"><span class="nav-number">1.1.</span> <span class="nav-text">Handler 配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Handler-%E5%AE%9A%E4%B9%89"><span class="nav-number">1.2.</span> <span class="nav-text">Handler 定义</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Client"><span class="nav-number">2.</span> <span class="nav-text">Client</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Client-%E9%85%8D%E7%BD%AE"><span class="nav-number">2.1.</span> <span class="nav-text">Client 配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Client-%E5%AE%9A%E4%B9%89"><span class="nav-number">2.2.</span> <span class="nav-text">Client 定义</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5%E7%9A%84%E6%8A%BD%E8%B1%A1"><span class="nav-number">3.</span> <span class="nav-text">连接的抽象</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

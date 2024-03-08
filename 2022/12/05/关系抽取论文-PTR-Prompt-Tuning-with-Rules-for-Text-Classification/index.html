@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification 年份：2021 作者：Xu Han, Weilin Zhao, Ning Ding, Zhiyuan Liu, Maosong Sun 机构：Department of Computer Science and Technology, Tsinghua University,">
+<meta property="og:type" content="article">
+<meta property="og:title" content="关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/12/05/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification 年份：2021 作者：Xu Han, Weilin Zhao, Ning Ding, Zhiyuan Liu, Maosong Sun 机构：Department of Computer Science and Technology, Tsinghua University,">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206110525834.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115244946.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115403847.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115629842.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115647100.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206120606580.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206120612974.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206122809946.png">
+<meta property="article:published_time" content="2022-12-05T03:17:33.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.811Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="NLP">
+<meta property="article:tag" content="关系抽取">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206110525834.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/12/05/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/05/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-05 11:17:33" itemprop="dateCreated datePublished" datetime="2022-12-05T11:17:33+08:00">2022-12-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87/" itemprop="url" rel="index"><span itemprop="name">关系抽取论文</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p><strong>关系抽取论文 PTR: Prompt Tuning with Rules for Text Classification</strong></p>
+<p>年份：2021</p>
+<p>作者：Xu Han, Weilin Zhao, Ning Ding, Zhiyuan Liu, Maosong Sun</p>
+<p>机构：Department of Computer Science and Technology, Tsinghua University, Beijing</p>
+<p>数据集：TACRED，TACREV，ReTACRED，SemEval 2010 Task 8</p>
+<ul>
+<li>TRCRED：通过众包的方式产生的，包含42个关系类别。</li>
+<li>TACREV：纠正了 TACRED 的原始验证集和测试集中的错误，而训练集却保持不变。</li>
+<li>ReTACRED：TACRED 的另一个版本，解决了原始 TACRED 数据集的一些缺点，并对其训练集、开发集和测试集进行了重构。 ReTACRED 还修改了一些关系类型。</li>
+</ul>
+<p>motivation：</p>
+<ul>
+<li><strong>pretrain 和 fine-tuning 之间存在着明显的差距</strong>，即  pretrain 时采用预测 mask 单词的方法，而在 fine-tuning 时可能做的是多分类任务。这一差距将阻碍预训练模型中的知识对下游任务的适应，prompt 的提出就是为了解决这种差距。</li>
+<li><strong>目前 prompt 适用于少量分类的场景</strong>，对于 many-class 的分类任务依然具有挑战性。</li>
+</ul>
+</blockquote>
+<p><strong>pretrain 和 fine-tuning 之间存在着明显的差距</strong>，即  pretrain 时采用预测 mask 单词的方法，而在 fine-tuning 时可能做的是多分类任务。这一差距将阻碍预训练模型中的知识对下游任务的适应，prompt 的提出就是为了解决这种差距。</p>
+<p>并且，<strong>目前 prompt 适用于少量分类的场景</strong>，如情感分析或者自然语言推理：</p>
+<ul>
+<li>对于情感分析，一个典型的 template 可以是 <code>&lt;S1&gt; was [MASK]</code>，将 label words 作为 MASK 预测的候选集，将预测出的单词映射到相应的情感中，如 great 映射到正面情感、terrible 映射到负面情感，将二分类问题转化为预测下一个单词问题。</li>
+<li>对于自然语言推理，一个典型的 template 是 <code>&lt;S1&gt;. [MASK], &lt;S2&gt;</code>，label words 可以是 <code>&#123;yes, maybe, no&#125;</code> 来表示两个句子之间的关系。</li>
+</ul>
+<p>论文提出了 prompt tuning with rules（PTR），可以应用于 many-class 的多分类任务中，PTR 的优势如下：</p>
+<ul>
+<li><strong>Prior Knowledge Encoding：</strong>PTR 可以应用 logic rules 将任务和分类的先验知识编码到 prompt funing 中，预测的结果与实体类型和关系都相关。如对于关系 <code>person:parent</code> 和关系 <code>organization:parent</code> 应用两个 sub-prompt，第一个 sub-prompt 用于确定实体是人还是组织，第二个 sub-prompt 用于确定是否有 parent-child 关系。</li>
+<li>Efficient Prompt Design：根据 logic rules 可以很容易的设计几个简单的 sub-prompt，并且组合这些 sub-prompt 用于形成 task-specific prompt。</li>
+</ul>
+<h1 id="模型结构"><a href="#模型结构" class="headerlink" title="模型结构"></a>模型结构</h1><p>考虑到设计 prompt 在 many-class 分类的困难性，论文提出了 PTR 合并 logic rules，利用几个简单的 sub-prompt 生成 task-specific prompt。论文将一个分类任务，转换为一系列条件函数的计算任务。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206110525834.png" alt="image-20221206110525834"></p>
+<span id="more"></span>
+
+<h2 id="Sub-Prompt-for-Condition-Functions"><a href="#Sub-Prompt-for-Condition-Functions" class="headerlink" title="Sub-Prompt for Condition Functions"></a>Sub-Prompt for Condition Functions</h2><p>一个 sub-prompt 包含一个<strong>模板</strong>和 <strong>label words 集合</strong>。</p>
+<h3 id="确定实体类型"><a href="#确定实体类型" class="headerlink" title="确定实体类型"></a>确定实体类型</h3><p>基础的条件函数（条件函数用于决定输入是否满足一定的条件）是一个<strong>一元函数</strong>，在关系抽取中一元函数可以用于指明实体类型。以下函数决定实体的类型：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115244946.png" alt="image-20221206115244946"></p>
+<p>sub-prompt 模板和 label words set 为以下形式：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115403847.png" alt="image-20221206115403847"></p>
+<h3 id="确定两个实体之间的关系"><a href="#确定两个实体之间的关系" class="headerlink" title="确定两个实体之间的关系"></a>确定两个实体之间的关系</h3><p>另一个重要的条件函数是<strong>二元函数</strong>，在关系抽取中二元函数可以用于决定两个实体之间的关系。以下函数决定两个实体之间的关系：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115629842.png" alt="image-20221206115629842"></p>
+<p>sub-prompt 模板和 label words set 为以下形式：</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206115647100.png" alt="image-20221206115647100"></p>
+<h2 id="Composing-Sub-prompts-for-Tasks"><a href="#Composing-Sub-prompts-for-Tasks" class="headerlink" title="Composing Sub-prompts for Tasks"></a>Composing Sub-prompts for Tasks</h2><p>PTR 利用了一个简单的方法去将 sub-prompt 合成一个完整的 prompt，就是<strong>直接连接</strong>。在关系抽取任务中，连接预测两个实体的类型的 sub-prompt 和两个实体之间的关系的 sub-prompt。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206120606580.png" alt="image-20221206120606580"></p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206120612974.png" alt="image-20221206120612974"></p>
+<h1 id="实验结果"><a href="#实验结果" class="headerlink" title="实验结果"></a>实验结果</h1><p>实验中，论文颠倒了一些关系中 subject 和 object 的顺序，如 member_of 改为 member，如果做出这样的改变，则用 REVERSED 标记。</p>
+<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-PTR-Prompt-Tuning-with-Rules-for-Text-Classification/image-20221206122809946.png" alt="image-20221206122809946"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/NLP/" rel="tag"># NLP</a>
+              <a href="/tags/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96/" rel="tag"># 关系抽取</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/11/27/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-Document-Level-Relation-Extraction-with-Adaptive-Thresholding-and-Localized-Context-Pooling/" rel="prev" title="关系抽取论文 Document-Level Relation Extraction with Adaptive Thresholding and Localized Context Pooling">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 Document-Level Relation Extraction with Adaptive Thresholding and Localized Context Pooling
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/06/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-GrantRE-Grant-Information-Extraction-via-Joint-Entity-and-Relation-Extraction/" rel="next" title="关系抽取论文 GrantRE: Grant Information Extraction via Joint Entity and Relation Extraction">
+      关系抽取论文 GrantRE: Grant Information Extraction via Joint Entity and Relation Extraction <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">模型结构</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Sub-Prompt-for-Condition-Functions"><span class="nav-number">1.1.</span> <span class="nav-text">Sub-Prompt for Condition Functions</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A1%AE%E5%AE%9A%E5%AE%9E%E4%BD%93%E7%B1%BB%E5%9E%8B"><span class="nav-number">1.1.1.</span> <span class="nav-text">确定实体类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A1%AE%E5%AE%9A%E4%B8%A4%E4%B8%AA%E5%AE%9E%E4%BD%93%E4%B9%8B%E9%97%B4%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-number">1.1.2.</span> <span class="nav-text">确定两个实体之间的关系</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Composing-Sub-prompts-for-Tasks"><span class="nav-number">1.2.</span> <span class="nav-text">Composing Sub-prompts for Tasks</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C%E7%BB%93%E6%9E%9C"><span class="nav-number">2.</span> <span class="nav-text">实验结果</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

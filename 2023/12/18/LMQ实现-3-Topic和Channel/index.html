@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本项目地址：LMQ lmqd 中的元数据是指 lmqd 中的 Topic 和 Channel 信息 TopicTopic 负责接受生产者的消息，并且将消息复制分发给每一个 channel 中。 数据结构Topic 的结构如下，主要的属性有：  name：topic 的名称。 isTemporary：是否是临时的 Topic，如果名称带有 #tmp 则表明这是一个临时的 Topic。 对于临时 To">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LMQ实现 (3) Topic和Channel">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本项目地址：LMQ lmqd 中的元数据是指 lmqd 中的 Topic 和 Channel 信息 TopicTopic 负责接受生产者的消息，并且将消息复制分发给每一个 channel 中。 数据结构Topic 的结构如下，主要的属性有：  name：topic 的名称。 isTemporary：是否是临时的 Topic，如果名称带有 #tmp 则表明这是一个临时的 Topic。 对于临时 To">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-18T11:50:45.000Z">
+<meta property="article:modified_time" content="2023-12-21T02:26:51.817Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="消息队列 - 后端开发 - lmq">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>LMQ实现 (3) Topic和Channel | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          LMQ实现 (3) Topic和Channel
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-18 19:50:45" itemprop="dateCreated datePublished" datetime="2023-12-18T19:50:45+08:00">2023-12-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-21 10:26:51" itemprop="dateModified" datetime="2023-12-21T10:26:51+08:00">2023-12-21</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
+<p>lmqd 中的元数据是指 lmqd 中的 Topic 和 Channel 信息</p>
+<h1 id="Topic"><a href="#Topic" class="headerlink" title="Topic"></a>Topic</h1><p>Topic 负责接受生产者的消息，并且将消息复制分发给每一个 channel 中。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>Topic 的结构如下，主要的属性有：</p>
+<ul>
+<li>name：topic 的名称。</li>
+<li>isTemporary：是否是临时的 Topic，如果名称带有 <code>#tmp</code> 则表明这是一个临时的 Topic。<ul>
+<li>对于临时 Topic，backendQueue（磁盘队列）为 nil，所以超出内存队列长度的数据会被直接丢弃。</li>
+<li>若 channel 为空，则会立即删除这个 topic。</li>
+<li>一个临时的 topic 不会持久化到磁盘中。</li>
+</ul>
+</li>
+<li>channels：topic 下有多个 channel，保存所有在此 topic 下的 channel。</li>
+<li>memoryMsgChan：内存消息队列。</li>
+<li>backendMsgChan：磁盘消息队列。</li>
+<li>deleteCallback：这个 topic 删除后的回调函数，主要用于删除 lmqd 中维护的 topic 信息。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Topic <span class="keyword">struct</span> &#123;</span><br><span class="line">   lmqd iface.ILmqDaemon</span><br><span class="line"></span><br><span class="line">   name         <span class="keyword">string</span></span><br><span class="line">   isTemporary  <span class="keyword">bool</span>                      <span class="comment">// 标记是否是临时的topic</span></span><br><span class="line">   isPausing    atomic.Bool               <span class="comment">// 标记是否已经暂停</span></span><br><span class="line">   isExiting    atomic.Bool               <span class="comment">// 标记是否已经退出</span></span><br><span class="line">   channels     <span class="keyword">map</span>[<span class="keyword">string</span>]iface.IChannel <span class="comment">// 保存所有的channel字典</span></span><br><span class="line">   channelsLock sync.RWMutex              <span class="comment">// 控制对channel字典的互斥访问</span></span><br><span class="line"></span><br><span class="line">   guidFactory *GUIDFactory <span class="comment">// message id 生成器</span></span><br><span class="line"></span><br><span class="line">   memoryMsgChan <span class="keyword">chan</span> iface.IMessage       <span class="comment">// 内存chan</span></span><br><span class="line">   backendQueue  backendqueue.BackendQueue <span class="comment">// 当内存chan满了之后，将消息存入到后端队列中（持久化保存）</span></span><br><span class="line"></span><br><span class="line">   deleteCallback <span class="function"><span class="keyword">func</span><span class="params">(topic iface.ITopic)</span></span></span><br><span class="line">   deleter        sync.Once</span><br><span class="line"></span><br><span class="line">   startChan   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   updateChan  <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   pauseChan   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   closingChan <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   closedChan  <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">   messageCount atomic.Uint64</span><br><span class="line">   messageBytes atomic.Uint64</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="生产消息"><a href="#生产消息" class="headerlink" title="生产消息"></a>生产消息</h2><p>通过 select，在内存队列中放入消息。如果内存队列已满，则会进入 default 分支，将消息送入磁盘消息队列中。</p>
+<span id="more"></span>
+
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(topic *Topic)</span> <span class="title">PutMessage</span><span class="params">(msg iface.IMessage)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">   topic.channelsLock.RLock()</span><br><span class="line">   <span class="keyword">defer</span> topic.channelsLock.RUnlock()</span><br><span class="line">   <span class="keyword">if</span> topic.isExiting.Load() &#123;</span><br><span class="line">      <span class="keyword">return</span> e.ErrTopicIsExiting</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> msg.GetDataLength() &lt; config.GlobalLmqdConfig.MinMessageSize || msg.GetDataLength() &gt; config.GlobalLmqdConfig.MaxMessageSize &#123;</span><br><span class="line">      <span class="comment">// 消息长度不合法</span></span><br><span class="line">      <span class="keyword">return</span> e.ErrMessageLengthInvalid</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">select</span> &#123;</span><br><span class="line">   <span class="keyword">case</span> topic.memoryMsgChan &lt;- msg:</span><br><span class="line">   <span class="keyword">default</span>:</span><br><span class="line">      <span class="comment">// 存入backend queue</span></span><br><span class="line"></span><br><span class="line">      <span class="comment">// 转为[]byte</span></span><br><span class="line">      data, err := message.ConvertMessageToBytes(msg)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         logger.Errorf(<span class="string">&quot;topic(%s) convert message to bytes err when PutMessage: %s&quot;</span>, topic.name, err.Error())</span><br><span class="line">         <span class="keyword">return</span> err</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 放到disk queue中</span></span><br><span class="line">      err = topic.backendQueue.Put(data)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         logger.Errorf(<span class="string">&quot;topic(%s) convert message to bytes err when put msg into backend queue: %s&quot;</span>, topic.name, err.Error())</span><br><span class="line">         <span class="keyword">return</span> err</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   topic.messageCount.Add(<span class="number">1</span>)</span><br><span class="line">   topic.messageBytes.Add(<span class="keyword">uint64</span>(<span class="built_in">len</span>(msg.GetData())))</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="消息分发"><a href="#消息分发" class="headerlink" title="消息分发"></a>消息分发</h2><p>Topic 在开启时会启动一个线程专门用于监听消息分发和状态更新。Topic 的消息的分发由 messagePump 方法实现，负责复制消息到每一个 Channel 上。</p>
+<p>messagePump 方法监听着以下几个 chan：</p>
+<ul>
+<li><strong>memoryMsgChan：</strong>内存消息队列。</li>
+<li><strong>backendMsgChan：</strong>磁盘消息队列，从磁盘中获取消息。</li>
+<li>topic.updateChan：Channel 更新队列，用于更新分发数据的 Channel。</li>
+<li>topic.pauseChan：提醒暂停或者恢复 Topic 的队列。</li>
+<li>topic.closingChan：监听推出信号。</li>
+</ul>
+<p>当从内存消息队列或者磁盘消息队列中读取到消息，则复制分发给所有的 Channel 上。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(topic *Topic)</span> <span class="title">messagePump</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="keyword">var</span> memoryMsgChan <span class="keyword">chan</span> iface.IMessage</span><br><span class="line">   <span class="keyword">var</span> backendMsgChan &lt;-<span class="keyword">chan</span> []<span class="keyword">byte</span></span><br><span class="line">   <span class="keyword">var</span> msg iface.IMessage</span><br><span class="line">   <span class="keyword">var</span> channels []iface.IChannel</span><br><span class="line"></span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      <span class="keyword">select</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.pauseChan:</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.updateChan:</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.closingChan:</span><br><span class="line">         <span class="keyword">goto</span> Exit</span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.startChan:</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">break</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 改为运行中状态</span></span><br><span class="line">   logger.Infof(<span class="string">&quot;topic [%] is running&quot;</span>, topic.name)</span><br><span class="line"></span><br><span class="line">   topic.channelsLock.RLock()</span><br><span class="line">   <span class="keyword">for</span> _, channel := <span class="keyword">range</span> topic.channels &#123;</span><br><span class="line">      channels = <span class="built_in">append</span>(channels, channel)</span><br><span class="line">   &#125;</span><br><span class="line">   topic.channelsLock.RUnlock()</span><br><span class="line">   <span class="keyword">if</span> <span class="built_in">len</span>(channels) &gt; <span class="number">0</span> &amp;&amp; !topic.isPausing.Load() &#123;</span><br><span class="line">      memoryMsgChan = topic.memoryMsgChan</span><br><span class="line">      backendMsgChan = topic.backendQueue.ReadChan()</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      <span class="keyword">select</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> msg = &lt;-memoryMsgChan: <span class="comment">// 获取msg</span></span><br><span class="line">      <span class="keyword">case</span> data := &lt;-backendMsgChan: <span class="comment">// 从disk queue中获取</span></span><br><span class="line">         <span class="keyword">var</span> err error</span><br><span class="line">         msg, err = message.ConvertBytesToMessage(data)</span><br><span class="line">         <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            logger.Errorf(<span class="string">&quot;topic(%s) convert bytes to message failed when message pump, err:%s&quot;</span>, topic.name, err.Error())</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">         &#125;</span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.updateChan: <span class="comment">// 更新channels</span></span><br><span class="line">         channels = channels[:<span class="number">0</span>]</span><br><span class="line">         topic.channelsLock.RLock()</span><br><span class="line">         <span class="keyword">for</span> _, channel := <span class="keyword">range</span> topic.channels &#123;</span><br><span class="line">            channels = <span class="built_in">append</span>(channels, channel)</span><br><span class="line">         &#125;</span><br><span class="line">         topic.channelsLock.RUnlock()</span><br><span class="line">         <span class="keyword">if</span> <span class="built_in">len</span>(channels) == <span class="number">0</span> || topic.isPausing.Load() &#123;</span><br><span class="line">            memoryMsgChan = <span class="literal">nil</span></span><br><span class="line">         &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            memoryMsgChan = topic.memoryMsgChan</span><br><span class="line">         &#125;</span><br><span class="line"></span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.closingChan: <span class="comment">// 退出</span></span><br><span class="line">         <span class="keyword">goto</span> Exit</span><br><span class="line">      <span class="keyword">case</span> &lt;-topic.pauseChan: <span class="comment">// 暂停/恢复</span></span><br><span class="line">         <span class="keyword">if</span> !topic.IsPausing() &#123;</span><br><span class="line">            memoryMsgChan = topic.memoryMsgChan</span><br><span class="line">            backendMsgChan = topic.backendQueue.ReadChan()</span><br><span class="line">         &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            memoryMsgChan = <span class="literal">nil</span></span><br><span class="line">            backendMsgChan = <span class="literal">nil</span></span><br><span class="line">         &#125;</span><br><span class="line"></span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 向所有channel发送消息</span></span><br><span class="line">      logger.Infof(<span class="string">&quot;topic(%s) is publishing a message&quot;</span>, topic.name)</span><br><span class="line">      <span class="keyword">for</span> i, channel := <span class="keyword">range</span> channels &#123;</span><br><span class="line">         <span class="keyword">var</span> chanMsg iface.IMessage</span><br><span class="line"></span><br><span class="line">         <span class="keyword">if</span> i &gt; <span class="number">0</span> &#123;</span><br><span class="line">            chanMsg = message.NewMessage(msg.GetID(), msg.GetData())</span><br><span class="line">         &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            chanMsg = msg</span><br><span class="line">         &#125;</span><br><span class="line">         _ = channel.PutMessage(chanMsg)</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">Exit:</span><br><span class="line">   topic.closedChan &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   logger.Infof(<span class="string">&quot;topic [%s] is exited&quot;</span>, topic.name)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Channel"><a href="#Channel" class="headerlink" title="Channel"></a>Channel</h1><p>Channel 在收到 Topic 分发的消息后，会随机选择一个客户端进行发送，以此实现负载均衡。同样的，Channel 也维护着一个内存消息队列和磁盘消息队列。</p>
+<p>此外，Channel 还维护着一个优先队列，用于处理客户端超时的消息。</p>
+<h2 id="数据结构-1"><a href="#数据结构-1" class="headerlink" title="数据结构"></a>数据结构</h2><p>Channel 的结构如下，以下属性需要额外说明：</p>
+<ul>
+<li>clients：维护着所有订阅此 channel 的客户端。</li>
+<li>inFlightMessagesPriQueue：维护着一个<strong>优先队列</strong>，按照客<strong>户端超时时间进行排序</strong>，定期检查优先队列，检查这条消息是否客户端超时。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Channel <span class="keyword">struct</span> &#123;</span><br><span class="line">   sync.RWMutex</span><br><span class="line"></span><br><span class="line">   lmqd        iface.ILmqDaemon</span><br><span class="line">   topicName   <span class="keyword">string</span>       <span class="comment">// topic名称</span></span><br><span class="line">   name        <span class="keyword">string</span>       <span class="comment">// channel名称</span></span><br><span class="line">   isTemporary <span class="keyword">bool</span>         <span class="comment">// 标记是否是临时的topic</span></span><br><span class="line">   isExiting   atomic.Bool  <span class="comment">// 是否退出</span></span><br><span class="line">   exitLock    sync.RWMutex <span class="comment">// 发送消息与退出的互斥</span></span><br><span class="line">   isPausing   atomic.Bool  <span class="comment">// 是否已经暂停</span></span><br><span class="line"></span><br><span class="line">   memoryMsgChan <span class="keyword">chan</span> iface.IMessage       <span class="comment">// 内存chan</span></span><br><span class="line">   backendQueue  backendqueue.BackendQueue <span class="comment">// backend队列</span></span><br><span class="line"></span><br><span class="line">   deleteCallback <span class="function"><span class="keyword">func</span><span class="params">(topic iface.IChannel)</span></span></span><br><span class="line">   deleter        sync.Once</span><br><span class="line"></span><br><span class="line">   clients <span class="keyword">map</span>[<span class="keyword">uint64</span>]iface.IConsumer</span><br><span class="line"></span><br><span class="line">   inFlightMessages         <span class="keyword">map</span>[iface.MessageID]iface.IMessage <span class="comment">// 在给客户端发送过程中的message</span></span><br><span class="line">   inFlightMessagesPriQueue *inFlightPriQueue                  <span class="comment">// 在给客户端发送过程中的message，优先队列</span></span><br><span class="line">   inFlightMessagesLock     sync.Mutex</span><br><span class="line"></span><br><span class="line">   messageCount atomic.Uint64 <span class="comment">// 消息数量</span></span><br><span class="line">   requeueCount atomic.Uint64 <span class="comment">// 重新入队的消息数量</span></span><br><span class="line">   timeoutCount atomic.Uint64 <span class="comment">// 超时消息的数量</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="处理超时消息"><a href="#处理超时消息" class="headerlink" title="处理超时消息"></a>处理超时消息</h2><p>因为 Channel 具备处理客户端超时消息的功能，所以在创建 Channel 时，会启动一个<strong>协程</strong>去检查客户端超时消息。</p>
+<p>Channel 维护着一个<strong>优先队列</strong>，按照客<strong>户端超时时间进行排序</strong>，定期检查优先队列，检查这条消息是否客户端超时。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 扫描队列，处理超时消息</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(channel *Channel)</span> <span class="title">queueScanWorker</span><span class="params">()</span></span> &#123;</span><br><span class="line">   ticker := time.NewTicker(config.GlobalLmqdConfig.ScanQueueInterval)</span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      <span class="keyword">select</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> &lt;-ticker.C:</span><br><span class="line">         <span class="comment">// 处理 in-flight 的超时消息</span></span><br><span class="line">         <span class="keyword">go</span> channel.processInFlightQueue()</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> channel.isExiting.Load() &#123;</span><br><span class="line">         ticker.Stop()</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="processInFlightQueue"><a href="#processInFlightQueue" class="headerlink" title="processInFlightQueue"></a>processInFlightQueue</h3><p>在 processInFlightQueue 方法中，用于检查客户端超时消息。</p>
+<p>因为<strong>优先队列是按照超时时间维护的一个小根堆</strong>，所以堆顶元素存储的是可能<strong>最先超时的消息</strong>。</p>
+<p>每一次<strong>取小于当前时间的堆顶元素</strong>，如果有则说明该条消息超时，进行<strong>客户端消息超时处理</strong>（客户端维护的 in-flight 消息数量-1）。同时，对于客户端超时的消息看作是发送失败的消息，<strong>重新进行排队</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(channel *Channel)</span> <span class="title">processInFlightQueue</span><span class="params">()</span></span> &#123;</span><br><span class="line">   channel.exitLock.RLock()</span><br><span class="line">   channel.exitLock.RUnlock()</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> channel.isExiting.Load() &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   now := time.Now().UnixNano()</span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      channel.inFlightMessagesLock.Lock()</span><br><span class="line">      msg := channel.inFlightMessagesPriQueue.PeekAndShift(now)</span><br><span class="line">      channel.inFlightMessagesLock.Unlock()</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> msg == <span class="literal">nil</span> &#123;</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      _, err := channel.popInFlightMessage(msg.GetClientID(), msg.GetID())</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      channel.timeoutCount.Add(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">      channel.RLock()</span><br><span class="line">      client, ok := channel.clients[msg.GetClientID()]</span><br><span class="line">      <span class="keyword">if</span> ok &#123;</span><br><span class="line">         client.TimeoutMessage()</span><br><span class="line">      &#125;</span><br><span class="line">      channel.RUnlock()</span><br><span class="line"></span><br><span class="line">      logger.Infof(<span class="string">&quot;message id = %v timeout, now requeue&quot;</span>, msg.GetID())</span><br><span class="line">      _ = channel.put(msg)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91-lmq/" rel="tag"># 消息队列 - 后端开发 - lmq</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/" rel="prev" title="LMQ实现 (2) 整体设计">
+      <i class="fa fa-chevron-left"></i> LMQ实现 (2) 整体设计
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/" rel="next" title="LMQ实现 (4) 磁盘队列和超时队列">
+      LMQ实现 (4) 磁盘队列和超时队列 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Topic"><span class="nav-number">1.</span> <span class="nav-text">Topic</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E6%B6%88%E6%81%AF"><span class="nav-number">1.2.</span> <span class="nav-text">生产消息</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E5%88%86%E5%8F%91"><span class="nav-number">1.3.</span> <span class="nav-text">消息分发</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Channel"><span class="nav-number">2.</span> <span class="nav-text">Channel</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-1"><span class="nav-number">2.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E8%B6%85%E6%97%B6%E6%B6%88%E6%81%AF"><span class="nav-number">2.2.</span> <span class="nav-text">处理超时消息</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#processInFlightQueue"><span class="nav-number">2.2.1.</span> <span class="nav-text">processInFlightQueue</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

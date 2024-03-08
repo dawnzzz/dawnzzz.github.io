@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Gin中间件Gin框架允许开发者在处理请求的过程中，加入用户自己的钩子（Hook）函数。这个钩子函数就叫中间件，中间件适合处理一些公共的业务逻辑，比如登录认证、权限校验、数据分页、记录日志、耗时统计等。 定义中间件Gin的中间件必须是一个gin.handlerFunc类型type HandlerFunc func(*Context)。 1234567891011121314151617181920">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Gin基本使用 (4) 中间件">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-4-%E4%B8%AD%E9%97%B4%E4%BB%B6/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Gin中间件Gin框架允许开发者在处理请求的过程中，加入用户自己的钩子（Hook）函数。这个钩子函数就叫中间件，中间件适合处理一些公共的业务逻辑，比如登录认证、权限校验、数据分页、记录日志、耗时统计等。 定义中间件Gin的中间件必须是一个gin.handlerFunc类型type HandlerFunc func(*Context)。 1234567891011121314151617181920">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-03-08T08:57:43.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.754Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta property="article:tag" content="Go Web">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-4-%E4%B8%AD%E9%97%B4%E4%BB%B6/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Gin基本使用 (4) 中间件 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-4-%E4%B8%AD%E9%97%B4%E4%BB%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Gin基本使用 (4) 中间件
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-08 16:57:43" itemprop="dateCreated datePublished" datetime="2022-03-08T16:57:43+08:00">2022-03-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Gin%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Gin基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Gin中间件"><a href="#Gin中间件" class="headerlink" title="Gin中间件"></a>Gin中间件</h1><p>Gin框架允许开发者在处理请求的过程中，加入用户<strong>自己的钩子（Hook）函数</strong>。这个钩子函数就叫<strong>中间件</strong>，中间件<strong>适合处理一些公共的业务逻辑</strong>，比如登录认证、权限校验、数据分页、记录日志、耗时统计等。</p>
+<h2 id="定义中间件"><a href="#定义中间件" class="headerlink" title="定义中间件"></a>定义中间件</h2><p>Gin的中间件必须是一个<code>gin.handlerFunc</code>类型<code>type HandlerFunc func(*Context)</code>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// TimeCost是一个统计请求耗时的中间件</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TimeCost</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">	start := time.Now()</span><br><span class="line">	<span class="comment">// 调用该请求的剩余处理程序（中间件）</span></span><br><span class="line">	c.Next()</span><br><span class="line">	<span class="comment">// 不调用该请求的剩余处理程序</span></span><br><span class="line">	<span class="comment">// c.Abort()</span></span><br><span class="line">	<span class="comment">// 计算耗时</span></span><br><span class="line">	cost := time.Since(start)</span><br><span class="line">	fmt.Printf(<span class="string">&quot;Time cost = %v\n&quot;</span>, cost)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 可以将中间件定义为闭包的形式，HadlerFunc以函数值返回</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">otherMiddleware</span><span class="params">()</span> <span class="title">gin</span>.<span class="title">HadlerFunc</span></span> &#123;</span><br><span class="line">    <span class="comment">// 做一些校验/准备/查询数据库工作</span></span><br><span class="line">    <span class="comment">// ....</span></span><br><span class="line">    <span class="keyword">return</span> <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">        <span class="comment">/*</span></span><br><span class="line"><span class="comment">        一些中间件的处理逻辑</span></span><br><span class="line"><span class="comment">        */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="注册中间件"><a href="#注册中间件" class="headerlink" title="注册中间件"></a>注册中间件</h2><h3 id="注册全局中间件"><a href="#注册全局中间件" class="headerlink" title="注册全局中间件"></a>注册全局中间件</h3><p>使用<code>Use</code>方法注册全局中间件：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	r := gin.Default()	</span><br><span class="line">	<span class="comment">// 注册全局中间件</span></span><br><span class="line">	r.Use(TimeCost)</span><br><span class="line">	r.GET(<span class="string">&quot;/index&quot;</span>,<span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		<span class="comment">// 后端逻辑</span></span><br><span class="line">		c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">			<span class="string">&quot;status&quot;</span>: <span class="string">&quot;OK&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line">    </span><br><span class="line">	r.Run(<span class="string">&quot;:9090&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="为某个路由注册中间件"><a href="#为某个路由注册中间件" class="headerlink" title="为某个路由注册中间件"></a>为某个路由注册中间件</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 注册中间件TimeCost</span></span><br><span class="line">r.GET(<span class="string">&quot;/index&quot;</span>, TimeCost, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 后端逻辑</span></span><br><span class="line">	c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">		<span class="string">&quot;status&quot;</span>: <span class="string">&quot;OK&quot;</span>,</span><br><span class="line">	&#125;)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<h3 id="为路由组注册中间件"><a href="#为路由组注册中间件" class="headerlink" title="为路由组注册中间件"></a>为路由组注册中间件</h3><p>在使用<code>Group</code>方法定义路由组时，可以为路由组加上中间件：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 方法1：</span></span><br><span class="line">userGroup := r.Group(<span class="string">&quot;/user&quot;</span>, TimeCost)</span><br><span class="line">&#123;</span><br><span class="line">    userGroup.GET(<span class="string">&quot;/index&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123; <span class="comment">/* ... */</span> &#125;)</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 方法2：</span></span><br><span class="line">userGroup := r.Group(<span class="string">&quot;/user&quot;</span>)</span><br><span class="line">userGroup.Use(TimeCost)</span><br><span class="line">&#123;</span><br><span class="line">    userGroup.GET(<span class="string">&quot;/index&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123; <span class="comment">/* ... */</span> &#125;)</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h2><h3 id="gin默认中间件"><a href="#gin默认中间件" class="headerlink" title="gin默认中间件"></a>gin默认中间件</h3><p><code>gin.Default</code>默认使用了<code>Logger</code>和<code>Recovery</code>中间件：</p>
+<ul>
+<li><code>Logger</code>中间件用于记录日志，<strong>将日志写入 gin.DefaultWriter</strong><ul>
+<li><strong>可以设置 gin.DefaultWriter，改变日志的输出</strong></li>
+<li><strong>可以设置 gin.DebugPrintRouteFunc，指定日志的输出格式</strong></li>
+<li><strong>也可以使用 gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string) 中间件自定义日志输出</strong>，会写入日志到 gin.DefaultWriter</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// LoggerWithFormatter 中间件会写入日志到 gin.DefaultWriter</span></span><br><span class="line"><span class="comment">// 默认 gin.DefaultWriter = os.Stdout</span></span><br><span class="line">router.Use(gin.LoggerWithFormatter(<span class="function"><span class="keyword">func</span><span class="params">(param gin.LogFormatterParams)</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="comment">// 你的自定义格式</span></span><br><span class="line">	<span class="keyword">return</span> fmt.Sprintf(<span class="string">&quot;%s - [%s] \&quot;%s %s %s %d %s \&quot;%s\&quot; %s\&quot;\n&quot;</span>,</span><br><span class="line">			param.ClientIP,</span><br><span class="line">			param.TimeStamp.Format(time.RFC1123),</span><br><span class="line">			param.Method,</span><br><span class="line">			param.Path,</span><br><span class="line">			param.Request.Proto,</span><br><span class="line">			param.StatusCode,</span><br><span class="line">			param.Latency,</span><br><span class="line">			param.Request.UserAgent(),</span><br><span class="line">			param.ErrorMessage,</span><br><span class="line">	)</span><br><span class="line">&#125;))</span><br></pre></td></tr></table></figure></li>
+<li><code>Recovery</code>中间件会recover任何的panic错误，如果有panic错误，<strong>向客户端返回500响应码</strong></li>
+</ul>
+<p>若不使用默认中间件，可以使用<code>gin.New()</code>新建一个没有任何默认中间件的路由。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Default</span><span class="params">()</span> *<span class="title">Engine</span></span> &#123;</span><br><span class="line">	debugPrintWARNINGDefault()</span><br><span class="line">	engine := New()</span><br><span class="line">	engine.Use(Logger(), Recovery())</span><br><span class="line">	<span class="keyword">return</span> engine</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="gin中间件中使用goroutine"><a href="#gin中间件中使用goroutine" class="headerlink" title="gin中间件中使用goroutine"></a>gin中间件中使用goroutine</h3><p>在中间件中启动新的<code>goroutine</code>时，<strong>不能使用</strong>原始上下文的<code>c *gin.Context</code>（否则在后续的处理过程中，上下文内容不可控，造成并发不安全），必须使用其只读副本<code>c.Copy()</code></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+              <a href="/tags/Go-Web/" rel="tag"># Go Web</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-3-%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0%E3%80%81%E9%87%8D%E5%AE%9A%E5%90%91%E5%92%8C%E8%B7%AF%E7%94%B1/" rel="prev" title="Gin基本使用 (3) 文件上传、重定向和路由">
+      <i class="fa fa-chevron-left"></i> Gin基本使用 (3) 文件上传、重定向和路由
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/08/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-23/" rel="next" title="算法刷题笔记 (23) 回文数 搜索二维矩阵 旋转链表">
+      算法刷题笔记 (23) 回文数 搜索二维矩阵 旋转链表 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Gin%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.</span> <span class="nav-text">Gin中间件</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9A%E4%B9%89%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.1.</span> <span class="nav-text">定义中间件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E5%86%8C%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.2.</span> <span class="nav-text">注册中间件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B3%A8%E5%86%8C%E5%85%A8%E5%B1%80%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.2.1.</span> <span class="nav-text">注册全局中间件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E6%9F%90%E4%B8%AA%E8%B7%AF%E7%94%B1%E6%B3%A8%E5%86%8C%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.2.2.</span> <span class="nav-text">为某个路由注册中间件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E8%B7%AF%E7%94%B1%E7%BB%84%E6%B3%A8%E5%86%8C%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.2.3.</span> <span class="nav-text">为路由组注册中间件</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="nav-number">1.3.</span> <span class="nav-text">注意事项</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#gin%E9%BB%98%E8%AE%A4%E4%B8%AD%E9%97%B4%E4%BB%B6"><span class="nav-number">1.3.1.</span> <span class="nav-text">gin默认中间件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#gin%E4%B8%AD%E9%97%B4%E4%BB%B6%E4%B8%AD%E4%BD%BF%E7%94%A8goroutine"><span class="nav-number">1.3.2.</span> <span class="nav-text">gin中间件中使用goroutine</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

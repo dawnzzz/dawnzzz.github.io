@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Pipeline 模式通常 TCP 客户端的通信模式都是阻塞式的：客户端发送请求 -&gt; 等待服务端响应 -&gt; 发送下一个请求。因为需要等待网络传输数据，完成一次请求循环需要等待较多时间。 针对这种效率低的情景，可以不等待服务端响应直接发送下一条请求。  TCP 协议会保证数据流的有序性，同一个 TCP 连接上先发送的请求服务端先接收，先回复的响应客户端先收到。因此不必担心混淆响应所对应">
+<meta property="og:type" content="article">
+<meta property="og:title" content="godis源码阅读 (5) pipeline模式的客户端">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/01/09/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-5-pipeline%E6%A8%A1%E5%BC%8F%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Pipeline 模式通常 TCP 客户端的通信模式都是阻塞式的：客户端发送请求 -&gt; 等待服务端响应 -&gt; 发送下一个请求。因为需要等待网络传输数据，完成一次请求循环需要等待较多时间。 针对这种效率低的情景，可以不等待服务端响应直接发送下一条请求。  TCP 协议会保证数据流的有序性，同一个 TCP 连接上先发送的请求服务端先接收，先回复的响应客户端先收到。因此不必担心混淆响应所对应">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-01-09T02:06:08.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.796Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/01/09/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-5-pipeline%E6%A8%A1%E5%BC%8F%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>godis源码阅读 (5) pipeline模式的客户端 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/09/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-5-pipeline%E6%A8%A1%E5%BC%8F%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          godis源码阅读 (5) pipeline模式的客户端
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-09 10:06:08" itemprop="dateCreated datePublished" datetime="2023-01-09T10:06:08+08:00">2023-01-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Pipeline-模式"><a href="#Pipeline-模式" class="headerlink" title="Pipeline 模式"></a>Pipeline 模式</h1><p><strong>通常 TCP 客户端</strong>的通信模式都是<strong>阻塞式</strong>的：客户端发送请求 -&gt; 等待服务端响应 -&gt; 发送下一个请求。因为需要等待网络传输数据，完成一次请求循环需要等待较多时间。</p>
+<p>针对这种效率低的情景，可以<strong>不等待服务端响应直接发送下一条请求</strong>。</p>
+<blockquote>
+<p>TCP 协议会<strong>保证数据流的有序性</strong>，同一个 TCP 连接上先发送的请求服务端先接收，先回复的响应客户端先收到。因此不必担心混淆响应所对应的请求。</p>
+</blockquote>
+<p>这种在<strong>服务端未响应时客户端继续向服务端发送请求</strong>的模式称为 Pipeline 模式。因为减少等待网络传输的时间，Pipeline 模式可以极大的提高吞吐量。</p>
+<h1 id="Godis-客户端"><a href="#Godis-客户端" class="headerlink" title="Godis 客户端"></a>Godis 客户端</h1><p>Pipeline 模式的 Godis 客户端需要至少有两个后台协程，分别是<strong>发送请求协程（写协程）</strong>和<strong>读取响应协程（读协程）</strong>。调用方<strong>通过 channel 向后台协程发送发送指令</strong>，并<strong>阻塞等待</strong>直到收到响应（或者超时）。</p>
+<h2 id="Client-结构"><a href="#Client-结构" class="headerlink" title="Client 结构"></a>Client 结构</h2><p>首先定义 Client 客户端，Client 客户端实现 pipeline 的核心在于两个<strong>通道</strong>：</p>
+<ul>
+<li><strong>pendingReqs：</strong>记录<strong>等待发送</strong>的请求，客户端调用 Send 命令向客户端发送请求时，请求在这个通道内<strong>排队等待写协程发送请求</strong>。</li>
+<li><strong>waitingReqs：</strong>记录<strong>等待服务器响应</strong>的请求，向服务器发送请求成功后将这个请求<strong>加入到这个通道中等待响应</strong>。当读协程<strong>收到一个服务器响应</strong>时就从通道中<strong>取出一个请求</strong>，此时一个完整的请求+响应完成。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Client <span class="keyword">struct</span> &#123;</span><br><span class="line">    conn        net.Conn <span class="comment">// 与服务端的 tcp 连接</span></span><br><span class="line">    pendingReqs <span class="keyword">chan</span> *Request <span class="comment">// 等待发送的请求</span></span><br><span class="line">    waitingReqs <span class="keyword">chan</span> *Request <span class="comment">// 等待服务器响应的请求</span></span><br><span class="line">    ticker      *time.Ticker <span class="comment">// 用于触发心跳包的计时器</span></span><br><span class="line">    addr        <span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">    status  	<span class="keyword">int32</span>	<span class="comment">// 服务器状态（创建/运行/关闭）</span></span><br><span class="line">    working    *sync.WaitGroup <span class="comment">// 有请求正在处理不能立即停止，用于实现 graceful shutdown</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接着定义客户端的请求 Request：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Request <span class="keyword">struct</span> &#123;</span><br><span class="line">    id        <span class="keyword">uint64</span> <span class="comment">// 请求id</span></span><br><span class="line">    args      [][]<span class="keyword">byte</span> <span class="comment">// 上行参数</span></span><br><span class="line">    reply     redis.Reply <span class="comment">// 收到的返回值</span></span><br><span class="line">    heartbeat <span class="keyword">bool</span> <span class="comment">// 标记是否是心跳请求</span></span><br><span class="line">    waiting   *wait.Wait <span class="comment">// 调用协程发送请求后通过 waitgroup 等待请求异步处理完成</span></span><br><span class="line">    err       error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="wait-Wait"><a href="#wait-Wait" class="headerlink" title="wait.Wait"></a>wait.Wait</h3><p>客户端请求中 waiting 属性的类型为 wait.Wait，实际上就是 sync.WaitGroup 加上了<strong>超时</strong>功能。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Wait is similar with sync.WaitGroup which can wait with timeout</span></span><br><span class="line"><span class="keyword">type</span> Wait <span class="keyword">struct</span> &#123;</span><br><span class="line">	wg sync.WaitGroup</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>wait.Wait 和 sync.WaitGroup 一样也有 Add、Done、Wait 方法。不同的是，它额外有一个 WaitWithTimeout 方法，这个方法<strong>阻塞 WaitGroup 直到计数器为零或者超时</strong>。其实现的方法是：</p>
+<ul>
+<li>定义一个<strong>管道</strong>，用于<strong>接收完成信号</strong>。</li>
+<li>开启一个<strong>协程</strong>，调用 Wait 阻塞协程， WaitGroup 计数器为零。当<strong>计数器为零时向管道中发送信号</strong>，表明完成任务。</li>
+<li>使用 Select 阻塞，当<strong>超时</strong>或者<strong>完成任务（在管道中检测到信号）</strong>时，方法<strong>结束阻塞返回</strong>。</li>
+</ul>
+<span id="more"></span>
+
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// WaitWithTimeout blocks until the WaitGroup counter is zero or timeout</span></span><br><span class="line"><span class="comment">// returns true if timeout</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(w *Wait)</span> <span class="title">WaitWithTimeout</span><span class="params">(timeout time.Duration)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">   c := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;, <span class="number">1</span>)</span><br><span class="line">   <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">      <span class="keyword">defer</span> <span class="built_in">close</span>(c)</span><br><span class="line">      w.Wait()</span><br><span class="line">      c &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   &#125;()</span><br><span class="line">   <span class="keyword">select</span> &#123;</span><br><span class="line">   <span class="keyword">case</span> &lt;-c:</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span> <span class="comment">// completed normally</span></span><br><span class="line">   <span class="keyword">case</span> &lt;-time.After(timeout):</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span> <span class="comment">// timed out</span></span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Send-向服务器发送请求"><a href="#Send-向服务器发送请求" class="headerlink" title="Send 向服务器发送请求"></a>Send 向服务器发送请求</h2><p>Client.Send 方法用于<strong>调用者将请求发送给后台协程</strong>，并<strong>通过 wait group 等待异步处理完成</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Send sends a request to redis server</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">Send</span><span class="params">(args [][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>首先定义一个请求，接着<strong>调用 request.waiting.Add 用于等待请求处理完成（或者超时）</strong>，<strong>调用 client.working.Add 用于表明客户端又增加了一个正在处理的请求</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> atomic.LoadInt32(&amp;client.status) != running &#123;</span><br><span class="line">   <span class="keyword">return</span> protocol.MakeErrReply(<span class="string">&quot;client closed&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line">request := &amp;request&#123;</span><br><span class="line">   args:      args,</span><br><span class="line">   heartbeat: <span class="literal">false</span>,</span><br><span class="line">   waiting:   &amp;wait.Wait&#123;&#125;,</span><br><span class="line">&#125;</span><br><span class="line">request.waiting.Add(<span class="number">1</span>)</span><br><span class="line">client.working.Add(<span class="number">1</span>)</span><br><span class="line"><span class="keyword">defer</span> client.working.Done()</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>将<strong>请求加入到 client.pendingReqs 通道</strong>中进行排队，<strong>等待发送请求的协程</strong>从通道中依次<strong>取出请求、发送请求</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">client.pendingReqs &lt;- request</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>通过 request.waiting.WaitWithTimeout 方法<strong>阻塞等待请求完成（或者超时）</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">timeout := request.waiting.WaitWithTimeout(maxWait)</span><br><span class="line"><span class="keyword">if</span> timeout &#123;</span><br><span class="line">   <span class="keyword">return</span> protocol.MakeErrReply(<span class="string">&quot;server time out&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> request.err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> protocol.MakeErrReply(<span class="string">&quot;request failed&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> request.reply</span><br></pre></td></tr></table></figure>
+
+<h2 id="handleWrite-写协程"><a href="#handleWrite-写协程" class="headerlink" title="handleWrite 写协程"></a>handleWrite 写协程</h2><p>写协程开启一个循环，<strong>不断读取 Client.pendingReqs 需要发送的请求</strong>，调用 doRequest 进行发送。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">handleWrite</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="keyword">for</span> req := <span class="keyword">range</span> client.pendingReqs &#123;</span><br><span class="line">      client.doRequest(req)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="doRequest"><a href="#doRequest" class="headerlink" title="doRequest"></a>doRequest</h3><p>Client.doRequest 用于向服务器端发送一次请求。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">doRequest</span><span class="params">(req *request)</span></span></span><br></pre></td></tr></table></figure>
+
+<p>流程如下：</p>
+<ul>
+<li>首先<strong>序列化</strong>请求。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">re := protocol.MakeMultiBulkReply(req.args)</span><br><span class="line">bytes := re.ToBytes()</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>接着失败重试，最多重试 3 次。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> err error</span><br><span class="line"><span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="number">3</span>; i++ &#123; <span class="comment">// only retry, waiting for handleRead</span></span><br><span class="line">   _, err = client.conn.Write(bytes)</span><br><span class="line">   <span class="keyword">if</span> err == <span class="literal">nil</span> ||</span><br><span class="line">      (!strings.Contains(err.Error(), <span class="string">&quot;timeout&quot;</span>) &amp;&amp; <span class="comment">// only retry timeout</span></span><br><span class="line">         !strings.Contains(err.Error(), <span class="string">&quot;deadline exceeded&quot;</span>)) &#123;</span><br><span class="line">      <span class="keyword">break</span></span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>若发送成功，<strong>将请求推入 Client.waitingReqs 通道</strong>，等待服务器响应。若超过 3次失败，则结束发送。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> err == <span class="literal">nil</span> &#123;</span><br><span class="line">   client.waitingReqs &lt;- req</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">   req.err = err</span><br><span class="line">   req.waiting.Done()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="handleRead-读协程"><a href="#handleRead-读协程" class="headerlink" title="handleRead 读协程"></a>handleRead 读协程</h2><p>读协程<strong>调用 parser.ParseStream 开启协议解析</strong>，持续<strong>从 Payload 通道中读取响应</strong>（协议解析器每收到一个请求并解析后就向 Payload 通道中发送一个数据）。每次从通道中获取 Payload 响应后，<strong>调用 Client.finishRequest 方法结束相应的请求</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">handleRead</span><span class="params">()</span></span> &#123;</span><br><span class="line">   ch := parser.ParseStream(client.conn)</span><br><span class="line">   <span class="keyword">for</span> payload := <span class="keyword">range</span> ch &#123;</span><br><span class="line">      <span class="keyword">if</span> payload.Err != <span class="literal">nil</span> &#123;</span><br><span class="line">         status := atomic.LoadInt32(&amp;client.status)</span><br><span class="line">         <span class="keyword">if</span> status == closed &#123;</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">         &#125;</span><br><span class="line">         client.reconnect()</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">      client.finishRequest(payload.Data)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="finishRequest"><a href="#finishRequest" class="headerlink" title="finishRequest"></a>finishRequest</h3><p>Client.finifhRequest 方法用于结束相应的请求，传入的 Reply 代表已经收到了一个服务器响应。</p>
+<ul>
+<li>首先需要<strong>从 Client.waitingReqs 通道中取出一个请求</strong>（因为 TCP 的<strong>有序性</strong>，这个请求刚好对应于这个响应）。</li>
+<li>接着调用 request.waiting.Done 表示<strong>请求完成</strong>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">finishRequest</span><span class="params">(reply redis.Reply)</span></span> &#123;</span><br><span class="line">   <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">      <span class="keyword">if</span> err := <span class="built_in">recover</span>(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">         debug.PrintStack()</span><br><span class="line">         logger.Error(err)</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;()</span><br><span class="line">   request := &lt;-client.waitingReqs</span><br><span class="line">   <span class="keyword">if</span> request == <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   &#125;</span><br><span class="line">   request.reply = reply</span><br><span class="line">   <span class="keyword">if</span> request.waiting != <span class="literal">nil</span> &#123;</span><br><span class="line">      request.waiting.Done()</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="heartbeat-心跳协程"><a href="#heartbeat-心跳协程" class="headerlink" title="heartbeat 心跳协程"></a>heartbeat 心跳协程</h2><p>心跳协程每隔一段时间就调用 Client.doHeartbeat 向服务器发送一个心跳，<strong>维持 TCP 连接</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">heartbeat</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="keyword">for</span> <span class="keyword">range</span> client.ticker.C &#123;</span><br><span class="line">      client.doHeartbeat()</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="doHeartbeat"><a href="#doHeartbeat" class="headerlink" title="doHeartbeat"></a>doHeartbeat</h3><p>Client.doHeartbeat 用于<strong>给服务器发送心跳</strong>，就是<strong>把心跳请求送入 Client.pendingReqs 通道中等待写协程发送请求</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">doHeartbeat</span><span class="params">()</span></span> &#123;</span><br><span class="line">   request := &amp;request&#123;</span><br><span class="line">      args:      [][]<span class="keyword">byte</span>&#123;[]<span class="keyword">byte</span>(<span class="string">&quot;PING&quot;</span>)&#125;,</span><br><span class="line">      heartbeat: <span class="literal">true</span>,</span><br><span class="line">      waiting:   &amp;wait.Wait&#123;&#125;,</span><br><span class="line">   &#125;</span><br><span class="line">   request.waiting.Add(<span class="number">1</span>)</span><br><span class="line">   client.working.Add(<span class="number">1</span>)</span><br><span class="line">   <span class="keyword">defer</span> client.working.Done()</span><br><span class="line">   client.pendingReqs &lt;- request</span><br><span class="line">   request.waiting.WaitWithTimeout(maxWait)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="启动-关闭客户端"><a href="#启动-关闭客户端" class="headerlink" title="启动/关闭客户端"></a>启动/关闭客户端</h2><h3 id="Start-启动客户端"><a href="#Start-启动客户端" class="headerlink" title="Start 启动客户端"></a>Start 启动客户端</h3><p>Client.Start 用于开启客户端，主要工作：</p>
+<ul>
+<li>开启一个 10 秒钟的计时器，用于发送心跳。</li>
+<li>开启三个异步协程，分别是写协程、读协程、心跳协程。</li>
+<li>将服务器状态变更为 running。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Start starts asynchronous goroutines</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">Start</span><span class="params">()</span></span> &#123;</span><br><span class="line">   client.ticker = time.NewTicker(<span class="number">10</span> * time.Second)</span><br><span class="line">   <span class="keyword">go</span> client.handleWrite()</span><br><span class="line">   <span class="keyword">go</span> client.handleRead()</span><br><span class="line">   <span class="keyword">go</span> client.heartbeat()</span><br><span class="line">   atomic.StoreInt32(&amp;client.status, running)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Close-关闭客户端"><a href="#Close-关闭客户端" class="headerlink" title="Close 关闭客户端"></a>Close 关闭客户端</h3><p>关闭客户端时：</p>
+<ul>
+<li>将客户端的状态变更为 closed，停止用于发送心跳的计时器。</li>
+<li>关闭 Client.pendingReqs，<strong>阻止新的请求进入队列</strong>。</li>
+<li><strong>等待处理中的请求处理完成</strong>。</li>
+<li><strong>释放资源</strong>，包括关闭与服务器的连接（连接关闭后读协程会退出）、关闭等待响应的队列。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Close stops asynchronous goroutines and close connection</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(client *Client)</span> <span class="title">Close</span><span class="params">()</span></span> &#123;</span><br><span class="line">   atomic.StoreInt32(&amp;client.status, closed)</span><br><span class="line">   client.ticker.Stop()</span><br><span class="line">   <span class="comment">// stop new request</span></span><br><span class="line">   <span class="built_in">close</span>(client.pendingReqs)</span><br><span class="line"></span><br><span class="line">   <span class="comment">// wait stop process</span></span><br><span class="line">   client.working.Wait()</span><br><span class="line"></span><br><span class="line">   <span class="comment">// clean</span></span><br><span class="line">   _ = client.conn.Close()</span><br><span class="line">   <span class="built_in">close</span>(client.waitingReqs)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/08/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Simple-yet-Effective-Relation-Information-Guided-Approach-for-Few-Shot-Relation-Extraction/" rel="prev" title="关系抽取论文 A Simple yet Effective Relation Information Guided Approach for Few-Shot Relation Extraction">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 A Simple yet Effective Relation Information Guided Approach for Few-Shot Relation Extraction
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/16/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-6-AOF%E6%8C%81%E4%B9%85%E5%8C%96%E5%92%8CAOF%E9%87%8D%E5%86%99/" rel="next" title="godis源码阅读 (6) AOF持久化和AOF重写">
+      godis源码阅读 (6) AOF持久化和AOF重写 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Pipeline-%E6%A8%A1%E5%BC%8F"><span class="nav-number">1.</span> <span class="nav-text">Pipeline 模式</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Godis-%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">2.</span> <span class="nav-text">Godis 客户端</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Client-%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">Client 结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#wait-Wait"><span class="nav-number">2.1.1.</span> <span class="nav-text">wait.Wait</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Send-%E5%90%91%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%8F%91%E9%80%81%E8%AF%B7%E6%B1%82"><span class="nav-number">2.2.</span> <span class="nav-text">Send 向服务器发送请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#handleWrite-%E5%86%99%E5%8D%8F%E7%A8%8B"><span class="nav-number">2.3.</span> <span class="nav-text">handleWrite 写协程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#doRequest"><span class="nav-number">2.3.1.</span> <span class="nav-text">doRequest</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#handleRead-%E8%AF%BB%E5%8D%8F%E7%A8%8B"><span class="nav-number">2.4.</span> <span class="nav-text">handleRead 读协程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#finishRequest"><span class="nav-number">2.4.1.</span> <span class="nav-text">finishRequest</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#heartbeat-%E5%BF%83%E8%B7%B3%E5%8D%8F%E7%A8%8B"><span class="nav-number">2.5.</span> <span class="nav-text">heartbeat 心跳协程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#doHeartbeat"><span class="nav-number">2.5.1.</span> <span class="nav-text">doHeartbeat</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%90%AF%E5%8A%A8-%E5%85%B3%E9%97%AD%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">2.6.</span> <span class="nav-text">启动&#x2F;关闭客户端</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Start-%E5%90%AF%E5%8A%A8%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">2.6.1.</span> <span class="nav-text">Start 启动客户端</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Close-%E5%85%B3%E9%97%AD%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">2.6.2.</span> <span class="nav-text">Close 关闭客户端</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

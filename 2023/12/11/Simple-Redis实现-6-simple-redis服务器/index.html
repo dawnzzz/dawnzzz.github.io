@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本项目完整地址 simple-redis Simple-Redis 服务器在之前已经介绍了 TCP 服务器，本节介绍 Simple-Redis 服务器，这是一个应用层服务器。在 Handler 的 Handle 方法中，有这样一条命令 result :&#x3D; h.db.Exec(client, r.Args)，它将收到的命令交给 simple-redis 服务器去执行。 数据结构simple-redi">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Simple-Redis实现 (6) simple-redis服务器">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本项目完整地址 simple-redis Simple-Redis 服务器在之前已经介绍了 TCP 服务器，本节介绍 Simple-Redis 服务器，这是一个应用层服务器。在 Handler 的 Handle 方法中，有这样一条命令 result :&#x3D; h.db.Exec(client, r.Args)，它将收到的命令交给 simple-redis 服务器去执行。 数据结构simple-redi">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-12-11T13:46:36.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.790Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Redis - 后端开发 - simple-redis">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Simple-Redis实现 (6) simple-redis服务器 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Simple-Redis实现 (6) simple-redis服务器
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-11 21:46:36" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:36+08:00">2023-12-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
+<h1 id="Simple-Redis-服务器"><a href="#Simple-Redis-服务器" class="headerlink" title="Simple-Redis 服务器"></a>Simple-Redis 服务器</h1><p>在之前已经介绍了 TCP 服务器，本节介绍 Simple-Redis 服务器，这是一个<strong>应用层服务器</strong>。在 Handler 的 Handle 方法中，有这样一条命令 <code>result := h.db.Exec(client, r.Args)</code>，它将收到的命令交给 simple-redis 服务器去执行。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>simple-redis 服务器的被定义在 database/server.go 文件中，simple-redis 服务器的相关代码在 database 文件夹下。</p>
+<p>simple-redis 服务器的数据结构如下，需要说明的是：</p>
+<ul>
+<li>dbSet：代表底层的数据库。</li>
+<li>AofPersister：AOF 持久化。</li>
+<li>AofFileSize：用于记录上一次 AOF 重写后的文件大小。</li>
+<li>rewriteWait、rewriting：用于同步 AOF 重写过程。</li>
+<li>closed：接收关闭信号，用于优雅的关闭（用于关闭自动 AOF 重写协程）。</li>
+<li>cluster：集群相关。</li>
+<li>publish：订阅发布相关操作。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Server <span class="keyword">struct</span> &#123;</span><br><span class="line">   dbSet        []*atomic.Value <span class="comment">// *DB</span></span><br><span class="line">   AofPersister *aof.Persister  <span class="comment">// AOF 持久化</span></span><br><span class="line">   AofFileSize  <span class="keyword">int64</span></span><br><span class="line">   rewriteWait  sync.WaitGroup</span><br><span class="line">   rewriting    atomic.Bool</span><br><span class="line">   closed       <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   cluster      *cluster.Cluster</span><br><span class="line">   publish      publish.Publish</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>AOF 持久化、集群、发布订阅会在后面的章节中说明。</p>
+</blockquote>
+<span id="more"></span>
+
+<h3 id="构造函数"><a href="#构造函数" class="headerlink" title="构造函数"></a>构造函数</h3><p>Handler 会根据配置文件中是否配置了 peers 来开启单机 simple-redis 服务器或者集群 simple-redis 服务器，所以 Server 有<strong>两个构造函数</strong>。在创建集群服务器时，Server.cluster 会被初始化，并添加 Peers（单机模式下为 nil）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// NewStandaloneServer creates a standalone redis server</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewStandaloneServer</span><span class="params">()</span> *<span class="title">Server</span></span> &#123;</span><br><span class="line">   server := initServer()</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> server</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// NewClusterServer 创建一个集群服务器</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewClusterServer</span><span class="params">(peers []<span class="keyword">string</span>)</span> *<span class="title">Server</span></span> &#123;</span><br><span class="line">   server := initServer()</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 加入集群</span></span><br><span class="line">   cluster := cluster.NewCluster(config.Properties.Self)</span><br><span class="line">   cluster.AddPeers(peers...)</span><br><span class="line">   <span class="keyword">if</span> cluster == <span class="literal">nil</span> &#123;</span><br><span class="line">      logger.Fatalf(<span class="string">&quot;please set &#x27;self&#x27;(self ip:port) in conf file&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">   server.cluster = cluster</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> server</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="initServer"><a href="#initServer" class="headerlink" title="initServer"></a>initServer</h3><p>其中 initServer 函数是两个构造器共有的步骤，包括：</p>
+<ul>
+<li>初始化数据库。</li>
+<li>如果开启了 AOF 持久化：<ul>
+<li>还需要读取 AOF 持久化文件，开启 AOF 持久化。</li>
+<li>如果开启了自动 AOF 重写，则会启动一个协程进行自动 AOF 重写。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// server 的通用初始化操作初始化</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initServer</span><span class="params">()</span> *<span class="title">Server</span></span> &#123;</span><br><span class="line">   <span class="comment">// 初始化数据库</span></span><br><span class="line">   server := &amp;Server&#123;</span><br><span class="line">      closed: <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;, <span class="number">1</span>),</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> config.Properties.Databases &lt;= <span class="number">0</span> &#123;</span><br><span class="line">      config.Properties.Databases = <span class="number">16</span> <span class="comment">// default is 16</span></span><br><span class="line">   &#125;</span><br><span class="line">   server.dbSet = <span class="built_in">make</span>([]*atomic.Value, config.Properties.Databases)</span><br><span class="line">   <span class="keyword">for</span> i := <span class="keyword">range</span> server.dbSet &#123;</span><br><span class="line">      singleDB := engine.MakeDB()</span><br><span class="line">      singleDB.SetIndex(i)</span><br><span class="line">      holder := &amp;atomic.Value&#123;&#125;</span><br><span class="line">      holder.Store(singleDB)</span><br><span class="line">      server.dbSet[i] = holder</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 读取 AOF 持久化文件</span></span><br><span class="line">   <span class="keyword">if</span> config.Properties.AppendOnly &#123;</span><br><span class="line">      <span class="keyword">if</span> config.Properties.AofFilename == <span class="string">&quot;&quot;</span> &#123; <span class="comment">// default is dump.aof</span></span><br><span class="line">         config.Properties.AofFilename = <span class="string">&quot;dump.aof&quot;</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 获取初始AOF文件大小</span></span><br><span class="line">      server.AofFileSize = utils.GetFileSizeByName(config.Properties.AofFilename)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 开启 AOF 持久化</span></span><br><span class="line">      AofPersister, err := aof.NewPersister(server, config.Properties.AofFilename, <span class="literal">true</span>, config.Properties.AofFsync, MakeAuxiliaryServer)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">         logrus.Fatal(err)</span><br><span class="line">      &#125;</span><br><span class="line">      server.bindPersister(AofPersister)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 自动 AOF 重写</span></span><br><span class="line">      <span class="keyword">if</span> config.Properties.AutoAofRewrite &#123;</span><br><span class="line">         <span class="keyword">if</span> config.Properties.AutoAofRewritePercentage &lt;= <span class="number">0</span> &#123;</span><br><span class="line">            config.Properties.AutoAofRewritePercentage = <span class="number">100</span></span><br><span class="line">         &#125;</span><br><span class="line">         <span class="keyword">if</span> config.Properties.AutoAofRewriteMinSize &lt;= <span class="number">0</span> &#123;</span><br><span class="line">            config.Properties.AutoAofRewriteMinSize = <span class="number">64</span></span><br><span class="line">         &#125;</span><br><span class="line"></span><br><span class="line">         <span class="comment">// 开启 AOF 自动重写</span></span><br><span class="line">         <span class="keyword">go</span> server.autoAofRewrite()</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> server</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Server.autoAofRewrite 用于开启 AOF 自动重写，它会启动一个计时器，每 10 秒钟检查一次：</p>
+<ul>
+<li>如果当前正在重写，则跳过这个周期。</li>
+<li>当前如果没有重写，则首先会检查 AOF 文件的大小需不需要重写（重写条件在配置文件中配置，可以配置重写的最小 AOF 文件大小和体积超过上次重写后 AOF 文件大小的百分比时进行重写）。若需要重写，开启一个协程 Server.AofPersister.Rewrite 进行异步的重写工作，在重写结束后更新 Server.AofFileSize。</li>
+<li>当收到 Server.closed 发送的关闭消息后，协程退出。</li>
+</ul>
+</blockquote>
+<h2 id="执行命令方法-Server-Exec"><a href="#执行命令方法-Server-Exec" class="headerlink" title="执行命令方法 Server.Exec"></a>执行命令方法 Server.Exec</h2><p>因为有两种 simple-redis 服务器，所以<strong>在执行命令时也有两种执行方式</strong>，分别是单机模式下执行和集群模式下执行。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Server)</span> <span class="title">Exec</span><span class="params">(client redis.Connection, cmdLine [][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> s.cluster != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> s.execCluster(client, cmdLine)</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> s.execStandalone(client, cmdLine) <span class="comment">// 单机模式</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="execStandalone"><a href="#execStandalone" class="headerlink" title="execStandalone"></a>execStandalone</h3><p>Server.execStandalone 方法用于在单机模式下执行命令。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 单机模式执行命令的方式</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Server)</span> <span class="title">execStandalone</span><span class="params">(client redis.Connection, cmdLine [][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span></span><br></pre></td></tr></table></figure>
+
+<p>而<strong>执行的命令又分为两种类型</strong>，一种是如 AUTH、SELECT、PING 以及 AOF 持久化、订阅发布等<strong>在 simple-redis 服务器层面执行的命令</strong>；而第二种则是如 SET、GET 等<strong>在具体某个数据库中执行的命令</strong>。</p>
+<p>对于第一种在 simple-redis 服务器层面执行的命令，在 execStandalone 函数中会<strong>直接定义执行</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">cmdName := strings.ToLower(<span class="keyword">string</span>(cmdLine[<span class="number">0</span>]))</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (cmdName) == <span class="string">&quot;ping&quot;</span> &#123;</span><br><span class="line">   logger.Debugf(<span class="string">&quot;received heart beat from %v&quot;</span>, client.Name())</span><br><span class="line">   <span class="keyword">return</span> reply.MakePongStatusReply()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> _, ok := client.(*connection.FakeConn); !ok &#123; <span class="comment">// fakeConn不做校验</span></span><br><span class="line">   <span class="keyword">if</span> cmdName == <span class="string">&quot;auth&quot;</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> Auth(client, cmdLine[<span class="number">1</span>:])</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> !isAuthenticated(client) &#123;</span><br><span class="line">      <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;NOAUTH Authentication required&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">switch</span> cmdName &#123;</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;select&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> SelectDB(client, cmdLine[<span class="number">1</span>:], <span class="built_in">len</span>(s.dbSet))</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;bgrewriteaof&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> BGRewriteAof(s, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;rewriteaof&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> RewriteAof(s, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;multi&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> StartMultiStandalone(client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;exec&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> ExecMultiStandalone(s, client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;discard&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> DiscardMultiStandalone(client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;watch&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> ExecWatchStandalone(s, client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;unwatch&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> ExecUnWatchStandalone(client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;publish&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> Publish(s, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;subscribe&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> Subscribe(s, client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;unsubscribe&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> UnSubscribe(s, client, cmdLine[<span class="number">1</span>:])</span><br><span class="line"><span class="keyword">case</span> <span class="string">&quot;pubsub&quot;</span>:</span><br><span class="line">   <span class="keyword">return</span> PubSub(s, cmdLine[<span class="number">1</span>:])</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>第二种在具体某个数据库中执行的命令，则会<strong>选择客户端当前所在的数据库</strong>，将命令<strong>送给相应的数据库中执行</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// normal commands</span></span><br><span class="line">dbIndex := client.GetDBIndex()</span><br><span class="line">selectedDB, errReply := s.selectDB(dbIndex)</span><br><span class="line"><span class="keyword">if</span> errReply != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> errReply</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> selectedDB.Exec(client, cmdLine)</span><br></pre></td></tr></table></figure>
+
+<h3 id="execCluster"><a href="#execCluster" class="headerlink" title="execCluster"></a>execCluster</h3><p>Server.execCluster 方法用于在集群模式下执行命令。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 集群模式执行命令的方式</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Server)</span> <span class="title">execCluster</span><span class="params">(client redis.Connection, cmdLine [][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span></span><br></pre></td></tr></table></figure>
+
+<p>同样的，在集群模式下<strong>执行的命令又分为两种类型</strong>，一种是如 AUTH、SELECT、PING 以及 AOF 持久化、订阅发布等<strong>在 simple-redis 服务器层面执行的命令</strong>；而第二种则是如 SET、GET 等<strong>在具体某个数据库中执行的命令</strong>。</p>
+<p>对于第一种在 simple-redis 服务器层面执行的命令，在 execCluster 函数中会<strong>直接定义执行</strong>。对于第二种命令，则会<strong>调用 Server.cluster.Exec 方法进行执行（在集群模式下，不一定在本地执行，有可能远程执行）</strong>。</p>
+<h2 id="关闭-simple-redis-服务器"><a href="#关闭-simple-redis-服务器" class="headerlink" title="关闭 simple-redis 服务器"></a>关闭 simple-redis 服务器</h2><p>调用 Server.Close 方法会关闭 simple-redis 服务器，首先会向 Server.closed 发送一个消息，关闭自动重写协程；接着关闭 AOF 持久化、关闭集群、关闭发布订阅。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *Server)</span> <span class="title">Close</span><span class="params">()</span></span> &#123;</span><br><span class="line">   s.closed &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   <span class="keyword">if</span> config.Properties.AppendOnly &#123;</span><br><span class="line">      s.AofPersister.Close() <span class="comment">// 关闭aof持久化</span></span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">if</span> s.cluster != <span class="literal">nil</span> &#123;</span><br><span class="line">      s.cluster.Close()</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   s.publish.Close()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Redis-%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91-simple-redis/" rel="tag"># Redis - 后端开发 - simple-redis</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/" rel="prev" title="Simple-Redis实现 (5) 数据结构之List和SortedSet">
+      <i class="fa fa-chevron-left"></i> Simple-Redis实现 (5) 数据结构之List和SortedSet
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/" rel="next" title="Simple-Redis实现 (7) 底层数据库">
+      Simple-Redis实现 (7) 底层数据库 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Simple-Redis-%E6%9C%8D%E5%8A%A1%E5%99%A8"><span class="nav-number">1.</span> <span class="nav-text">Simple-Redis 服务器</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0"><span class="nav-number">1.1.1.</span> <span class="nav-text">构造函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#initServer"><span class="nav-number">1.1.2.</span> <span class="nav-text">initServer</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E5%91%BD%E4%BB%A4%E6%96%B9%E6%B3%95-Server-Exec"><span class="nav-number">1.2.</span> <span class="nav-text">执行命令方法 Server.Exec</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#execStandalone"><span class="nav-number">1.2.1.</span> <span class="nav-text">execStandalone</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#execCluster"><span class="nav-number">1.2.2.</span> <span class="nav-text">execCluster</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%97%AD-simple-redis-%E6%9C%8D%E5%8A%A1%E5%99%A8"><span class="nav-number">1.3.</span> <span class="nav-text">关闭 simple-redis 服务器</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

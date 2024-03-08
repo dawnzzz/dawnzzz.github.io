@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="安全性在安全性中，主要讨论用户身份认证的问题。目前有两种方法实现身份认证，Session 和 JWT。 Session 的缺陷在单体应用程序中，可以使用 Cookie+Session 来进行身份认证，Session 信息是由服务器维护的。但是在微服务架构中，由于会水平扩展所以由服务本地维护 Session 信息是不现实的，有两种解决方法：  将 Session 信息放在数据库中，这样 Sessio">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务架构设计模式 (9) 安全性 可配置性 可观测性">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="安全性在安全性中，主要讨论用户身份认证的问题。目前有两种方法实现身份认证，Session 和 JWT。 Session 的缺陷在单体应用程序中，可以使用 Cookie+Session 来进行身份认证，Session 信息是由服务器维护的。但是在微服务架构中，由于会水平扩展所以由服务本地维护 Session 信息是不现实的，有两种解决方法：  将 Session 信息放在数据库中，这样 Sessio">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525135920199.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525141323392.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525143758999.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525152552462.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525160802743.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525160710238.png">
+<meta property="article:published_time" content="2023-05-25T02:51:20.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.818Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525135920199.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务架构设计模式 (9) 安全性 可配置性 可观测性 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务架构设计模式 (9) 安全性 可配置性 可观测性
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-25 10:51:20" itemprop="dateCreated datePublished" datetime="2023-05-25T10:51:20+08:00">2023-05-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h1><p>在安全性中，主要讨论用户身份认证的问题。目前有两种方法实现身份认证，Session 和 JWT。</p>
+<h2 id="Session-的缺陷"><a href="#Session-的缺陷" class="headerlink" title="Session 的缺陷"></a>Session 的缺陷</h2><p>在单体应用程序中，可以使用 Cookie+Session 来进行身份认证，Session 信息是由<strong>服务器维护</strong>的。但是在微服务架构中，由于会水平扩展所以由服务本地维护 Session 信息是不现实的，有两种解决方法：</p>
+<ul>
+<li>将 Session 信息放在<strong>数据库</strong>中，这样 Session 信息在多个实例中就是共享的。</li>
+<li>使用特定的<strong>负载均衡算法</strong>，如对客户端地址进行哈希，使得同一个客户端发出的请求到达同一个实例。</li>
+</ul>
+<h2 id="JWT"><a href="#JWT" class="headerlink" title="JWT"></a>JWT</h2><p>如果由服务器端来维护用户身份信息会带来种种设计上的问题，那么可以由<strong>客户端自己维护</strong>用户身份信息。JWT 就是这样一种思想，JWT 包含一个 Json 对象，其中有用户信息以及其他元信息（如到期时间）。JWT 包含的 Json 对象是被加密过的（token），并且签名可以保证第三方无法伪造。</p>
+<p>因为 JWT 是客户端<strong>自包含</strong>的，所以请求不论被路由到哪一个服务实例上，服务实例都可以根据 JWT 去验证用户信息。</p>
+<blockquote>
+<p>JWT 的<strong>缺点</strong>在于无法验证被恶意第三方偷取的 JWT token，只要恶意第三方获取到了 token 就等于获取了这个用户的登录信息。一种缓解的方法是使用<strong>较短的到期时间</strong>，但是随之而来的问题就是客户端需要频繁的请求 JWT 认证重新获取 token。</p>
+</blockquote>
+<h1 id="可配置性"><a href="#可配置性" class="headerlink" title="可配置性"></a>可配置性</h1><p>在微服务架构中，最常使用的是<strong>外部化配置</strong>，即从服务外部而不是源代码中获取配置信息。</p>
+<blockquote>
+<p>在源代码中直接定义配置文件有两个<strong>缺点</strong>：</p>
+<ul>
+<li>密码等敏感信息是直接存在于源代码中的，这可能会造成一些<strong>安全性</strong>问题。</li>
+<li><strong>不够灵活</strong>，如果需要修改配置信息就必须修改源代码文件。</li>
+</ul>
+</blockquote>
+<p>外部化配置主要有两种方式实现，推送模型和拉取模型。</p>
+<span id="more"></span>
+
+<h2 id="推送模型"><a href="#推送模型" class="headerlink" title="推送模型"></a>推送模型</h2><p>推送<strong>依赖于部署基础设施</strong>（如 docker、k8s 等），使用配置<strong>环境变量</strong>或者<strong>挂载存储卷</strong>的方式将配置信息传递给服务实例。</p>
+<p>推送模型非常的简单有效，在服务实例看来就是从本地去读取配置文件信息。</p>
+<p>但是他的一个限制就是<strong>重新配置正在运行的服务很难</strong>，因为部署基础设施可能不允许你在不重新启动服务的情况下变更外部化配置信息。另一个限制就是<strong>配置信息分散在各个服务中</strong>，不集中管理</p>
+<h2 id="拉取模型"><a href="#拉取模型" class="headerlink" title="拉取模型"></a>拉取模型</h2><p>在拉取模型中，服务实例从配置服务器主动的<strong>拉取</strong>配置信息。使用配置服务器的优点：</p>
+<ul>
+<li>可以<strong>集中化</strong>的管理配置信息。</li>
+<li><strong>敏感数据的透明解密</strong>，存储在配置服务器上的敏感信息是加密的，发送到具体服务实例上的敏感信息是已经解密了的。</li>
+<li><strong>动态重新配置</strong>，服务可能通过轮询等方式检查更新的配置值，用于更新自身配置。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525135920199.png" alt="image-20230525135920199"></p>
+<h1 id="可观测性"><a href="#可观测性" class="headerlink" title="可观测性"></a>可观测性</h1><p>可观测性总的来说包括三个方面：日志、追踪和指标。</p>
+<ul>
+<li><strong>日志：</strong>记录服务处理的过程、请求和响应详情、详细的错误信息等。</li>
+<li><strong>追踪：</strong>请求在系统中的调用链路，以及调用时间。</li>
+<li><strong>指标：</strong>CPU 使用率、内存使用率等。</li>
+</ul>
+<h2 id="日志聚合"><a href="#日志聚合" class="headerlink" title="日志聚合"></a>日志聚合</h2><p>在微服务架构中，服务多实例部署在不同的物理机上，各个微服务的日志也被分散储存在不同的物理机。集群足够大的话，使用上述传统的方式查阅日志就变得非常不合适。因此需要集中化管理分布式系统中的日志。<strong>日志聚合</strong>就是将分散在各个服务上的日志都写入<strong>集中</strong>式的<strong>日志记录服务器</strong>中，该服务器提供搜索和告警功能。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525141323392.png" alt="image-20230525141323392"></p>
+<h3 id="ELK"><a href="#ELK" class="headerlink" title="ELK"></a>ELK</h3><p>一种流行的日志记录基础设施是 ELK（ElasticSearch、Logstash、Kibana）</p>
+<ul>
+<li><strong>ElasticSearch：</strong>文本数据库，用作日志记录的服务器。它是 NoSQL 文档数据库，可以存储和搜索整个文档。</li>
+<li><strong>Logstash：</strong>数据分析软件，主要用于分析 Log 日志。数据源首先将数据传给 Logstash，它主要包括 Input 数据输入、Filter 数据源过滤和 Output 数据输出三部分。Logstash 可以对数据进行处理，包括数据的过滤和格式化，之后发送到 Elasticsearch 存储，并在 Elasticsearch 中建立相应的索引。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525143758999.png" alt="image-20230525143758999"></p>
+<ul>
+<li><strong>Kibana：</strong>ElasticSearch 的可视化工具。Kibana 利用 Elasticsearch 的 REST 接口来检索数据，调用 Elasticsearch 存储的数据，将其可视化。</li>
+</ul>
+<blockquote>
+<p>在实际使用中，Logstash 对应的功能（过滤日志、格式化）是可以自己实现的。而各个服务可以通过<strong>消息队列</strong>将日志发往日志服务器。</p>
+</blockquote>
+<h2 id="分布式追踪"><a href="#分布式追踪" class="headerlink" title="分布式追踪"></a>分布式追踪</h2><p><strong>分布式追踪（链路追踪）</strong>可以了解服务之间的调用关系，并且记录调用信息（如开始时间和结束时间）。具体来说，就是为每一个外部请求分配<strong>唯一的 ID</strong>，并在<strong>集中式的服务器</strong>中记录它是<strong>如何从一个服务流向下一个服务的</strong>。</p>
+<p>在链路追踪中，有两个核心概念需要了解，trace 和 span：</p>
+<ul>
+<li><strong>trace：</strong>就是一个完整的请求从开始到结束，都属于一个 trace，一个 trace 有一个唯一的 Trace ID。</li>
+<li><strong>span：</strong>每进行一次 RPC 调用，都视为一个 span，一个 span 内部有唯一的 Span ID。</li>
+</ul>
+<h3 id="OpenTelemetry-Jaeger"><a href="#OpenTelemetry-Jaeger" class="headerlink" title="OpenTelemetry + Jaeger"></a>OpenTelemetry + Jaeger</h3><p>OpenTelemetry 只涉及到遥感数据（链路追踪信息、日志、指标）的<strong>采集和传输</strong>，为遥感数据的采集和传输提供一套统一的标准。</p>
+<p>Jaeger 是分布式链路追踪工具，用于<strong>管理和监控</strong>链路追踪数据。</p>
+<p>链路追踪可以涉及两个步骤：</p>
+<ul>
+<li><strong>采集</strong>链路请求数据。</li>
+<li><strong>存储、管理和可视化</strong>收集的数据以采取快速行动。</li>
+</ul>
+<p><strong>OpenTelemetry 解决了第一步，而 Jaeger 旨在解决后者。</strong>使用 OpenTelemetry，可以生成链路信息、日志、指标，而 Jaeger 只负责链路追踪分析。</p>
+<p>下图为 OpenTelemetry 加 Jaeger 的架构图，可以看到中间为 OpenTelemetry 负责数据的收集、处理、传输，下方为链路追踪应用 Jaeger，用于管理由 OpenTelemetry 采集而来的数据。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525152552462.png" alt="image-20230525152552462"></p>
+<h2 id="监控指标"><a href="#监控指标" class="headerlink" title="监控指标"></a>监控指标</h2><p>在微服务架构中，同样也需要监控和告警。监控系统从各个服务实例中收集指标信息（CPU、内存、磁盘占用率等），然后指标服务用于提供存储、告警的功能。</p>
+<p>指标定期采样，每一个指标<strong>样本</strong>都具有三个熟悉：名称、值、时间戳。在一些监控系统中，样本还会带上标签（tag），标签是一组键值对。</p>
+<blockquote>
+<p>典型的监控系统就是 Prometheus + Grafana。</p>
+</blockquote>
+<h1 id="服务网格"><a href="#服务网格" class="headerlink" title="服务网格"></a>服务网格</h1><p>如果在每一种服务中都需要配置熔断器、服务发现、链路追踪、负载均衡等<strong>共性的需求</strong>，这无疑将耗费巨大的时间，并且这样的工作都是相同重复的。所以可以引出<strong>服务网格</strong>，服务网格是一种<strong>网络基础设施</strong>，它负责上述的这些共性需求，所以不需要在服务中关注这些问题了。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525160802743.png" alt="image-20230525160802743"></p>
+<p>如 Istio 就是一种服务网格，它将服务发现等都集成在服务网格内部，服务本身不用关心：</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/image-20230525160710238.png" alt="image-20230525160710238"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/" rel="prev" title="微服务架构设计模式 (8) 外部API模式">
+      <i class="fa fa-chevron-left"></i> 微服务架构设计模式 (8) 外部API模式
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/" rel="next" title="凤凰架构笔记 (1) 架构的演进">
+      凤凰架构笔记 (1) 架构的演进 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AE%89%E5%85%A8%E6%80%A7"><span class="nav-number">1.</span> <span class="nav-text">安全性</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Session-%E7%9A%84%E7%BC%BA%E9%99%B7"><span class="nav-number">1.1.</span> <span class="nav-text">Session 的缺陷</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#JWT"><span class="nav-number">1.2.</span> <span class="nav-text">JWT</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7"><span class="nav-number">2.</span> <span class="nav-text">可配置性</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A8%E9%80%81%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.</span> <span class="nav-text">推送模型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8B%89%E5%8F%96%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.2.</span> <span class="nav-text">拉取模型</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7"><span class="nav-number">3.</span> <span class="nav-text">可观测性</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E8%81%9A%E5%90%88"><span class="nav-number">3.1.</span> <span class="nav-text">日志聚合</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ELK"><span class="nav-number">3.1.1.</span> <span class="nav-text">ELK</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%86%E5%B8%83%E5%BC%8F%E8%BF%BD%E8%B8%AA"><span class="nav-number">3.2.</span> <span class="nav-text">分布式追踪</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#OpenTelemetry-Jaeger"><span class="nav-number">3.2.1.</span> <span class="nav-text">OpenTelemetry + Jaeger</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7%E6%8C%87%E6%A0%87"><span class="nav-number">3.3.</span> <span class="nav-text">监控指标</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E7%BD%91%E6%A0%BC"><span class="nav-number">4.</span> <span class="nav-text">服务网格</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

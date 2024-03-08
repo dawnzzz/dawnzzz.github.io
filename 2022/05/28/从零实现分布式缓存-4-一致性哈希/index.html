@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本节实现了一致性哈希，最终代码结构如下： 12345678910lru&#x2F;	|--lru.go	|--lru_test.gobyteview.gocache.goconsistenthash.godawncache.godawncache_test.gogo.modhttp.go  一致性哈希为什么使用一致性哈希使用一致性哈希的原因如下：  对于分布式缓存来说，若一个节点收到请求但是该节点没有对应的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零实现分布式缓存 (4) 一致性哈希">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本节实现了一致性哈希，最终代码结构如下： 12345678910lru&#x2F;	|--lru.go	|--lru_test.gobyteview.gocache.goconsistenthash.godawncache.godawncache_test.gogo.modhttp.go  一致性哈希为什么使用一致性哈希使用一致性哈希的原因如下：  对于分布式缓存来说，若一个节点收到请求但是该节点没有对应的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/add_peer.jpg">
+<meta property="article:published_time" content="2022-05-28T09:05:49.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.802Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta property="article:tag" content="分布式">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/add_peer.jpg">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>从零实现分布式缓存 (4) 一致性哈希 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          从零实现分布式缓存 (4) 一致性哈希
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-28 17:05:49" itemprop="dateCreated datePublished" datetime="2022-05-28T17:05:49+08:00">2022-05-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>本节实现了一致性哈希，最终代码结构如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">lru/</span><br><span class="line">	|--lru.go</span><br><span class="line">	|--lru_test.go</span><br><span class="line">byteview.go</span><br><span class="line">cache.go</span><br><span class="line">consistenthash.go</span><br><span class="line">dawncache.go</span><br><span class="line">dawncache_test.go</span><br><span class="line">go.mod</span><br><span class="line">http.go</span><br></pre></td></tr></table></figure>
+
+<h1 id="一致性哈希"><a href="#一致性哈希" class="headerlink" title="一致性哈希"></a>一致性哈希</h1><h2 id="为什么使用一致性哈希"><a href="#为什么使用一致性哈希" class="headerlink" title="为什么使用一致性哈希"></a>为什么使用一致性哈希</h2><p>使用一致性哈希的<strong>原因</strong>如下：</p>
+<ul>
+<li>对于分布式缓存来说，若一个节点收到请求但是该节点没有对应的缓存数据。那么<strong>应该从谁那里获取数据？</strong>假设一共有 10 个节点，随机获取数据。假设第一次从节点 1 处获取数据，那么第二次只有<strong>十分之一</strong>的概率再次从节点 1 处获取数据。因为<strong>每一次可能都会从一个新的节点获取数据源</strong>，这样的操作不仅<strong>耗费时间</strong>（新的节点可能本身没有数据，需要从其他节点或者调用回调获取数据源），而且<strong>浪费空间</strong>（数据会冗余存储）。</li>
+<li>当某一个<strong>节点失效（节点增加也是同理）</strong>了，若使用简单的取余操作来选择节点，比如之前的 <code>hash(key)%10</code> 变成了 <code>hash(key)%10</code>，会使几乎所有缓存对应的节点都发生了改变。即<strong>所有缓存值都失效了</strong>，造成<strong>缓存雪崩</strong>：缓存在同一时刻全部失效，造成瞬时DB请求量大、压力骤增，引起雪崩。</li>
+</ul>
+<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>一致性哈希算法将 key 映射到 <code>2^32</code> 的空间中，将这个数字首尾相连，形成一个环。</p>
+<ul>
+<li><strong>计算机节点的哈希</strong>，放置在哈希环上。</li>
+<li>计算 <strong>key 的哈希值</strong>，放置在环上<strong>顺时针</strong>寻找到的<strong>第一个</strong>节点就是对应的计算机节点。</li>
+</ul>
+<p>下图左图中，key27、key11、key2 对应于节点 peer2；key23 对应于节点 peer4。</p>
+<p>下图右图中，新增节点 peer8，但是只有 key27 对应的节点从 peer2 变成了 peer8，其余均不变。</p>
+<p><img src="/../images/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/add_peer.jpg" alt="一致性哈希添加节点 consistent hashing add peer"></p>
+<h2 id="数据倾斜"><a href="#数据倾斜" class="headerlink" title="数据倾斜"></a>数据倾斜</h2><p>当节点数目较少时，容易出现<strong>数据倾斜问题</strong>。就是 key 的映射关系不均匀，可能很多的 key 映射到了 peer1，只有很少甚至没有 key 映射到 peer2。</p>
+<p>为了解决这个问题，引入<strong>虚拟节点</strong>的概念，一个真实节点对应多个虚拟节点。</p>
+<p>虚拟节点与真实节点一样，将哈希值防止在哈希环上。计算 key 的哈希值，放置在环上<strong>顺时针</strong>寻找到的<strong>第一个</strong>（虚拟）节点就是对应的节点。</p>
+<h1 id="实现一致性哈希"><a href="#实现一致性哈希" class="headerlink" title="实现一致性哈希"></a>实现一致性哈希</h1><p><code>consistenthash.go</code></p>
+<h2 id="一致性哈希主体结构"><a href="#一致性哈希主体结构" class="headerlink" title="一致性哈希主体结构"></a>一致性哈希主体结构</h2><p>首先定义一致性哈希的主体结构体 <strong>Map</strong>：</p>
+<ul>
+<li>hash 表示使用的哈希函数。</li>
+<li>replicas 表示一个节点加上其虚拟节点的数量。</li>
+<li>keys 表示哈希环，有序存储所有的节点。</li>
+<li>hashMap 存储所有节点与真实节点映射关系。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Hash <span class="function"><span class="keyword">func</span><span class="params">(data []<span class="keyword">byte</span>)</span> <span class="title">uint32</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Map <span class="keyword">struct</span> &#123;</span><br><span class="line">	hash     Hash           <span class="comment">// 使用的 hash 函数</span></span><br><span class="line">	replicas <span class="keyword">int</span>            <span class="comment">// 一个真实节点所对应虚拟节点的数量</span></span><br><span class="line">	keys     []<span class="keyword">int</span>          <span class="comment">// 哈希环，存储所有的节点，有序的</span></span><br><span class="line">	hashMap  <span class="keyword">map</span>[<span class="keyword">int</span>]<span class="keyword">string</span> <span class="comment">// 存储所有节点与真实节点的映射关系</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">(replicas <span class="keyword">int</span>, hash Hash)</span> *<span class="title">Map</span></span> &#123;</span><br><span class="line">	m := &amp;Map&#123;</span><br><span class="line">		hash:     hash,</span><br><span class="line">		replicas: replicas,</span><br><span class="line">		hashMap:  <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">int</span>]<span class="keyword">string</span>),</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> hash == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 默认哈希函数</span></span><br><span class="line">		m.hash = crc32.ChecksumIEEE</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> m</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="添加真实机器"><a href="#添加真实机器" class="headerlink" title="添加真实机器"></a>添加真实机器</h2><p>添加真实机器的方法 <strong>Add</strong>，一次允许添加多个真实机器。每一个机器对应 m.replicas 个虚拟节点：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m *Map)</span> <span class="title">Add</span><span class="params">(keys ...<span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> _, key := <span class="keyword">range</span> keys &#123;</span><br><span class="line">		<span class="keyword">for</span> i := <span class="number">0</span>; i &lt; m.replicas; i++ &#123; <span class="comment">// 一个真实节点对应 m.replicas 个虚拟节点</span></span><br><span class="line">			<span class="comment">// 计算哈希 = key+编号</span></span><br><span class="line">			hash := <span class="keyword">int</span>(m.hash([]<span class="keyword">byte</span>(key + strconv.Itoa(i))))</span><br><span class="line">			<span class="comment">// 加入到哈希环中</span></span><br><span class="line">			m.keys = <span class="built_in">append</span>(m.keys, hash)</span><br><span class="line">			<span class="comment">// 存储映射</span></span><br><span class="line">			m.hashMap[hash] = key</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 将 keys 排序</span></span><br><span class="line">	sort.Ints(m.keys)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="获取-key-对应的机器"><a href="#获取-key-对应的机器" class="headerlink" title="获取 key 对应的机器"></a>获取 key 对应的机器</h2><p>获取 key 对应的机器 <strong>Get</strong> 函数：</p>
+<ul>
+<li>首先计算 key 的哈希。</li>
+<li>再顺时针找到最近的虚拟节点。</li>
+<li>查询虚拟节点对应的真实机器。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(m *Map)</span> <span class="title">Get</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> <span class="built_in">len</span>(key) == <span class="number">0</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="string">&quot;&quot;</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 计算哈希</span></span><br><span class="line">	hash := <span class="keyword">int</span>(m.hash([]<span class="keyword">byte</span>(key)))</span><br><span class="line">	<span class="comment">// 在哈希环上查找节点</span></span><br><span class="line">	idx := sort.Search(<span class="built_in">len</span>(m.keys), <span class="function"><span class="keyword">func</span><span class="params">(i <span class="keyword">int</span>)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">		<span class="keyword">return</span> m.keys[i] &gt;= hash</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="comment">// 返回节点</span></span><br><span class="line">	<span class="keyword">return</span> m.hashMap[m.keys[idx%<span class="built_in">len</span>(m.keys)]]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+              <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" rel="tag"># 分布式</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-3-HTTP%E6%9C%8D%E5%8A%A1%E7%AB%AF/" rel="prev" title="从零实现分布式缓存 (3) HTTP服务端">
+      <i class="fa fa-chevron-left"></i> 从零实现分布式缓存 (3) HTTP服务端
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-5-%E5%88%86%E5%B8%83%E5%BC%8F%E8%8A%82%E7%82%B9/" rel="next" title="从零实现分布式缓存 (5) 分布式节点">
+      从零实现分布式缓存 (5) 分布式节点 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C"><span class="nav-number">1.</span> <span class="nav-text">一致性哈希</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BD%BF%E7%94%A8%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C"><span class="nav-number">1.1.</span> <span class="nav-text">为什么使用一致性哈希</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E7%90%86"><span class="nav-number">1.2.</span> <span class="nav-text">原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%80%BE%E6%96%9C"><span class="nav-number">1.3.</span> <span class="nav-text">数据倾斜</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C"><span class="nav-number">2.</span> <span class="nav-text">实现一致性哈希</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C%E4%B8%BB%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">一致性哈希主体结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B7%BB%E5%8A%A0%E7%9C%9F%E5%AE%9E%E6%9C%BA%E5%99%A8"><span class="nav-number">2.2.</span> <span class="nav-text">添加真实机器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%8E%B7%E5%8F%96-key-%E5%AF%B9%E5%BA%94%E7%9A%84%E6%9C%BA%E5%99%A8"><span class="nav-number">2.3.</span> <span class="nav-text">获取 key 对应的机器</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

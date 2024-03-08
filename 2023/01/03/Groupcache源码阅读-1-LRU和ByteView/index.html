@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Groupcache 介绍Groupcache 是一个内存级别的分布式缓存，在许多情况下可以替代 memcached 节点池。 和 memcached 比较相同点Groupcache 与 memcached 相比，相同点在于：  按照 key 进行切分，用于选择哪个节点对该 key 负责。  不同点不同点在于：  不需要运行一组单独的服务器。groupcache 是一个客户端，也是一个服务器。它连">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Groupcache源码阅读 (1) LRU和ByteView">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/01/03/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-LRU%E5%92%8CByteView/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Groupcache 介绍Groupcache 是一个内存级别的分布式缓存，在许多情况下可以替代 memcached 节点池。 和 memcached 比较相同点Groupcache 与 memcached 相比，相同点在于：  按照 key 进行切分，用于选择哪个节点对该 key 负责。  不同点不同点在于：  不需要运行一组单独的服务器。groupcache 是一个客户端，也是一个服务器。它连">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-LRU%E5%92%8CByteView/lru.jpg">
+<meta property="article:published_time" content="2023-01-03T03:18:43.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.761Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="源码阅读">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-LRU%E5%92%8CByteView/lru.jpg">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/01/03/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-LRU%E5%92%8CByteView/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Groupcache源码阅读 (1) LRU和ByteView | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/03/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-LRU%E5%92%8CByteView/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Groupcache源码阅读 (1) LRU和ByteView
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-03 11:18:43" itemprop="dateCreated datePublished" datetime="2023-01-03T11:18:43+08:00">2023-01-03</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">Groupcache源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Groupcache-介绍"><a href="#Groupcache-介绍" class="headerlink" title="Groupcache 介绍"></a>Groupcache 介绍</h1><p>Groupcache 是一个内存级别的分布式缓存，在许多情况下可以替代 memcached 节点池。</p>
+<h2 id="和-memcached-比较"><a href="#和-memcached-比较" class="headerlink" title="和 memcached 比较"></a>和 memcached 比较</h2><h3 id="相同点"><a href="#相同点" class="headerlink" title="相同点"></a>相同点</h3><p>Groupcache 与 memcached 相比，相同点在于：</p>
+<ul>
+<li><strong>按照 key 进行切分</strong>，用于选择哪个节点对该 key 负责。</li>
+</ul>
+<h3 id="不同点"><a href="#不同点" class="headerlink" title="不同点"></a>不同点</h3><p>不同点在于：</p>
+<ul>
+<li><strong>不需要运行一组单独的服务器。</strong>groupcache 是一个客户端，也是一个服务器。它连接到自己的 peer，形成分布式缓存。</li>
+<li><strong>带有缓存填充机制。</strong>memcached 只是说“缓存丢失”，这通常会导致来自无限数量的客户端连接数据库（或其他）加载缓存。而 groupcache 协调缓存填充，使得整个复制的一组进程中只有一个加载填充缓存（singleflight），然后将加载的值多路传输给所有调用方。</li>
+<li><strong>不支持变更 values。</strong>既没有缓存过期时间，也不能显式的从缓存中删除。</li>
+<li><strong>支持将热点条目自动镜像到多个进程。</strong>对于热点条目，自动镜像到多个节点，这样可以防止单点存储热点数据的服务器过载。</li>
+</ul>
+<h1 id="LRU"><a href="#LRU" class="headerlink" title="LRU"></a>LRU</h1><p>LRU，Least Recently Used，最近最少使用。如果数据最近被访问过，那么将来被访问的概率也会更高。</p>
+<p>LRU 算法的实现非常简单，维护一个<strong>队列</strong>，如果某条记录被访问了，则移动到队尾，那么队首则是最近最少访问的数据，淘汰该条记录即可。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>下图就是 LRU 的数据结构：</p>
+<ul>
+<li><strong>蓝色的是字典</strong>，用于保存 key 和 value 的<strong>映射</strong>关系。</li>
+<li><strong>红色的是双向链表（作为队列）</strong>，将所有的值存储在双向链表中。<strong>头部代表最近被访问的数据，尾部代表最久未被访问过的数据</strong>。<ul>
+<li>当访问到值时将这个元素移动到双向链表的头部。</li>
+<li>如果需要删除最近最久未被访问的数据，只需要删除尾部元素即可。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-LRU%E5%92%8CByteView/lru.jpg" alt="implement lru algorithm with golang"></p>
+<span id="more"></span>
+
+<h2 id="LRU-Cache"><a href="#LRU-Cache" class="headerlink" title="LRU Cache"></a>LRU Cache</h2><h3 id="entry-条目"><a href="#entry-条目" class="headerlink" title="entry 条目"></a>entry 条目</h3><p>lru.entry 定义了<strong>存储在双向链表中的条目</strong>，包括键（key）和值（value）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// A Key may be any value that is comparable. See http://golang.org/ref/spec#Comparison_operators</span></span><br><span class="line"><span class="keyword">type</span> Key <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> entry <span class="keyword">struct</span> &#123;</span><br><span class="line">	key   Key</span><br><span class="line">	value <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Cache-结构体"><a href="#Cache-结构体" class="headerlink" title="Cache 结构体"></a>Cache 结构体</h3><p>lru.Cache 是一个 <strong>LRU 缓存</strong>，其中：</p>
+<ul>
+<li>MaxEntries 定义了缓存中最大的数据量。</li>
+<li>ll 为双向链表。</li>
+<li>cache 为键和值的映射。</li>
+<li>OnEvicted 定义了当这个键从缓存中移除时，需要进行的操作。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cache is an LRU cache. It is not safe for concurrent access.</span></span><br><span class="line"><span class="keyword">type</span> Cache <span class="keyword">struct</span> &#123;</span><br><span class="line">   <span class="comment">// MaxEntries is the maximum number of cache entries before</span></span><br><span class="line">   <span class="comment">// an item is evicted. Zero means no limit.</span></span><br><span class="line">   MaxEntries <span class="keyword">int</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// OnEvicted optionally specifies a callback function to be</span></span><br><span class="line">   <span class="comment">// executed when an entry is purged from the cache.</span></span><br><span class="line">   OnEvicted <span class="function"><span class="keyword">func</span><span class="params">(key Key, value <span class="keyword">interface</span>&#123;&#125;)</span></span></span><br><span class="line"></span><br><span class="line">   ll    *list.List</span><br><span class="line">   cache <span class="keyword">map</span>[<span class="keyword">interface</span>&#123;&#125;]*list.Element</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// New creates a new Cache.</span></span><br><span class="line"><span class="comment">// If maxEntries is zero, the cache has no limit and it&#x27;s assumed</span></span><br><span class="line"><span class="comment">// that eviction is done by the caller.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">(maxEntries <span class="keyword">int</span>)</span> *<span class="title">Cache</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> &amp;Cache&#123;</span><br><span class="line">		MaxEntries: maxEntries,</span><br><span class="line">		ll:         list.New(),</span><br><span class="line">		cache:      <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">interface</span>&#123;&#125;]*list.Element),</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同时 lru.Cache 还定义了一些对于缓存的操作：</p>
+<ul>
+<li><p><strong>添加</strong>键值对：</p>
+<ul>
+<li>这里用了<strong>懒惰初始化</strong>的方法，当真正需要添加数据时才对双向链表和字典映射做初始化。</li>
+<li>当看key 对应的数据存在时，将元素移动到链表<strong>头部</strong>，然后改变 value。</li>
+<li>不存在时新建一个元素，将元素移动到链表<strong>头部</strong>。</li>
+<li>当超过缓存数据量限制时，<strong>删除</strong>最老的缓存数据。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Cache)</span> <span class="title">Add</span><span class="params">(key Key, value <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> c.cache == <span class="literal">nil</span> &#123;</span><br><span class="line">		c.cache = <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">interface</span>&#123;&#125;]*list.Element)</span><br><span class="line">		c.ll = list.New()</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> ee, ok := c.cache[key]; ok &#123;</span><br><span class="line">		c.ll.MoveToFront(ee)</span><br><span class="line">		ee.Value.(*entry).value = value</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	ele := c.ll.PushFront(&amp;entry&#123;key, value&#125;)</span><br><span class="line">	c.cache[key] = ele</span><br><span class="line">	<span class="keyword">if</span> c.MaxEntries != <span class="number">0</span> &amp;&amp; c.ll.Len() &gt; c.MaxEntries &#123;</span><br><span class="line">		c.RemoveOldest()</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+<li><p><strong>查询</strong>键所对应的数值：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Cache)</span> <span class="title">Get</span><span class="params">(key Key)</span> <span class="params">(value <span class="keyword">interface</span>&#123;&#125;, ok <span class="keyword">bool</span>)</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>键值<strong>删除</strong>：在删除时会调用 OnEvicted 所定义的函数。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Cache)</span> <span class="title">Remove</span><span class="params">(key Key)</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>获取缓存<strong>当前大小</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Cache)</span> <span class="title">Len</span><span class="params">()</span> <span class="title">int</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p><strong>清空</strong>缓存：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Cache)</span> <span class="title">Clear</span><span class="params">()</span></span></span><br></pre></td></tr></table></figure></li>
+</ul>
+<h1 id="ByteView"><a href="#ByteView" class="headerlink" title="ByteView"></a>ByteView</h1><p>ByteView 保证的<strong>内部字节的不可变</strong>（这是 groupcache 的特性，不可更改 value）。</p>
+<h2 id="ByteView-结构体"><a href="#ByteView-结构体" class="headerlink" title="ByteView 结构体"></a>ByteView 结构体</h2><p>ByteView 在内部封装着一个<strong>字节切片</strong>和其对应的<strong>字符串</strong>，但是调用者看不见这个内部细节。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// A ByteView holds an immutable view of bytes.</span></span><br><span class="line"><span class="comment">// Internally it wraps either a []byte or a string,</span></span><br><span class="line"><span class="comment">// but that detail is invisible to callers.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// A ByteView is meant to be used as a value type, not</span></span><br><span class="line"><span class="comment">// a pointer (like a time.Time).</span></span><br><span class="line"><span class="keyword">type</span> ByteView <span class="keyword">struct</span> &#123;</span><br><span class="line">   <span class="comment">// If b is non-nil, b is used, else s is used.</span></span><br><span class="line">   b []<span class="keyword">byte</span></span><br><span class="line">   s <span class="keyword">string</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="ByteView-方法"><a href="#ByteView-方法" class="headerlink" title="ByteView 方法"></a>ByteView 方法</h2><p>ByteView 定义了很多方法，并且还<strong>实现了 io.ReaderAt 和 io.WriterTo 接口</strong>：</p>
+<ul>
+<li><p>查询 ByteView 的长度：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">Len</span><span class="params">()</span> <span class="title">int</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>获取一个字节切片的复制：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">ByteSlice</span><span class="params">()</span> []<span class="title">byte</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>获取字节切片对应的字符串：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">String</span><span class="params">()</span> <span class="title">string</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>获取字节切片中下标为 i 的字节：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">At</span><span class="params">(i <span class="keyword">int</span>)</span> <span class="title">byte</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>获取 <code>[from, to)</code> 范围内的字节：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">Slice</span><span class="params">(from, to <span class="keyword">int</span>)</span> <span class="title">ByteView</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>获取 <code>[from, end)</code> 范围内的字节：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">SliceFrom</span><span class="params">(from <span class="keyword">int</span>)</span> <span class="title">ByteView</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>将字节切片复制到指定的切片中，返回被复制的字节数：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">Copy</span><span class="params">(dest []<span class="keyword">byte</span>)</span> <span class="title">int</span></span> </span><br></pre></td></tr></table></figure></li>
+<li><p>用于比较的方法：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">Equal</span><span class="params">(b2 ByteView)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">EqualString</span><span class="params">(s <span class="keyword">string</span>)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">EqualBytes</span><span class="params">(b2 []<span class="keyword">byte</span>)</span> <span class="title">bool</span></span></span><br></pre></td></tr></table></figure></li>
+<li><p>返回一个 io.ReadSeeker：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Reader returns an io.ReadSeeker for the bytes in v.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">Reader</span><span class="params">()</span> <span class="title">io</span>.<span class="title">ReadSeeker</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> v.b != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> bytes.NewReader(v.b)</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> strings.NewReader(v.s)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<blockquote>
+<p>实现 io.ReaderAt 和 io.WriterTo 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ReadAt implements io.ReaderAt on the bytes in v.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">ReadAt</span><span class="params">(p []<span class="keyword">byte</span>, off <span class="keyword">int64</span>)</span> <span class="params">(n <span class="keyword">int</span>, err error)</span></span> &#123;</span><br><span class="line">   <span class="keyword">if</span> off &lt; <span class="number">0</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="number">0</span>, errors.New(<span class="string">&quot;view: invalid offset&quot;</span>)</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> off &gt;= <span class="keyword">int64</span>(v.Len()) &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="number">0</span>, io.EOF</span><br><span class="line">   &#125;</span><br><span class="line">   n = v.SliceFrom(<span class="keyword">int</span>(off)).Copy(p)</span><br><span class="line">   <span class="keyword">if</span> n &lt; <span class="built_in">len</span>(p) &#123;</span><br><span class="line">      err = io.EOF</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// WriteTo implements io.WriterTo on the bytes in v.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(v ByteView)</span> <span class="title">WriteTo</span><span class="params">(w io.Writer)</span> <span class="params">(n <span class="keyword">int64</span>, err error)</span></span> &#123;</span><br><span class="line">   <span class="keyword">var</span> m <span class="keyword">int</span></span><br><span class="line">   <span class="keyword">if</span> v.b != <span class="literal">nil</span> &#123;</span><br><span class="line">      m, err = w.Write(v.b)</span><br><span class="line">   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      m, err = io.WriteString(w, v.s)</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> err == <span class="literal">nil</span> &amp;&amp; m &lt; v.Len() &#123;</span><br><span class="line">      err = io.ErrShortWrite</span><br><span class="line">   &#125;</span><br><span class="line">   n = <span class="keyword">int64</span>(m)</span><br><span class="line">   <span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" rel="tag"># 源码阅读</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/30/%E5%A4%9C%E8%8E%BA%E7%9B%91%E6%8E%A7%E7%B3%BB%E7%BB%9F%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-Writer/" rel="prev" title="夜莺监控系统学习笔记 (5) Writer">
+      <i class="fa fa-chevron-left"></i> 夜莺监控系统学习笔记 (5) Writer
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/03/Groupcache%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C%E5%92%8CSingleflight/" rel="next" title="Groupcache源码阅读 (2) 一致性哈希和Singleflight">
+      Groupcache源码阅读 (2) 一致性哈希和Singleflight <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Groupcache-%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">Groupcache 介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%92%8C-memcached-%E6%AF%94%E8%BE%83"><span class="nav-number">1.1.</span> <span class="nav-text">和 memcached 比较</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%B8%E5%90%8C%E7%82%B9"><span class="nav-number">1.1.1.</span> <span class="nav-text">相同点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%8D%E5%90%8C%E7%82%B9"><span class="nav-number">1.1.2.</span> <span class="nav-text">不同点</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#LRU"><span class="nav-number">2.</span> <span class="nav-text">LRU</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#LRU-Cache"><span class="nav-number">2.2.</span> <span class="nav-text">LRU Cache</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#entry-%E6%9D%A1%E7%9B%AE"><span class="nav-number">2.2.1.</span> <span class="nav-text">entry 条目</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Cache-%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">2.2.2.</span> <span class="nav-text">Cache 结构体</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#ByteView"><span class="nav-number">3.</span> <span class="nav-text">ByteView</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ByteView-%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">3.1.</span> <span class="nav-text">ByteView 结构体</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ByteView-%E6%96%B9%E6%B3%95"><span class="nav-number">3.2.</span> <span class="nav-text">ByteView 方法</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

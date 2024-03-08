@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="数据管理在容器中管理数据主要有两种方式：  数据卷（Volumes） 挂载主机目录（Bind mounts）  数据卷数据卷 是一个可供一个或多个容器使用的特殊目录，它绕过 UFS，可以提供很多有用的特性：  数据卷 可以在容器之间共享和重用 对 数据卷 的修改会立马生效 对 数据卷 的更新，不会影响镜像 数据卷 默认会一直存在，即使容器被删除  数据卷的操作  docker volume cre">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Docker学习笔记 (4) 数据管理和网络">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/05/12/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="数据管理在容器中管理数据主要有两种方式：  数据卷（Volumes） 挂载主机目录（Bind mounts）  数据卷数据卷 是一个可供一个或多个容器使用的特殊目录，它绕过 UFS，可以提供很多有用的特性：  数据卷 可以在容器之间共享和重用 对 数据卷 的修改会立马生效 对 数据卷 的更新，不会影响镜像 数据卷 默认会一直存在，即使容器被删除  数据卷的操作  docker volume cre">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/network.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228163656973.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228164308411.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228164705206.png">
+<meta property="article:published_time" content="2022-05-12T13:39:39.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.740Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="docker">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/network.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/05/12/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Docker学习笔记 (4) 数据管理和网络 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/12/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Docker学习笔记 (4) 数据管理和网络
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-12 21:39:39" itemprop="dateCreated datePublished" datetime="2022-05-12T21:39:39+08:00">2022-05-12</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="数据管理"><a href="#数据管理" class="headerlink" title="数据管理"></a>数据管理</h1><p>在容器中管理数据主要有两种方式：</p>
+<ul>
+<li>数据卷（Volumes）</li>
+<li>挂载主机目录（Bind mounts）</li>
+</ul>
+<h2 id="数据卷"><a href="#数据卷" class="headerlink" title="数据卷"></a>数据卷</h2><p><code>数据卷</code> 是一个可供一个或多个容器使用的特殊目录，它绕过 UFS，可以提供很多有用的特性：</p>
+<ul>
+<li><code>数据卷</code> 可以在容器之间<strong>共享和重用</strong></li>
+<li>对 <code>数据卷</code> 的修改会立马生效</li>
+<li>对 <code>数据卷</code> 的更新，不会影响镜像</li>
+<li><code>数据卷</code> 默认会一直存在，即使容器被删除</li>
+</ul>
+<h3 id="数据卷的操作"><a href="#数据卷的操作" class="headerlink" title="数据卷的操作"></a>数据卷的操作</h3><ul>
+<li><code> docker volume create</code> 命令：创建数据卷。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker volume create my-vol</span><br><span class="line">my-vol</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker volume ls</code> 命令：查看所有的数据卷。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker volume ls</span><br><span class="line">DRIVER    VOLUME NAME</span><br><span class="line"><span class="built_in">local</span>     my-vol</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker volume inspect</code> 命令：查看指定数据卷。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker volume inspect my-vol</span><br><span class="line">[</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="string">&quot;CreatedAt&quot;</span>: <span class="string">&quot;2022-05-12T13:46:43Z&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Driver&quot;</span>: <span class="string">&quot;local&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Labels&quot;</span>: &#123;&#125;,</span><br><span class="line">        <span class="string">&quot;Mountpoint&quot;</span>: <span class="string">&quot;/var/lib/docker/volumes/my-vol/_data&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Name&quot;</span>: <span class="string">&quot;my-vol&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Options&quot;</span>: &#123;&#125;,</span><br><span class="line">        <span class="string">&quot;Scope&quot;</span>: <span class="string">&quot;local&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>在用 <code>docker run</code> 命令的时候，使用 <code>--mount</code> 标记来将 <code>数据卷</code> 挂载到容器里。在一次 <code>docker run</code> 中可以挂载多个 <code>数据卷</code>。</p>
+</li>
+<li><p>在用 <code>docker run</code> 命令的时候，使用 <code>--mount</code> 标记来将 <code>数据卷</code> 挂载到容器里。在一次 <code>docker run</code> 中可以挂载多个 <code>数据卷</code>。</p>
+</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">--mount <span class="built_in">source</span>=数据卷名,target=容器目录</span><br><span class="line"><span class="comment"># 等价于</span></span><br><span class="line">-v 数据卷名:容器目录</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker volume rm</code> 命令：删除数据卷。<code>docker volume prune</code> 命令：删除所有无主的数据卷。如果需要在删除容器的同时移除数据卷。可以在删除容器的时候使用 <code>docker rm -v</code> 这个命令。</li>
+</ul>
+<h2 id="挂载主机目录"><a href="#挂载主机目录" class="headerlink" title="挂载主机目录"></a>挂载主机目录</h2><ul>
+<li>使用 <code>--mount</code> 标记可以指定挂载一个本地主机的目录到容器中去。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">--mount <span class="built_in">type</span>=<span class="built_in">bind</span>,<span class="built_in">source</span>=主机目录,target=挂载点</span><br><span class="line"><span class="comment"># 等价于</span></span><br><span class="line">-v 宿主机绝对路径目录:容器内挂载点</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>也可以挂载一个主机<strong>文件</strong>到容器中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">--mount <span class="built_in">type</span>=<span class="built_in">bind</span>,<span class="built_in">source</span>=<span class="variable">$HOME</span>/.bash_history,target=/root/.bash_history</span><br></pre></td></tr></table></figure>
+
+<p>这样就可以记录在容器输入过的命令了。</p>
+<blockquote>
+<p>docker 目录主机目录/数据卷<strong>出现 cannot open directory. Permission denied 错误</strong>，解决方法：</p>
+<p><strong>加上 –privileged=true 参数</strong>。在SELinux里面挂载目录被禁止了，如果要开启，我们一般使用–privileged=true命令，扩大容器的权限解决挂载目录没有权限的问题。即<strong>使用该参数，container内的root拥有真正的root权限</strong>；否则，container内的root只是外部的一个普通用户权限。</p>
+</blockquote>
+<blockquote>
+<p><strong>读写权限设置：</strong></p>
+<ul>
+<li><p><strong>读写（read write，rw）：</strong>容器可以对主机目录/数据卷进行读写操作，默认。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">-v /宿主机绝对路径目录或者数据卷名:/容器内目录:rw</span><br></pre></td></tr></table></figure></li>
+<li><p><strong>只读（read only，ro）：</strong>容器实例内部被限制，只能读取不能写。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">-v /宿主机绝对路径目录或者数据卷名:/容器内目录:ro</span><br></pre></td></tr></table></figure></li>
+</ul>
+</blockquote>
+<h1 id="网络"><a href="#网络" class="headerlink" title="网络"></a>网络</h1><p>当 Docker 启动时，会<strong>自动</strong>在主机上创建一个 <code>docker0</code> 虚拟网桥。同时，Docker 随机分配一个本地未占用的<strong>私有网段</strong>中的一个地址给 <code>docker0</code> 接口。此后启动的容器内的网口也会自动分配一个同一网段的地址。通过这种方式，主机可以跟容器通信，容器之间也可以相互通信。Docker 就创建了在主机和所有容器之间一个虚拟共享网络：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/network.png" alt="Docker 网络"></p>
+<h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><h3 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h3><p>Docker 网络的作用如下：</p>
+<ul>
+<li><p>容器间的<strong>互联通信</strong>、<strong>端口映射</strong>。</p>
+</li>
+<li><p>把多个容器放在同一个 Docker 网桥下，<strong>可以通过服务名（容器名）直接网络通信</strong>，而不使用 IP 地址。</p>
+</li>
+</ul>
+<h3 id="外部访问容器"><a href="#外部访问容器" class="headerlink" title="外部访问容器"></a>外部访问容器</h3><p>容器中可以运行一些网络应用，要让外部也可以访问这些应用，可以通过 <code>-P</code> 或 <code>-p</code> 参数来指定端口映射：</p>
+<ul>
+<li>当使用 <code>-P</code> 标记时，Docker 会随机映射一个 <code>49000~49900</code> 的端口到内部容器开放的网络端口。</li>
+<li><code>-p</code> 则可以指定要映射的端口。</li>
+</ul>
+<h3 id="容器互联"><a href="#容器互联" class="headerlink" title="容器互联"></a>容器互联</h3><ul>
+<li><code>docker network create -d bridge my-net</code> 命令：创建网络。</li>
+<li>在 <code>docker run</code> 运行容器时，可以使用 <code>--network</code> 加入到一个网络中。</li>
+</ul>
+<p>多个容器可以加入到同一个网络中，实现容器之间的互联。</p>
+<h2 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h2><p>docker 网络的常用命令如下：</p>
+<ul>
+<li><p><strong>新建网络（网桥）：</strong>docker network 网络名字</p>
+</li>
+<li><p><strong>查看网络：</strong>docker network ls</p>
+</li>
+<li><p><strong>查看网络信息：</strong>docker network inspect 网络名字</p>
+</li>
+<li><p><strong>删除网络：</strong>docker network rm 网络名字</p>
+</li>
+</ul>
+<h2 id="网络模式"><a href="#网络模式" class="headerlink" title="网络模式"></a>网络模式</h2><p>网络模式有四种，分别是：</p>
+<ul>
+<li>bridge 模式</li>
+<li>host 模式</li>
+<li>none 模式</li>
+<li>container 模式</li>
+</ul>
+<h3 id="bridge"><a href="#bridge" class="headerlink" title="bridge"></a>bridge</h3><p><strong>使用 –network  bridge 指定，默认使用 docker0</strong>。docker run 的时候，没有指定 network 的话默认使用的网桥模式就是 bridge，使用的就是 docker0。</p>
+<p>Docker 在宿主机虚拟一个 Docker 容器网桥（默认 docker0），Docker 启动一个容器时会根据 Docker 网桥的网段分配给容器一个 IP 地址，称为 Container-IP，同时 Docker 网桥是每个容器的默认网关。<strong>因为在同一宿主机内的容器都接入同一个网桥，这样容器之间就能够通过容器的 Container-IP 直接通信</strong>。</p>
+<p>网桥创建一对对等虚拟设备接口<strong>一个叫 veth（网桥端），另一个叫 eth0（容器端）</strong>，成对匹配。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228163656973.png" alt="image-20221228163656973"></p>
+<h3 id="host"><a href="#host" class="headerlink" title="host"></a>host</h3><p><strong>使用–network host 指定</strong>，该模式<strong>直接使用宿主机的 IP 地址与外界进行通信</strong>，不再需要额外进行NAT 转换。</p>
+<p>容器将不会获得一个独立的 Network Namespace， 而是和宿主机共用一个 Network Namespace。容器将不会虚拟出自己的网卡而是使用宿主机的IP和端口。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228164308411.png" alt="image-20221228164308411"></p>
+<blockquote>
+<p>注意：</p>
+<p>在使用 host 模式时，无法使用 -p 进行端口映射（会发生 warning），端口映射不起作用。</p>
+</blockquote>
+<h3 id="none"><a href="#none" class="headerlink" title="none"></a>none</h3><p><strong>使用–network none 指定</strong>，在 none 模式下，并<strong>不为 Docker 容器进行任何网络配置</strong>。 </p>
+<p>也就是禁用网络功能，只有lo标识（127.0.0.1，表示本地回环地址）。</p>
+<h3 id="container"><a href="#container" class="headerlink" title="container"></a>container</h3><p><strong>使用 –network container:NAME或者容器ID 指定</strong>。</p>
+<p>新建的容器<strong>和已经存在的一个容器共享一个网络 ip 配置而不是和宿主机共享。</strong>新创建的容器不会创建自己的网卡，配置自己的IP，而是和一个指定的容器共享IP、端口范围等。同样，两个容器除了网络方面，其他的如文件系统、进程列表等还是隔离的。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228164705206.png" alt="image-20221228164705206"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/docker/" rel="tag"># docker</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/05/11/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%AE%B9%E5%99%A8%E5%92%8C%E4%BB%93%E5%BA%93%E6%93%8D%E4%BD%9C/" rel="prev" title="Docker学习笔记 (3) 容器和仓库操作">
+      <i class="fa fa-chevron-left"></i> Docker学习笔记 (3) 容器和仓库操作
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/05/13/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E4%B8%89%E5%89%91%E5%AE%A2%E4%B9%8BCompose-Machine-Swarm/" rel="next" title="Docker学习笔记 (5) 三剑客之Compose Machine Swarm">
+      Docker学习笔记 (5) 三剑客之Compose Machine Swarm <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86"><span class="nav-number">1.</span> <span class="nav-text">数据管理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%8D%B7"><span class="nav-number">1.1.</span> <span class="nav-text">数据卷</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%8D%B7%E7%9A%84%E6%93%8D%E4%BD%9C"><span class="nav-number">1.1.1.</span> <span class="nav-text">数据卷的操作</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%82%E8%BD%BD%E4%B8%BB%E6%9C%BA%E7%9B%AE%E5%BD%95"><span class="nav-number">1.2.</span> <span class="nav-text">挂载主机目录</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C"><span class="nav-number">2.</span> <span class="nav-text">网络</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.1.</span> <span class="nav-text">介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%9C%E7%94%A8"><span class="nav-number">2.1.1.</span> <span class="nav-text">作用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%96%E9%83%A8%E8%AE%BF%E9%97%AE%E5%AE%B9%E5%99%A8"><span class="nav-number">2.1.2.</span> <span class="nav-text">外部访问容器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E4%BA%92%E8%81%94"><span class="nav-number">2.1.3.</span> <span class="nav-text">容器互联</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4"><span class="nav-number">2.2.</span> <span class="nav-text">常用命令</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.3.</span> <span class="nav-text">网络模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#bridge"><span class="nav-number">2.3.1.</span> <span class="nav-text">bridge</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#host"><span class="nav-number">2.3.2.</span> <span class="nav-text">host</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#none"><span class="nav-number">2.3.3.</span> <span class="nav-text">none</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#container"><span class="nav-number">2.3.4.</span> <span class="nav-text">container</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

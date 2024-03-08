@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="RPC简介RPC（Remote Procedure Call，远程过程调用）允许一台计算机通过网络从远程计算机的程序中请求服务。RPC协议构建于TCP或UDP，或者是HTTP上。允许开发者直接调用另一台服务器上的程序，而开发者无需另外的为这个调用过程编写网络通信相关代码。 RPC允许跨机器、跨语言调用计算机程序方法。 工作原理运行时，一次客户机对服务器的 RPC 调用，其内部操作大致有如下：  调">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO语言杂谈 (2) RPC">
+<meta property="og:url" content="http://dawnzzz.github.io/2022/02/20/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="RPC简介RPC（Remote Procedure Call，远程过程调用）允许一台计算机通过网络从远程计算机的程序中请求服务。RPC协议构建于TCP或UDP，或者是HTTP上。允许开发者直接调用另一台服务器上的程序，而开发者无需另外的为这个调用过程编写网络通信相关代码。 RPC允许跨机器、跨语言调用计算机程序方法。 工作原理运行时，一次客户机对服务器的 RPC 调用，其内部操作大致有如下：  调">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/8.4.rpc.png">
+<meta property="article:published_time" content="2022-02-20T01:35:45.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.750Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/8.4.rpc.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2022/02/20/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO语言杂谈 (2) RPC | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/20/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO语言杂谈 (2) RPC
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-20 09:35:45" itemprop="dateCreated datePublished" datetime="2022-02-20T09:35:45+08:00">2022-02-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="RPC"><a href="#RPC" class="headerlink" title="RPC"></a>RPC</h1><h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p><strong>RPC（Remote Procedure Call，远程过程调用）</strong>允许一台计算机<strong>通过网络从远程计算机的程序中请求服务</strong>。RPC协议构建于TCP或UDP，或者是HTTP上。允许开发者直接调用另一台服务器上的程序，而开发者无需另外的为这个调用过程编写网络通信相关代码。</p>
+<p>RPC允许<strong>跨机器</strong>、<strong>跨语言</strong>调用计算机程序方法。</p>
+<h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><p>运行时，一次客户机对服务器的 RPC 调用，其内部操作大致有如下：</p>
+<ol>
+<li>调用客户端句柄：执行传送参数</li>
+<li>调用本地系统内核发送网络消息</li>
+<li>消息传送到远程主机</li>
+<li>服务器句柄得到消息并取得参数</li>
+<li>执行远程过程</li>
+<li>执行的过程将结果返回服务器句柄</li>
+<li>服务器句柄返回结果，调用远程系统内核</li>
+<li>消息传回本地主机</li>
+<li>客户句柄由内核接收消息</li>
+<li>客户接收句柄返回的数据</li>
+</ol>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-2-RPC/8.4.rpc.png" alt="img"></p>
+<h2 id="RPC-vs-RESTful"><a href="#RPC-vs-RESTful" class="headerlink" title="RPC vs RESTful"></a>RPC vs RESTful</h2><p>RPC 可以通过 TCP、UDP 或者 HTTP 等进行传输消息，称为 RPC over TCP、RPC over HTTP。</p>
+<p>首先比较 RPC over HTTP 和 RESTful：</p>
+<ul>
+<li><strong>RPC 的客户端和服务器是紧密耦合的</strong>，，客户端需要知道调用的过程的名字，过程的参数以及它们的类型、顺序等。一旦服务器更改了过程的实现， 客户端的实现很容易出问题。<strong>RESTful 的客户端和服务器是松散的关系</strong>，客户端并不关心服务器端的具体实现，比较灵活。</li>
+<li>它们操作的对象不一样。<strong>RPC 操作的是方法对象，而 RESTful 操作的是资源</strong>。</li>
+<li>RESTful 执行的是对资源的增删改查（CRUD），如果实现一个其他具体操作 RPC 的实现更加具有意义。</li>
+</ul>
+<p>接着比较 RPC over TCP 和 RESTful：</p>
+<ul>
+<li>RPC over TCP 减少了 HTTP 协议带来的<strong>额外开销</strong>（如HTTP 请求头）。</li>
+<li>RPC over TCP 可以通过<strong>长连接</strong>减少连接的建立所产生的花费，当然 RESTful 也可以通过 keep-alive 实现长连接，但是它最大的一个问题是<strong>它的 request-response 模型是阻塞的</strong>（HTTP 1.0 和 HTTP 1.1 是阻塞的，HTTP 2.0 不是），发送一个请求得到响应后才能发送第二个，而 RPC 没有这个限制。</li>
+</ul>
+<h1 id="Go-RPC"><a href="#Go-RPC" class="headerlink" title="Go RPC"></a>Go RPC</h1><p>GO语言官方提供了<code>net/rpc</code>包实现RPC，使用<code>encoding/gob</code>进行编解码，支持TCP或者HTTP数据传输方式，由于其他语言不支持gob编解码方式，所以使用<code>net/rpc</code>实现的RPC方法<strong>没办法实现跨语言调用</strong>。</p>
+<h2 id="net-rpc-介绍"><a href="#net-rpc-介绍" class="headerlink" title="net/rpc 介绍"></a>net/rpc 介绍</h2><p><code>net/rpc</code>包允许PRC客户端程序通过网络或者其他IO连接，调用一个远程对象的<strong>公开方法</strong>。在PRC服务端，可将一个对象注册为可访问的服务，之后该对象的公开方法就能够以远程的方式提供访问。一个RPC服务端可以注册多个不通类型的对象，但不允许注册同一类型的多个对象。</p>
+<p>只有满足如下标准的方法才能用于远程访问，其余方法会被忽略：</p>
+<ul>
+<li>方法是导出的（首字母大写）</li>
+<li>方法有两个参数，第一个参数是接收的参数，第二个参数是返回给客户端的参数</li>
+<li>方法的第二个参数是指针</li>
+<li>方法只有一个error接口类型的返回值</li>
+</ul>
+<p>事实上，方法必须看起来像这样：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *T)</span> <span class="title">MethodName</span><span class="params">(argType T1, replyType *T2)</span> <span class="title">error</span></span></span><br></pre></td></tr></table></figure>
+
+<p>方法的<strong>第一个参数代表调用者提供的参数</strong>；<strong>第二个参数代表返回给调用者的参数</strong>。方法的返回值，如果非nil，将被作为字符串回传，在客户端看来就和<code>errors.New</code>创建的一样。如果返回了错误，回复的参数将不会被发送给客户端。</p>
+<span id="more"></span>
+
+<h2 id="net-rpc-jsonrpc-介绍"><a href="#net-rpc-jsonrpc-介绍" class="headerlink" title="net/rpc/jsonrpc 介绍"></a>net/rpc/jsonrpc 介绍</h2><p>官方还提供了<code>net/rpc/jsonrpc</code>实现RPC方法，JSON RPC采用JSON进行数据编解码，因而<strong>支持跨语言调用</strong>。但目前的<code>jsonrpc</code>库是<strong>基于TCP协议</strong>实现的，暂时不支持使用http进行数据传输</p>
+<h2 id="案例"><a href="#案例" class="headerlink" title="案例"></a>案例</h2><h3 id="net-rpc"><a href="#net-rpc" class="headerlink" title="net/rpc"></a>net/rpc</h3><p>下面利用HTTP作为RPC载体，通过<code>net/http</code>监听客户端的连接请求。</p>
+<ul>
+<li>server.go</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;errors&quot;</span></span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;net&quot;</span></span><br><span class="line">	<span class="string">&quot;net/http&quot;</span></span><br><span class="line">	<span class="string">&quot;net/rpc&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算结构体</span></span><br><span class="line"><span class="keyword">type</span> Arith <span class="keyword">struct</span> &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算请求结构体</span></span><br><span class="line"><span class="keyword">type</span> ArithRequest <span class="keyword">struct</span> &#123;</span><br><span class="line">	A <span class="keyword">int</span></span><br><span class="line">	B <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ArithResponse <span class="keyword">struct</span> &#123;</span><br><span class="line">	Pro <span class="keyword">int</span> <span class="comment">// 乘积</span></span><br><span class="line">	Quo <span class="keyword">int</span> <span class="comment">// 商</span></span><br><span class="line">	Rem <span class="keyword">int</span> <span class="comment">// 余数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 乘法运算</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(this *Arith)</span> <span class="title">Multiply</span><span class="params">(req ArithRequest, res *ArithResponse)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	res.Pro = req.A * req.B</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 除法运算</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(this *Arith)</span> <span class="title">Divide</span><span class="params">(req ArithRequest, res *ArithResponse)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> req.B == <span class="number">0</span> &#123;</span><br><span class="line">		<span class="comment">// 除数为0错误</span></span><br><span class="line">		<span class="keyword">return</span> errors.New(<span class="string">&quot;divide by zero&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	res.Quo = req.A / req.B</span><br><span class="line">	res.Rem = req.A % req.B</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	rpc.Register(<span class="built_in">new</span>(Arith)) <span class="comment">// 注册rpc服务</span></span><br><span class="line">	rpc.HandleHTTP()         <span class="comment">// 采用http协议作为rpc载体</span></span><br><span class="line"></span><br><span class="line">	lis, err := net.Listen(<span class="string">&quot;tcp&quot;</span>, <span class="string">&quot;127.0.0.1:8888&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Listen error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	fmt.Println(<span class="string">&quot;start connection...&quot;</span>)</span><br><span class="line"></span><br><span class="line">	http.Serve(lis, <span class="literal">nil</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>client.go</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;net/rpc&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算请求结构体</span></span><br><span class="line"><span class="keyword">type</span> ArithRequest <span class="keyword">struct</span> &#123;</span><br><span class="line">	A <span class="keyword">int</span></span><br><span class="line">	B <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ArithResponse <span class="keyword">struct</span> &#123;</span><br><span class="line">	Pro <span class="keyword">int</span> <span class="comment">// 乘积</span></span><br><span class="line">	Quo <span class="keyword">int</span> <span class="comment">// 商</span></span><br><span class="line">	Rem <span class="keyword">int</span> <span class="comment">// 余数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := rpc.DialHTTP(<span class="string">&quot;tcp&quot;</span>, <span class="string">&quot;127.0.0.1:8888&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Dial error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	req := ArithRequest&#123;<span class="number">10</span>, <span class="number">3</span>&#125;</span><br><span class="line">	<span class="keyword">var</span> res ArithResponse</span><br><span class="line"></span><br><span class="line">	err = conn.Call(<span class="string">&quot;Arith.Multiply&quot;</span>, req, &amp;res) <span class="comment">// 进行乘法运算</span></span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Multiply error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Printf(<span class="string">&quot;%d * %d = %d\n&quot;</span>, req.A, req.B, res.Pro)</span><br><span class="line"></span><br><span class="line">	err = conn.Call(<span class="string">&quot;Arith.Divide&quot;</span>, req, &amp;res) <span class="comment">// 进行除法运算</span></span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Divide error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Printf(<span class="string">&quot;%d / %d = %d ... %d\n&quot;</span>, req.A, req.B, res.Quo, res.Rem)</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="net-rpc-jsonrpc"><a href="#net-rpc-jsonrpc" class="headerlink" title="net/rpc/jsonrpc"></a>net/rpc/jsonrpc</h3><p>下面演示<code>net/rpc/jsonrpc</code>的使用方法，此方法只支持TCP作为载体，但是可以跨语言调用</p>
+<ul>
+<li>server.go</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;errors&quot;</span></span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;net&quot;</span></span><br><span class="line">	<span class="string">&quot;net/rpc&quot;</span></span><br><span class="line">	<span class="string">&quot;net/rpc/jsonrpc&quot;</span></span><br><span class="line">	<span class="string">&quot;os&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算结构体</span></span><br><span class="line"><span class="keyword">type</span> Arith <span class="keyword">struct</span> &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算请求结构体</span></span><br><span class="line"><span class="keyword">type</span> ArithRequest <span class="keyword">struct</span> &#123;</span><br><span class="line">	A <span class="keyword">int</span></span><br><span class="line">	B <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ArithResponse <span class="keyword">struct</span> &#123;</span><br><span class="line">	Pro <span class="keyword">int</span> <span class="comment">// 乘积</span></span><br><span class="line">	Quo <span class="keyword">int</span> <span class="comment">// 商</span></span><br><span class="line">	Rem <span class="keyword">int</span> <span class="comment">// 余数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 乘法运算</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(this *Arith)</span> <span class="title">Multiply</span><span class="params">(req ArithRequest, res *ArithResponse)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	res.Pro = req.A * req.B</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 除法运算</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(this *Arith)</span> <span class="title">Divide</span><span class="params">(req ArithRequest, res *ArithResponse)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> req.B == <span class="number">0</span> &#123;</span><br><span class="line">		<span class="comment">// 除数为0错误</span></span><br><span class="line">		<span class="keyword">return</span> errors.New(<span class="string">&quot;divide by zero&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	res.Quo = req.A / req.B</span><br><span class="line">	res.Rem = req.A % req.B</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	rpc.Register(<span class="built_in">new</span>(Arith)) <span class="comment">// 注册rpc服务</span></span><br><span class="line"></span><br><span class="line">	lis, err := net.Listen(<span class="string">&quot;tcp&quot;</span>, <span class="string">&quot;127.0.0.1:6666&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Listen error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	fmt.Println(<span class="string">&quot;start connection...&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		conn, err := lis.Accept()</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(conn net.Conn)</span></span> &#123; <span class="comment">// 并发处理客户端请求</span></span><br><span class="line">			fmt.Fprintf(os.Stdout, <span class="string">&quot;%s&quot;</span>, <span class="string">&quot;new client in coming\n&quot;</span>)</span><br><span class="line">			jsonrpc.ServeConn(conn)</span><br><span class="line">		&#125;(conn)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>client.go</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;net/rpc/jsonrpc&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算结构体</span></span><br><span class="line"><span class="keyword">type</span> Arith <span class="keyword">struct</span> &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 算数运算请求结构体</span></span><br><span class="line"><span class="keyword">type</span> ArithRequest <span class="keyword">struct</span> &#123;</span><br><span class="line">	A <span class="keyword">int</span></span><br><span class="line">	B <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ArithResponse <span class="keyword">struct</span> &#123;</span><br><span class="line">	Pro <span class="keyword">int</span> <span class="comment">// 乘积</span></span><br><span class="line">	Quo <span class="keyword">int</span> <span class="comment">// 商</span></span><br><span class="line">	Rem <span class="keyword">int</span> <span class="comment">// 余数</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := jsonrpc.Dial(<span class="string">&quot;tcp&quot;</span>, <span class="string">&quot;127.0.0.1:6666&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Dial error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	req := ArithRequest&#123;<span class="number">10</span>, <span class="number">3</span>&#125;</span><br><span class="line">	<span class="keyword">var</span> res ArithResponse</span><br><span class="line"></span><br><span class="line">	err = conn.Call(<span class="string">&quot;Arith.Multiply&quot;</span>, req, &amp;res) <span class="comment">// 进行乘法运算</span></span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Multiply error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Printf(<span class="string">&quot;%d * %d = %d\n&quot;</span>, req.A, req.B, res.Pro)</span><br><span class="line"></span><br><span class="line">	err = conn.Call(<span class="string">&quot;Arith.Divide&quot;</span>, req, &amp;res) <span class="comment">// 进行除法运算</span></span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Fatalln(<span class="string">&quot;Divide error:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Printf(<span class="string">&quot;%d / %d = %d ... %d\n&quot;</span>, req.A, req.B, res.Quo, res.Rem)</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/02/19/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-19/" rel="prev" title="算法刷题笔记 (19) 移动零 调整数组顺序使奇数位于偶数前面 手撕归并排序 最小的k个数">
+      <i class="fa fa-chevron-left"></i> 算法刷题笔记 (19) 移动零 调整数组顺序使奇数位于偶数前面 手撕归并排序 最小的k个数
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/20/MySQL%E9%AB%98%E7%BA%A7-7-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83/" rel="next" title="MySQL高级 (7) 数据库设计规范">
+      MySQL高级 (7) 数据库设计规范 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#RPC"><span class="nav-number">1.</span> <span class="nav-text">RPC</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-number">1.2.</span> <span class="nav-text">工作原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RPC-vs-RESTful"><span class="nav-number">1.3.</span> <span class="nav-text">RPC vs RESTful</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Go-RPC"><span class="nav-number">2.</span> <span class="nav-text">Go RPC</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#net-rpc-%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.1.</span> <span class="nav-text">net&#x2F;rpc 介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#net-rpc-jsonrpc-%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.2.</span> <span class="nav-text">net&#x2F;rpc&#x2F;jsonrpc 介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A1%88%E4%BE%8B"><span class="nav-number">2.3.</span> <span class="nav-text">案例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#net-rpc"><span class="nav-number">2.3.1.</span> <span class="nav-text">net&#x2F;rpc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#net-rpc-jsonrpc"><span class="nav-number">2.3.2.</span> <span class="nav-text">net&#x2F;rpc&#x2F;jsonrpc</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

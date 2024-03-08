@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="微服务架构的进程间通信概述交互方式交互方式有两个维度来表示：一对一和一对多，同步和异步。     一对一 一对多    同步 请求&#x2F;响应 无   异步 异步请求&#x2F;响应；单向通知 发布&#x2F;订阅；发布&#x2F;异步响应    一对一的交互方式： 请求&#x2F;响应：客户端发起请求，阻塞等待服务器的响应。这样的方式会导致服务的紧耦合。 异步请求&#x2F;响应：客户端发起，服务端异步响应，客户端在等待时不会阻塞。 单向通知：客户端">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务架构设计模式 (3) 进程间的通信">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="微服务架构的进程间通信概述交互方式交互方式有两个维度来表示：一对一和一对多，同步和异步。     一对一 一对多    同步 请求&#x2F;响应 无   异步 异步请求&#x2F;响应；单向通知 发布&#x2F;订阅；发布&#x2F;异步响应    一对一的交互方式： 请求&#x2F;响应：客户端发起请求，阻塞等待服务器的响应。这样的方式会导致服务的紧耦合。 异步请求&#x2F;响应：客户端发起，服务端异步响应，客户端在等待时不会阻塞。 单向通知：客户端">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518094946903.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518103827173.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518103913606.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518115252997.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518121327244.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518140157982.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518144252756.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518153202098.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518154739008.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518163403219.png">
+<meta property="article:published_time" content="2023-05-17T12:25:24.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.816Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518094946903.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务架构设计模式 (3) 进程间的通信 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务架构设计模式 (3) 进程间的通信
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-17 20:25:24" itemprop="dateCreated datePublished" datetime="2023-05-17T20:25:24+08:00">2023-05-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="微服务架构的进程间通信概述"><a href="#微服务架构的进程间通信概述" class="headerlink" title="微服务架构的进程间通信概述"></a>微服务架构的进程间通信概述</h1><h2 id="交互方式"><a href="#交互方式" class="headerlink" title="交互方式"></a>交互方式</h2><p>交互方式有两个维度来表示：一对一和一对多，同步和异步。</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>一对一</th>
+<th>一对多</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>同步</td>
+<td>请求/响应</td>
+<td>无</td>
+</tr>
+<tr>
+<td>异步</td>
+<td>异步请求/响应；单向通知</td>
+<td>发布/订阅；发布/异步响应</td>
+</tr>
+</tbody></table>
+<ul>
+<li>一对一的交互方式：<ul>
+<li><strong>请求/响应：</strong>客户端发起请求，阻塞等待服务器的响应。这样的方式会导致服务的紧耦合。</li>
+<li><strong>异步请求/响应：</strong>客户端发起，服务端异步响应，客户端在等待时不会阻塞。</li>
+<li><strong>单向通知：</strong>客户端请求发送到服务端，不期望服务端做出任何响应。</li>
+</ul>
+</li>
+<li>一对多的交互方式：<ul>
+<li><strong>发布/订阅：</strong>客户端发布通知消息，被零个或者多个服务端订阅。</li>
+<li><strong>发布/异步响应：</strong>客户端发布请求消息，等待从感兴趣的服务发回的响应。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>每个服务通常是上述交互方式的<strong>组合</strong>。</p>
+</blockquote>
+<h2 id="服务-API"><a href="#服务-API" class="headerlink" title="服务 API"></a>服务 API</h2><h3 id="API-定义"><a href="#API-定义" class="headerlink" title="API 定义"></a>API 定义</h3><p>在微服务架构中，使用<strong>接口定义语言（IDL）</strong>精确定义服务的 API 接口。</p>
+<p>IDL 是客户端和服务端之间的契约，一个良好的 API 定义暴露有用功能的同时隐藏了内部实现的细节。</p>
+<h3 id="API-的演化"><a href="#API-的演化" class="headerlink" title="API 的演化"></a>API 的演化</h3><blockquote>
+<p>服务的 API 很少一成不变，它可能会随着时间的推移而发展。</p>
+</blockquote>
+<p>在微服务架构中变更 API 是困难的，因为服务 API 的调用方无法控制 API 的实现方式，而 服务 API 的提供方无法控制客户端与服务端的版本保持一致。所以需要对服务 API 进行<strong>版本控制</strong>。</p>
+<p>语义化版本控制要求版本号由三部分组成：Major.Minor.Patch</p>
+<ul>
+<li>Major：可能对之前的版本不兼容。</li>
+<li>Minor：进行后向兼容的增强。</li>
+<li>Patch：进行后向兼容的错误修复。</li>
+</ul>
+<h2 id="消息的格式"><a href="#消息的格式" class="headerlink" title="消息的格式"></a>消息的格式</h2><h3 id="基于文本的消息格式"><a href="#基于文本的消息格式" class="headerlink" title="基于文本的消息格式"></a>基于文本的消息格式</h3><p>基于文本的消息格式，如 Json 和 XML。</p>
+<p>这种消息格式的好处是：<strong>可读性高、后向兼容</strong>。而弊端在于消息冗长、传输效率低。</p>
+<h3 id="基于二进制的消息格式"><a href="#基于二进制的消息格式" class="headerlink" title="基于二进制的消息格式"></a>基于二进制的消息格式</h3><p>基于二进制的消息格式，如 Protobuf，Thrift 和 Avro。</p>
+<ul>
+<li><strong>Protobuf：</strong><ul>
+<li>优点：时间和空间效率都不错，支持前向兼容（新加字段采用默认值）和后向兼容（忽略新加的字段），支持多语言。基于 HTTP 2.0。</li>
+<li>缺点：可读性差，不支持动态生成消息类型。</li>
+</ul>
+</li>
+<li><strong>Thrift：</strong><ul>
+<li>优点：不仅支持二进制也支持文本类型的消息格式（支持多种序列化方式），支持多种传输协议，支持多语言，支持同步和异步通信。可以直接基于 TCP，省去了额外应用层开销。</li>
+<li>缺点：不支持动态生成消息类型。</li>
+</ul>
+</li>
+<li>Arvo：<ul>
+<li>优点：在握手阶段交换模式定义（支持动态生成消息类型）。</li>
+<li>缺点：语言支持不丰富，在解析消息之前需要知道它的格式不支持后向兼容。</li>
+</ul>
+</li>
+</ul>
+<span id="more"></span>
+
+<h1 id="基于同步-RRC-的通信"><a href="#基于同步-RRC-的通信" class="headerlink" title="基于同步 RRC 的通信"></a>基于同步 RRC 的通信</h1><p>同步 RPC 的调用原理如下，在客户端和服务的边界有远程过程调用代理接口（这个接口由远程过程调用代理适配器类实现）。客户端和服务之间的请求和响应是同步进行的。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518094946903.png" alt="image-20230518094946903"></p>
+<h2 id="RESTful"><a href="#RESTful" class="headerlink" title="RESTful"></a>RESTful</h2><p>RESTful 要求以 HTTP 动词的方式，对一个资源进行操作。在定义 RESTful API 时，可以<strong>采用 Open API 作为 IDL</strong>。</p>
+<blockquote>
+<p>RESTful API 设计的<strong>挑战</strong>在于如何将在业务对象上执行的操作映射到 HTTP 动词。比如更新订单，可以是取消订单、修改订单等多种方式去更新，而且更新也可能不是幂等的。</p>
+<p>这个问题导致了 RESTful 的代替方案（如 gRPC）日益普及。</p>
+</blockquote>
+<p>好处：</p>
+<ul>
+<li>简单，对 HTTP 协议非常熟悉</li>
+<li>可以使用 HTTP 的方式测试 API</li>
+<li>不需要中间代理，简化了系统结构</li>
+</ul>
+<p>弊端：</p>
+<ul>
+<li>只支持请求/响应的方式进行通信</li>
+<li>可用性降低，客户端和服务端直接通信没有代理缓冲消息</li>
+<li>请求中获取多个资源困难（RESTful 只针对一种资源进行操作）</li>
+<li>难以将不同的操作映射到 HTTP 动词</li>
+</ul>
+<h2 id="gRPC"><a href="#gRPC" class="headerlink" title="gRPC"></a>gRPC</h2><p>gRPC 是以 Protobuf 定义 IDL 的跨语言远程调用框架。除了支持简单的请求/响应 RPC 外，gRPC 还支持<strong>流式 RPC</strong>。</p>
+<p>优点：</p>
+<ul>
+<li>使用 protobuf 定义 API，设计 API 简单</li>
+<li>传输时间和空间效率较高</li>
+<li>支持流式 RPC</li>
+<li>支持 HTTP 2</li>
+</ul>
+<p>弊端：</p>
+<ul>
+<li>编写客户端和服务端带来了额外的工作（复杂性）</li>
+</ul>
+<h2 id="相关技术"><a href="#相关技术" class="headerlink" title="相关技术"></a>相关技术</h2><h3 id="熔断器"><a href="#熔断器" class="headerlink" title="熔断器"></a>熔断器</h3><p><strong>熔断器</strong>（存在于在远程过程调用代理部分）用于处理局部故障，在对某个服务<strong>连续失败次数超过阈值</strong>的一段时间内，对这个服务的远程过程调用会<strong>直接返回错误</strong>，而<strong>不进行实际的远程过程调用</strong>。</p>
+<blockquote>
+<p>如果没有熔断器，因为服务无响应，那么在请求侧发起远程过程调用后会阻塞。当这样的调用多起来后，因为在调用侧的阻塞等待服务响应，会占用大量的资源。在远程过程调用的提供方，如果响应缓慢，那么因为请求的堆积所以也不会从响应缓慢中恢复过来。</p>
+</blockquote>
+<p>为了防止局部故障在整个应用中的扩散，需要分为两部分来解决：</p>
+<ul>
+<li>让远程过程调用有<strong>正确处理无响应服务</strong>的能力。</li>
+<li>需要决定<strong>如何从失败的远程服务中恢复</strong>。</li>
+</ul>
+<h4 id="开发可靠的远程过程调用代理"><a href="#开发可靠的远程过程调用代理" class="headerlink" title="开发可靠的远程过程调用代理"></a>开发可靠的远程过程调用代理</h4><p>当一个服务同步调用另一个服务时，需要用以下方法的<strong>组合</strong>来保护自己。</p>
+<ul>
+<li><strong>网络超时：</strong>在等待服务响应时，设置超时时间。使用超时可以保证不会一直等待无响应的请求，减少无意义的资源浪费。</li>
+<li><strong>限制客户端向服务器发出请求的数量（限制服务端接收请求的数量）：</strong>客户端应该设置发起请求的上限，当超过这个上限时可能会淹没服务端，应该让请求立刻失败。</li>
+<li><strong>熔断器：</strong>监控客户端请求成功和失败的数量，当失败的比例超过阈值就启动熔断器，让一段时间内后续的调用立即失败。之后会熔断器会进入办关闭状态，观察客户端的请求是否调用成功，决定是否关闭或者开启熔断器。</li>
+</ul>
+<h4 id="从服务失效故障中恢复"><a href="#从服务失效故障中恢复" class="headerlink" title="从服务失效故障中恢复"></a>从服务失效故障中恢复</h4><p>还需要决定如何从无响应的远程服务中恢复自己的服务，有两种方法：</p>
+<ul>
+<li><strong>向客户端返回错误：</strong>对于重要的数据，那么必须向客户端返回错误。</li>
+<li><strong>返回备用值（fallback value）：</strong>对于不重要的信息，返回备用值可能是有用的。备用值可以是<strong>默认值</strong>，也可以是<strong>缓存的响应</strong>。</li>
+</ul>
+<h3 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h3><p>远程过程调用的调用方需要知道服务提供方的地址，此时就需要服务发现。</p>
+<blockquote>
+<p>在传统的应用程序中，服务实例的网络地址是静态的，所以可以从配置文件中读取网络位置。但是在微服务架构应用程序中，服务实例可能是动态分配的。</p>
+</blockquote>
+<p>服务发现的关键组件就是<strong>服务注册表</strong>，它是<strong>包含服务实例网络位置的数据库</strong>。当服务实例启动和停止时都会更新服务注册表，当客户端调用服务时，会查询服务注册表获取可用的服务实例列表，从中选择一个并发起调用。</p>
+<p>实现服务发现有以下两种方式：</p>
+<ul>
+<li>服务及其客户端直接与服务注册表交互。</li>
+<li>通过部署基础设施来实现服务发现。</li>
+</ul>
+<h4 id="应用层服务发现模式"><a href="#应用层服务发现模式" class="headerlink" title="应用层服务发现模式"></a>应用层服务发现模式</h4><p>应用层服务发现就是，应用程序的服务及其客户端直接与服务注册表进行交互，比如<strong>基于 Etcd、Consul、Zookeeper 等的服务发现都是属于这个模式</strong>。包含以下两种模式：</p>
+<ul>
+<li><strong>自注册：</strong>服务实例向服务注册表注册自己。服务实例还可以提供<strong>运行状况检查</strong>地址，服务注册表定期调用该地址来验证服务实例是否正常。服务注册表与服务实例之间还需要维护<strong>心跳</strong>，来保证注册不会过期。</li>
+<li><strong>客户端发现：</strong>当客户端调用服务时会查询服务注册表，获取服务实例的列表。可能会<strong>缓存</strong>实例地址，使用<strong>负载均衡</strong>算法（如随机选择或者轮询）选择实例发起远程过程调用。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518103827173.png" alt="image-20230518103827173"></p>
+<p>这样的应用层服务发现的<strong>好处</strong>是：<strong>处理多平台部署问题（服务发现机制与具体部署平台无关）</strong>。可以在 Kubernetes 上部署一些服务，在遗留环境中运行剩余的服务。如果是基于 Kubernetes 的服务发现，智能用于部署在 k8s 上的服务。</p>
+<p><strong>弊端</strong>是：需要为每一种语言提供服务发现库，并且开发者设置和管理服务注册表。</p>
+<h4 id="平台层服务发现模式"><a href="#平台层服务发现模式" class="headerlink" title="平台层服务发现模式"></a>平台层服务发现模式</h4><p>部署平台如 Docker 和 Kubernetes 都有内置的服务发现机制。部署平台为每个服务提供 DNS 名称和虚拟 IP。<strong>客户端以服务 DNS 名称发起请求，部署平台会自动路由到一个可用的服务实例</strong>。包含以下两种模式：</p>
+<ul>
+<li><strong>第三方注册模式：</strong>由第三方负责（<strong>注册服务器</strong>，部署平台的一部分）在服务注册表中注册，而不是服务直接向服务注册表中注册自己。</li>
+<li><strong>服务端发现模式：</strong>客户端向路由器发起请求，<strong>路由器</strong>负责服务发现和负载均衡。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518103913606.png" alt="image-20230518103913606"></p>
+<p>这样的<strong>好处</strong>是：服务发现机制都<strong>交给部署平台去处理</strong>，服务和客户端不需要包含服务发现的代码；并且不论是哪种语言和框架都可以使用服务发现机制。</p>
+<p><strong>弊端</strong>在于：仅支持在平台上部署的服务。</p>
+<h1 id="基于异步消息模式的通信"><a href="#基于异步消息模式的通信" class="headerlink" title="基于异步消息模式的通信"></a>基于异步消息模式的通信</h1><p>使用<strong>消息机制</strong>时，服务之间的通信采用异步交换消息的方式完成。基于消息机制的异步通信方式有两种方法实现，<strong>消息代理</strong>（服务之间的中介）和<strong>无代理架构</strong>（直接向服务发送消息）。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518115252997.png" alt="image-20230518115252997"></p>
+<p>消息由消息<strong>头部</strong>和消息<strong>主体</strong>组成。头部是键值对，表示消息的元数据（如唯一的消息 ID，可选的返回地址或者返回的消息通道）。消息主体是以文本或者二进制的格式发送的数据。有以下不同类型的消息：</p>
+<ul>
+<li><strong>文档式消息：</strong>仅包含数据的通用消息。</li>
+<li><strong>命令式消息：</strong>一条等同于 RPC 请求的消息。指定要调用的操作及其参数。</li>
+<li><strong>事件式消息：</strong>表示发送方发生了重要的事件。事件表示领域对象的状态变更。</li>
+</ul>
+<h2 id="无代理的消息机制"><a href="#无代理的消息机制" class="headerlink" title="无代理的消息机制"></a>无代理的消息机制</h2><p>无代理架构的消息机制中，客户端与服务直接通信。有以下<strong>好处</strong>：</p>
+<ul>
+<li><strong>更低的时间延迟</strong>，消息直接从发送方到达接收方不用经过消息代理。</li>
+<li>消除了消息代理称为<strong>性能瓶颈</strong>或者<strong>单点故障</strong>的可能性。</li>
+<li>相对<strong>简</strong>单，不需要设置和维护消息代理。</li>
+</ul>
+<p>但是有以下<strong>弊端</strong>：</p>
+<ul>
+<li>需要使用<strong>服务发现</strong>机制。</li>
+<li><strong>可用性降低</strong>，在交换消息时必要确保发送方和接收方<strong>同时在线</strong>。</li>
+<li>实现如<strong>确保消息投递成功</strong>这些复杂功能时的挑战更大。</li>
+</ul>
+<h2 id="消息代理的消息机制"><a href="#消息代理的消息机制" class="headerlink" title="消息代理的消息机制"></a>消息代理的消息机制</h2><p>消息代理是所有消息的<strong>中介节点</strong>，发送方将消息写入消息代理，消息代理将消息发送给接收方。消息代理可以看作是<strong>消息队列（MQ）</strong>。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518121327244.png" alt="image-20230518121327244"></p>
+<p>使用消息代理的<strong>好处</strong>是：</p>
+<ul>
+<li>发送方不需要知道接收方的网络位置，<strong>不需要服务发现机制</strong>。</li>
+<li>消息代理可以<strong>缓冲</strong>消息，直到接收方可以处理消息。</li>
+<li>消息机制可以实习所有的交互方式（请求/响应，异步请求/响应，单向通知，订阅/发布，发布/异步响应）。</li>
+<li><strong>明确的进程间通信</strong>，基于 RPC 的机制看起来使得远程调用跟本地调用没什么区别，但是可能会出现物理定律（服务器不可预计的硬件失效）和局部故障，消息机制让远程调用和本地调用的差距更加明显。</li>
+</ul>
+<p><strong>弊端</strong>为：</p>
+<ul>
+<li>潜在的<strong>性能瓶颈</strong>和<strong>单点故障</strong>。消息代理可能会出现性能瓶颈和单点故障。</li>
+<li>额外的<strong>复杂性</strong>。必须配置安装消息代理。</li>
+</ul>
+<h2 id="设计难题"><a href="#设计难题" class="headerlink" title="设计难题"></a>设计难题</h2><p>基于消息的架构可能会遇到一些设计难题。</p>
+<h3 id="处理并发和消息顺序"><a href="#处理并发和消息顺序" class="headerlink" title="处理并发和消息顺序"></a>处理并发和消息顺序</h3><p>在横向扩展多个实例的同时，如何保证消息的顺序。</p>
+<blockquote>
+<p>保证消息的顺序在一些场景下是必须的，如消息发出的顺序是创建订单、修改订单、取消订单，如果消息的处理顺序是取消订单之后创建订单，会导致奇怪的行为发生。</p>
+</blockquote>
+<p>一个解决方法是使用<strong>分片通道</strong>：</p>
+<ul>
+<li>分片通道由<strong>多个分片</strong>组成，每一个分片都可以看成是一个通道。</li>
+<li>消息的发送方指定<strong>分片的键</strong>，消息代理通过分片键<strong>路由给特定的通道</strong>。</li>
+<li>消息代理将<strong>每一个分片</strong>只分配给<strong>单独的接收器</strong>，这样在同一个分片上的消息就是可以保证消息顺序。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518140157982.png" alt="image-20230518140157982"></p>
+<h3 id="处理重复的消息"><a href="#处理重复的消息" class="headerlink" title="处理重复的消息"></a>处理重复的消息</h3><p>理想情况下，消息应该只被传第一次，但是保证有且仅有一次的消息传递通常成本很高。所以，大多数消息代理<strong>承诺至少成功传递一次</strong>消息。处理重复消息由两种方法：</p>
+<ul>
+<li>编写<strong>幂等</strong>性消息处理方法。</li>
+<li>跟踪消息并<strong>丢弃重复项</strong>。</li>
+</ul>
+<h4 id="幂等的消息处理"><a href="#幂等的消息处理" class="headerlink" title="幂等的消息处理"></a>幂等的消息处理</h4><p>如果消息处理的逻辑是<strong>幂等</strong>的，那么重复的消息就是无害的。但是消息处理逻辑通常不是幂等的，或者说无法编写成幂等的逻辑。</p>
+<h4 id="跟踪消息并丢弃重复的消息"><a href="#跟踪消息并丢弃重复的消息" class="headerlink" title="跟踪消息并丢弃重复的消息"></a>跟踪消息并丢弃重复的消息</h4><p>一个简单的方法是<strong>使用 message id 来跟跟踪已经处理过的消息</strong>，可以将 message id 记录在数据库表中。</p>
+<p>也可以在应用程序表中跟踪消息，而不是专用的表记录 message id（这个方法后面会有）。</p>
+<h3 id="事务性消息"><a href="#事务性消息" class="headerlink" title="事务性消息"></a>事务性消息</h3><p><strong>数据库的更新</strong>和<strong>消息的发送</strong>必须在事务中进行。</p>
+<blockquote>
+<p>服务可能会更新数据库，然后在发送消息之前崩溃。如果服务不以原子的方式执行这两个操作，则可能会导致系统处于不一致的状态。</p>
+<p>在数据库和消息代理之间使用分布式事务可以解决，但是这不是一个很好的选择，很多消息代理并不支持分布式事务。</p>
+</blockquote>
+<p>可以<strong>使用数据库表作为临时的消息队列</strong>，服务通过<strong>将消息插入到 OUTBOX 表中</strong>来发送消息。需要引入一个<strong>消息中继</strong>，用于读<strong>取 OUTBOX 表</strong>并且<strong>将消息发布到消息代理</strong>中。如何将消息从 OUTBOX 表移动到消息代理中，有两种不同的方法：</p>
+<ul>
+<li><strong>通过轮询：</strong>消息中继不断地<strong>轮询</strong>未发布的消息（<strong>定期查表</strong>），将未发送的消息发送给消息通道。最后消息中继把完成的消息从 OUTBOX 表中删除。轮询的方法非常<strong>简单</strong>，但是定期的查表会导致<strong>数据库性能下降</strong>。</li>
+<li><strong>使用事务日志拖尾模式：</strong>让消息中继<strong>拖尾</strong>数据库日志文件，将对应于插入消息的日志转换为消息，并将消息发送到消息代理中。这种方法的效果很好。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518144252756.png" alt="image-20230518144252756"></p>
+<h2 id="异步提高可用性"><a href="#异步提高可用性" class="headerlink" title="异步提高可用性"></a>异步提高可用性</h2><p>同步消息要求客户端和服务同时在线，这降低了可用性。<strong>异步消息可以提高可用性</strong>，理想的情况下，所有的交互都使用的异步交互：</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518153202098.png" alt="image-20230518153202098"></p>
+<p>这样的架构非常具有弹性，但是很多情况下是<strong>不现实</strong>的，需要同步的对客户端的请求做出响应。</p>
+<h3 id="复制数据"><a href="#复制数据" class="headerlink" title="复制数据"></a>复制数据</h3><p>在请求处理时减少同步请求的一种方法就是数据复制。服务维护一个<strong>数据副本</strong>，拥有了数据副本服务就可以避免去同步远程调用数据，而是直接在本地进行读取。这些数据副本的<strong>源头</strong>会在<strong>数据变化时发送消息</strong>，服务<strong>订阅</strong>这些消息来确保数据副本的<strong>实时更新</strong>。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518154739008.png" alt="image-20230518154739008"></p>
+<p>但是复制数据的<strong>弊端</strong>在于，维护一个数据副本数据量巨大，导致效率低下。下面的方法可以解决这个问题。</p>
+<h3 id="先返回响应，再完成处理"><a href="#先返回响应，再完成处理" class="headerlink" title="先返回响应，再完成处理"></a>先返回响应，再完成处理</h3><p>在处理请求时，不需要与其他服务进行同步交互，而是仅仅<strong>使用本地的数据简单的完成验证后</strong>，直接向服务器<strong>返回响应</strong>。之后，服务<strong>异步的向其他服务发送消息</strong>。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1/image-20230518163403219.png" alt="image-20230518163403219"></p>
+<p>这种方法的弊端在于<strong>使得客户端更复杂</strong>，为了知道后续的处理是否完成，必须定期的<strong>轮询</strong>或者<strong>服务向客户端通知消息</strong>。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/17/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E6%9C%8D%E5%8A%A1%E7%9A%84%E6%8B%86%E5%88%86%E7%AD%96%E7%95%A5/" rel="prev" title="微服务架构设计模式 (2) 服务的拆分策略">
+      <i class="fa fa-chevron-left"></i> 微服务架构设计模式 (2) 服务的拆分策略
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/" rel="next" title="微服务架构设计模式 (4) 使用Saga管理事务">
+      微服务架构设计模式 (4) 使用Saga管理事务 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E7%9A%84%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1%E6%A6%82%E8%BF%B0"><span class="nav-number">1.</span> <span class="nav-text">微服务架构的进程间通信概述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%A4%E4%BA%92%E6%96%B9%E5%BC%8F"><span class="nav-number">1.1.</span> <span class="nav-text">交互方式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1-API"><span class="nav-number">1.2.</span> <span class="nav-text">服务 API</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#API-%E5%AE%9A%E4%B9%89"><span class="nav-number">1.2.1.</span> <span class="nav-text">API 定义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#API-%E7%9A%84%E6%BC%94%E5%8C%96"><span class="nav-number">1.2.2.</span> <span class="nav-text">API 的演化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E7%9A%84%E6%A0%BC%E5%BC%8F"><span class="nav-number">1.3.</span> <span class="nav-text">消息的格式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E6%96%87%E6%9C%AC%E7%9A%84%E6%B6%88%E6%81%AF%E6%A0%BC%E5%BC%8F"><span class="nav-number">1.3.1.</span> <span class="nav-text">基于文本的消息格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E4%BA%8C%E8%BF%9B%E5%88%B6%E7%9A%84%E6%B6%88%E6%81%AF%E6%A0%BC%E5%BC%8F"><span class="nav-number">1.3.2.</span> <span class="nav-text">基于二进制的消息格式</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E5%90%8C%E6%AD%A5-RRC-%E7%9A%84%E9%80%9A%E4%BF%A1"><span class="nav-number">2.</span> <span class="nav-text">基于同步 RRC 的通信</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#RESTful"><span class="nav-number">2.1.</span> <span class="nav-text">RESTful</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#gRPC"><span class="nav-number">2.2.</span> <span class="nav-text">gRPC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%9B%B8%E5%85%B3%E6%8A%80%E6%9C%AF"><span class="nav-number">2.3.</span> <span class="nav-text">相关技术</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%86%94%E6%96%AD%E5%99%A8"><span class="nav-number">2.3.1.</span> <span class="nav-text">熔断器</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BC%80%E5%8F%91%E5%8F%AF%E9%9D%A0%E7%9A%84%E8%BF%9C%E7%A8%8B%E8%BF%87%E7%A8%8B%E8%B0%83%E7%94%A8%E4%BB%A3%E7%90%86"><span class="nav-number">2.3.1.1.</span> <span class="nav-text">开发可靠的远程过程调用代理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BB%8E%E6%9C%8D%E5%8A%A1%E5%A4%B1%E6%95%88%E6%95%85%E9%9A%9C%E4%B8%AD%E6%81%A2%E5%A4%8D"><span class="nav-number">2.3.1.2.</span> <span class="nav-text">从服务失效故障中恢复</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">2.3.2.</span> <span class="nav-text">服务发现</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BA%94%E7%94%A8%E5%B1%82%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.3.2.1.</span> <span class="nav-text">应用层服务发现模式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B9%B3%E5%8F%B0%E5%B1%82%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.3.2.2.</span> <span class="nav-text">平台层服务发现模式</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E%E5%BC%82%E6%AD%A5%E6%B6%88%E6%81%AF%E6%A8%A1%E5%BC%8F%E7%9A%84%E9%80%9A%E4%BF%A1"><span class="nav-number">3.</span> <span class="nav-text">基于异步消息模式的通信</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%97%A0%E4%BB%A3%E7%90%86%E7%9A%84%E6%B6%88%E6%81%AF%E6%9C%BA%E5%88%B6"><span class="nav-number">3.1.</span> <span class="nav-text">无代理的消息机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E4%BB%A3%E7%90%86%E7%9A%84%E6%B6%88%E6%81%AF%E6%9C%BA%E5%88%B6"><span class="nav-number">3.2.</span> <span class="nav-text">消息代理的消息机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1%E9%9A%BE%E9%A2%98"><span class="nav-number">3.3.</span> <span class="nav-text">设计难题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E5%B9%B6%E5%8F%91%E5%92%8C%E6%B6%88%E6%81%AF%E9%A1%BA%E5%BA%8F"><span class="nav-number">3.3.1.</span> <span class="nav-text">处理并发和消息顺序</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E9%87%8D%E5%A4%8D%E7%9A%84%E6%B6%88%E6%81%AF"><span class="nav-number">3.3.2.</span> <span class="nav-text">处理重复的消息</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B9%82%E7%AD%89%E7%9A%84%E6%B6%88%E6%81%AF%E5%A4%84%E7%90%86"><span class="nav-number">3.3.2.1.</span> <span class="nav-text">幂等的消息处理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B7%9F%E8%B8%AA%E6%B6%88%E6%81%AF%E5%B9%B6%E4%B8%A2%E5%BC%83%E9%87%8D%E5%A4%8D%E7%9A%84%E6%B6%88%E6%81%AF"><span class="nav-number">3.3.2.2.</span> <span class="nav-text">跟踪消息并丢弃重复的消息</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1%E6%80%A7%E6%B6%88%E6%81%AF"><span class="nav-number">3.3.3.</span> <span class="nav-text">事务性消息</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%82%E6%AD%A5%E6%8F%90%E9%AB%98%E5%8F%AF%E7%94%A8%E6%80%A7"><span class="nav-number">3.4.</span> <span class="nav-text">异步提高可用性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%8D%E5%88%B6%E6%95%B0%E6%8D%AE"><span class="nav-number">3.4.1.</span> <span class="nav-text">复制数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%88%E8%BF%94%E5%9B%9E%E5%93%8D%E5%BA%94%EF%BC%8C%E5%86%8D%E5%AE%8C%E6%88%90%E5%A4%84%E7%90%86"><span class="nav-number">3.4.2.</span> <span class="nav-text">先返回响应，再完成处理</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

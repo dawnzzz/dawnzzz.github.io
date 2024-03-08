@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="本地事务 以下都是基本原理，请不要与 MySQL 挂钩！MySQL 的基本思想肯定是这样，但肯定不是完全照搬。  原子性和持久性按照事务提交时点为界，划分为 FORCE 和 STEAL 两类情况：  FORCE：指的是事务的实际写入发生在提交之后。当事务提交后，要求数据必须同时完成写入则称为 FORCE，如果不强制数据必须同时完成写入则称为 NO-FORCE。现实中绝大多数数据库采用的都是 NO-">
+<meta property="og:type" content="article">
+<meta property="og:title" content="凤凰架构笔记 (2) 事务处理">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="本地事务 以下都是基本原理，请不要与 MySQL 挂钩！MySQL 的基本思想肯定是这样，但肯定不是完全照搬。  原子性和持久性按照事务提交时点为界，划分为 FORCE 和 STEAL 两类情况：  FORCE：指的是事务的实际写入发生在提交之后。当事务提交后，要求数据必须同时完成写入则称为 FORCE，如果不强制数据必须同时完成写入则称为 NO-FORCE。现实中绝大多数数据库采用的都是 NO-">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/image-20230606152748286.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/image-20230606152757614.png">
+<meta property="article:published_time" content="2023-06-05T13:14:28.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.813Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/image-20230606152748286.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>凤凰架构笔记 (2) 事务处理 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          凤凰架构笔记 (2) 事务处理
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-05 21:14:28" itemprop="dateCreated datePublished" datetime="2023-06-05T21:14:28+08:00">2023-06-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><blockquote>
+<p>以下都是基本原理，请不要与 MySQL 挂钩！MySQL 的基本思想肯定是这样，但肯定不是完全照搬。</p>
+</blockquote>
+<h2 id="原子性和持久性"><a href="#原子性和持久性" class="headerlink" title="原子性和持久性"></a>原子性和持久性</h2><p>按照事务提交时点为界，划分为 FORCE 和 STEAL 两类情况：</p>
+<ul>
+<li><strong>FORCE：</strong>指的是事务的实际写入发生在<strong>提交之后</strong>。当事务提交后，要求数据必须<strong>同时完成写入则称为 FORCE</strong>，如果<strong>不强制</strong>数据必须<strong>同时完成写入则称为 NO-FORCE</strong>。现实中绝大多数数据库采用的都是 NO-FORCE 策略，因为只要有了日志，变动数据随时可以持久化，从优化磁盘 I/O 性能考虑，没有必要强制数据写入立即进行。</li>
+<li><strong>STEAL：</strong>在事务提交前，允许数据<strong>提前写入则称为 STEAL</strong>，<strong>不允许则称为 NO-STEAL</strong>。从优化磁盘 I/O 性能考虑，允许数据提前写入，有利于利用空闲 I/O 资源，也有利于节省数据库缓存区的内存。</li>
+</ul>
+<p>在数据库中，因为写入磁盘这个操作不是原子操作，所以可能出现<strong>崩溃</strong>的情况。为了保证事务的原子性和持久性，通常通过<strong>日志</strong>（顺序追加，这是最高效的写入方式）的方式，分为两种方法：</p>
+<ul>
+<li><strong>Commit Logging：</strong>允许 NO-FORCE，但是不允许 STEAL。</li>
+<li><strong>Write-Ahead Logging：</strong>允许 NO-FORCE，也允许 STEAL。</li>
+</ul>
+<blockquote>
+<p>通过日志实现事务的原子性和持久性是当今的主流方案，但并不是唯一的选择。除了日志外，还有一种称之为 Shadow Paging（影子分页）来实现，SqLite v3 就是这种机制。</p>
+<p>Shadow Paging 在数据写入磁盘时，不会直接修改原来的数据，而是将原来的数据复制一份副本，保留原数据只修改副本。事务成功提交后，最后一步是去修改数据的引用指针，将引用从原数据改为新复制出来修改后的副本（这个修改指针被认为是原子操作）。但是 Shadow Paging 并发能力不强，所以应用不多。</p>
+</blockquote>
+<h3 id="Commit-Logging"><a href="#Commit-Logging" class="headerlink" title="Commit Logging"></a>Commit Logging</h3><p><strong>Commit Logging 中只有一种日志，就是 redo 日志</strong>。对数据的操作都会记录在 redo 日志中，事务的<strong>提交</strong>就是在日志中<strong>写入</strong>代表提交成功的<strong>提交记录（Commit Record）</strong>。在数据库看到提交记录（Commit Record）后，才根据日志内容对数据进行真正的修改，<strong>修改完成</strong>后向日志中加入一条<strong>结束记录（End Record）</strong>表示事务已经成功完成持久化。</p>
+<p>一旦写入了 Commit Record，即使在写入磁盘之前崩溃了，重启后也能根据日志恢复，保证了持久性。如果在日志没有 Commit Record 时就发生了崩溃，则整个任务就是失败的，因为没有真正写入磁盘，所以就好像发生了回滚一样，保证了原子性。</p>
+<p>Commit Logging 的原理非常清晰，如 OceanBase 就是采用了这种方法。但是 Commit Logging 的一个<strong>缺陷</strong>就是：所有对数据的真实修改<strong>必须发生在提交之后</strong>，在提交之前即使磁盘 I/O 是空闲的也不允许写入数据，并且占用了大量的内存缓冲区。</p>
+<blockquote>
+<p>因为 Commit Logging 只有 redo log，所以不允许 STEAL，否则无法回滚（回滚需要 undo log）。</p>
+</blockquote>
+<h3 id="Write-Ahead-Logging"><a href="#Write-Ahead-Logging" class="headerlink" title="Write-Ahead Logging"></a>Write-Ahead Logging</h3><p>Write-Ahead Logging 是改进的方案，所谓 Write-Ahead（提前写入）指的就是在提交之前写入数据。<strong>Write-Ahead Logging 在 redo log 的基础上，引入了 undo log 用于回滚</strong>。当变动数据写入磁盘前，必须先记录 Undo Log，注明修改了哪个位置的数据、从什么值改成什么值等等。以便在事务回滚或者崩溃恢复时根据 undo log 对提前写入的数据变动进行擦除。</p>
+<p>在崩溃恢复时，根据 redo log 对没有写入磁盘但是已经提交的数据进行持久化，根据 undo log 对没有提交但是已经写入磁盘的数据进行回滚。</p>
+<blockquote>
+<p><strong>redo log 保证事务的持久性，而 undo log 保证事务的原子性。</strong></p>
+</blockquote>
+<h2 id="隔离性"><a href="#隔离性" class="headerlink" title="隔离性"></a>隔离性</h2><h3 id="锁"><a href="#锁" class="headerlink" title="锁"></a>锁</h3><p>实现隔离性最直观的方式，就是加锁。现代数据库均提供以下三种锁：</p>
+<ul>
+<li><strong>写锁：</strong>对一行数据加写锁，写锁与其他锁都互斥。</li>
+<li><strong>读锁：</strong>对一行数据加读锁，读锁与读锁不互斥，与写锁互斥。</li>
+<li><strong>范围锁：</strong>对一个范围加锁。</li>
+</ul>
+<blockquote>
+<p>注意，范围锁<strong>不等于</strong>对多行数据加锁，因为数据与数据之间有间隙（这就是为什么 MySQL 中有间隙锁）。</p>
+</blockquote>
+<p>隔离性用隔离级别来体现，有以下几种隔离级别（这几种隔离级别都解决了脏读问题）：</p>
+<ul>
+<li><strong>可串行化（Serializable）：</strong>可串行化是最高的隔离级别，也是并发程度最低的隔离级别。可串行化中相当于<strong>全局加锁</strong>，不存在幻读、不可重复读、脏读问题。</li>
+<li><strong>可重复读（Repeatable Read）：</strong>可重复读中，对于事务中<strong>涉及到的数据</strong>会加上<strong>读锁和写锁</strong>，但<strong>不会加范围锁</strong>。不加范围锁导致的问题，就是会出现<strong>幻读</strong>问题。</li>
+<li><strong>读已提交（Read Commited）：</strong>在读已提交中，<strong>写锁会持续到事务结束</strong>，<strong>读锁</strong>在查询完成后会<strong>马上释放</strong>。读锁在查询结束后马上释放的带来的问题，就是会导致<strong>不可重复读</strong>。</li>
+<li><strong>读未提交（Read Uncommitted）：</strong>读未提交中，<strong>写锁会持续到事务结束</strong>，但是完全<strong>不会加读锁</strong>。不加读锁带来的问题就是<strong>脏读</strong>，可能会读取到其他事务还未提交的数据。</li>
+</ul>
+<blockquote>
+<p>在 MySQL 中的默认隔离级别未可重复读，但它在<strong>只读</strong>事务中可以<strong>完全避免幻读问题</strong>。</p>
+</blockquote>
+<h3 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h3><p>MVCC 多版本并发控制是一种<strong>读优化</strong>策略，MVCC 的基本思路是对数据库的任何修改都不会直接覆盖之前的数据，而是产生一个新版副本与老版本共存，以此达到读取时可以完全不加锁的目的。</p>
+<ul>
+<li>如果隔离级别是<strong>可重复读</strong>：读取小于等于当前事务 ID 的最大版本。</li>
+<li>如果隔离级别是<strong>读已提交</strong>：读取最新版本。</li>
+</ul>
+<blockquote>
+<p>读未提交直接修改原始数据即可，不需要版本。</p>
+</blockquote>
+<span id="more"></span>
+
+<h1 id="分布式事务"><a href="#分布式事务" class="headerlink" title="分布式事务"></a>分布式事务</h1><h2 id="XA"><a href="#XA" class="headerlink" title="XA"></a>XA</h2><p>XA 又称为<strong>两阶段提交</strong>（2 Phrase Commit，2PC），核心是定义了全局的事务管理器（Transaction Manager）用于管理全局事务和局部的资源管理器（Resource Manager）用于驱动本地事务。XA 将事务分为两个阶段：</p>
+<ul>
+<li><strong>准备阶段：</strong>协调者询问事务的所有参与者是否准备好提交，参与者如果已经准备好提交则回复 Prepared，否则回复 Non-Prepared。对于数据库来说就是记录除了最后一条 Commit Record 之外的所有操作（也就是意味着此时是持有锁的）。</li>
+<li><strong>提交阶段：</strong>协调者如果收到了全部的 Prepare 消息，则向全体参与者发送 Commit 命令，所有参与者立即提交。如果有收到了任意一个 Non-Prepared 或者在第一阶段发生了超时，则向全体参与者发送 Abort 命令，参与者立即进行回滚操作。在第二阶段，事务协调者发出的命令是不允许失败的。</li>
+</ul>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/image-20230606152748286.png" alt="image-20230606152748286"></p>
+<p>两阶段提交有以下缺点：</p>
+<ul>
+<li><strong>单点问题：</strong>如果<strong>事务协调者</strong>发生<strong>故障</strong>，则整个分布式事务都会产生影响。在<strong>第一阶段</strong>，<strong>允许</strong>事务参与者下线发生超时；但是在<strong>第二阶段，不允许事务参与者发生超时</strong>，事务协调者会一直发送命令直到事务参与者恢复，而其他参与者则一直等待。</li>
+<li><strong>性能问题：</strong>在第二阶段，不允许事务参与者发生超时，事务协调者会一直发送命令直到事务参与者恢复，而其他参与者则一直等待。事务的整个过程一直持续到最慢的参与者完成为止，在<strong>这过程中是不会释放锁</strong>的。</li>
+</ul>
+<blockquote>
+<p>将 commit 或者 rollback 命令放入消息队列中，可以保证消息的可靠交付。</p>
+</blockquote>
+<h3 id="三阶段提交"><a href="#三阶段提交" class="headerlink" title="三阶段提交"></a>三阶段提交</h3><p>为了缓解 2PC 的单点问题和性能问题，又提出了改进方案即<strong>三阶段提交 3PC</strong>。3PC 将准备阶段细分为 CanCommit 和 PreCommit，把提交阶段称之为 DoCommit 阶段。</p>
+<p>其中 CanCommit 相当是在最前面添加了一个<strong>询问阶段</strong>，协调者让每个参与的数据库根据自身状态，<strong>评估该事务是否有可能顺利完成</strong>。因为一旦 PreCommit 阶段，则会锁住相应的资源，所以在这之前新增一个询问阶段，询问参与者是否有把握完成事务。</p>
+<p>在 3PC 的 DoCommit 阶段，如果参与者没有等待 Commit 消息，<strong>默认的策略是提交事务</strong>而不是回滚事务，这就相当于避免了协调者单点问题的风险。</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/image-20230606152757614.png" alt="image-20230606152757614"></p>
+<h2 id="TCC"><a href="#TCC" class="headerlink" title="TCC"></a>TCC</h2><p>TCC 是分布式事务的一种实现方式，它将事务分为了三个阶段 Try、Commit、Cancel。在具体实现上，TCC 是一种业务入侵较强的方案：</p>
+<ul>
+<li><strong>Try：</strong>尝试执行阶段，完成所有业务<strong>可执行性的检查</strong>（保障<strong>一致性</strong>），并且<strong>预留</strong>好全部需用到的业务资源（保障<strong>隔离性</strong>）。</li>
+<li><strong>Commit：</strong>确认执行阶段，不进行任何业务检查，<strong>直接使用 Try 阶段准备的资源</strong>来完成业务处理。Confirm 阶段可能会重复执行，因此本阶段所执行的操作需要具备<strong>幂等性</strong>。</li>
+<li><strong>Cancel：</strong>取消执行阶段，<strong>释放 Try 阶段预留的业务资源</strong>。Cancel 阶段可能会重复执行，也需要满足<strong>幂等性</strong>。</li>
+</ul>
+<blockquote>
+<p>TCC 和 XA 本质原理上是一样的，但是二者还是有细微区别的：</p>
+<ul>
+<li><strong>XA 是底层实现的</strong>，就像之前所说的，Prepare 过程中数据库日志已经记录了对数据的操作，只是没有记录 Commit Record。</li>
+<li><strong>TCC 对业务的入侵较强，需要自己实现 Commit 和 Cancel</strong>。而 TCC 中，比如在账户扣款的场景下，可能需要增加一个冻结金额的属性用于自己实现 Commit 和 Cancel。</li>
+</ul>
+</blockquote>
+<h2 id="SAGA"><a href="#SAGA" class="headerlink" title="SAGA"></a>SAGA</h2><p>TCC 的性能最好，但是对业务的入侵性非常强，但是不能满足所有的场景。如果用户的存款账户是由第三方（如银行）管理的，那么对于冻结金额这种操作是无法自己去实现的。</p>
+<p>SAGA 用于解决这样一种场景，将事务分为一系列<strong>子事务</strong>和<strong>补偿操作</strong>。如果冻结金额不可行，那么可以在扣除金额之后再补偿回来，这是可行的。</p>
+<blockquote>
+<ul>
+<li>SAGA 中的子事务和其补偿操作都具有<strong>幂等性</strong>。</li>
+<li>而且具有<strong>交换律</strong>，即最终结果和子事务与补偿操作的执行顺序无关。</li>
+<li>并且，<strong>补偿操作必须成功提交</strong>，如果出现失败则重试直至成功。</li>
+</ul>
+</blockquote>
+<p>SAGA 按照子事务顺序执行，如果子事务失败则有两种恢复策略：</p>
+<ul>
+<li><strong>正向恢复：</strong>重试子事务，直至子事务执行成功。这种恢复方式不需要补偿，适用于事务最终都要成功的场景</li>
+<li><strong>反向恢复：</strong>从失败的子事务开始，反向执行补偿操作，直至全部执行成功。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/" rel="prev" title="Kubernetes学习 (8) 卷 配置">
+      <i class="fa fa-chevron-left"></i> Kubernetes学习 (8) 卷 配置
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/" rel="next" title="凤凰架构笔记 (3) 透明多级分流系统之缓存">
+      凤凰架构笔记 (3) 透明多级分流系统之缓存 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9C%AC%E5%9C%B0%E4%BA%8B%E5%8A%A1"><span class="nav-number">1.</span> <span class="nav-text">本地事务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E5%AD%90%E6%80%A7%E5%92%8C%E6%8C%81%E4%B9%85%E6%80%A7"><span class="nav-number">1.1.</span> <span class="nav-text">原子性和持久性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Commit-Logging"><span class="nav-number">1.1.1.</span> <span class="nav-text">Commit Logging</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Write-Ahead-Logging"><span class="nav-number">1.1.2.</span> <span class="nav-text">Write-Ahead Logging</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9A%94%E7%A6%BB%E6%80%A7"><span class="nav-number">1.2.</span> <span class="nav-text">隔离性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%94%81"><span class="nav-number">1.2.1.</span> <span class="nav-text">锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MVCC"><span class="nav-number">1.2.2.</span> <span class="nav-text">MVCC</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1"><span class="nav-number">2.</span> <span class="nav-text">分布式事务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#XA"><span class="nav-number">2.1.</span> <span class="nav-text">XA</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%89%E9%98%B6%E6%AE%B5%E6%8F%90%E4%BA%A4"><span class="nav-number">2.1.1.</span> <span class="nav-text">三阶段提交</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TCC"><span class="nav-number">2.2.</span> <span class="nav-text">TCC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SAGA"><span class="nav-number">2.3.</span> <span class="nav-text">SAGA</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="chan数据结构channel 的数据结构如下： 12345678910111213type hchan struct &amp;#123;    qcount   uint           &#x2F;&#x2F; 当前队列中剩余元素个数    dataqsiz uint           &#x2F;&#x2F; 环形队列长度，即可以存放的元素个数    buf      unsafe.Pointer &#x2F;&#x2F; 环形队列指针    ele">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GO专家编程读书笔记 (1) 常见数据结构实现原理之chan slice">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="chan数据结构channel 的数据结构如下： 12345678910111213type hchan struct &amp;#123;    qcount   uint           &#x2F;&#x2F; 当前队列中剩余元素个数    dataqsiz uint           &#x2F;&#x2F; 环形队列长度，即可以存放的元素个数    buf      unsafe.Pointer &#x2F;&#x2F; 环形队列指针    ele">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f1b42d200c5d94d02eeacef7c99aa81b_r.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f48c37e012c38de53aeb532c993b6d2d_r.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_b235ef1f2c6ac1b5d63ec5660da97bd2_r.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_933ca9af4c3ec1db0b94b8b4ec208d4b_r.png">
+<meta property="article:published_time" content="2023-03-18T02:02:56.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.743Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="GoLang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f1b42d200c5d94d02eeacef7c99aa81b_r.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GO专家编程读书笔记 (1) 常见数据结构实现原理之chan slice | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GO专家编程读书笔记 (1) 常见数据结构实现原理之chan slice
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-18 10:02:56" itemprop="dateCreated datePublished" datetime="2023-03-18T10:02:56+08:00">2023-03-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go专家编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="chan"><a href="#chan" class="headerlink" title="chan"></a>chan</h1><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>channel 的数据结构如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> hchan <span class="keyword">struct</span> &#123;</span><br><span class="line">    qcount   <span class="keyword">uint</span>           <span class="comment">// 当前队列中剩余元素个数</span></span><br><span class="line">    dataqsiz <span class="keyword">uint</span>           <span class="comment">// 环形队列长度，即可以存放的元素个数</span></span><br><span class="line">    buf      unsafe.Pointer <span class="comment">// 环形队列指针</span></span><br><span class="line">    elemsize <span class="keyword">uint16</span>         <span class="comment">// 每个元素的大小</span></span><br><span class="line">    closed   <span class="keyword">uint32</span>            <span class="comment">// 标识关闭状态</span></span><br><span class="line">    elemtype *_type         <span class="comment">// 元素类型</span></span><br><span class="line">    sendx    <span class="keyword">uint</span>           <span class="comment">// 队列下标，指示元素写入时存放到队列中的位置</span></span><br><span class="line">    recvx    <span class="keyword">uint</span>           <span class="comment">// 队列下标，指示元素从队列的该位置读出</span></span><br><span class="line">    recvq    waitq          <span class="comment">// 等待读消息的goroutine队列</span></span><br><span class="line">    sendq    waitq          <span class="comment">// 等待写消息的goroutine队列</span></span><br><span class="line">    lock mutex              <span class="comment">// 互斥锁，chan不允许并发读写</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，channel 的<strong>底层数据结构</strong>由一个<strong>环形队列</strong>构成。</p>
+<p><strong>lock 保证了 channel 的线程安全</strong>，在一个时间点上只会被一个线程（协程）访问。</p>
+<h3 id="环形队列"><a href="#环形队列" class="headerlink" title="环形队列"></a>环形队列</h3><p>channel 内部实现了一个<strong>环形队列</strong>作为其缓冲区，环形队列的长度（dataqsiz）是创建 channel 时指定的。如下所示：</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f1b42d200c5d94d02eeacef7c99aa81b_r.png" alt="img"></p>
+<h3 id="等待队列"><a href="#等待队列" class="headerlink" title="等待队列"></a>等待队列</h3><p>从 channel 读数据，如果 channel 缓冲区为空或者没有缓冲区，当前 goroutine 会被阻塞。同样的，向 channel 写数据，如果 channel 缓冲区已满或者没有缓冲区，当前 goroutine 会被阻塞。</p>
+<p>被<strong>阻塞</strong>的 goroutine 将会<strong>挂在 channel 的等待队列</strong>（recvq 和 sendq）中：</p>
+<ul>
+<li>因<strong>读阻塞</strong>的 goroutine 会被<strong>向 channel 写入数据的 goroutine 唤醒</strong>。</li>
+<li>因<strong>写阻塞</strong>的 goroutine 会被<strong>从 channel 读数据的 goroutine 唤醒</strong>。</li>
+</ul>
+<p>下图展示了一个没有缓冲区的 channel，有几个 goroutine 阻塞等待读数据：</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f48c37e012c38de53aeb532c993b6d2d_r.png" alt="img"></p>
+<blockquote>
+<p>一般情况下，sendq 和 recvq 至少有一个为空。</p>
+<p><strong>只有一个例外</strong>，就是用同一个 goroutine 使用 select 语句向 channel 一边读数据一边写数据。</p>
+</blockquote>
+<h2 id="channel-读写"><a href="#channel-读写" class="headerlink" title="channel 读写"></a>channel 读写</h2><h3 id="写数据"><a href="#写数据" class="headerlink" title="写数据"></a>写数据</h3><p>向一个 channel 中写数据的流程如下：</p>
+<ul>
+<li>如果队列 recvq 不为空，则说明缓存区中没有数据或者没有缓冲区，此时从 recvq 中取出 G，并且把数据写入 G 中，最后唤醒 G。</li>
+<li>如果队列 recvq 为空：<ul>
+<li>如果环形队列有空位，则将数据写入环形队列中。</li>
+<li>如果环形队列没有空位，则将当前 goroutine 加入到 sendq 中，等待被唤醒。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_b235ef1f2c6ac1b5d63ec5660da97bd2_r.png" alt="img"></p>
+<span id="more"></span>
+
+<h3 id="读数据"><a href="#读数据" class="headerlink" title="读数据"></a>读数据</h3><p>从一个 channel 中读数据的流程如下：</p>
+<ul>
+<li>如果队列 sendq 不为空：<ul>
+<li>若没有缓冲区，则从 sendq 中取出一个 G 并且从 G 中读取数据，最后唤醒 G。</li>
+<li>如果有缓冲区，则从环形队列的队首取出一个数据，并且从 sendq 中取出一个 G 将 G 中的数据写入到环形队列的队尾，最后唤醒 G。</li>
+</ul>
+</li>
+<li>如果队列 sendq 为空：<ul>
+<li>若缓存区中有数据，则直接从环形队列中读取一个数据。</li>
+<li>如果没有数据，则将当前 goroutine 加入到 recvq 中等待被唤醒。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_933ca9af4c3ec1db0b94b8b4ec208d4b_r.png" alt="img"></p>
+<h3 id="关闭-channel"><a href="#关闭-channel" class="headerlink" title="关闭 channel"></a>关闭 channel</h3><p><strong>关闭 channel 时会把 recvq 中的 G 全部唤醒</strong>，本该写入 G 的数据位置为 <strong>nil</strong>。<strong>把 sendq 中的 G 全部唤醒</strong>，但这些 G 会 <strong>panic</strong>。</p>
+<blockquote>
+<p>panic 出现的常见场景还有：</p>
+<ul>
+<li>关闭已经关闭的 channel。</li>
+<li>关闭为 nil 的channel。</li>
+<li>向已经关闭的 channel 中写入数据。</li>
+<li>在 range channel 时，向此 channel 写数据的 goroutine 退出，系统检测到这种情况后会 panic（否则永久阻塞）。</li>
+</ul>
+</blockquote>
+<h1 id="slice"><a href="#slice" class="headerlink" title="slice"></a>slice</h1><h2 id="数据结构-1"><a href="#数据结构-1" class="headerlink" title="数据结构"></a>数据结构</h2><p>slice 的数据结构底层为一个<strong>数组 array（array 为指向底层数组的指针）</strong>，以及当前长度 len 和实际容量 cap。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> slice <span class="keyword">struct</span> &#123;</span><br><span class="line">    array unsafe.Pointer</span><br><span class="line">    <span class="built_in">len</span>   <span class="keyword">int</span></span><br><span class="line">    <span class="built_in">cap</span>   <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>make([]int, 5, 10)</code> 语句创建 slice 时，会创建一个容量为 10，长度为 5 的 slice。</p>
+<p>注意，对 slice 的<strong>切片</strong>操作会<strong>复用底层数组</strong>。</p>
+<h2 id="扩容"><a href="#扩容" class="headerlink" title="扩容"></a>扩容</h2><p>当向 slice 中追加元素时，超过了容量，就会进行<strong>扩容</strong>。扩容就是申请一片更大的存储空间，将原来数组中存储的数据复制到这段新的地址空间中。<strong>扩容容量的选择遵循以下规则</strong>：</p>
+<ul>
+<li>如果原 slice 容量<strong>小于 1024</strong>，则新 slice 容量将扩大为<strong>原来的 2 倍</strong>。</li>
+<li>如果原 slice 容量大<strong>于等于 1024</strong>，则新 slice 容量将扩大为<strong>原来的 1.25 倍</strong>。</li>
+</ul>
+<h2 id="切片时指定容量"><a href="#切片时指定容量" class="headerlink" title="切片时指定容量"></a>切片时指定容量</h2><p>在通常的切片操作中是不指定容量的，即 <code>slice[start:end]</code>。</p>
+<p>但是，也可以使用<strong>指定容量的切片操作</strong>，即 <code>slice[start:end:cap]</code></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GoLang/" rel="tag"># GoLang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/03/17/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Novel-Global-Feature-Oriented-Relational-Triple-Extraction-Medel-based-on-Table-Filling/" rel="prev" title="关系抽取论文 A Novel Global Feature-Oriented Relational Triple Extraction Medel based on Table Filling">
+      <i class="fa fa-chevron-left"></i> 关系抽取论文 A Novel Global Feature-Oriented Relational Triple Extraction Medel based on Table Filling
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bmap-string/" rel="next" title="GO专家编程读书笔记 (2) 常见数据结构实现原理之map string">
+      GO专家编程读书笔记 (2) 常见数据结构实现原理之map string <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#chan"><span class="nav-number">1.</span> <span class="nav-text">chan</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-number">1.1.</span> <span class="nav-text">数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%8E%AF%E5%BD%A2%E9%98%9F%E5%88%97"><span class="nav-number">1.1.1.</span> <span class="nav-text">环形队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AD%89%E5%BE%85%E9%98%9F%E5%88%97"><span class="nav-number">1.1.2.</span> <span class="nav-text">等待队列</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#channel-%E8%AF%BB%E5%86%99"><span class="nav-number">1.2.</span> <span class="nav-text">channel 读写</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%99%E6%95%B0%E6%8D%AE"><span class="nav-number">1.2.1.</span> <span class="nav-text">写数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%BB%E6%95%B0%E6%8D%AE"><span class="nav-number">1.2.2.</span> <span class="nav-text">读数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B3%E9%97%AD-channel"><span class="nav-number">1.2.3.</span> <span class="nav-text">关闭 channel</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#slice"><span class="nav-number">2.</span> <span class="nav-text">slice</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-1"><span class="nav-number">2.1.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%89%A9%E5%AE%B9"><span class="nav-number">2.2.</span> <span class="nav-text">扩容</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%87%E7%89%87%E6%97%B6%E6%8C%87%E5%AE%9A%E5%AE%B9%E9%87%8F"><span class="nav-number">2.3.</span> <span class="nav-text">切片时指定容量</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

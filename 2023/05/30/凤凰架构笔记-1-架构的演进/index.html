@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="单体系统 需要摆正这样一个观念，单体系统并不是反派角色。  单体系统适用于小型系统，有自己的优缺点，并不是一无是处。 优点：  对小型系统而言，单体系统不仅易于开发、易于测试、易于部署，且由于系统中各个功能、模块、方法的调用过程都是进程内调用，不会发生进程间通信。  缺点：主要是缺乏隔离性，全部的代码全部在一个进程内运行，这样带来的坏处有两个。  无法隔离错误，如果某个模块出现了错误，遇到了如内存">
+<meta property="og:type" content="article">
+<meta property="og:title" content="凤凰架构笔记 (1) 架构的演进">
+<meta property="og:url" content="http://dawnzzz.github.io/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="单体系统 需要摆正这样一个观念，单体系统并不是反派角色。  单体系统适用于小型系统，有自己的优缺点，并不是一无是处。 优点：  对小型系统而言，单体系统不仅易于开发、易于测试、易于部署，且由于系统中各个功能、模块、方法的调用过程都是进程内调用，不会发生进程间通信。  缺点：主要是缺乏隔离性，全部的代码全部在一个进程内运行，这样带来的坏处有两个。  无法隔离错误，如果某个模块出现了错误，遇到了如内存">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-05-30T02:33:44.000Z">
+<meta property="article:modified_time" content="2023-12-15T02:35:06.813Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="微服务">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>凤凰架构笔记 (1) 架构的演进 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          凤凰架构笔记 (1) 架构的演进
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-30 10:33:44" itemprop="dateCreated datePublished" datetime="2023-05-30T10:33:44+08:00">2023-05-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="单体系统"><a href="#单体系统" class="headerlink" title="单体系统"></a>单体系统</h1><blockquote>
+<p>需要摆正这样一个观念，<strong>单体系统并不是反派角色</strong>。</p>
+</blockquote>
+<p>单体系统适用于小型系统，有自己的优缺点，并不是一无是处。</p>
+<p><strong>优点：</strong></p>
+<ul>
+<li>对<strong>小型系统</strong>而言，单体系统不仅易于开发、易于测试、易于部署，且由于系统中各个功能、模块、方法的调用过程都是进程内调用，不会发生进程间通信。</li>
+</ul>
+<p><strong>缺点：主要是缺乏隔离性</strong>，全部的代码全部在一个进程内运行，这样带来的坏处有两个。</p>
+<ul>
+<li><strong>无法隔离错误</strong>，如果某个模块出现了错误，遇到了如内存泄漏等 Bug，那么整个程序都会受到影响。</li>
+<li><strong>无法做到模块级别的单独停止、升级</strong>，因为不可能停止一部分的进程、重启一部分的经常。</li>
+</ul>
+<blockquote>
+<p>单体系统架构潜在的要求整个系统都是可靠的，但是我们在软件架构的演进中应该有这样的观念：<strong>从尽量追求不出错，到正视出错是必然</strong>。</p>
+<p>架构如凤凰一样不死，反复涅槃重生，这就是软件架构所追求的目标。</p>
+</blockquote>
+<h1 id="SOA-时代"><a href="#SOA-时代" class="headerlink" title="SOA 时代"></a>SOA 时代</h1><p>SOA（Service Oriented Architecture）面向服务的架构，就是将一个大型的单机系统进行拆分，拆分成独立的子系统。看起来 SOA 与微服务的概念差不多，实际上有很大的差异。</p>
+<blockquote>
+<p><strong>微服务架构 vs SOA</strong></p>
+<p>SOA（Service Oriented Architecture）指的是面向服务的架构，SOA 也是进行了服务划分，它与微服务架构看似相同，但是深入研究就会发现二者的巨大差异。</p>
+<ul>
+<li><strong>服务间的通信：</strong>SOA 常吃采用重量级的技术，如 ESB（Enterprise Service Bus）、SOAP 和 WebService。而微服务架构倾向于使用轻量级的技术，如 REST 或者 gRPC 这类轻量级的协议。</li>
+<li><strong>数据管理：</strong>SOA 一般有一个全局的数据库。而微服务与之相反，每一个服务都有一个自己的私有数据模型。</li>
+<li><strong>服务规模：</strong>SOA 应用通常包含若干个大型的服务。而微服务架构则常常由属实个甚至上百个更小的服务组成。</li>
+</ul>
+</blockquote>
+<h1 id="微服务时代"><a href="#微服务时代" class="headerlink" title="微服务时代"></a>微服务时代</h1><p><strong>微服务</strong>是一种通过<strong>多个小型服务组合</strong>来构建单个应用的架构风格，这些服务<strong>围绕业务能力</strong>而非特定的技术标准来构建。各个服务可以采用<strong>不同的编程语言</strong>，<strong>不同的数据存储技术</strong>，运行在<strong>不同的进程</strong>之中。服务采取<strong>轻量级的通信机制</strong>和<strong>自动化的部署机制</strong>实现通信与运维。</p>
+<p>微服务的九个核心特征如下：</p>
+<ul>
+<li><strong>围绕业务能力构建。</strong>因为<strong>团队之间的沟通成本是巨大</strong>的，一个微服务应该是一个可以自治的单体，所以<strong>一种业务就应该被限定在一种服务内部</strong>。这就是为什么微服务中的服务划分非常重要，而微服务的划分通常与 DDD 一致。即使刚开始的架构并不是按照业务能力划分的，随着时间的发展，最终的架构也会向着这种形式演化。</li>
+<li><strong>分散治理。</strong>一个微服务应该是一个<strong>可以自治的单体</strong>，而不会依赖于其他服务。也就是说，服务之间可以是<strong>异构的</strong>、可以是<strong>跨语言的</strong>。</li>
+<li><strong>通过服务来实现独立自治的组件。</strong>通过服务，而不是通过类库（Library）来构建组件。因为<strong>服务是进程外组件</strong>，通过<strong>远程调用</strong>来提供功能，尽管进程外调用比进程内调用复杂且效率低，但是这是微服务的必然代价。</li>
+<li><strong>产品化思维。</strong>服务看作是一种产品，开发人员<strong>负责整个生命周期</strong>（开发、测试、运维、部署等等）。</li>
+<li><strong>数据去中心化。</strong>每一种服务独立的<strong>维护自己的数据库</strong>，而不是一个中心化的数据库。中心化的数据库的好处就是数据的一致性可以保证，缺点则是可能会让多个服务使用同一个数据表（服务无法独立的修改数据表 schema），使得服务之间丧失独立性。微服务去中心化的存储选择了维护独立性，而数据之间的一致性可以通过分布式事务保证。</li>
+<li><strong>强终端弱管道。</strong>管道指进程间通信机制，<strong>通信机制采用最基本的即可</strong>，特殊的能力需求由服务（终端）完成。</li>
+<li><strong>容错性设计</strong>。微服务设计中，<strong>必须有容错性设计</strong>，在必要的时候进行隔离。所以熔断器在实际生产环境中是必不可少的组件，如果没有这种容错性设计，则系统很容易就因为一两个服务的崩溃所带来的雪崩效应淹没。</li>
+<li><strong>演进式设计。</strong>演进式设计<strong>允许服务被升级、淘汰</strong>。如果系统中出现了无法升级、淘汰的服务，这是一种设计上的脆弱表现。</li>
+<li><strong>基础设施自动化。</strong>微服务下运维的对象比起单体架构要有数量级的增长，基础设施自动化减少了构建、发布、运维工作的复杂性。</li>
+</ul>
+<blockquote>
+<p>与 SOA 这种强约束和规定的架构风格不同，微服务是一种<strong>自由</strong>的风格。</p>
+<p>微服务中存在服务发现、进程间调用、负载均衡、事务处理等等问题，但是不会约束具体用什么方式去实现，微服务倡导以<strong>实践标准</strong>代替规范标准。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="后微服务时代（云原生）"><a href="#后微服务时代（云原生）" class="headerlink" title="后微服务时代（云原生）"></a>后微服务时代（云原生）</h2><p>将服务发现、负载均衡等这类<strong>与业务无关的通用技术问题，下放到基础设施中去解决</strong>，就是后微服务时代（云原生）的主要思想。随着 Kubernetes 的兴起，这些问题都可以都可以由基础设施（Kubernetes）去解决，与业务无关的技术可以被剥离出来。</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Kubernetes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>服务发现</td>
+<td>KubeDNS</td>
+</tr>
+<tr>
+<td>配置中心</td>
+<td>ConfigMap / Secret</td>
+</tr>
+<tr>
+<td>服务网关</td>
+<td>Ingress</td>
+</tr>
+<tr>
+<td>负载均衡</td>
+<td>Load Balancer</td>
+</tr>
+<tr>
+<td>服务安全</td>
+<td>RBAC API</td>
+</tr>
+<tr>
+<td>跟踪监控</td>
+<td>Metrics API / Dashboard</td>
+</tr>
+<tr>
+<td>熔断机制</td>
+<td>N/A</td>
+</tr>
+</tbody></table>
+<p>但是，Kubernetes 并没有解决全部的问题，这是一种<strong>粗粒度</strong>的解决方案，只能到<strong>容器（Pod）级别</strong>。比如一个容器中的某一个服务发生了错误，那么 Kubernetes 只能做的就是熔断对这个容器的访问，而这个容器上的其他可用服务也会变得不可用了。</p>
+<p>为了解决这个问题，引入了<strong>服务网格（Service Mesh）</strong>，具体的方法就是 Pod 中不仅仅有服务容器，还会注入一个<strong>通信代理服务器</strong>。在应用毫无感知的情况下，悄然接管应用所有对外通信。这个代理除了<strong>实现正常的服务间通信外（称为数据平面通信），还接收来自控制器的指令（称为控制平面通信）</strong>。根据控制平面中的配置，对数据平面通信的内容进行分析处理，以实现熔断、认证、度量、监控、负载均衡等各种附加功能。这样便实现了既不需要在应用层面加入额外的处理代码，也提供了几乎不亚于程序代码的精细管理能力。</p>
+<h1 id="无服务时代"><a href="#无服务时代" class="headerlink" title="无服务时代"></a>无服务时代</h1><p><strong>无服务（Serverless）= BaaS + FaaS</strong></p>
+<ul>
+<li>BaaS：后端即服务，指 DB、MQ、网关、日志等用于支撑业务逻辑运行，但本身无业务含义的技术组件。</li>
+<li>FaaS：函数即服务，指业务逻辑代码。无服务中的函数运行在云端，不必考虑算力问题，不必考虑容量规划。</li>
+</ul>
+<p>无服务架构让开发者更加专注于业务，不需要考虑技术组件，也不需要考虑算力问题、部署问题。</p>
+<blockquote>
+<p>对于实际的业务，采用函数的方式运行，开发人员只需要编写业务函数，而不用关心这个函数放在哪里运行，有种<strong>即插即用</strong>的感觉。</p>
+<p><strong>无服务并不是一种比微服务更加先进的架构模式</strong>，因为无服务架构是无状态的，<strong>只适用于简单的业务</strong>，对于直播、游戏服务器等复杂的业务上应用无服务架构可能会有点无从下手，并且无服务架构中的函数存在<strong>冷启动</strong>时间。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" rel="tag"># 微服务</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/" rel="prev" title="微服务架构设计模式 (9) 安全性 可配置性 可观测性">
+      <i class="fa fa-chevron-left"></i> 微服务架构设计模式 (9) 安全性 可配置性 可观测性
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/" rel="next" title="Kubernetes学习 (7) 服务 通信">
+      Kubernetes学习 (7) 服务 通信 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8D%95%E4%BD%93%E7%B3%BB%E7%BB%9F"><span class="nav-number">1.</span> <span class="nav-text">单体系统</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#SOA-%E6%97%B6%E4%BB%A3"><span class="nav-number">2.</span> <span class="nav-text">SOA 时代</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%97%B6%E4%BB%A3"><span class="nav-number">3.</span> <span class="nav-text">微服务时代</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%90%8E%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%97%B6%E4%BB%A3%EF%BC%88%E4%BA%91%E5%8E%9F%E7%94%9F%EF%BC%89"><span class="nav-number">3.1.</span> <span class="nav-text">后微服务时代（云原生）</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%97%A0%E6%9C%8D%E5%8A%A1%E6%97%B6%E4%BB%A3"><span class="nav-number">4.</span> <span class="nav-text">无服务时代</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
