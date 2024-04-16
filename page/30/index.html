@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/20/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-27/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/" class="post-title-link" itemprop="url">GO语言杂谈 (5) tail包的使用</a>
+            <a href="/2022/03/20/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-27/" class="post-title-link" itemprop="url">算法刷题笔记 (27) 另一个树的子树 全排列II 圆圈中最后剩下的数字 组合总和II</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-11 10:43:42" itemprop="dateCreated datePublished" datetime="2022-03-11T10:43:42+08:00">2022-03-11</time>
+              <time title="创建时间：2022-03-20 16:45:19" itemprop="dateCreated datePublished" datetime="2022-03-20T16:45:19+08:00">2022-03-20</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
                 </span>
             </span>
 
@@ -212,17 +212,23 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>tail包用于输出文件的最后几行。<strong>假设该档案有更新，tail会自己主动刷新，确保你看到最新的档案内容</strong> ，在日志收集中可以实时的监测日志的变化。</p>
-<h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TailFile</span><span class="params">(filename <span class="keyword">string</span>, config Config)</span> <span class="params">(*Tail, error)</span></span></span><br></pre></td></tr></table></figure>
-
-<p><code>tail2.TailFile()</code>函数的参数是<strong>文件路径</strong>和<strong>配置文件</strong>，会生成一个<code>Tail</code>结构体。在<code>Tail</code>结构体中，最重要的属性是文件名<code>Filename</code>和用于存储文件一行<code>Line</code>的通道<code>Lines</code>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Tail <span class="keyword">struct</span> &#123;</span><br><span class="line">	Filename <span class="keyword">string</span></span><br><span class="line">	Lines    <span class="keyword">chan</span> *Line</span><br><span class="line">	Config</span><br><span class="line"></span><br><span class="line">	file   *os.File</span><br><span class="line">	reader *bufio.Reader</span><br><span class="line"></span><br><span class="line">	watcher watch.FileWatcher</span><br><span class="line">	changes *watch.FileChanges</span><br><span class="line"></span><br><span class="line">	tomb.Tomb <span class="comment">// provides: Done, Kill, Dying</span></span><br><span class="line"></span><br><span class="line">	lk sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其中表示文件中一行的结构体为<code>Line</code>，这个结构体用于存储读取的一行信息：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Line <span class="keyword">struct</span> &#123;</span><br><span class="line">	Text <span class="keyword">string</span></span><br><span class="line">	Time time.Time</span><br><span class="line">	Err  error <span class="comment">// Error from tail</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <h1 id="另一个树的子树"><a href="#另一个树的子树" class="headerlink" title="另一个树的子树"></a>另一个树的子树</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/subtree-of-another-tree">另一个树的子树</a></p>
+<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>在<code>root</code>的每一个节点上，判断以这个节点为根的树是否与<code>subRoot</code>相同。</p>
+<p>判断两个树是否<strong>相等</strong>的三个条件是<strong>与</strong>的关系，即：</p>
+<ol>
+<li>当前两个树的根节点值相等；</li>
+<li>并且，<code>root1</code>的左子树和<code>root2</code>的左子树相等；</li>
+<li>并且，<code>root1</code>的右子树和<code>root2</code>的右子树相等。</li>
+</ol>
+<p>而判断 一棵树是否是另一棵树的<strong>子树</strong>的三个条件是<strong>或</strong>的关系，即：</p>
+<ol>
+<li>当前两棵树相等；</li>
+<li>或者，<code>subRoot</code>在<code>root</code>的左子树中；</li>
+<li>或者，<code>subRoot</code>在<code>root</code>的右子树中。</li>
+</ol>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/#more" rel="contents">
+              <a class="btn" href="/2022/03/20/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-27/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -246,7 +252,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/20/Kafka%E5%AD%A6%E4%B9%A0-5-%E4%BC%98%E5%8C%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -260,7 +266,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/" class="post-title-link" itemprop="url">GO语言杂谈 (4) 操作Kafka</a>
+            <a href="/2022/03/20/Kafka%E5%AD%A6%E4%B9%A0-5-%E4%BC%98%E5%8C%96/" class="post-title-link" itemprop="url">Kafka学习 (5) 优化</a>
         </h2>
 
         <div class="post-meta">
@@ -270,7 +276,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-11 10:22:30" itemprop="dateCreated datePublished" datetime="2022-03-11T10:22:30+08:00">2022-03-11</time>
+              <time title="创建时间：2022-03-20 11:25:00" itemprop="dateCreated datePublished" datetime="2022-03-20T11:25:00+08:00">2022-03-20</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -285,7 +291,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                  <a href="/categories/Kafka%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kafka学习</span></a>
                 </span>
             </span>
 
@@ -300,24 +306,705 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="消息队列通信模型"><a href="#消息队列通信模型" class="headerlink" title="消息队列通信模型"></a>消息队列通信模型</h1><h2 id="队列模式"><a href="#队列模式" class="headerlink" title="队列模式"></a>队列模式</h2><p>消息⽣产者⽣产消息发送到<strong>队列</strong>queue中，然后消息消费者从queue中取出并且消费消息。 ⼀条消息被消费以后，queue中就没有了，不存在重复消费。</p>
-<h2 id="发布-订阅"><a href="#发布-订阅" class="headerlink" title="发布/订阅"></a>发布/订阅</h2><p>消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费</p>
-<hr>
-<p>发布订阅模式下，当发布者消息量很⼤时，显然单个订阅者的处理能⼒是不⾜的。实际上现实场景中是多个订阅者节点组成⼀个订阅组负载均衡消费topic消息即分组订阅，这样订阅者很容易实现消费能⼒线性扩展。可以看成是⼀个topic下有多个queue，每个queue是点对点的⽅式，queue之间是发布订阅⽅式。</p>
-<h1 id="Kafka"><a href="#Kafka" class="headerlink" title="Kafka"></a>Kafka</h1><p>Kafka是一种高吞吐量的分布式发布订阅消息系统。</p>
-<p>同时Kafka<strong>结合队列模型和发布订阅模型</strong>：</p>
-<ul>
-<li>对于同一个消费者组Consumer Group，一个message只有被一个consumer消费</li>
-<li>同一个消息可以被广播到不同的Consumer Group中</li>
+          <h1 id="问题优化"><a href="#问题优化" class="headerlink" title="问题优化"></a>问题优化</h1><h2 id="如何防止消息丢失"><a href="#如何防止消息丢失" class="headerlink" title="如何防止消息丢失"></a>如何防止消息丢失</h2><ul>
+<li><p><strong>生产者：</strong>把ACK设置为<strong>1（等待leader的ACK）</strong>或者<strong>ALL（leader及其follower同步之后返回ACK）</strong></p>
+</li>
+<li><p><strong>消费者：</strong>把自动提交设置为<strong>手动提交</strong>offset</p>
+</li>
 </ul>
-<h2 id="架构介绍"><a href="#架构介绍" class="headerlink" title="架构介绍"></a>架构介绍</h2><p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646902518112.png" alt="Kafka架构"></p>
+<h2 id="如何防止消息重复消费"><a href="#如何防止消息重复消费" class="headerlink" title="如何防止消息重复消费"></a>如何防止消息重复消费</h2><p>在防止消息丢失的⽅案中，如果生产者发送完消息后，因为网络抖动，没有收到ACK，但实际上broker已经收到了。此时生产者会进行重试，于是broker就会收到多条相同的消息，从而造成消费者的<strong>重复消费</strong>。</p>
+<p>或者消费者已经消费了数据，但是offset没来得及提交，会导致重复消费。</p>
+<p>解决方案，消费者保证幂等性：</p>
+<ul>
+<li>在数据库中使用业务id作为<strong>唯一约束</strong></li>
+</ul>
+<h2 id="顺序消费"><a href="#顺序消费" class="headerlink" title="顺序消费"></a>顺序消费</h2><ul>
+<li><strong>生产者：</strong>在发送时将ACK不能设置0，关闭重试，使用同步发送，等到发送成功再发送下⼀条。确保消息是<strong>顺序发送</strong>的。</li>
+<li><strong>消费者：</strong>消息是发送到⼀个分区中，只能有⼀个消费组的消费者来接收消息。</li>
+</ul>
+<p>在Kafka中若要实现顺序消费，会牺牲性能，但是Rocket MQ有专门的功能实现顺序消费。</p>
+<h2 id="解决消息积压问题"><a href="#解决消息积压问题" class="headerlink" title="解决消息积压问题"></a>解决消息积压问题</h2><ul>
+<li>在⼀个消费者中启动<strong>多个线程</strong>，让多个线程同时消费。</li>
+<li>可以创建<strong>多个消费组</strong>，创建<strong>多个消费者</strong>，部署在不同的服务器上。</li>
+<li>创建⼀个消费者，该消费者<strong>另建一个主题</strong>，分配多个分区和多个消费者。消费者收到消息后，<strong>立即发往这个新的topic</strong>，此时，新的主题的多个分区的多个消费者就开始⼀起消费了。</li>
+</ul>
+<h2 id="延迟队列"><a href="#延迟队列" class="headerlink" title="延迟队列"></a>延迟队列</h2><p>订单创建后，超过30分钟没有⽀付，则需要取消订单，这种场景可以通过延时队列来实现。</p>
+<h3 id="具体方案"><a href="#具体方案" class="headerlink" title="具体方案"></a>具体方案</h3><ul>
+<li>Kafka中创建多个主题，每个topic表示延时的间隔，如<code>topic_30m</code>表示延时30分钟的延时队列</li>
+<li>消费者消费该主题的消息</li>
+<li>消费者消费消息时判断消息的<strong>创建时间和当前时间是否超过30分钟</strong>（前提是订单没支付）：<ul>
+<li>若超过了30分钟，去数据库中修改订单状态为已取消</li>
+<li>若没有超过30分钟，<strong>记录当前消息的offset，并不再继续消费之后的消息</strong>。等待X分钟后，再次向kafka拉取该offset及之后的消息，继续进行判断，以此反复。</li>
+</ul>
+</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/19/Kafka%E5%AD%A6%E4%B9%A0-4-Controller%E5%92%8CHW%E6%9C%BA%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/19/Kafka%E5%AD%A6%E4%B9%A0-4-Controller%E5%92%8CHW%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">Kafka学习 (4) Controller和HW机制</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-19 19:52:22" itemprop="dateCreated datePublished" datetime="2022-03-19T19:52:22+08:00">2022-03-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kafka%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kafka学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Controller"><a href="#Controller" class="headerlink" title="Controller"></a>Controller</h1><h2 id="什么是Controller"><a href="#什么是Controller" class="headerlink" title="什么是Controller"></a>什么是Controller</h2><p>在Kafka中，需要有一个管理者，称为Controller，<strong>它在ZooKeeper的帮助下管理和协调整个Kafka集群</strong>。Controller本身也是一台Broker节点，只不过需要负责一些额外的工作（追踪集群中的其他Broker，并在合适的时候处理新加入的和失败的Broker节点、Rebalance分区、分配新的leader分区等）。</p>
+<p><strong>Kafka集群中始终只有一个Controller Broker。</strong></p>
+<h2 id="如何被选举出来"><a href="#如何被选举出来" class="headerlink" title="如何被选举出来"></a>如何被选举出来</h2><p>Broker 在启动时，会尝试去 ZooKeeper 中创建<code>/controller</code>的<strong>临时序号节点</strong>，获得的<strong>序号最小</strong>的那个broker将会作为集群中的controller。</p>
+<h2 id="Controller作用"><a href="#Controller作用" class="headerlink" title="Controller作用"></a>Controller作用</h2><p>Controller的作用：</p>
+<ul>
+<li>当集群中有broker新增或减少，controller会同步信息给其他broker</li>
+<li>当集群中有分区新增或减少，controller会同步信息给其他broker</li>
+</ul>
+<h3 id="处理下线的Broker"><a href="#处理下线的Broker" class="headerlink" title="处理下线的Broker"></a>处理下线的Broker</h3><p>Controller可以依据ZooKeeper的<strong>Watch机制</strong>，来监听Broker的变化。</p>
+<p>每个 Broker 启动后，会在zookeeper的<code>/Brokers/ids</code>下创建<strong>临时znode</strong>。当Broker宕机或主动关闭后，该Broker与ZooKeeper的会话结束，这个znode会自动删除。</p>
+<p>ZooKeeper的Watch机制会将节点的变化情况推送给Controller，这样Controller就知道某个Broker宕机了，可以采取行动决定哪些Broker上的分区成为leader分区（<strong>选择isr列表中最靠前的作为新的leader</strong>）。然后，它会通知每个相关的Broker。</p>
+<h3 id="处理新加入到集群中的Broker"><a href="#处理新加入到集群中的Broker" class="headerlink" title="处理新加入到集群中的Broker"></a>处理新加入到集群中的Broker</h3><p>大部分情况下，Broker的失败很短暂，这意味着Broker通常会在短时间内恢复。所以当节点离开群集时，与其相关联的元数据并不会被立即删除。</p>
+<p>当Controller注意到Broker已加入集群时，它将<strong>使用Broker ID来检查</strong>该Broker上是否存在分区，如果存在，则Controller通知新加入的Broker和现有的Broker，新的Broker上面的follower分区再次开始复制现有leader分区的消息。为了保证负载均衡，Controller会将新加入的Broker上的follower分区选举为leader分区。</p>
+<h2 id="脑裂问题"><a href="#脑裂问题" class="headerlink" title="脑裂问题"></a>脑裂问题</h2><p>如果controller Broker 挂掉了，Kafka集群必须找到可以替代的controller，集群将不能正常运转。这里面存在一个问题，很难确定Broker是挂掉了，还是仅仅只是短暂性的故障。但是，集群为了正常运转，必须选出新的controller。如果之前被取代的controller又正常了，他并不知道自己已经被取代了，那么此时集群中会出现两台controller。</p>
+<p>比如，某个controller由于GC而被认为已经挂掉，并选择了一个新的controller。在GC的情况下，在最初的controller眼中，并没有改变任何东西，该Broker甚至不知道它已经暂停了。因此，它将继续充当当前controller。现在，集群中出现了两个controller，它们可能一起发出具有冲突的命令，就会出现脑裂的现象。</p>
+<h3 id="epoch-number"><a href="#epoch-number" class="headerlink" title="epoch number"></a>epoch number</h3><p>Kafka种，使用使用<strong>epoch number</strong>（纪元编号）来避免脑裂问题。epoch number只是<strong>单调递增的数字</strong>，第一次选出Controller时，epoch number值为1，如果再次选出新的Controller，则epoch number将为2，依次单调递增。</p>
+<p>每个新选出的controller通过Zookeeper获得获得一个全新的、数值更大的epoch number 。其他Broker 在知道当前epoch number 后，如果收到由controller发出的包含较小epoch number的消息，就会<strong>忽略</strong>它们。</p>
+<h1 id="HW机制"><a href="#HW机制" class="headerlink" title="HW机制"></a>HW机制</h1><p>LEO（Log End Offset）是某个副本最后消息的消息位置。</p>
+<p><strong>HW（High Watermark）</strong>高水位，是指<strong>已完成同步的位置</strong>。消费者最多只能消费到HW所在的位置。</p>
+<p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-4-Controller%E5%92%8CHW%E6%9C%BA%E5%88%B6/image-20230704105213113.png" alt="image-20230704105213113"></p>
+<p>另外，每一个leader和follower各⾃负责更新自己的HW的状态。对于leader新写⼊的消息，consumer不能立刻消费，<strong>leader会等待该消息被所有ISR中的副本同步后更新HW</strong>，此时消息才能被consumer消费。这样就保证了如果leader所在的broker失效，该消息仍然可以从新选举的leader中获取。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-26/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-26/" class="post-title-link" itemprop="url">算法刷题笔记 (26) 用Rand7()实现Rand10() 和为K的子数组 课程表 每日温度</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-18 16:43:45" itemprop="dateCreated datePublished" datetime="2022-03-18T16:43:45+08:00">2022-03-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="用-Rand7-实现-Rand10"><a href="#用-Rand7-实现-Rand10" class="headerlink" title="用 Rand7() 实现 Rand10()"></a>用 Rand7() 实现 Rand10()</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/implement-rand10-using-rand7/">用 Rand7() 实现 Rand10()</a></p>
+<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/implement-rand10-using-rand7/solution/cong-zui-ji-chu-de-jiang-qi-ru-he-zuo-dao-jun-yun-/">原理</a></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">已知 rand_N() 可以等概率的生成[1, N]范围的随机数</span><br><span class="line">那么：</span><br><span class="line">(rand_X() - 1) × Y + rand_Y() ==&gt; 可以等概率的生成[1, X * Y]范围的随机数，即实现了rand_XY()</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">rand_N() % Y +1 ==&gt; 只要N是Y的倍数，就可以实现利用rand_N()实现rand_Y()</span><br></pre></td></tr></table></figure>
+
+<p>要实现<code>rand10()</code>，就需要实现<code>rand_N()</code>，并且<strong>保证N大于10且是10的倍数</strong>。这样就可以通过<code>rand_N() % 10 + 1</code>得到[1, 10]范围内的随机数了。</p>
+<p><code>(rand7()-1) × 7 + rand7()  ==&gt; rand49()</code>，但是49不是10的倍数。这里就涉及到了“<strong>拒绝采样</strong>”的知识了，也就是说，如果某个采样结果不在要求的范围内，则丢弃它。</p>
+<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rand10</span><span class="params">()</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        num := (rand7()<span class="number">-1</span>) * <span class="number">7</span> + rand7()    <span class="comment">// rand49()</span></span><br><span class="line">        <span class="keyword">if</span> num &lt;= <span class="number">40</span> &#123;  <span class="comment">// 拒绝采样</span></span><br><span class="line">            <span class="keyword">return</span> num % <span class="number">10</span> + <span class="number">1</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>优化</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">rand10</span><span class="params">()</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        a := rand7()</span><br><span class="line">        b := rand7()</span><br><span class="line">        num := (a<span class="number">-1</span>) * <span class="number">7</span> + b    <span class="comment">// rand49</span></span><br><span class="line">        <span class="keyword">if</span> num &lt;= <span class="number">40</span> &#123;  <span class="comment">// 拒绝采样</span></span><br><span class="line">            <span class="keyword">return</span> num % <span class="number">10</span> + <span class="number">1</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        a = num - <span class="number">40</span>    <span class="comment">// rand9</span></span><br><span class="line">        b = rand7()</span><br><span class="line">        num = (a<span class="number">-1</span>) * <span class="number">7</span> + b      <span class="comment">// rand63</span></span><br><span class="line">        <span class="keyword">if</span> num &lt;= <span class="number">60</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> num % <span class="number">10</span> + <span class="number">1</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        a = num - <span class="number">60</span>    <span class="comment">// rand3</span></span><br><span class="line">        b = rand7()</span><br><span class="line">        num = (a<span class="number">-1</span>) * <span class="number">7</span> + b      <span class="comment">// rand21</span></span><br><span class="line">        <span class="keyword">if</span> num &lt;= <span class="number">20</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> num % <span class="number">10</span> + <span class="number">1</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/18/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-26/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/" class="post-title-link" itemprop="url">Kafka学习 (3) 生产者和消费者</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-18 14:15:24" itemprop="dateCreated datePublished" datetime="2022-03-18T14:15:24+08:00">2022-03-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kafka%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kafka学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="生产者"><a href="#生产者" class="headerlink" title="生产者"></a>生产者</h1><h2 id="选择Partition原则"><a href="#选择Partition原则" class="headerlink" title="选择Partition原则"></a>选择Partition原则</h2><p>在kafka中，一个topic指定了多个partition，生产者选择partition的方式：</p>
+<ol>
+<li>partition在写⼊的时候<strong>可以指定</strong>需要写⼊的partition，如果有指定，则写⼊对应的partition。</li>
+<li>如果没有指定partition，但是设置了数据的key，则会<strong>根据key的值hash</strong>出⼀个partition。</li>
+<li>如果既没指定partition，⼜没有设置key，则会采⽤<strong>轮询⽅式</strong>，即每次取⼀小段时间的数据写⼊某个partition，下⼀⼩段的时间写⼊下⼀个partition。</li>
+</ol>
+<h2 id="同步发送和异步发送"><a href="#同步发送和异步发送" class="headerlink" title="同步发送和异步发送"></a>同步发送和异步发送</h2><h3 id="同步发送"><a href="#同步发送" class="headerlink" title="同步发送"></a>同步发送</h3><p>⽣产者同步发消息，在收到kafka的ACK告知发送成功之前⼀直处于<strong>阻塞</strong>状态。</p>
+<h3 id="异步发送"><a href="#异步发送" class="headerlink" title="异步发送"></a>异步发送</h3><p>⽣产者发消息，发送完后<strong>不用等待</strong>broker给回复，直接执⾏下面的业务逻辑。</p>
+<p><strong>注意：</strong>异步发送可能会丢失消息。</p>
+<h2 id="生产者ACK机制"><a href="#生产者ACK机制" class="headerlink" title="生产者ACK机制"></a>生产者ACK机制</h2><p>同步发送的前提下，生产者向集群发送消息时，关于ACK应答机制有3个配置：</p>
+<ul>
+<li><code>0</code>代表producer往集群发送数据<strong>不需要等待集群的返回</strong>。也就是说，集群不需要任何broker收到消息，就立刻返回ACK给生产者。不确保消息发送成功。安全性最低但是效率最⾼。</li>
+<li><code>1</code>代表producer往集群发送数据<strong>只要leader应答</strong>（Leader将消息写入本地日志中）就可以发送下⼀条，只确保leader发送成功。<strong>默认</strong>选项。</li>
+<li><code>all</code>代表producer往集群发送数据<strong>需要所有的follower都完成从leader的同步才会发送下⼀条</strong>，确保leader发送成功和所有的副本都完成备份。安全性最⾼，但是效率最低。</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-3-%E7%94%9F%E4%BA%A7%E8%80%85%E5%92%8C%E6%B6%88%E8%B4%B9%E8%80%85/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-2-%E9%9B%86%E7%BE%A4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/18/Kafka%E5%AD%A6%E4%B9%A0-2-%E9%9B%86%E7%BE%A4/" class="post-title-link" itemprop="url">Kafka学习 (2) 集群</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-18 13:38:56" itemprop="dateCreated datePublished" datetime="2022-03-18T13:38:56+08:00">2022-03-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kafka%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kafka学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="副本"><a href="#副本" class="headerlink" title="副本"></a>副本</h1><p><strong>副本</strong>是为了为主题中的分区创建多个<strong>备份</strong>，多个副本在kafka集群的多个broker中，会有⼀个副本作为leader，其他是follower。</p>
+<p>下图是拥有2个分区，3个副本的主题：</p>
+<p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-2-%E9%9B%86%E7%BE%A4/1647582723177.png" alt="副本"></p>
+<ul>
+<li><strong>leader：</strong>kafka的<strong>写和读</strong>的操作，都发⽣在leader上。leader负责把数据<strong>同步</strong>给follower。当leader挂了，经过主从选举，从多个follower中选举产⽣⼀个新的leader。</li>
+<li><strong>follower：</strong>接收leader同步的数据，在leader宕机后参与选举。</li>
+<li><strong>isr：</strong>可以同步和已同步的节点会被存入到isr集合中。如果isr中的节点性能较差，会被踢出isr集合（不能参与选举）。</li>
+</ul>
+<h1 id="集群消费"><a href="#集群消费" class="headerlink" title="集群消费"></a>集群消费</h1><p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-2-%E9%9B%86%E7%BE%A4/1647583558789.png" alt="集群消费"></p>
+<p>图中Kafka集群有两个broker，每个broker中有多个partition。</p>
+<ul>
+<li><p>一个partition只能被一个消费组里的某一个消费者消费，从而保证<strong>消费顺序</strong>。</p>
+</li>
+<li><p>Kafka只在partition的范围内保证消息消费的<strong>局部顺序性</strong>，不能在同⼀个topic中的多个partition中保证总的消费顺序性。</p>
+</li>
+<li><p>一个消费者可以消费<strong>多个</strong>partition，但是消费者组中的消费者数量不能比一个topic中的partition数量多，否则多出来的消费者消费不到消息。</p>
+</li>
+<li><p>如果消费者宕机，会触发<strong>rebalance机制</strong>，让其他消费者来消费该分区。</p>
+</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/17/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-25/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/17/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-25/" class="post-title-link" itemprop="url">算法刷题笔记 (25) 对角线遍历 长度最小的子数组 删除二叉搜索树中的节点</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-17 15:57:12" itemprop="dateCreated datePublished" datetime="2022-03-17T15:57:12+08:00">2022-03-17</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="对角线遍历"><a href="#对角线遍历" class="headerlink" title="对角线遍历"></a>对角线遍历</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/diagonal-traverse">对角线遍历</a></p>
+<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>划分为两种遍历形式：朝着<strong>右上方</strong>遍历和朝着<strong>左下方</strong>遍历。</p>
+<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">findDiagonalOrder</span><span class="params">(mat [][]<span class="keyword">int</span>)</span> []<span class="title">int</span></span> &#123;</span><br><span class="line">    m := <span class="built_in">len</span>(mat)</span><br><span class="line">    n := <span class="built_in">len</span>(mat[<span class="number">0</span>])</span><br><span class="line">    res := <span class="built_in">make</span>([]<span class="keyword">int</span>, m*n)     <span class="comment">// 记录遍历序列</span></span><br><span class="line">    count := <span class="number">0</span>  <span class="comment">// 记录已经遍历的元素个数</span></span><br><span class="line">    row, col := <span class="number">0</span>, <span class="number">0</span>    <span class="comment">// 待遍历元素所在行、列</span></span><br><span class="line">    <span class="keyword">for</span> count &lt; m*n &#123;</span><br><span class="line">        <span class="keyword">if</span> row == m<span class="number">-1</span> &amp;&amp; col == n<span class="number">-1</span> &#123;</span><br><span class="line">            <span class="comment">// 遍历到最后一个元素（右下角的元素）</span></span><br><span class="line">            res [count] = mat[row][col]</span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 向斜右上方遍历</span></span><br><span class="line">        <span class="keyword">for</span> row &gt;= <span class="number">0</span> &amp;&amp; col &lt; n &#123;</span><br><span class="line">            res[count] = mat[row][col]</span><br><span class="line">            count++</span><br><span class="line">            row--</span><br><span class="line">            col++</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> col &lt; n &#123;</span><br><span class="line">            <span class="comment">// 在遍历矩阵的左上部分</span></span><br><span class="line">            row++</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 在遍历矩阵的右下部分</span></span><br><span class="line">            row += <span class="number">2</span></span><br><span class="line">            col--</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 向斜左下方遍历</span></span><br><span class="line">        <span class="keyword">for</span> row &lt; m &amp;&amp; col &gt;= <span class="number">0</span> &#123;</span><br><span class="line">            res[count] = mat[row][col]</span><br><span class="line">            count++</span><br><span class="line">            row++</span><br><span class="line">            col--</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> row &lt; m &#123;</span><br><span class="line">            <span class="comment">// 在遍历矩阵的左上部分</span></span><br><span class="line">            col++</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 在遍历矩阵的右下部分</span></span><br><span class="line">            col += <span class="number">2</span></span><br><span class="line">            row--</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="长度最小的子数组"><a href="#长度最小的子数组" class="headerlink" title="长度最小的子数组"></a>长度最小的子数组</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/minimum-size-subarray-sum">长度最小的子数组</a></p>
+<h2 id="解题思路-1"><a href="#解题思路-1" class="headerlink" title="解题思路"></a>解题思路</h2><p>利用<strong>滑动窗口</strong>的思想，<code>start</code>指向窗口的起始位置，<code>end</code>指向窗口的终止位置的后一位，<code>sum</code>为窗口内数字之和：</p>
+<ul>
+<li>如果<code>sum &lt; target</code>，<code>end</code>需要向后移动</li>
+<li>如果<code>sum &gt; target</code>，<code>start</code>需要向前移动</li>
+</ul>
+<h2 id="解题代码-1"><a href="#解题代码-1" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">minSubArrayLen</span><span class="params">(target <span class="keyword">int</span>, nums []<span class="keyword">int</span>)</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    start, end := <span class="number">0</span>, <span class="number">0</span>  <span class="comment">// 滑动窗口的起始位置、终止位置的后一位</span></span><br><span class="line">    minLen := math.MaxInt64     <span class="comment">// 连续子数组的最小长度</span></span><br><span class="line">    sum := <span class="number">0</span></span><br><span class="line">    <span class="keyword">for</span> end &lt; <span class="built_in">len</span>(nums) &#123;</span><br><span class="line">        <span class="comment">// end向后移动</span></span><br><span class="line">        <span class="keyword">for</span> sum &lt; target &amp;&amp; end &lt; <span class="built_in">len</span>(nums) &#123;</span><br><span class="line">            sum += nums[end]</span><br><span class="line">            end++    </span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// start向前移动</span></span><br><span class="line">        <span class="keyword">for</span> sum &gt;= target &#123;</span><br><span class="line">            <span class="keyword">if</span> end-start &lt; minLen &#123;</span><br><span class="line">                minLen = end-start</span><br><span class="line">            &#125;</span><br><span class="line">            sum -= nums[start]</span><br><span class="line">            start++</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> minLen == math.MaxInt64 &#123;</span><br><span class="line">        <span class="comment">// 不存在符合条件的子数组</span></span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 存在</span></span><br><span class="line">        <span class="keyword">return</span> minLen</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="删除二叉搜索树中的节点"><a href="#删除二叉搜索树中的节点" class="headerlink" title="删除二叉搜索树中的节点"></a>删除二叉搜索树中的节点</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/delete-node-in-a-bst/">删除二叉搜索树中的节点</a></p>
+<h2 id="解题思路-2"><a href="#解题思路-2" class="headerlink" title="解题思路"></a>解题思路</h2><ul>
+<li><p>当待删除节点是<strong>叶子节点</strong>时，直接删除</p>
+</li>
+<li><p>待删除节点<strong>只有一个分支</strong>时，用其分支节点代替待删除的节点</p>
+</li>
+<li><p>待删除节点的<strong>左右子树均存在</strong>时：</p>
+<ul>
+<li>找到其<strong>后继</strong>节点，<strong>交换</strong>后继节点和当前待删除节点的值</li>
+<li>删除<strong>右子树</strong>中值为<code>key</code>的节点</li>
+</ul>
+</li>
+</ul>
+<h2 id="解题代码-2"><a href="#解题代码-2" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a binary tree node.</span></span><br><span class="line"><span class="comment"> * type TreeNode struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Left *TreeNode</span></span><br><span class="line"><span class="comment"> *     Right *TreeNode</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">deleteNode</span><span class="params">(root *TreeNode, key <span class="keyword">int</span>)</span> *<span class="title">TreeNode</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> root != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> root.Val == key &#123;</span><br><span class="line">            <span class="comment">// 找到待删除节点</span></span><br><span class="line">            <span class="keyword">if</span> root.Left == <span class="literal">nil</span> &amp;&amp; root.Right == <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="comment">// 叶子节点直接删除</span></span><br><span class="line">                <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> root.Left != <span class="literal">nil</span> &amp;&amp; root.Right == <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="comment">// 只有左子树，用左子树代替</span></span><br><span class="line">                <span class="keyword">return</span> root.Left</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> root.Right != <span class="literal">nil</span> &amp;&amp; root.Left == <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="comment">// 只有右子树，用右子树代替</span></span><br><span class="line">                <span class="keyword">return</span> root.Right</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 左右子树都存在</span></span><br><span class="line">            <span class="comment">// 找到后继节点</span></span><br><span class="line">            next := nextNode(root)</span><br><span class="line">            <span class="comment">// 交换后继节点与当前节点的值</span></span><br><span class="line">            root.Val, next.Val = next.Val, root.Val</span><br><span class="line">            <span class="comment">// 在右子树中删除值为key的节点</span></span><br><span class="line">            root.Right = deleteNode(root.Right, key)</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> root.Val &gt; key &#123;</span><br><span class="line">            <span class="comment">// 进入左子树查找</span></span><br><span class="line">            root.Left =  deleteNode(root.Left, key)</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 进入右子树查找</span></span><br><span class="line">            root.Right = deleteNode(root.Right, key)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> root</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 返回以root为根节点，中序遍历中的后继节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">nextNode</span><span class="params">(root *TreeNode)</span> *<span class="title">TreeNode</span></span> &#123;</span><br><span class="line">    <span class="comment">// 后继节点为root右子树的最左边的节点</span></span><br><span class="line">    next := root.Right</span><br><span class="line">    <span class="keyword">for</span> next.Left != <span class="literal">nil</span> &#123;</span><br><span class="line">        next = next.Left</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/16/ZooKeeper%E5%AD%A6%E4%B9%A0-4-CAP%E5%AE%9A%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/16/ZooKeeper%E5%AD%A6%E4%B9%A0-4-CAP%E5%AE%9A%E7%90%86/" class="post-title-link" itemprop="url">ZooKeeper学习 (4) CAP定理</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-16 16:55:38" itemprop="dateCreated datePublished" datetime="2022-03-16T16:55:38+08:00">2022-03-16</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="CAP理论"><a href="#CAP理论" class="headerlink" title="CAP理论"></a>CAP理论</h1><h2 id="CAP定理"><a href="#CAP定理" class="headerlink" title="CAP定理"></a>CAP定理</h2><p><strong>CAP理论</strong>为：⼀个分布式系统最多只能同时满足⼀致性（Consistency）、可用性（Availability）和分区容错性（Partition tolerance）这三项中的两项。</p>
+<ul>
+<li><strong>一致性（Consistency）：</strong>即更新操作成功并返回客户端后，所有节点在同一时间的数据完全一致。</li>
+<li><strong>可用性（Availability）：</strong>服务⼀直可用，而且是正常响应时间。</li>
+<li><strong>分区容错性（Partition tolerance）：</strong>分布式系统在遇到某节点或网络分区故障的时候，仍然能够对外提供满足一致性或者可用性的服务。</li>
+</ul>
+<h2 id="BASE理论"><a href="#BASE理论" class="headerlink" title="BASE理论"></a>BASE理论</h2><p>BASE理论是对CAP理论的延申，核心思想就是即使无法做到强一致性（CAP的一致性就是强一致性），但可以采取适当的方式达到最终一致性。</p>
+<ul>
+<li>基本可用（Basically Available）：指分布式系统在出现故障的时候，允许损失部分可用性，即保证核心可用。</li>
+<li>软状态（Soft State）：允许系统存在中间状态，而该中间状态不会影响系统整体可⽤性。分布式存储中⼀般⼀份数据至少会有三个副本，允许不同节点间副本同步的延时就是软状态的体现。</li>
+<li>最终一致性（Eventual Consistency）：指系统中的所有数据副本经过⼀定时间后，最终能够达到⼀致的状态。</li>
+</ul>
+<h2 id="ZooKeeper追求的一致性"><a href="#ZooKeeper追求的一致性" class="headerlink" title="ZooKeeper追求的一致性"></a>ZooKeeper追求的一致性</h2><p>ZooKeeper保证的最终一致性又叫做<strong>顺序一致性</strong>，即每个结点的数据都是严格按事务的发起顺序生效的。</p>
+<h3 id="ZooKeeper如何保证事务的顺序"><a href="#ZooKeeper如何保证事务的顺序" class="headerlink" title="ZooKeeper如何保证事务的顺序"></a>ZooKeeper如何保证事务的顺序</h3><p>zookeeper中的事务ID为<strong>ZXID</strong>，ZXID由Leader节点生成，有新写入事件时，Leader生成新ZXID并随提案一起广播，每个结点本地都保存了当前最近一次事务的ZXID，ZXID是递增的，所以谁的ZXID越大，就表示谁的数据是最新的。</p>
+<p>ZXID的生成规则如下：</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-4-CAP%E5%AE%9A%E7%90%86/v2-9e883155dfa23d3fca28051acfe1c71b_r.jpg" alt="ZXID"></p>
+<p>ZXID由两部分组成：</p>
+<ul>
+<li>任期：完成本次选举后，直到下次选举前，由同一Leader负责协调写入</li>
+<li>事务计数器：单调递增，每生效一次写入，计数器加一</li>
+</ul>
+<p>ZXID的低32位是计数器，所以<strong>同一任期内，ZXID是连续的</strong>，每个结点又都保存着自身最新生效的ZXID，通过对比新提案的ZXID与自身最新ZXID是否<strong>相差1</strong>，来保证事务严格按照顺序生效的。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/16/Kafka%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/16/Kafka%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/" class="post-title-link" itemprop="url">Kafka学习 (1) 介绍</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-16 10:51:12" itemprop="dateCreated datePublished" datetime="2022-03-16T10:51:12+08:00">2022-03-16</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kafka%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kafka学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="消息队列"><a href="#消息队列" class="headerlink" title="消息队列"></a>消息队列</h1><h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><ul>
+<li><strong>缓存/消峰：</strong>将消息暂存在消息队列中，以生产消息和消费消息的处理速度不一致的情况。</li>
+<li><strong>解耦：</strong>可以修改或者扩充生产者和消费者，只需要遵守消息格式的一致即可。</li>
+</ul>
+<p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647400774526.png" alt="消息队列解耦"></p>
+<ul>
+<li><strong>异步通信：</strong>允许用户把一个消息放入队列，但并不立即处理它，然后在需要的时候再去处理它们。</li>
+</ul>
+<p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647400847702.png" alt="消息队列异步通信"></p>
+<h2 id="消息队列两种模式"><a href="#消息队列两种模式" class="headerlink" title="消息队列两种模式"></a>消息队列两种模式</h2><h3 id="点对点模式"><a href="#点对点模式" class="headerlink" title="点对点模式"></a>点对点模式</h3><p>类似于<strong>队列</strong>，消费者消费消息后会清除消息。</p>
+<h3 id="发布-订阅模式"><a href="#发布-订阅模式" class="headerlink" title="发布/订阅模式"></a>发布/订阅模式</h3><p>消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费。</p>
+<h1 id="Kafka介绍"><a href="#Kafka介绍" class="headerlink" title="Kafka介绍"></a>Kafka介绍</h1><p>Kafka是一种高吞吐量的分布式发布订阅消息系统。</p>
+<p>同时Kafka<strong>结合点对点模型和发布订阅模型</strong>：</p>
+<ul>
+<li>对于同一个消费者组Consumer Group，一个message只有被一个consumer消费 - 点对点模型</li>
+<li>同一个消息可以被广播到不同的Consumer Group中 - 发布订阅模型</li>
+</ul>
+<h2 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h2><p><img src="/../images/Kafka%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1646902518112.png" alt="Kafka架构"></p>
 <ul>
 <li><strong>Producer：</strong>Producer即⽣产者，消息的产⽣者，是消息的⼊⼝。</li>
 <li><strong>kafka cluster：</strong>kafka集群，⼀台或多台服务器组成<ul>
 <li><strong>Broker：</strong>Broker是指部署了Kafka实例的服务器节点。每个服务器上有⼀个或多个kafka的实例，我们姑且认为每个broker对应⼀台服务器。每个kafka集群内的broker都有⼀个<strong>不重复</strong>的编号。</li>
 <li><strong>Topic：</strong>消息的<strong>主题</strong>，可以理解为<strong>消息的分类</strong>，kafka的数据就保存在topic。在每个broker上都可以创建多个topic。实际应⽤中通常是⼀个业务线建⼀个topic。</li>
 <li><strong>Partition：</strong>Topic的分区，每个topic可以有多个分区，分区的作⽤是做<strong>负载，提⾼kafka的吞吐量</strong>。同⼀个topic在不同的分区的数据是不重复的，partition的表现形式就是⼀个⼀个的⽂件夹。为了提高可靠性，提出分区的<strong>副本</strong>，分为Leader和Follower，生产和消费只针对Leader。</li>
-<li><strong>Replication：</strong>每⼀个分区都有多个副本，副本的作⽤是做<strong>备份</strong>。当主分区（Leader）故障的时候会选择⼀个备胎（Follower）上位，成为Leader。在kafka中默认副本的最⼤数量是10个，且副本的数量不能⼤于Broker的数量，follower和leader绝对是在不同的机器，同⼀机器对同⼀个分区也只可能存放⼀个副本（包括⾃⼰）。</li>
+<li><strong>Replication：</strong>每⼀个分区都有多个副本，副本的作⽤是做<strong>备份</strong>。当主分区（Leader）故障的时候会选择⼀个备胎（Follower）上位，成为Leader。在kafka中默认副本的最⼤数量是10个，且副本的数量不能⼤于Broker的数量，follower和leader绝对是在不同的机器，同⼀机器对同⼀个分区也只可能存放⼀个副本（包括自己）。</li>
 </ul>
 </li>
 <li><strong>Consumer：</strong>消费者，即消息的消费⽅，是消息的出⼝。<ul>
@@ -327,7 +1014,7 @@
 </ul>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/#more" rel="contents">
+              <a class="btn" href="/2022/03/16/Kafka%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -351,7 +1038,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-3-ZAB%E5%8D%8F%E8%AE%AE/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -365,7 +1052,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/" class="post-title-link" itemprop="url">GO语言杂谈 (3) Context标准库</a>
+            <a href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-3-ZAB%E5%8D%8F%E8%AE%AE/" class="post-title-link" itemprop="url">ZooKeeper学习 (3) ZAB协议</a>
         </h2>
 
         <div class="post-meta">
@@ -375,7 +1062,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-10 14:47:24" itemprop="dateCreated datePublished" datetime="2022-03-10T14:47:24+08:00">2022-03-10</time>
+              <time title="创建时间：2022-03-15 16:45:11" itemprop="dateCreated datePublished" datetime="2022-03-15T16:45:11+08:00">2022-03-15</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -390,7 +1077,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
                 </span>
             </span>
 
@@ -405,639 +1092,50 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>context主要用来在<strong>goroutine之间传递上下文信息</strong>。</p>
-<p>Go1.7加入了一个新的标准库<code>context</code>，它定义了<code>Context</code>类型，专门用来简化 对于处理单个请求的多个 goroutine 之间与请求域的数据、取消信号、截止时间等相关操作。</p>
-<p>可以使用<code>WithCancel</code>、<code>WithDeadline</code>、<code>WithTimeout</code>或<code>WithValue</code>创建的派生上下文。当一个上下文被取消时，它派生的所有上下文也被取消。</p>
-<h2 id="为什么需要Context？"><a href="#为什么需要Context？" class="headerlink" title="为什么需要Context？"></a>为什么需要Context？</h2><p>如何解决通知goroutine退出？</p>
-<h3 id="全局变量"><a href="#全局变量" class="headerlink" title="全局变量"></a>全局变量</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// 全局变量的方式</span></span><br><span class="line"><span class="keyword">var</span> exit <span class="keyword">bool</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">		time.Sleep(time.Second)</span><br><span class="line">		<span class="keyword">if</span> exit &#123;	<span class="comment">// 查看全局变量，检测是否退出</span></span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker()</span><br><span class="line">	<span class="comment">// 如何优雅的实现结束子goroutine</span></span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	exit = <span class="literal">true</span>		<span class="comment">// 修改全局变量</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="channel"><a href="#channel" class="headerlink" title="channel"></a>channel</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// channel方式通知goroutine退出</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">(exitChan &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">label:</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-exitChan:</span><br><span class="line">			<span class="keyword">break</span> label</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">			time.Sleep(time.Second)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line"></span><br><span class="line">    exitChan := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;) <span class="comment">// 定义退出管道</span></span><br><span class="line"></span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker(exitChan)</span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	exitChan &lt;- <span class="keyword">struct</span>&#123;&#125;            <span class="comment">// 通知协程退出</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="context-官方方案"><a href="#context-官方方案" class="headerlink" title="context - 官方方案"></a>context - 官方方案</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// context方式通知协程退出</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">label:</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">			<span class="keyword">break</span> label</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">			time.Sleep(time.Second)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line"></span><br><span class="line">	ctx, cancel := context.WithCancel(context.Background())</span><br><span class="line"></span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker(ctx)</span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	cancel()                    <span class="comment">// 调用cancel函数，告诉goroutine退出</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>当goroutine又启动一个goroutine时，只需要将ctx传入即可。通过context库，可以控制子孙协程的退出。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/" class="post-title-link" itemprop="url">算法刷题笔记 (24) 复制带随机指针的链表 基本计算器II 最大数 移掉K位数字</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-09 20:22:31" itemprop="dateCreated datePublished" datetime="2022-03-09T20:22:31+08:00">2022-03-09</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="复制带随机指针的链表"><a href="#复制带随机指针的链表" class="headerlink" title="复制带随机指针的链表"></a>复制带随机指针的链表</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/copy-list-with-random-pointer">复制带随机指针的链表</a></p>
-<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>我们用<strong>哈希表</strong>记录每一个节点对应新节点的创建情况。</p>
-<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a Node.</span></span><br><span class="line"><span class="comment"> * type Node struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Next *Node</span></span><br><span class="line"><span class="comment"> *     Random *Node</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">copyRandomList</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span> &#123;</span><br><span class="line">    cachedNode := <span class="keyword">map</span>[*Node]*Node&#123;&#125;</span><br><span class="line">    <span class="keyword">var</span> deepCopy <span class="function"><span class="keyword">func</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span></span><br><span class="line">    deepCopy = <span class="function"><span class="keyword">func</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span> &#123;</span><br><span class="line">        <span class="keyword">if</span> head == <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> node, ok := cachedNode[head]; ok &#123;</span><br><span class="line">            <span class="comment">// 已经创建了这个节点</span></span><br><span class="line">            <span class="keyword">return</span> node</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 创建新的节点</span></span><br><span class="line">        newNode := &amp;Node&#123; Val: head.Val &#125;</span><br><span class="line">        <span class="comment">// 记录在哈希表中</span></span><br><span class="line">        cachedNode[head] = newNode</span><br><span class="line">        newNode.Next = deepCopy(head.Next)</span><br><span class="line">        newNode.Random = deepCopy(head.Random)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> newNode</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> deepCopy(head)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/09/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-10-GORM/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/09/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-10-GORM/" class="post-title-link" itemprop="url">GO语言杂谈 (10) GORM</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-09 15:52:08" itemprop="dateCreated datePublished" datetime="2022-03-09T15:52:08+08:00">2022-03-09</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="ORM"><a href="#ORM" class="headerlink" title="ORM"></a>ORM</h1><p><strong>ORM（Object Relational Mapping，对象关系映射）</strong>，作用是在关系型数据库和对象之间作一个映射。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">数据表	 &lt;--&gt;  类</span><br><span class="line">数据行	 &lt;--&gt;  类的实例</span><br><span class="line">字段	  &lt;--&gt;  类的字段</span><br></pre></td></tr></table></figure>
-
-<h1 id="GROM入门"><a href="#GROM入门" class="headerlink" title="GROM入门"></a>GROM入门</h1><p>详细内容查看<a target="_blank" rel="noopener" href="https://gorm.io/zh_CN/docs">GORM文档</a></p>
-<h2 id="连接数据库"><a href="#连接数据库" class="headerlink" title="连接数据库"></a>连接数据库</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;gorm.io/driver/mysql&quot;</span></span><br><span class="line">	<span class="string">&quot;gorm.io/gorm&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> UserInfo <span class="keyword">struct</span> &#123;</span><br><span class="line">	ID     <span class="keyword">uint</span></span><br><span class="line">	Name   <span class="keyword">string</span></span><br><span class="line">	Gender <span class="keyword">string</span></span><br><span class="line">	Hobby  <span class="keyword">string</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	dsn := <span class="string">&quot;user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&amp;parseTime=True&amp;loc=Local&quot;</span></span><br><span class="line">	db, err := gorm.Open(mysql.Open(dsn), &amp;gorm.Config&#123;&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 创建表 自动迁移（把结构体与数据表进行对应）</span></span><br><span class="line">	db.AutoMigrate(&amp;UserInfo&#123;&#125;)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 插入数据</span></span><br><span class="line">	u1 := UserInfo&#123;<span class="number">1</span>, <span class="string">&quot;Dawn&quot;</span>, <span class="string">&quot;男&quot;</span>, <span class="string">&quot;Study&quot;</span>&#125;</span><br><span class="line">	db.Create(&amp;u1)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 查询</span></span><br><span class="line">	<span class="keyword">var</span> res UserInfo</span><br><span class="line">	db.First(&amp;res)</span><br><span class="line">	fmt.Println(res)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 更新</span></span><br><span class="line">	db.Model(&amp;res).Update(<span class="string">&quot;hobby&quot;</span>, <span class="string">&quot;Games&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	db.Delete(&amp;res)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/09/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-10-GORM/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/08/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-23/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/08/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-23/" class="post-title-link" itemprop="url">算法刷题笔记 (23) 回文数 搜索二维矩阵 旋转链表</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-08 17:45:15" itemprop="dateCreated datePublished" datetime="2022-03-08T17:45:15+08:00">2022-03-08</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="回文数"><a href="#回文数" class="headerlink" title="回文数"></a>回文数</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/palindrome-number">回文数</a></p>
-<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><ol>
-<li>将数字转化为字符串，再判断是否是回文字符串</li>
-<li><strong>反转一半数字</strong>，如果该数字是回文，其后半部分反转后应该与原始数字的前半部分相同。<ul>
-<li>如何知道反转数字的位数已经达到原始数字位数的一半？<strong>当原始数字小于或等于反转后的数字时</strong>，就意味着我们已经处理了一半位数的数字了。</li>
+          <p>zookeeper集群中的节点共有三种角色：</p>
+<ul>
+<li><strong>Leader：</strong>处理集群中的<strong>所有事务</strong>请求，包括读和写，集群中只有一个Leader</li>
+<li><strong>Follower：</strong>只处理<strong>读</strong>请求，可以参与Leader选举</li>
+<li><strong>Observer：</strong>只处理<strong>读</strong>请求，但是不能参与Leader选举</li>
 </ul>
+<h1 id="ZAB协议"><a href="#ZAB协议" class="headerlink" title="ZAB协议"></a>ZAB协议</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>zookeeper作为⾮常重要的分布式协调组件，需要进行集群部署，集群中通常会以一主多从的方式进行部署。zookeeper为了<strong>保证数据的一致性</strong>，使用<strong>ZAB（zookeeper atomic broadcast）协议</strong>，这一协议解决了zookeeper的崩溃恢复和主从数据同步的问题。</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-3-ZAB%E5%8D%8F%E8%AE%AE/1647334955542.png" alt="zookeeper集群"></p>
+<h2 id="ZAB协议的四种节点状态"><a href="#ZAB协议的四种节点状态" class="headerlink" title="ZAB协议的四种节点状态"></a>ZAB协议的四种节点状态</h2><p>ZAB中协议定义了四种节点状态：</p>
+<ul>
+<li><strong>Looking：</strong>选举状态</li>
+<li><strong>Following：</strong>Follower节点的状态</li>
+<li><strong>Leading：</strong>Leader节点的状态</li>
+<li><strong>Observing：</strong>Observer节点的状态</li>
+</ul>
+<h2 id="Leader选举过程"><a href="#Leader选举过程" class="headerlink" title="Leader选举过程"></a>Leader选举过程</h2><h3 id="集群上线时的Leader选举"><a href="#集群上线时的Leader选举" class="headerlink" title="集群上线时的Leader选举"></a>集群上线时的Leader选举</h3><p>若进行Leader选举，则至少需要两台机器，这里选取3台机器组成的服务器集群为例。在集群初始化阶段，当有一台服务器Server1启动时，其单独无法进行和完成Leader选举，当第二台服务器Server2启动时，此时两台机器可以相互通信，每台机器都试图找到Leader，于是进入Leader选举过程。选举过程如下：</p>
+<ol>
+<li><p><strong>每个Server发出一个投票</strong>。由于是初始情况，Server1和Server2都会将<strong>自己</strong>作为Leader服务器来进行投票，每次投票会包含所推举的服务器的myid和ZXID，使用(myid, ZXID)来表示，其中myid为服务器的唯一标识，ZXID为事务号。此时Server1的投票为(1, 0)，Server2的投票为(2, 0)，然后各自将这个投票发给集群中其他机器。</p>
+</li>
+<li><p> <strong>接受来自各个服务器的投票</strong>。集群的每个服务器收到投票后，首先判断该投票的有效性，如检查是否是本轮投票、是否来自LOOKING状态的服务器。</p>
+</li>
+<li><p><strong>处理投票</strong>。针对每一个投票，服务器都需要将别人的投票和自己的投票进行PK，PK规则如下：</p>
+<ul>
+<li><strong>优先检查ZXID</strong>。ZXID比较大的服务器优先作为Leader。</li>
+<li><strong>如果ZXID相同，那么就比较myid</strong>。myid较大的服务器作为Leader服务器。</li>
+</ul>
+<p>对于对于Server1而言，它的投票是(1, 0)，接收Server2的投票为(2, 0)，首先会比较两者的ZXID，均为0，再比较myid，此时Server2的myid最大，于是更新自己的投票为(2, 0)，然后重新投票，对于Server2而言，其无须更新自己的投票，只是再次向集群中所有机器发出上一次投票信息即可。</p>
+</li>
+<li><p><strong>统计投票</strong>。每次投票后，服务器都会统计投票信息，判断是否已经有过半机器接受到相同的投票信息，对于Server1、Server2而言，都统计出集群中已经有两台机器接受了(2, 0)的投票信息，此时便认为已经选出了Leader。</p>
+</li>
+<li><p><strong>改变服务器状态</strong>。一旦确定了Leader，每个服务器就会更新自己的状态。</p>
 </li>
 </ol>
-<p><img src="/../images/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-23/9_fig1.png" alt="反转一半数字"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/08/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-23/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-4-%E4%B8%AD%E9%97%B4%E4%BB%B6/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-4-%E4%B8%AD%E9%97%B4%E4%BB%B6/" class="post-title-link" itemprop="url">Gin基本使用 (4) 中间件</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-08 16:57:43" itemprop="dateCreated datePublished" datetime="2022-03-08T16:57:43+08:00">2022-03-08</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Gin%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Gin基础</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Gin中间件"><a href="#Gin中间件" class="headerlink" title="Gin中间件"></a>Gin中间件</h1><p>Gin框架允许开发者在处理请求的过程中，加入用户<strong>自己的钩子（Hook）函数</strong>。这个钩子函数就叫<strong>中间件</strong>，中间件<strong>适合处理一些公共的业务逻辑</strong>，比如登录认证、权限校验、数据分页、记录日志、耗时统计等。</p>
-<h2 id="定义中间件"><a href="#定义中间件" class="headerlink" title="定义中间件"></a>定义中间件</h2><p>Gin的中间件必须是一个<code>gin.handlerFunc</code>类型<code>type HandlerFunc func(*Context)</code>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// TimeCost是一个统计请求耗时的中间件</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TimeCost</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">	start := time.Now()</span><br><span class="line">	<span class="comment">// 调用该请求的剩余处理程序（中间件）</span></span><br><span class="line">	c.Next()</span><br><span class="line">	<span class="comment">// 不调用该请求的剩余处理程序</span></span><br><span class="line">	<span class="comment">// c.Abort()</span></span><br><span class="line">	<span class="comment">// 计算耗时</span></span><br><span class="line">	cost := time.Since(start)</span><br><span class="line">	fmt.Printf(<span class="string">&quot;Time cost = %v\n&quot;</span>, cost)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 可以将中间件定义为闭包的形式，HadlerFunc以函数值返回</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">otherMiddleware</span><span class="params">()</span> <span class="title">gin</span>.<span class="title">HadlerFunc</span></span> &#123;</span><br><span class="line">    <span class="comment">// 做一些校验/准备/查询数据库工作</span></span><br><span class="line">    <span class="comment">// ....</span></span><br><span class="line">    <span class="keyword">return</span> <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">        <span class="comment">/*</span></span><br><span class="line"><span class="comment">        一些中间件的处理逻辑</span></span><br><span class="line"><span class="comment">        */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-4-%E4%B8%AD%E9%97%B4%E4%BB%B6/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-3-%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0%E3%80%81%E9%87%8D%E5%AE%9A%E5%90%91%E5%92%8C%E8%B7%AF%E7%94%B1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-3-%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0%E3%80%81%E9%87%8D%E5%AE%9A%E5%90%91%E5%92%8C%E8%B7%AF%E7%94%B1/" class="post-title-link" itemprop="url">Gin基本使用 (3) 文件上传、重定向和路由</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-08 12:58:54" itemprop="dateCreated datePublished" datetime="2022-03-08T12:58:54+08:00">2022-03-08</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Gin%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Gin基础</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="文件上传"><a href="#文件上传" class="headerlink" title="文件上传"></a>文件上传</h1><h2 id="单文件"><a href="#单文件" class="headerlink" title="单文件"></a>单文件</h2><p>使用<code>FormFile</code>方法可以获取到POST请求中上传的文件：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	r := gin.Default()</span><br><span class="line">	r.LoadHTMLFiles(<span class="string">&quot;upload.html&quot;</span>)</span><br><span class="line"></span><br><span class="line">	r.GET(<span class="string">&quot;/upload&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		c.HTML(http.StatusOK, <span class="string">&quot;upload.html&quot;</span>, <span class="literal">nil</span>)</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	r.POST(<span class="string">&quot;/upload&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		<span class="comment">// 从POST请求中读取文件</span></span><br><span class="line">		f, err := c.FormFile(<span class="string">&quot;f1&quot;</span>)</span><br><span class="line">		<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">			c.JSON(http.StatusBadRequest, gin.H&#123;</span><br><span class="line">				<span class="string">&quot;error&quot;</span>: err.Error(),</span><br><span class="line">			&#125;)</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			<span class="comment">// 把文件保存到本地</span></span><br><span class="line">			dst := fmt.Sprintf(<span class="string">&quot;./%s&quot;</span>, f.Filename)</span><br><span class="line">			c.SaveUploadedFile(f, dst)</span><br><span class="line">			c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">				<span class="string">&quot;status&quot;</span>: <span class="string">&quot;OK&quot;</span>,</span><br><span class="line">			&#125;)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	r.Run(<span class="string">&quot;:9090&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="多文件"><a href="#多文件" class="headerlink" title="多文件"></a>多文件</h2><p>请求头参数设置 <code>Content-Type: multipart/form-data</code>，多文件上传请求为：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">curl -X POST http://localhost:8080/upload \</span><br><span class="line">  -F <span class="string">&quot;upload[]=@/Users/appleboy/test1.zip&quot;</span> \</span><br><span class="line">  -F <span class="string">&quot;upload[]=@/Users/appleboy/test2.zip&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: multipart/form-data&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>首先<strong>解析 multipart forms</strong>，然后获取文件列表。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	router := gin.Default()</span><br><span class="line">	<span class="comment">// 为 multipart forms 设置较低的内存限制 (默认是 32 MiB)</span></span><br><span class="line">	router.MaxMultipartMemory = <span class="number">8</span> &lt;&lt; <span class="number">20</span>  <span class="comment">// 8 MiB</span></span><br><span class="line">	router.POST(<span class="string">&quot;/upload&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		<span class="comment">// Multipart form</span></span><br><span class="line">		form, _ := c.MultipartForm()</span><br><span class="line">		files := form.File[<span class="string">&quot;upload[]&quot;</span>]</span><br><span class="line"></span><br><span class="line">		<span class="keyword">for</span> _, file := <span class="keyword">range</span> files &#123;</span><br><span class="line">			log.Println(file.Filename)</span><br><span class="line"></span><br><span class="line">			<span class="comment">// 上传文件至指定目录</span></span><br><span class="line">			c.SaveUploadedFile(file, dst)</span><br><span class="line">		&#125;</span><br><span class="line">		c.String(http.StatusOK, fmt.Sprintf(<span class="string">&quot;%d files uploaded!&quot;</span>, <span class="built_in">len</span>(files)))</span><br><span class="line">	&#125;)</span><br><span class="line">	router.Run(<span class="string">&quot;:8080&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="重定向"><a href="#重定向" class="headerlink" title="重定向"></a>重定向</h1><h2 id="HTTP重定向"><a href="#HTTP重定向" class="headerlink" title="HTTP重定向"></a>HTTP重定向</h2><p>使用<code>Redirect</code>方法即可进行HTTP重定向：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">r.GET(<span class="string">&quot;/index&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">	c.Redirect(http.StatusMovedPermanently, <span class="string">&quot;http://www.baidu.com&quot;</span>)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
-
-<p>通过 POST 方法进行 HTTP 重定向（这里可以使用 StatusMovedPermanently 301 状态码、StatusFound 302 状态码和 StatusSeeOther 303 状态码）。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">r.POST(<span class="string">&quot;/test&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">	c.Redirect(http.StatusFound, <span class="string">&quot;/foo&quot;</span>)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p><strong>303 状态码明确表示客户端应当采用 GET 方法获取资源</strong>，这点与 302 状态码有区别。</p>
-<p>当 301、302、303 响应状态码返回时，几乎所有的浏览器都会把 POST 改成 GET，并删除请求报文内的主体，之后请求会自动再次发送。301、302 标准是禁止将 POST 方法改变成 GET 方法的，但实际使用时大家都会这么做。</p>
-</blockquote>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/08/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-3-%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0%E3%80%81%E9%87%8D%E5%AE%9A%E5%90%91%E5%92%8C%E8%B7%AF%E7%94%B1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/07/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-2-%E6%B8%B2%E6%9F%93%E5%92%8C%E8%8E%B7%E5%8F%96%E5%8F%82%E6%95%B0/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/07/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-2-%E6%B8%B2%E6%9F%93%E5%92%8C%E8%8E%B7%E5%8F%96%E5%8F%82%E6%95%B0/" class="post-title-link" itemprop="url">Gin基本使用 (2) 渲染和获取参数</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-07 18:45:13" itemprop="dateCreated datePublished" datetime="2022-03-07T18:45:13+08:00">2022-03-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Gin%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Gin基础</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Gin渲染"><a href="#Gin渲染" class="headerlink" title="Gin渲染"></a>Gin渲染</h1><h2 id="HTML渲染"><a href="#HTML渲染" class="headerlink" title="HTML渲染"></a>HTML渲染</h2><p>首先编写模板文件<code>index.tmpl</code>：</p>
-<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&lt;!DOCTYPE <span class="meta-keyword">html</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">html</span> <span class="attr">lang</span>=<span class="string">&quot;en&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">head</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">meta</span> <span class="attr">charset</span>=<span class="string">&quot;UTF-8&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">meta</span> <span class="attr">name</span>=<span class="string">&quot;viewport&quot;</span> <span class="attr">content</span>=<span class="string">&quot;width=device-width, initial-scale=1.0&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">meta</span> <span class="attr">http-equiv</span>=<span class="string">&quot;X-UA-Compatible&quot;</span> <span class="attr">content</span>=<span class="string">&quot;ie=edge&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">title</span>&gt;</span>posts/index<span class="tag">&lt;/<span class="name">title</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">head</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">body</span>&gt;</span></span><br><span class="line">    &#123;&#123;.title&#125;&#125;</span><br><span class="line">    <span class="tag">&lt;/<span class="name">body</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">html</span>&gt;</span></span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>Gin中使用<code>LoadHTMLGlob()</code>或者<code>LoadHTMLFiles()</code>进行模板渲染：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/gin-gonic/gin&quot;</span></span><br><span class="line">	<span class="string">&quot;net/http&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	r := gin.Default()</span><br><span class="line">	<span class="comment">// 模板解析</span></span><br><span class="line">	r.LoadHTMLFiles(<span class="string">&quot;templates/index.tmpl&quot;</span>)</span><br><span class="line"></span><br><span class="line">	r.GET(<span class="string">&quot;/index&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		<span class="comment">// 模板渲染</span></span><br><span class="line">		c.HTML(http.StatusOK, <span class="string">&quot;index.tmpl&quot;</span>, gin.H&#123;</span><br><span class="line">			<span class="string">&quot;title&quot;</span>: <span class="string">&quot;Dawn ZH&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="comment">// 运行</span></span><br><span class="line">	r.Run(<span class="string">&quot;:9090&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/07/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-2-%E6%B8%B2%E6%9F%93%E5%92%8C%E8%8E%B7%E5%8F%96%E5%8F%82%E6%95%B0/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/07/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-1-%E6%A6%82%E8%BF%B0/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/07/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-1-%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Gin基本使用 (1) 概述</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-07 17:11:19" itemprop="dateCreated datePublished" datetime="2022-03-07T17:11:19+08:00">2022-03-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Gin%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Gin基础</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>Gin是一个由Go语言编写的高性能Web框架。</p>
-<h2 id="简单案例"><a href="#简单案例" class="headerlink" title="简单案例"></a>简单案例</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/gin-gonic/gin&quot;</span></span><br><span class="line">	<span class="string">&quot;net/http&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sayHello</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">	c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">		<span class="string">&quot;message&quot;</span>: <span class="string">&quot;Hello world!&quot;</span>,</span><br><span class="line">	&#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 创建一个默认的路由引擎</span></span><br><span class="line">	r := gin.Default()</span><br><span class="line">	<span class="comment">// GET：请求方式；/hello：请求的路径</span></span><br><span class="line">	<span class="comment">// 当客户端以GET方法请求/hello路径时，会执行sayHello</span></span><br><span class="line">	r.GET(<span class="string">&quot;/hello&quot;</span>, sayHello)</span><br><span class="line">	<span class="comment">// 启动HTTP服务，默认在0.0.0.0:8080启动服务</span></span><br><span class="line">	r.Run()</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<h2 id="RESTful"><a href="#RESTful" class="headerlink" title="RESTful"></a>RESTful</h2><p>REST，即Representational State Transfer，表现层状态转化。RESTful架构：</p>
-<ul>
-<li>每一个URL代表一种资源</li>
-<li>客户端与服务器之间，传递这种资源的某种表现层（把资源具体呈现出来的形式，叫做它的表现层）</li>
-<li>客户端通过四个HTTP动词，对服务器端资源进行操作，实现表现层状态转化：<ul>
-<li>GET用于获取资源</li>
-<li>POST用于新建资源</li>
-<li>PUT用于更新资源</li>
-<li>DELETE用于删除资源</li>
-</ul>
-</li>
-</ul>
-<p>Gin框架支持开发RESTful API的开发：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="comment">// 创建一个默认的路由引擎</span></span><br><span class="line">	r := gin.Default()</span><br><span class="line">    	<span class="comment">// RESTFul风格</span></span><br><span class="line">	r.GET(<span class="string">&quot;/book&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">			<span class="string">&quot;method&quot;</span>: <span class="string">&quot;GET&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line">	r.POST(<span class="string">&quot;/book&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">			<span class="string">&quot;method&quot;</span>: <span class="string">&quot;POST&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line">	r.PUT(<span class="string">&quot;/book&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">			<span class="string">&quot;method&quot;</span>: <span class="string">&quot;PUT&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line">	r.DELETE(<span class="string">&quot;/book&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *gin.Context)</span></span> &#123;</span><br><span class="line">		c.JSON(http.StatusOK, gin.H&#123;</span><br><span class="line">			<span class="string">&quot;method&quot;</span>: <span class="string">&quot;DELETE&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="comment">// 启动HTTP服务，默认在0.0.0.0:8080启动服务</span></span><br><span class="line">	r.Run()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
+<h3 id="崩溃恢复时的Leader选举"><a href="#崩溃恢复时的Leader选举" class="headerlink" title="崩溃恢复时的Leader选举"></a>崩溃恢复时的Leader选举</h3><p>Leader建立完成后，Leader会周期性的不断向Follower发送心跳。当Leader崩溃后，Follower会进入Looking状态，重新进行Leader选举，此时集群不能对外服务。</p>
+<h2 id="主从服务器之间的数据同步"><a href="#主从服务器之间的数据同步" class="headerlink" title="主从服务器之间的数据同步"></a>主从服务器之间的数据同步</h2><ol>
+<li>客户端向Leader节点写数据</li>
+<li>Leader节点把数据写到自己的数据文件中，并给自己返回一个ACK</li>
+<li>Leader把数据发送给Follower</li>
+<li>Follower将数据写到本地数据文件中</li>
+<li>Follower返回ACK给Leader节点</li>
+<li>Leader收到半数以上的ACK后，向Follower发送Commit</li>
+<li>从节点收到Commit后把数据文件中的数据写到内存中</li>
+</ol>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-3-ZAB%E5%8D%8F%E8%AE%AE/1647336356477.png" alt="zookeeper数据同步"></p>
 
       
     </div>
@@ -1056,7 +1154,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/29/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/29/">29</a><span class="page-number current">30</span><a class="page-number" href="/page/31/">31</a><span class="space">&hellip;</span><a class="page-number" href="/page/37/">37</a><a class="extend next" rel="next" href="/page/31/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/29/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/29/">29</a><span class="page-number current">30</span><a class="page-number" href="/page/31/">31</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/31/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1122,20 +1220,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-count">388</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">50</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-count">48</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

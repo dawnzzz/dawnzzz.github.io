@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="AQSAQS（AbstractQueuedSynchronizer，抽象队列同步器），这个类在 java.util.concurrent.locks 包下面。AQS 就是一个抽象类，主要用来构建锁和同步器，如 ReentrantLock、Semaphore 等，都是基于 AQS 的。  核心思想AQS 使用 int 变量 state 表示同步状态，并通过 CLH 队列来完成阻塞线程的等待。如果当前">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java面试之并发编程 (3) AQS和其实现的常用同步器">
+<meta property="og:url" content="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="AQSAQS（AbstractQueuedSynchronizer，抽象队列同步器），这个类在 java.util.concurrent.locks 包下面。AQS 就是一个抽象类，主要用来构建锁和同步器，如 ReentrantLock、Semaphore 等，都是基于 AQS 的。  核心思想AQS 使用 int 变量 state 表示同步状态，并通过 CLH 队列来完成阻塞线程的等待。如果当前">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/AQS.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/clh-queue-state.png">
+<meta property="article:published_time" content="2024-04-08T11:27:04.000Z">
+<meta property="article:modified_time" content="2024-04-08T13:19:07.428Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Java">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/AQS.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Java面试之并发编程 (3) AQS和其实现的常用同步器 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Java面试之并发编程 (3) AQS和其实现的常用同步器
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-08 19:27:04 / 修改时间：21:19:07" itemprop="dateCreated datePublished" datetime="2024-04-08T19:27:04+08:00">2024-04-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="AQS"><a href="#AQS" class="headerlink" title="AQS"></a>AQS</h1><p>AQS（AbstractQueuedSynchronizer，抽象队列同步器），这个类在 <code>java.util.concurrent.locks</code> 包下面。AQS 就是一个抽象类，主要用来构建锁和同步器，如 ReentrantLock、Semaphore 等，都是基于 AQS 的。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/AQS.png" alt="img"></p>
+<h2 id="核心思想"><a href="#核心思想" class="headerlink" title="核心思想"></a>核心思想</h2><p><strong>AQS 使用 int 变量 state 表示同步状态，并通过 CLH 队列来完成阻塞线程的等待</strong>。如果当前状态空闲，则将当前请求资源的线程设置为有效的工作线程；否则使用 CLH 锁，将当前线程阻塞，当资源资源再次空闲时，通过内置的 FIFO 来完成线程排队获取资源的工作。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 共享变量，使用volatile修饰保证线程可见性</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">int</span> state;</span><br></pre></td></tr></table></figure>
+
+<p><strong>CLH 锁</strong>是对自旋锁的一种改进，是一个虚拟的双向队列（虚拟的双向队列即不存在队列实例，仅存在结点之间的关联关系），<strong>暂时获取不到锁的线程将被加入到该队列中</strong>。AQS 将每条请求共享资源的线程封装成一个 CLH 队列锁的一个结点（Node）来实现锁的分配。在 CLH 队列锁中，一个节点表示一个线程，它保存着线程的引用（thread）、 当前节点在队列中的状态（waitStatus）、前驱节点（prev）、后继节点（next）。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/clh-queue-state.png" alt="CLH 队列"></p>
+<p>状态信息 <code>state</code> 可以通过 <code>protected</code> 类型的<code>getState()</code>、<code>setState()</code>和<code>compareAndSetState()</code> 进行操作。并且，这几个方法都是 <code>final</code> 修饰的，在子类中无法被重写。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//返回同步状态的当前值</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="keyword">int</span> <span class="title">getState</span><span class="params">()</span> </span>&#123;</span><br><span class="line">     <span class="keyword">return</span> state;</span><br><span class="line">&#125;</span><br><span class="line"> <span class="comment">// 设置同步状态的值</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">setState</span><span class="params">(<span class="keyword">int</span> newState)</span> </span>&#123;</span><br><span class="line">     state = newState;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//原子地（CAS操作）将同步状态值设置为给定值update如果当前同步状态的值等于expect（期望值）</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="keyword">boolean</span> <span class="title">compareAndSetState</span><span class="params">(<span class="keyword">int</span> expect, <span class="keyword">int</span> update)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">return</span> unsafe.compareAndSwapInt(<span class="keyword">this</span>, stateOffset, expect, update);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h1 id="常用同步器"><a href="#常用同步器" class="headerlink" title="常用同步器"></a>常用同步器</h1><h2 id="ReentrantLock-可重入锁"><a href="#ReentrantLock-可重入锁" class="headerlink" title="ReentrantLock 可重入锁"></a>ReentrantLock 可重入锁</h2><p>可重入的互斥锁 <code>ReentrantLock</code>，用 AQS 中的 <code>state</code> 变量，用来表示锁的占用状态。<code>state</code> 的初始值为 0，表示锁处于未锁定状态。</p>
+<blockquote>
+<p>ReentrantLock 和 synchronized 的异同：</p>
+<p><strong>相同点：</strong>二者都是可重入锁。</p>
+<p><strong>不同点：</strong></p>
+<ul>
+<li>synchronized 依赖于 JVM 是虚拟机层面的，而 ReentrantLock 依赖于 API 是 JDK 层面的。</li>
+<li>ReentrantLock 提供了一些高级功能：<ul>
+<li><strong>等待可中断</strong> ：ReentrantLock 提供了 lockInterruptibly 方法来实现中段等待锁。也就是说<strong>正在等待的线程可以选择放弃等待</strong>，改为处理其他事情。</li>
+<li><strong>可实现公平锁：</strong>Reentrant 可以指定公平锁还是非公平锁，而 synchronized 是能是 非公平锁。</li>
+<li><strong>可实现选择性通知：</strong>synchronized 与  wait 和 notify/notifyAll 结合可以实现等待/通知机制，而 ReentrantLock 借助 Condition 接口也可以实现，并且是选择性的通知（Condition 的 signalAll 方法，只会唤醒注册在该 Condition 实例中的所有等待线程，实现选择性）。</li>
+</ul>
+</li>
+</ul>
+</blockquote>
+<h3 id="加锁-解锁"><a href="#加锁-解锁" class="headerlink" title="加锁 解锁"></a>加锁 解锁</h3><p>当线程 A 调用 <code>lock()</code> 方法时，会尝试通过 <code>tryAcquire()</code> 方法独占该锁，并让 <code>state</code> 的值加 1。如果成功了，那么线程 A 就获取到了锁。</p>
+<p>如果失败了，那么线程 A 就会被加入到一个等待队列（CLH 队列）中，直到其他线程释放该锁。</p>
+<h3 id="可重入性"><a href="#可重入性" class="headerlink" title="可重入性"></a>可重入性</h3><p>假设线程 A 获取锁成功了，释放锁之前，A 线程自己是可以重复获取此锁的（<strong>state 会累加</strong>）。这就是<strong>可重入性</strong>的体现：一个线程可以多次获取同一个锁而不会被阻塞。</p>
+<h2 id="Semaphore-信号量"><a href="#Semaphore-信号量" class="headerlink" title="Semaphore 信号量"></a>Semaphore 信号量</h2><p>Semaphore 定义多个资源，因此控制访问资源的线程数量，使用 <code>acquire()</code> 方法获取一个资源，<code>release() </code>当资源数量为 1 时退化为排他锁。Semaphore 有两种模式：</p>
+<ul>
+<li>公平模式：调用 <code>acquire()</code> 方法的顺序就是获取资源的顺序，遵循 FIFO；</li>
+<li>非公平模式：抢占式的，默认创建的是非公平的。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">Semaphore</span><span class="params">(<span class="keyword">int</span> permits)</span> </span>&#123;</span><br><span class="line">    sync = <span class="keyword">new</span> NonfairSync(permits);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">Semaphore</span><span class="params">(<span class="keyword">int</span> permits, <span class="keyword">boolean</span> fair)</span> </span>&#123;</span><br><span class="line">    sync = fair ? <span class="keyword">new</span> FairSync(permits) : <span class="keyword">new</span> NonfairSync(permits);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，<strong>semaphore 基于 Sync 类同步器 sync 实现</strong>。Sync 继承了 AbstractQueuedSynchronizer 并重写了其中的某些方法。并且，Sync 对应的还有两个子类 NonfairSync（对应非公平模式） 和 FairSync（对应公平模式）。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">Sync</span> <span class="keyword">extends</span> <span class="title">AbstractQueuedSynchronizer</span> </span>&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">static</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">NonfairSync</span> <span class="keyword">extends</span> <span class="title">Sync</span> </span>&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">static</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">FairSync</span> <span class="keyword">extends</span> <span class="title">Sync</span> </span>&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="acquire-获取"><a href="#acquire-获取" class="headerlink" title="acquire 获取"></a>acquire 获取</h3><p>调用<code>semaphore.acquire()</code> ，线程尝试获取许可证，如果 <code>state &gt; 0</code> 的话，则表示可以获取成功，如果 <code>state &lt;= 0</code> 的话，则表示许可证数量不足，获取失败。</p>
+<p>如果可以获取成功的话(<code>state &gt; 0</code> )，会尝试使用 CAS 操作去修改 <code>state</code> 的值 <code>state=state-1</code>。如果获取失败则会创建一个 Node 节点加入等待队列，挂起当前线程。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取1个许可证</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">acquire</span><span class="params">()</span> <span class="keyword">throws</span> InterruptedException </span>&#123;</span><br><span class="line">    sync.acquireSharedInterruptibly(<span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 获取一个或者多个许可证</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">acquire</span><span class="params">(<span class="keyword">int</span> permits)</span> <span class="keyword">throws</span> InterruptedException </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (permits &lt; <span class="number">0</span>) <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException();</span><br><span class="line">    sync.acquireSharedInterruptibly(permits);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>acquireSharedInterruptibly 方法是 AbstractQueuedSynchronizer 中的默认实现，如下所示。其中，tryAcquireShared 方法是 Sync 重写的方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 共享模式下获取许可证，获取成功则返回，失败则加入等待队列，挂起线程</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">acquireSharedInterruptibly</span><span class="params">(<span class="keyword">int</span> arg)</span></span></span><br><span class="line"><span class="function">    <span class="keyword">throws</span> InterruptedException </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (Thread.interrupted())</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> InterruptedException();</span><br><span class="line">        <span class="comment">// 尝试获取许可证，arg为获取许可证个数，当获取失败时,则创建一个节点加入等待队列，挂起当前线程。</span></span><br><span class="line">    <span class="keyword">if</span> (tryAcquireShared(arg) &lt; <span class="number">0</span>)</span><br><span class="line">      doAcquireSharedInterruptibly(arg);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="release-释放"><a href="#release-释放" class="headerlink" title="release 释放"></a>release 释放</h3><p>调用<code>semaphore.release();</code> ，线程尝试释放许可证，并使用 CAS 操作去修改 <code>state</code> 的值 <code>state=state+1</code>。释放许可证成功之后，同时会唤醒等待队列中的一个线程。被唤醒的线程会重新尝试去修改 <code>state</code> 的值 <code>state=state-1</code> ，如果 <code>state &gt; 0</code> 则获取令牌成功，否则重新进入等待队列，挂起线程。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 释放一个许可证</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">release</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    sync.releaseShared(<span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 释放一个或者多个许可证</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">release</span><span class="params">(<span class="keyword">int</span> permits)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (permits &lt; <span class="number">0</span>) <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException();</span><br><span class="line">    sync.releaseShared(permits);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>releaseShared 方法是 AbstractQueuedSynchronizer 中的默认实现，如下所示。其中，tryReleaseShared 方法是 Sync 重写的方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 释放共享锁</span></span><br><span class="line"><span class="comment">// 如果 tryReleaseShared 返回 true，就唤醒等待队列中的一个或多个线程。</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">boolean</span> <span class="title">releaseShared</span><span class="params">(<span class="keyword">int</span> arg)</span> </span>&#123;</span><br><span class="line">    <span class="comment">//释放共享锁</span></span><br><span class="line">    <span class="keyword">if</span> (tryReleaseShared(arg)) &#123;</span><br><span class="line">      <span class="comment">//释放当前节点的后置等待节点</span></span><br><span class="line">      doReleaseShared();</span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="CountDownLatch-倒计时器"><a href="#CountDownLatch-倒计时器" class="headerlink" title="CountDownLatch 倒计时器"></a>CountDownLatch 倒计时器</h2><p>CountDownLatch 类似于 Golang 中的 WaitGroup，<strong>允许 n 个线程阻塞在一个地方</strong>，直至所有线程的任务都执行完毕。CountDown 中<strong>计数器的值只能在构造方法中初始化一次</strong>，之后没有任何机制再次对其设置值，当 CountDownLatch 使用完毕后，不能再次使用。</p>
+<p>当线程调用 countDown 方法时，将 state 减一。当 state 为 0 时，表示所有的线程都调用了 countDown 方法，在 CountDownLatch 上等待的线程就会被唤醒。</p>
+<p>当线程调用 await 方法时，如果 state 不为 0，那就证明任务还没有执行完毕，当前线程会被加入到 CLI 队列中阻塞。</p>
+<h2 id="CyclicBarrier-循环栅栏"><a href="#CyclicBarrier-循环栅栏" class="headerlink" title="CyclicBarrier 循环栅栏"></a>CyclicBarrier 循环栅栏</h2><p>CyclicBarrier 和 CountDownLatch 类似，但是功能更加强大。</p>
+<blockquote>
+<p>CountDownLatch 基于 AQS 实现的，而 CyclicBarrier 是基于 ReentrantLock（ReentrantLock 也是基于 AQS 的）和 Condition 的。</p>
+</blockquote>
+<p>CyclicBarrier 定义了 parties 和 count，count 作为计数器被初始化为 parties，当一个线程到了栅栏这里了，那么就将计数器减一，如果 count 为零了，表示这是这一代最后一个线程到达栅栏，就尝试执行我们构造方法中输入的任务，并且再次将 count 设置为 parties 进行拦截。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//每次拦截的线程数</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">int</span> parties;</span><br><span class="line"><span class="comment">//计数器</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">int</span> count;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">CyclicBarrier</span><span class="params">(<span class="keyword">int</span> parties)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>(parties, <span class="keyword">null</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">CyclicBarrier</span><span class="params">(<span class="keyword">int</span> parties, Runnable barrierAction)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (parties &lt;= <span class="number">0</span>) <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException();</span><br><span class="line">    <span class="keyword">this</span>.parties = parties;</span><br><span class="line">    <span class="keyword">this</span>.count = parties;</span><br><span class="line">    <span class="keyword">this</span>.barrierCommand = barrierAction;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Java/" rel="tag"># Java</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-2-volatile%E5%92%8Csynchronized%E5%85%B3%E9%94%AE%E5%AD%97/" rel="prev" title="Java面试之并发编程 (2) volatile和synchronized关键字">
+      <i class="fa fa-chevron-left"></i> Java面试之并发编程 (2) volatile和synchronized关键字
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-4-ThreadLocal/" rel="next" title="Java面试之并发编程 (4) ThreadLocal">
+      Java面试之并发编程 (4) ThreadLocal <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#AQS"><span class="nav-number">1.</span> <span class="nav-text">AQS</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="nav-number">1.1.</span> <span class="nav-text">核心思想</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8"><span class="nav-number">2.</span> <span class="nav-text">常用同步器</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#ReentrantLock-%E5%8F%AF%E9%87%8D%E5%85%A5%E9%94%81"><span class="nav-number">2.1.</span> <span class="nav-text">ReentrantLock 可重入锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%A0%E9%94%81-%E8%A7%A3%E9%94%81"><span class="nav-number">2.1.1.</span> <span class="nav-text">加锁 解锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%AF%E9%87%8D%E5%85%A5%E6%80%A7"><span class="nav-number">2.1.2.</span> <span class="nav-text">可重入性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Semaphore-%E4%BF%A1%E5%8F%B7%E9%87%8F"><span class="nav-number">2.2.</span> <span class="nav-text">Semaphore 信号量</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#acquire-%E8%8E%B7%E5%8F%96"><span class="nav-number">2.2.1.</span> <span class="nav-text">acquire 获取</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#release-%E9%87%8A%E6%94%BE"><span class="nav-number">2.2.2.</span> <span class="nav-text">release 释放</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CountDownLatch-%E5%80%92%E8%AE%A1%E6%97%B6%E5%99%A8"><span class="nav-number">2.3.</span> <span class="nav-text">CountDownLatch 倒计时器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CyclicBarrier-%E5%BE%AA%E7%8E%AF%E6%A0%85%E6%A0%8F"><span class="nav-number">2.4.</span> <span class="nav-text">CyclicBarrier 循环栅栏</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

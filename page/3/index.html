@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">LMQ实现 (2) 整体设计</a>
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/" class="post-title-link" itemprop="url">Pulsar消息队列(4)延迟消息投递</a>
         </h2>
 
         <div class="post-meta">
@@ -182,14 +182,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-12-18 19:47:20" itemprop="dateCreated datePublished" datetime="2023-12-18T19:47:20+08:00">2023-12-18</time>
+              <time title="创建时间：2024-02-22 20:19:25" itemprop="dateCreated datePublished" datetime="2024-02-22T20:19:25+08:00">2024-02-22</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-19 10:59:19" itemprop="dateModified" datetime="2023-12-19T10:59:19+08:00">2023-12-19</time>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
                 </span>
             </span>
 
@@ -212,244 +212,20 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<p>LMQ 与 NSQ 的整体设计类似。</p>
-<h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><h2 id="特性"><a href="#特性" class="headerlink" title="特性"></a>特性</h2><p>LMQ 是分布式的消息队列，特性为：</p>
-<ul>
-<li>支持<strong>无单点故障</strong>的分布式拓扑。</li>
-<li>无缝的支持<strong>水平扩展</strong>，无缝的添加更多节点到集群。</li>
-<li>主要是在<strong>内存</strong>中传递消息，直接<strong>使用 TCP 协议</strong>而不是 HTTP 协议，所以<strong>性能</strong>可以保障。</li>
-<li><strong>客户端发现</strong>的方式，通过查询 LmqLookup 找到生产者。</li>
-</ul>
-<h2 id="消息保证"><a href="#消息保证" class="headerlink" title="消息保证"></a>消息保证</h2><h3 id="消息不持久化机制"><a href="#消息不持久化机制" class="headerlink" title="消息不持久化机制"></a>消息不持久化机制</h3><p>LMQ 支持<strong>内存队列</strong>和<strong>磁盘队列</strong>，超过内存队列长度的消息会被存放在磁盘队列中。在内存队列中的消息可能因为宕机而丢失，存储在磁盘中的消息不会丢失。</p>
-<p>可以通过<strong>设置内存队列长度为 0</strong>，所有的消息将会存储到磁盘，这样<strong>消息不会丢失</strong>。</p>
-<p>在正常推出的情况下，内存中的消息会被推送至磁盘队列中，在磁盘中保存持久化，元数据信息以 json 的格式进行持久化。</p>
-<h3 id="消息最少被投递一次"><a href="#消息最少被投递一次" class="headerlink" title="消息最少被投递一次"></a>消息最少被投递一次</h3><p>由于客户端超时导致的消息重新排队等原因，<strong>消息会被重复投递</strong>，消息<strong>通过 ID 区分</strong>，由客户端负责操作。</p>
-<h3 id="消息是无序的"><a href="#消息是无序的" class="headerlink" title="消息是无序的"></a>消息是无序的</h3><p>LMQ 不保证消息的投递顺序和生产顺序是一致的。因为 LMQ 由<strong>内存队列、磁盘队列、重排队列混合组成</strong>，所以消息是<strong>无序</strong>的。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/" class="post-title-link" itemprop="url">LMQ实现 (1) TCP服务器</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-18 13:18:09" itemprop="dateCreated datePublished" datetime="2023-12-18T13:18:09+08:00">2023-12-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-19 10:57:25" itemprop="dateModified" datetime="2023-12-19T10:57:25+08:00">2023-12-19</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<p>LMQ 是一个仿照 <a target="_blank" rel="noopener" href="https://github.com/nsqio/nsq">NSQ</a> 的基于 TCP 协议的分布式消息队列，本系列说明 LMQ 的实现方式。</p>
-<p>在本节说明 TCP 服务器的实现，TCP 服务器的实现地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/hamble-tcp-server">Hamble TCP Server</a></p>
-<h1 id="TCP-服务器架构"><a href="#TCP-服务器架构" class="headerlink" title="TCP 服务器架构"></a>TCP 服务器架构</h1><p>TCP 服务器的架构如下，总体上<strong>采用 1+M+N 的服务器编程模型</strong>：</p>
-<ul>
-<li>一个协程（Server goroutine）用于建立连接（Accept）。</li>
-<li>M 个协程用于读写取连接请求信息。</li>
-<li>N 个协程用于处理请求内容，并生成响应信息。</li>
-</ul>
-<p><img src="/../images/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/image-20231218132654361.png" alt="image-20231218132654361"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-13-%E6%80%BB%E7%BB%93/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-13-%E6%80%BB%E7%BB%93/" class="post-title-link" itemprop="url">Simple-Redis实现 (13) 总结</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 16:16:22" itemprop="dateCreated datePublished" datetime="2023-12-12T16:16:22+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><h2 id="功能实现"><a href="#功能实现" class="headerlink" title="功能实现"></a>功能实现</h2><p>Simple-Redis 是一个 golang 编写的实现了 RESP（REdis Serialization Protocol）协议的简易 Redis，实现的功能包括：</p>
-<ul>
-<li>五大基本数据类型（string、set、hash、list、zset）及其操作。</li>
-<li>通信协议为 RESP 协议，与 Redis-cli 兼容。</li>
-<li>增加并发性，可以并发执行命令。</li>
-<li>AOF 持久化功能，包括 AOF 持久化和 AOF 重写。</li>
-<li>分片集群功能，以一致性哈希实现。</li>
-<li>发布订阅功能，更支持集群下的发布订阅模式。</li>
-<li>支持原子事务，在执行错误时进行回滚。</li>
-<li>支持分布式事务，支持在多集群下的 TCC 分布式事务。</li>
-</ul>
-<h2 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h2><p>相比于 Redis，Simple-Redis 的优势在于：</p>
-<ul>
-<li>与 Redis 在执行命令时单线程不同，Simple-Redis 为每一个客户端<strong>并发的执行命令</strong>。</li>
-<li><strong>pipeline 模式客户端</strong>，无需等待响应即可发送下一条命令。</li>
-<li>TTL 过期使用<strong>时间轮</strong>算法实现，时间轮算法保证了不会扫描全部的 key（节省 CPU），又能够及时的删除过期数据（节省 内存）</li>
-<li>集群采用<strong>一致性哈希</strong>实现，使 key 更加均匀的分布。</li>
-<li>集群间的通信采用<strong>连接池</strong>的方式，优势在于：<ul>
-<li>复用连接（复用空闲连接）。</li>
-<li>增加并发性能（节点之间有多个连接）。</li>
-<li>控制节点之间的连接数，不会因为节点之间的通信而影响客户端与节点之间的通信（有最大空闲连接数和最大活跃连接数的限制）。</li>
-</ul>
-</li>
-<li>支持<strong>集群下的发布订阅模式</strong>，为了支持这一功能，定义了 publish 和 publishsingle 命令。<ul>
-<li><strong>publish 命令：</strong>客户端向集群中的一个节点发送 publish 命令，节点会<strong>向所有的 peers 转发这条发布消息</strong>。</li>
-<li><strong>publishsingle 命令：</strong>节点向所有 peers 转发发布的消息时，使用的是 publishsingle 命令，表明<strong>节点在收到消息后不用继续转发了</strong>（避免了节点转发再转发，造成的无限消息洪泛）。</li>
-</ul>
-</li>
-<li>支持<strong>原子事务</strong>，在执行错误时进行回滚。</li>
-<li>支持<strong>分布式事务</strong>，支持在多集群下的 TCC 分布式事务。以当前节点为<strong>事务协调者</strong>，控制分布在其他节点的<strong>本地事务</strong>。一次分布式事务的流程如下：<ul>
-<li>对命令和 watch 的 key，按照节点的不同进行<strong>分组</strong>。</li>
-<li>对每一组节点<strong>发送 try 命令</strong>，try 命令比较复杂又分为几个子命令：<ul>
-<li>try start：通知节点有新建一个本地分布式事务。</li>
-<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
-<li>try xxx：依次发送在该节点上执行的命令。</li>
-<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
-</ul>
-</li>
-<li>对每一组节点<strong>发送 commit 或者 cancel 命令</strong>。</li>
-<li><strong>重组</strong>事务的返回结果，按照正常的顺序进行返回。</li>
-</ul>
-</li>
-</ul>
-<h2 id="性能"><a href="#性能" class="headerlink" title="性能"></a>性能</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">zhaohan08@MacBook-Pro redis % redis-benchmark -t <span class="built_in">set</span>,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange -n 10000 -q</span><br><span class="line">WARNING: Could not fetch server CONFIG</span><br><span class="line">SET: 68965.52 requests per second, p50=0.367 msec</span><br><span class="line">GET: 62111.80 requests per second, p50=0.399 msec</span><br><span class="line">INCR: 49751.24 requests per second, p50=0.487 msec</span><br><span class="line">LPUSH: 56497.18 requests per second, p50=0.447 msec</span><br><span class="line">RPUSH: 49504.95 requests per second, p50=0.503 msec</span><br><span class="line">LPOP: 68965.52 requests per second, p50=0.375 msec</span><br><span class="line">RPOP: 68493.15 requests per second, p50=0.375 msec</span><br><span class="line">SADD: 52631.58 requests per second, p50=0.495 msec</span><br><span class="line">HSET: 68027.21 requests per second, p50=0.375 msec</span><br><span class="line">SPOP: 68027.21 requests per second, p50=0.383 msec</span><br><span class="line">ZADD: 49751.24 requests per second, p50=0.503 msec</span><br><span class="line">LPUSH (needed to benchmark LRANGE): 56818.18 requests per second, p50=0.463 msec</span><br><span class="line">LRANGE_100 (first 100 elements): 25773.20 requests per second, p50=0.895 msec</span><br><span class="line">LRANGE_300 (first 300 elements): 13586.96 requests per second, p50=1.775 msec</span><br><span class="line">LRANGE_500 (first 500 elements): 9041.59 requests per second, p50=2.607 msec</span><br><span class="line">LRANGE_600 (first 600 elements): 7704.16 requests per second, p50=3.015 msec</span><br></pre></td></tr></table></figure>
-
-<p>在单机时，可以得出结论，Simple-Redis 和 Redis 是有性能差距的（达到 Redis 的 60-70%），具体数据如下：</p>
-<ul>
-<li>string 类型：Simple-Redis 的性能大约是 Redis 的 70%。</li>
-<li>list 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-<li>hash 类型：Simple-Redis 大约是 Redis 的 75%。</li>
-<li>set 类型：Simple-Redis 的性能大约是 Redis 的 55%。</li>
-<li>zset 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-</ul>
+          <h1 id="延迟消息投递"><a href="#延迟消息投递" class="headerlink" title="延迟消息投递"></a>延迟消息投递</h1><p>开源的 NSQ、RabbitMQ、ActiveMQ 和 Pulsar 也都内置了延迟消息的处理能力。虽然每个 MQ 项目的使用和实现方式不同，但核心实现思路都一样：<strong>Producer 将一个延迟消息发送到某个 Topic 中，Broker 将延迟消息放到临时存储进行暂存，延迟跟踪服务（Delayed Tracker Service）会检查消息是否到期，将到期的消息进行投递</strong>。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.png" alt="图片"></p>
+<p>延迟消息投递是要暂缓对当前消息的处理，在未来的某个时间点再触发投递，实际的应用场景非常多，比如异常检测重试、订单超时取消、预约提醒等。</p>
+<p>Pulsar 最早是在 2.4.0 引入了延迟消息投递的特性，在 Pulsar 中使用延迟消息，可以精确指定延迟投递的时间，有 deliverAfter 和 deliverAt 两种方式。其中 deliverAt 可以指定具体的时间戳；deliverAfter 可以指定在当前多长时间后执行。</p>
+<p>在 Pulsar 中，可以支持跨度很大的延时消息，比方说一个月、半年；同时在一个 Topic 里，既支持延时消息，也支持非延时消息。下图展示了 Pulsar 中延迟消息的具体过程：</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640-20240222202207636.png" alt="图片"></p>
+<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>Pulsar 实现延迟消息投递的方式比较简单，<strong>Delayed Message Tracker 在堆外内存维护着一个 delayed index 优先级队列</strong>，根据延迟时间进行堆排序，延迟时间最短的会放在头上，时间越长越靠后。</p>
+<p>Consumer 在消费时，会先去 Delayed Message Tracker 检查，是否有到期需要投递的消息，如果有到期的消息，则从 Tracker 中拿出对应的 index，找到对应的消息进行消费；如果没有到期的消息，则直接消费正常的消息。</p>
+<p>如果集群出现 Broker 宕机，Pulsar 会重建 delayed index 队列，来保证延迟投递的消息能够正常工作。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.jpeg" alt="图片"></p>
+<h2 id="风险"><a href="#风险" class="headerlink" title="风险"></a>风险</h2><p>从 Pulsar 的延迟消息投递实现原理可以看出，该方法简单高效，对 Pulsar 内核侵入性较小，可以支持到任意时间的延迟消息。但同时发现，Pulsar 的实现方案无法支持大规模使用延迟消息，主要有以下两个原因：</p>
+<p><strong>1. delayed index队列受到内存限制</strong></p>
+<p><strong>2. delayed index队列重建时间开销</strong></p>
+<h2 id="未来工作"><a href="#未来工作" class="headerlink" title="未来工作"></a>未来工作</h2><p>Pulsar 目前的延迟消息投递方案简单高效，但处理大规模延迟消息时仍然存在风险。关于延迟消息投递，社区和数据平台部 MQ 团队下一步将聚焦在支持大规模延迟消息。目前讨论的方案是在 delayed index 队列加入时间分区，Broker 只加载当前较近的时间片 delayed index 到内存，其余时间片分区持久化磁盘，</p>
 
       
     </div>
@@ -469,7 +245,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-12-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -483,7 +259,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-12-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">Simple-Redis实现 (12) 分布式事务</a>
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Pulsar消息队列(3)订阅模式</a>
         </h2>
 
         <div class="post-meta">
@@ -493,14 +269,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-12-12 16:16:13" itemprop="dateCreated datePublished" datetime="2023-12-12T16:16:13+08:00">2023-12-12</time>
+              <time title="创建时间：2024-02-22 20:12:02" itemprop="dateCreated datePublished" datetime="2024-02-22T20:12:02+08:00">2024-02-22</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -508,7 +284,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
                 </span>
             </span>
 
@@ -523,252 +299,416 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p>Simple-Redis 是支持分布式事务的，采用 TCC（Try-Commit-Cancel）实现分布式事务，以当前节点为<strong>事务协调者</strong>，控制分布在其他节点的<strong>本地事务</strong>。所以 Simple-Redis 的分布式事务实现包括两个部分：</p>
+          <p>Consumer 订阅 Topic 的时候，通过<strong>订阅模式</strong>来控制消息的使用模式，指定如何将消息投递给一个组一个的或多个的 Consumer。Pulsar 支持 4 种订阅模式:</p>
 <ul>
-<li>事务协调者：一个分布式事务的控制器。</li>
-<li>本地事务：用于执行命令，并进行 commit 或者 cancel。</li>
+<li>exclusive（独占模式）</li>
+<li>failover（故障转移模式，也叫灾备模式）</li>
+<li>shared（共享模式）</li>
+<li>key-shared（基于key的共享模式）</li>
 </ul>
-<h1 id="事务协调者"><a href="#事务协调者" class="headerlink" title="事务协调者"></a>事务协调者</h1><h2 id="定义"><a href="#定义" class="headerlink" title="定义"></a>定义</h2><p>TCC 事务协调者定义如下：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Coordinator TCC事务协调者</span></span><br><span class="line"><span class="keyword">type</span> Coordinator <span class="keyword">struct</span> &#123;</span><br><span class="line">    id      <span class="keyword">string</span>                        <span class="comment">// 事务id</span></span><br><span class="line">    dbIndex <span class="keyword">int</span>                           <span class="comment">// 数据库id</span></span><br><span class="line">    self    <span class="keyword">string</span>                        <span class="comment">// 自己的地址</span></span><br><span class="line">    peers   cluster.PeerPicker            <span class="comment">// 一致性哈希，用于选择节点</span></span><br><span class="line">    getters <span class="keyword">map</span>[<span class="keyword">string</span>]cluster.PeerGetter <span class="comment">// 用于和远程节点通信</span></span><br><span class="line"></span><br><span class="line">    watching <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// key为peer地址，记录被watch的key的版本号</span></span><br><span class="line"></span><br><span class="line">    cmdLinesNum <span class="keyword">int</span></span><br><span class="line">    indexMap    <span class="keyword">map</span>[<span class="keyword">string</span>][]<span class="keyword">int</span> <span class="comment">// key为peer，value为cmdline在原来multi队列中的下标，用于重组reply</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><p>一次分布式事务的流程如下：</p>
-<ul>
-<li>对命令和 watch 的 key，按照节点的不同进行<strong>分组</strong>。</li>
-<li>对每一组节点<strong>发送 try 命令</strong>，try 命令比较复杂又分为几个子命令：<ul>
-<li>try start：通知节点有新建一个本地分布式事务。</li>
-<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
-<li>try xxx：依次发送在该节点上执行的命令。</li>
-<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
-</ul>
-</li>
-<li>对每一组节点<strong>发送 commit 或者 cancel 命令</strong>。</li>
-<li><strong>重组</strong>事务的返回结果，按照正常的顺序进行返回。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ExecTx 执行TCC分布式事务</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(coordinator *Coordinator)</span> <span class="title">ExecTx</span><span class="params">(cmdLines [][][]<span class="keyword">byte</span>, watching <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="comment">// 首先对命令进行分组，以同一个节点上执行的所有命令为一组</span></span><br><span class="line">    groupByMap := coordinator.groupByCmdLines(cmdLines)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对watch的key进行分组</span></span><br><span class="line">    coordinator.groupByWatch(watching)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对每一组中发送try命令</span></span><br><span class="line">    needCancel := <span class="literal">false</span> <span class="comment">// 记录是否需要回滚</span></span><br><span class="line">    <span class="keyword">for</span> peer, cmd := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">       r := coordinator.sendTry(peer, cmd)</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          needCancel = <span class="literal">true</span></span><br><span class="line">          <span class="keyword">break</span></span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 返回之前发送end消息，通知各个分布式节点结束事务</span></span><br><span class="line">       <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">          coordinator.sendEnd(peer)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 向各个节点提交/回滚分布式事务</span></span><br><span class="line">    replies := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]redis.Reply)</span><br><span class="line">    <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">       <span class="keyword">if</span> needCancel &#123;</span><br><span class="line">          <span class="comment">// 取消事务</span></span><br><span class="line">          coordinator.sendCancel(peer)</span><br><span class="line">       &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="comment">// 提交事务</span></span><br><span class="line">          r := coordinator.sendCommit(peer)</span><br><span class="line">          <span class="keyword">if</span> config.Properties.OpenAtomicTx &amp;&amp; reply.IsErrorReply(r) &#123;</span><br><span class="line">             <span class="comment">// 如果开启了原子事务并且提交发生了错误，则进行所有的节点进行回滚</span></span><br><span class="line">             needCancel = <span class="literal">true</span></span><br><span class="line">             <span class="keyword">break</span></span><br><span class="line">          &#125;</span><br><span class="line">          replies[peer] = r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果开启了原子事务，并且发生了错误，所有节点进行回滚</span></span><br><span class="line">    <span class="keyword">if</span> needCancel &amp;&amp; config.Properties.OpenAtomicTx &#123;</span><br><span class="line">       <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">          <span class="comment">// 取消事务，进行回滚</span></span><br><span class="line">          coordinator.sendCancel(peer)</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;EXECABORT Transaction rollback because of errors during executing. (atomic tx is open)&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> needCancel &#123;</span><br><span class="line">       <span class="comment">// 没有开启原子事务，但是发送了错误（如watch的key变化了），则返回(nil)</span></span><br><span class="line">       <span class="keyword">return</span> reply.MakeNullBulkStringReply()</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 正常提交，重组reply</span></span><br><span class="line">    <span class="keyword">return</span> coordinator.recombineReplies(replies)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="try"><a href="#try" class="headerlink" title="try"></a>try</h3><p>try 命令比较复杂，分为几个子命令：</p>
-<ul>
-<li>try start：通知节点有新建一个本地分布式事务。</li>
-<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
-<li>try xxx：依次发送在该节点上执行的命令。</li>
-<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(coordinator *Coordinator)</span> <span class="title">sendTry</span><span class="params">(peer <span class="keyword">string</span>, cmdLines [][][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="comment">// 获取getter</span></span><br><span class="line">    getter := coordinator.getters[peer]</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> r redis.Reply</span><br><span class="line">    <span class="comment">// 发送try开始命令</span></span><br><span class="line">    r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;start&quot;</span>))</span><br><span class="line">    <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">       <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">       <span class="keyword">return</span> r</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送watch时的version，比较version是否发生变化</span></span><br><span class="line">    watching := coordinator.watching[peer]</span><br><span class="line">    <span class="keyword">for</span> key, version := <span class="keyword">range</span> watching &#123;</span><br><span class="line">       versionStr := strconv.FormatInt(<span class="keyword">int64</span>(version), <span class="number">10</span>)</span><br><span class="line">       r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;watched&quot;</span>, key, versionStr))</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 如果发生变化，则中断try，直接返回</span></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 依次发送需要执行的命令，每一条命令=try tx_id cmdline，如 try 123456 set k1 v1</span></span><br><span class="line">    <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> cmdLines &#123;</span><br><span class="line">       tryCmd := <span class="built_in">make</span>([][]<span class="keyword">byte</span>, <span class="number">0</span>, <span class="number">2</span>+<span class="built_in">len</span>(cmdLine))</span><br><span class="line">       tryCmd = <span class="built_in">append</span>(tryCmd, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id)...)</span><br><span class="line">       tryCmd = <span class="built_in">append</span>(tryCmd, cmdLine...)</span><br><span class="line">       r = getter.RemoteExec(coordinator.dbIndex, tryCmd)</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送try结束命令</span></span><br><span class="line">    r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;end&quot;</span>))</span><br><span class="line">    <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">       <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">       <span class="keyword">return</span> r</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><p>本地事务就是分布式事务在节点上的实际执行者，下面是本地事务的定义：</p>
-<ul>
-<li>watchedKeys 对应 try watched 命令，记录 watch 时的版本，用于在执行时进行版本比较。</li>
-<li>cmdLines 对应 try xxx 命令，记录当前节点的本地事务中，包含的所有需要执行的命令。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Transaction TCC本地事务</span></span><br><span class="line"><span class="keyword">type</span> Transaction <span class="keyword">struct</span> &#123;</span><br><span class="line">    id    <span class="keyword">string</span> <span class="comment">// 事务id</span></span><br><span class="line">    phase <span class="keyword">int</span>    <span class="comment">// 阶段，分别是try、commit、cancel三个阶段</span></span><br><span class="line"></span><br><span class="line">    writeKeys   []<span class="keyword">string</span></span><br><span class="line">    readKeys    []<span class="keyword">string</span></span><br><span class="line">    watchedKeys <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// 记录watch时的版本</span></span><br><span class="line"></span><br><span class="line">    cmdLines       [][][]<span class="keyword">byte</span>   <span class="comment">// 本次事务中包含的命令</span></span><br><span class="line">    undoLogs       [][][][]<span class="keyword">byte</span> <span class="comment">// 本次事务的undo log</span></span><br><span class="line">    addVersionKeys []<span class="keyword">string</span>     <span class="comment">// 需要增加版本的key</span></span><br><span class="line"></span><br><span class="line">    db *engine.DB</span><br><span class="line"></span><br><span class="line">    mu sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Try"><a href="#Try" class="headerlink" title="Try"></a>Try</h2><p>在收到 try end 命令后，表明 try 阶段已经结束，此时本地事务：</p>
-<ul>
-<li>锁定需要读写的 key。</li>
-<li>在在时间轮中添加任务, 自动回滚超时未提交的事务。</li>
-<li>读取版本是否变化，如果有变化则返回错误。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Try TCC事务的结束try阶段，锁定key</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Try</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> tx.phase != phaseTry &#123;</span><br><span class="line">       <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;ERR TRY ERROR&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 锁定需要读写的key</span></span><br><span class="line">    tx.db.RWLocks(tx.writeKeys, tx.readKeys)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 在时间轮中添加任务, 自动回滚超时未提交的事务</span></span><br><span class="line">    taskKey := tx.id</span><br><span class="line">    timewheel.Delay(maxLockTime, taskKey, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="keyword">if</span> tx.phase == phaseTry &#123;</span><br><span class="line">          logger.Info(<span class="string">&quot;abort transaction: &quot;</span> + tx.id)</span><br><span class="line">          _ = tx.Cancel()</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取版本是否变化</span></span><br><span class="line">    <span class="keyword">for</span> key, oldVersion := <span class="keyword">range</span> tx.watchedKeys &#123;</span><br><span class="line">       newVersion := tx.db.GetVersion(key)</span><br><span class="line">       <span class="keyword">if</span> oldVersion != newVersion &#123;</span><br><span class="line">          <span class="comment">// 获取key的版本，如果版本变化了，则返回错误</span></span><br><span class="line">          <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;ERR VERSION CHANGED&quot;</span>)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Commit"><a href="#Commit" class="headerlink" title="Commit"></a>Commit</h2><p>在本地事务收到 commit 命令后，会执行命令，（如果开启原子事务）并记录 undolog。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Commit TCC事务的commit阶段</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Commit</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    tx.mu.Lock() <span class="comment">// Commit互斥进行操作，防止commit时调用cancel，发生冲突</span></span><br><span class="line">    <span class="keyword">defer</span> tx.mu.Unlock()</span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 设置阶段</span></span><br><span class="line">       tx.phase = phaseCommit</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 依次执行命令</span></span><br><span class="line">    <span class="keyword">var</span> results [][]<span class="keyword">byte</span> <span class="comment">// 存储命令执行的结果</span></span><br><span class="line">    <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> tx.cmdLines &#123;</span><br><span class="line">       cmdName := <span class="keyword">string</span>(cmdLine[<span class="number">0</span>])</span><br><span class="line">       key := <span class="keyword">string</span>(cmdLine[<span class="number">1</span>])</span><br><span class="line">       <span class="keyword">if</span> !engine.IsReadOnlyCommand(cmdName) &#123;</span><br><span class="line">          <span class="comment">// 写命令，则记录需要add版本的key</span></span><br><span class="line">          tx.addVersionKeys = <span class="built_in">append</span>(tx.addVersionKeys, key)</span><br><span class="line">          <span class="keyword">if</span> config.Properties.OpenAtomicTx &#123;</span><br><span class="line">             <span class="comment">// 开启了原子性事务，则记录undo log</span></span><br><span class="line">             tx.undoLogs = <span class="built_in">append</span>(tx.undoLogs, tx.db.GetUndoLog(key))</span><br><span class="line">          &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// 执行命令</span></span><br><span class="line">       r := tx.db.ExecWithLock(cmdLine)</span><br><span class="line"></span><br><span class="line">       <span class="keyword">if</span> config.Properties.OpenAtomicTx &amp;&amp; reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 开启了原子性事务，并且如果发生错误，直接返回错误</span></span><br><span class="line">          <span class="keyword">if</span> !engine.IsReadOnlyCommand(cmdName) &#123;</span><br><span class="line">             <span class="comment">// 删除错误命令的undo log，不需要增加版本号</span></span><br><span class="line">             tx.addVersionKeys = tx.addVersionKeys[:<span class="built_in">len</span>(tx.addVersionKeys)<span class="number">-1</span>]</span><br><span class="line">             tx.undoLogs = tx.undoLogs[:<span class="built_in">len</span>(tx.undoLogs)<span class="number">-1</span>]</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       results = <span class="built_in">append</span>(results, []<span class="keyword">byte</span>(r.DataString()))</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeMultiBulkStringReply(results)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Cancel"><a href="#Cancel" class="headerlink" title="Cancel"></a>Cancel</h2><p>在收到 cancel 命令后，（如果开启原子性事务）会执行 undo log 进行回滚。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cancel TCC事务的cancel阶段</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Cancel</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    tx.mu.Lock() <span class="comment">// Cancel互斥进行操作，防止commit时调用cancel，发生冲突</span></span><br><span class="line">    <span class="keyword">defer</span> tx.mu.Unlock()</span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 设置阶段</span></span><br><span class="line">       tx.phase = phaseCancel</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 从后向前依次执行undo日志，只有开启原子性事务时，len(tx.undoLogs)才可能大于0</span></span><br><span class="line">    <span class="keyword">for</span> i := <span class="built_in">len</span>(tx.undoLogs) - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i-- &#123;</span><br><span class="line">       undoLog := tx.undoLogs[i]</span><br><span class="line">       <span class="keyword">if</span> <span class="built_in">len</span>(undoLog) == <span class="number">0</span> &#123;</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> undoLog &#123;</span><br><span class="line">          tx.db.ExecWithLock(cmdLine)</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 清空</span></span><br><span class="line">    tx.undoLogs = <span class="literal">nil</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">Simple-Redis实现 (11) 原子事务</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 16:15:50" itemprop="dateCreated datePublished" datetime="2023-12-12T16:15:50+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p>Redis 不支持原子事务，在 multi 排队执行时，如果在入队时发生错误则放弃执行，如果在 exec 执行时错误则跳过这条命令。</p>
-<p><strong>Simple-Redis 支持原子事务</strong>，在 multi 排队执行时，如果在入队时发生错误则放弃执行，在 exec 执行时错误则整条命令回滚。</p>
-<h1 id="原子事务"><a href="#原子事务" class="headerlink" title="原子事务"></a>原子事务</h1><h2 id="watch"><a href="#watch" class="headerlink" title="watch"></a>watch</h2><p>在数据库存储引擎层，使用了<strong>并发的 dict 记录 key 和版本号的映射关系</strong>，当写命令执行成功时版本号加一。</p>
-<p>在 Redis 中 watch 命令用于记录一个 key 当前的版本号，将版本号记录在客户端连接的上下文中。</p>
-<h2 id="事务"><a href="#事务" class="headerlink" title="事务"></a>事务</h2><p>原子事务的实现是在数据库引擎层实现的，在 multi 后客户端发出的每一条命令，数据库只会检查语法错误并将命令记录在客户端连接的上下文中。</p>
-<p>在 exec 时，才会从客户端连接的上下文中读取所有需要执行的命令队列。exec 命令的实现方式如下：</p>
-<ul>
-<li>首先加写锁、加读锁（watch 的 key 也会加上读锁）。</li>
-<li>检查 watch 的 key 版本是否变化，如果变化则直接返回，什么都不做。</li>
-<li>依次执行每一条命令，如果开启了原子事务，则会记录 undo log。</li>
-<li>如果执行成功，对相应的 key 增加版本号；如果执行失败，则根据 undo log 进行回滚。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/" class="post-title-link" itemprop="url">Simple-Redis实现 (10) 集群和订阅</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 15:57:15" itemprop="dateCreated datePublished" datetime="2023-12-12T15:57:15+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="集群"><a href="#集群" class="headerlink" title="集群"></a>集群</h1><p>Simple-Redis 的集群本质上就是一个分片集群，使用一致性哈希环实现。</p>
-<h2 id="结构体"><a href="#结构体" class="headerlink" title="结构体"></a>结构体</h2><p>Cluster 结构体如下，其中：</p>
-<ul>
-<li>peers 为<strong>一致性哈希</strong>，用于根据 key 选择节点。</li>
-<li>getters 用于和远程节点通信。</li>
-</ul>
-<p>以下三个属性与分布式事务相关：</p>
-<ul>
-<li>idGenerator：雪花 ID（分布式 ID）生成器，用于生成分布式事务 ID。</li>
-<li>transactionMap：记录所有的分布式事务。</li>
-<li>coordinatorMap：记录所有的事物协调者。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cluster 用于和集群中的主机进行交互</span></span><br><span class="line"><span class="keyword">type</span> Cluster <span class="keyword">struct</span> &#123;</span><br><span class="line">    self    <span class="keyword">string</span>                        <span class="comment">// 本机地址，如 127.0.0.1:6107</span></span><br><span class="line">    peers   cluster.PeerPicker            <span class="comment">// 一致性哈希，用于选择节点</span></span><br><span class="line">    getters <span class="keyword">map</span>[<span class="keyword">string</span>]cluster.PeerGetter <span class="comment">// 用于和远程节点通信</span></span><br><span class="line"></span><br><span class="line">    idGenerator    *snowflake.Node  <span class="comment">// snowflake id生成器，用于生成分布式事务的id</span></span><br><span class="line">    transactionMap *dict.SimpleDict <span class="comment">// 记录所有的分布式事务（本地）</span></span><br><span class="line">    coordinatorMap *dict.SimpleDict <span class="comment">// 记录事务协调者</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="getter"><a href="#getter" class="headerlink" title="getter"></a>getter</h2><p>在和远程节点通信时，本节点就作为一个 Client。而一个 getter 维护一个远程节点的连接池（实际上一个 getter 维护多个连接池，一个数据库对应一个连接池。</p>
+<h1 id="订阅模式"><a href="#订阅模式" class="headerlink" title="订阅模式"></a>订阅模式</h1><h2 id="exclusive"><a href="#exclusive" class="headerlink" title="exclusive"></a>exclusive</h2><p>独占模式，只能有一个 Consumer 绑定到订阅上。如果多于一个 Consumer 尝试以使用相同的订阅订阅 Topic，就会抛出异常且无法连接。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-exclusive-subscriptions.png" alt="pulsar-exclusive-subscriptions.png"></p>
+<h2 id="failover"><a href="#failover" class="headerlink" title="failover"></a>failover</h2><p>在灾备订阅模式中，多个 Consumer 可以绑定到同一个订阅上， Consumer 将会<strong>按字典顺序排序</strong>，<strong>第一个 Consumer 被初始化为唯一接受消息的消费者</strong>，被称为 Master Consumer。 当 Master Consumer 断开时，所有的未被确认和后续进入的消息将会被投递给下一个 Consumer。</p>
 <blockquote>
-<p>集群中节点之间的通信采用连接池，是为了：</p>
+<p>灾备模式提供了高可用性。</p>
+</blockquote>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-failover-subscriptions.png" alt="pulsar-failover-subscriptions.png"></p>
+<h2 id="shared"><a href="#shared" class="headerlink" title="shared"></a>shared</h2><p>在共享模式中，多个 Consumer 可以绑定到同一个订阅上。 <strong>消息通过 round robin 轮询机制分发给不同的消费者</strong>，并且每个消息仅会被分发给一个消费者。 当一个消费者断开连接时，所有已经投递给它但还没有被确认的消息将被重新投递，分发给其它存活的消费者。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-shared-subscriptions.png" alt="pulsar-shared-subscriptions.png"></p>
+<h2 id="key-shared"><a href="#key-shared" class="headerlink" title="key-shared"></a>key-shared</h2><p>key-shared 模式是共享模式的一种特例，它也允许多个 Consumer 可以绑定到同一个订阅上，与共享模式中的 round robin 轮询消费消息不同，key-shared 模式增加了一个辅助 key，<strong>确保具有相同 key 的消息被交付给相同的消费者</strong>。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/" class="post-title-link" itemprop="url">Pulsar消息队列(2)租户 命名空间 Topic</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-02-22 20:02:09" itemprop="dateCreated datePublished" datetime="2024-02-22T20:02:09+08:00">2024-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Pulsar 在逻辑上的层级，从上到下依次为租户、命名空间、Topic。</p>
+<p>每个租户都可以有单独的认证和授权机制，可以针对租户设置存储配额、消息生存时间 TTL 和隔离策略。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/pulsar-logical-arch2.png" alt="pulsar-logical-arch2.png"></p>
+<p>默认情况下一个 Topic 中的消息只能由 Pulsar 服务层中的一个 Broker 提供服务，因此单个 Topic 的吞吐量受限于为其提供服务的 Broker 的计算能力。 </p>
+<p>好在 Pulsar 还支持<strong>分区主题</strong>，这允许多个 Broker 提供服务，就可以将负载分布到多台机器上。在 Pulsar 内部，<strong>分区主题被实现为 N 个内部 Topic</strong>，N 是分区数量，分区跨 Broker 的分布<strong>由 Pulsar 自动管理</strong>，这对用户来说是完全透明的。 Pulsar 将分区主题实现为多个内部主题，这样就可以在需要增加分区数量的时候不必重新平衡整个主题，Pulsar 只需在其内部创建新的内部主题就能够立即接收新的消息，使客户端能在不中断的情况下对现有分区进行消息读写。</p>
+<p>当生产者发布消息到分区主题时，不需要特意指定路由模式，默认以轮循的方式将消息均匀分布到各个分区。支持以下3种路由模式:</p>
 <ul>
-<li>复用连接（复用空闲连接）。</li>
-<li>增加并发性能（节点之间有多个连接）。</li>
-<li>控制节点之间的连接数，不会因为节点之间的通信而影响客户端与节点之间的通信（有最大空闲连接数和最大活跃连接数的限制）。</li>
+<li><strong>SinglePartition：</strong>如果没有消息 key 提供，生产者将会随机选择一个固定的分区来发布消息（同一个生产者生产在同一个分区中），可用于将来自特定生产者的消息分组在一起，以在没有键值时维护消息顺序。</li>
+<li><strong>RoundRobinPartition：</strong>如果没有消息 key 提供，将以轮循的方式将消息均匀分布到各个分区。</li>
+<li><strong>CustomPartition：</strong>定制实现路由模式，控制消息分发到 Topic 的分区中。</li>
 </ul>
+<p>如果提供了消息 key，<strong>会以 key 做 hash，然后分配消息到指定分区</strong>。因此分区中消息的顺序与路由模式和消息的key有关，所有拥有相同的 key 的消息有序，将会被发送到相同的分区</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">Pulsar消息队列(1)简介</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-02-22 13:06:00" itemprop="dateCreated datePublished" datetime="2024-02-22T13:06:00+08:00">2024-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Apache Pulsar是一个支持<strong>多租户的、高性能的、分布式</strong>的<strong>多租户</strong>消息系统，最初由雅虎开发，现在是Apache软件基金会的顶级项目。 Pulsar提供非常低的消息发布和端到端的延迟、保障消息可靠传递零丢失。</p>
+<h1 id="分布式消息系统"><a href="#分布式消息系统" class="headerlink" title="分布式消息系统"></a>分布式消息系统</h1><blockquote>
+<p>Pulsar 是<strong>基于段</strong>的分布式消息队列。</p>
+</blockquote>
+<p>一般的消息系统在逻辑上都可分为<strong>服务层</strong>和存储层两层:</p>
+<ul>
+<li><strong>服务层：</strong>直接与消息的<strong>生产者和消费者交互</strong>，接收传入的消息并将消息路由到一个或多个目的地。服务层通过支持的消息协议进行通讯，例如AMQP。服务层在消息协议转换上依赖CPU，在通信上依赖网络带宽。</li>
+<li><strong>存储层：</strong>负责消息的<strong>存储</strong>。存储层与服务层交互提供服务层请求的消息，存储层保持消息的正确顺序。存储层严重依赖硬盘来存储消息。</li>
+</ul>
+<blockquote>
+<p>分布式消息系统与传统单点消息系统在架构上的主要<strong>差别</strong>在于<strong>存储层的设计方式</strong>。在<strong>分布式</strong>消息传递系统中，数据分布在集群中的多台机器上，允许在单个主题中保留超过单个机器存储容量的消息。分布式消息系统存储层的<strong>关键架构抽象是 write-ahead-log</strong>，它将<strong>存储的消息看成是单个仅追加的数据结构</strong>。 对于分布式消息系统，当新消息发布到主题时，从逻辑的角度来看，消息将被追加到日志的末尾；从物理的角度来看，消息可能写入集群中的任何服务器。</p>
+</blockquote>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/partion-based-msg.png" alt="partion-based-msg.png"></p>
+<p>分布式消息系统的好处是<strong>将负载分散到多台机器上</strong>，可以提高消息的生产和消费的吞吐量，每台服务器都有自己硬盘和写入路径，将提供更好的写入速率。 在分布式消息系统集群中分布消息数据时，有两种不同的方法: <strong>基于分区（Partion-based）和基于段（Segment-based）</strong>。</p>
+<h2 id="基于分区"><a href="#基于分区" class="headerlink" title="基于分区"></a>基于分区</h2><blockquote>
+<p> Kafka 采用的是基于分区的消息存储架构。</p>
+</blockquote>
+<p>在基于分区的消息存储结构中，<strong>Topic 被划分为固定数量的分区</strong>，发布到 Topic 中的数据均匀的分布在分区中，同时为了确保数据冗余，<strong>每个分区会被复制到不同的节点</strong>。</p>
+<p>Topic 中消息的总存储量为 Topic 的分区数乘以分区的大小，如果达到这个限制，需要向集群添加更多的节点同时增加 Topic 的分区数量才能继续向分区中添加数据，增加分区的数量还需要执行重新平衡，这是一个十分复杂和耗时的过程。</p>
+<p>在基于分区的消息存储结构的分布式消息系统中，一般在创建 Topic 的时候需要预先确定分区数量，但这样做有一些缺点，因为单个分区只会存储在集群中单个集群节点上，因此单个分区的大小就受限于该节点上的硬盘空间大小，由于 Topic 中的数据均匀分布在所有分区中，所以如果集群节点的硬盘容量不一样的话，<strong>那么 Topic 的每个分区的大小将限制为最小硬盘容量的节点</strong>。当 Topic 达到容量限制后，<strong>唯一能做的就是增加 Topic 的分区数量</strong>，但这个扩容的过程包括<strong>重新平衡整个 Topic</strong>，Topic 中的数据将被重新分布到该 Topic 的所有分区中，平衡数据的过程<strong>十分消耗网络带宽和磁盘 I/O</strong>。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/kafka-partitions.png" alt="kafka-partitions"></p>
+<h2 id="基于段"><a href="#基于段" class="headerlink" title="基于段"></a>基于段</h2><blockquote>
+<p>Pulsar 采用的是基于段的消息存储结构。</p>
+<p>Pulsar 中服务层合存储层都是<strong>无状态</strong>的，可以任意的进行<strong>水平</strong>扩容。<strong>引入 Zookeeper 集群</strong>，用于集群级别的配置和协调，Zookeeper 中存储 Pulsar 集群的所有元数据（例如 Topic 元数据、Broker 负载数据等等)</p>
+</blockquote>
+<p><strong>Pulsar 依赖 Apache BookKeeper 项目来实现消息的持久存储</strong>，BookKeeper 的逻辑存储模型是基于无限流记录作为顺序日志存储的概念。</p>
+<p>在BookKeeper中，<strong>每个日志被分解成更小的数据块</strong>，称为段（Segament），这些数据块又由多个日志条目组成。然后，为了实现冗余和扩展，这些段会在存储层中被称为 bookies 的多个节点上写入。可以<strong>将段放在集群节点具有足够硬盘容量的任何位置</strong>，当没有足够的空间用于存储新的段时，可以方便地添加节点并立即存储数据。基于段的存储架构的优点在于<strong>可以实现真正的水平伸缩</strong>，段可以被无限创建并存储在任何位置。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/pulsar-segaments.png" alt="pulsar-segaments"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/04/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Resource-Manager/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/02/04/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Resource-Manager/" class="post-title-link" itemprop="url">Kuma学习笔记 (7) Resource Manager</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-02-04 17:00:10" itemprop="dateCreated datePublished" datetime="2024-02-04T17:00:10+08:00">2024-02-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Kuma 将使用的对象抽象为各种资源（Resource），如 Zone，Ingress，Dataplain，RateLimit 等，<strong>由资源管理器（Resource Manager）对资源存储（Resource Store）进行增删改查等操作</strong>。</p>
+<p><strong>Resource Store 向上屏蔽了底层存储的差异</strong>，在 Kuma 中使用两种存储模式，kubernetes API Server 和 PostgreSQL 数据库。而 <strong>Resource Manager 屏蔽了对于各个资源操作的差异</strong>。</p>
+<h1 id="Resource-Store"><a href="#Resource-Store" class="headerlink" title="Resource Store"></a>Resource Store</h1><h2 id="接口定义"><a href="#接口定义" class="headerlink" title="接口定义"></a>接口定义</h2><p>ResourceStore 接口用于定义资源的底层存储，ResourceStore 需要实现 Create、Update、Delete、Get、List 操作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ResourceStore <span class="keyword">interface</span> &#123;</span><br><span class="line">    Create(context.Context, model.Resource, ...CreateOptionsFunc) error</span><br><span class="line">    Update(context.Context, model.Resource, ...UpdateOptionsFunc) error</span><br><span class="line">    Delete(context.Context, model.Resource, ...DeleteOptionsFunc) error</span><br><span class="line">    Get(context.Context, model.Resource, ...GetOptionsFunc) error</span><br><span class="line">    List(context.Context, model.ResourceList, ...ListOptionsFunc) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="接口实现"><a href="#接口实现" class="headerlink" title="接口实现"></a>接口实现</h2><p>在 Kuma 中，ResourceStore 接口由 k8s、memory、postgres、remote 实现。其中：</p>
+<ul>
+<li><strong>K8s：</strong>在 Kubernetes 模式下，以 Kubernetes API Server 存储资源。</li>
+<li><strong>Postgres：</strong>在 Universal 模式下，以 PostgreSQL 作为底层数据库存储数据。</li>
+<li>Memory：内存数据库，用于测试。</li>
+<li>Remote：为 kuma-ctl 做资源存储，负责以 HTTP Restful API 的方式操作 kuma-cp。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">├── k8s</span><br><span class="line">├── memory</span><br><span class="line">├── postgres</span><br><span class="line">└── remote</span><br></pre></td></tr></table></figure>
+
+<h2 id="CustomizableResourceStore"><a href="#CustomizableResourceStore" class="headerlink" title="CustomizableResourceStore"></a>CustomizableResourceStore</h2><p>Customizable Resource Store 为<strong>某一种具体的资源</strong>提供<strong>定制化</strong>的 Resource Store：</p>
+<ul>
+<li><strong>Customize 方法：</strong>为 model.ReourceType 类型的资源<strong>指定</strong>资源存储器。</li>
+<li><strong>ResourceStore 方法：</strong>返回 model.ResourceType 类型的资源存储器，如果没有该类型，则会返回默认的资源存储器。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ResourceStoreWrapper is a function that takes a ResourceStore and returns a wrapped ResourceStore.</span></span><br><span class="line"><span class="comment">// The wrapped ResourceStore can be used to modify or augment the behavior of the original ResourceStore.</span></span><br><span class="line"><span class="keyword">type</span> ResourceStoreWrapper = <span class="function"><span class="keyword">func</span><span class="params">(delegate ResourceStore)</span> <span class="title">ResourceStore</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CustomizableResourceStore <span class="keyword">interface</span> &#123;</span><br><span class="line">    ResourceStore</span><br><span class="line">    ResourceStore(typ model.ResourceType) ResourceStore</span><br><span class="line">    DefaultResourceStore() ResourceStore</span><br><span class="line">    Customize(typ model.ResourceType, store ResourceStore)</span><br><span class="line">    WrapAll(wrapper ResourceStoreWrapper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Resource-Manager"><a href="#Resource-Manager" class="headerlink" title="Resource Manager"></a>Resource Manager</h1><h2 id="接口定义-1"><a href="#接口定义-1" class="headerlink" title="接口定义"></a>接口定义</h2><p>Resource Manager 用于对资源（Zone、Dataplain 等）进行操作，定义的方法与 Resource Store 差不多，都是增删改查。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ReadOnlyResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    Get(context.Context, model.Resource, ...store.GetOptionsFunc) error</span><br><span class="line">    List(context.Context, model.ResourceList, ...store.ListOptionsFunc) error</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    ReadOnlyResourceManager</span><br><span class="line">    Create(context.Context, model.Resource, ...store.CreateOptionsFunc) error</span><br><span class="line">    Update(context.Context, model.Resource, ...store.UpdateOptionsFunc) error</span><br><span class="line">    Delete(context.Context, model.Resource, ...store.DeleteOptionsFunc) error</span><br><span class="line">    DeleteAll(context.Context, model.ResourceList, ...store.DeleteAllOptionsFunc) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="CustomizableResourceManager"><a href="#CustomizableResourceManager" class="headerlink" title="CustomizableResourceManager"></a>CustomizableResourceManager</h2><p>Customizable Resource Manager 为<strong>某一种具体的资源</strong>提供<strong>定制化</strong>的 Resource Manager：</p>
+<ul>
+<li><strong>Customize 方法：</strong>为 model.ReourceType 类型的资源<strong>指定</strong>资源管理器。</li>
+<li><strong>ResourceManager 方法：</strong>返回 model.ResourceType 类型的资源管理器，如果没有该类型，则会返回默认的资源管理器。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ResourceManagerWrapper = <span class="function"><span class="keyword">func</span><span class="params">(delegate ResourceManager)</span> <span class="title">ResourceManager</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CustomizableResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    ResourceManager</span><br><span class="line">    Customize(model.ResourceType, ResourceManager)</span><br><span class="line">    ResourceManager(model.ResourceType) ResourceManager</span><br><span class="line">    WrapAll(ResourceManagerWrapper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h3><p>在 kuma-cp 初始化 Resource Manager 时，会为<strong>每一种资源指定一种资源管理器</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initializeResourceManager</span><span class="params">(cfg kuma_cp.Config, builder *core_runtime.Builder)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    defaultManager := core_manager.NewResourceManager(builder.ResourceStore())</span><br><span class="line">    customizableManager := core_manager.NewCustomizableResourceManager(defaultManager, <span class="literal">nil</span>)</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.MeshType,</span><br><span class="line">       mesh_managers.NewMeshManager(</span><br><span class="line">          builder.ResourceStore(),</span><br><span class="line">          customizableManager,</span><br><span class="line">          builder.CaManagers(),</span><br><span class="line">          registry.Global(),</span><br><span class="line">          builder.ResourceValidators().Mesh,</span><br><span class="line">          cfg.Store.UnsafeDelete,</span><br><span class="line">          builder.Extensions(),</span><br><span class="line">       ),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    rateLimitValidator := ratelimit_managers.RateLimitValidator&#123;</span><br><span class="line">       Store: builder.ResourceStore(),</span><br><span class="line">    &#125;</span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.RateLimitType,</span><br><span class="line">       ratelimit_managers.NewRateLimitManager(builder.ResourceStore(), rateLimitValidator),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    externalServiceValidator := externalservice_managers.ExternalServiceValidator&#123;</span><br><span class="line">       Store: builder.ResourceStore(),</span><br><span class="line">    &#125;</span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ExternalServiceType,</span><br><span class="line">       externalservice_managers.NewExternalServiceManager(builder.ResourceStore(), externalServiceValidator),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.DataplaneType,</span><br><span class="line">       dataplane.NewDataplaneManager(builder.ResourceStore(), builder.Config().Multizone.Zone.Name, builder.ResourceValidators().Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.DataplaneInsightType,</span><br><span class="line">       dataplaneinsight.NewDataplaneInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.ZoneType,</span><br><span class="line">       zone.NewZoneManager(builder.ResourceStore(), zone.Validator&#123;Store: builder.ResourceStore()&#125;, builder.Config().Store.UnsafeDelete),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.ZoneInsightType,</span><br><span class="line">       zoneinsight.NewZoneInsightManager(builder.ResourceStore(), builder.Config().Metrics.Zone),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ZoneIngressInsightType,</span><br><span class="line">       zoneingressinsight.NewZoneIngressInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ZoneEgressInsightType,</span><br><span class="line">       zoneegressinsight.NewZoneEgressInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> cipher secret_cipher.Cipher</span><br><span class="line">    <span class="keyword">switch</span> cfg.Store.Type &#123;</span><br><span class="line">    <span class="keyword">case</span> store.KubernetesStore:</span><br><span class="line">       cipher = secret_cipher.None() <span class="comment">// deliberately turn encryption off on Kubernetes</span></span><br><span class="line">    <span class="keyword">case</span> store.MemoryStore, store.PostgresStore:</span><br><span class="line">       cipher = secret_cipher.TODO() <span class="comment">// get back to encryption in universal case</span></span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">       <span class="keyword">return</span> errors.Errorf(<span class="string">&quot;unknown store type %s&quot;</span>, cfg.Store.Type)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">var</span> secretValidator secret_manager.SecretValidator</span><br><span class="line">    <span class="keyword">if</span> cfg.IsFederatedZoneCP() &#123;</span><br><span class="line">       secretValidator = secret_manager.ValidateDelete(<span class="function"><span class="keyword">func</span><span class="params">(ctx context.Context, secretName <span class="keyword">string</span>, secretMesh <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123; <span class="keyword">return</span> <span class="literal">nil</span> &#125;)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       secretValidator = secret_manager.NewSecretValidator(builder.CaManagers(), builder.ResourceStore())</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.SecretType,</span><br><span class="line">       secret_manager.NewSecretManager(builder.SecretStore(), cipher, secretValidator, cfg.Store.UnsafeDelete),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.GlobalSecretType,</span><br><span class="line">       secret_manager.NewGlobalSecretManager(builder.SecretStore(), cipher),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    builder.WithResourceManager(customizableManager)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> builder.Config().Store.Cache.Enabled &#123;</span><br><span class="line">       cachedManager, err := core_manager.NewCachedManager(</span><br><span class="line">          customizableManager,</span><br><span class="line">          builder.Config().Store.Cache.ExpirationTime.Duration,</span><br><span class="line">          builder.Metrics(),</span><br><span class="line">          builder.Tenants(),</span><br><span class="line">       )</span><br><span class="line">       <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">          <span class="keyword">return</span> err</span><br><span class="line">       &#125;</span><br><span class="line">       builder.WithReadOnlyResourceManager(cachedManager)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       builder.WithReadOnlyResourceManager(customizableManager)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Cached-Manager"><a href="#Cached-Manager" class="headerlink" title="Cached Manager"></a>Cached Manager</h2><p>Cached Manager 实现了只读资源管理器 Read Only Resource Manager，为对资源的 Get 和 List 操作进行<strong>缓存</strong>（有过期时间）。</p>
+<ul>
+<li>delegate：底层 ReadOnlyResourceManager，若缓存未命中则会从底层只读资源管理器中读取数据，并记录在缓存中。</li>
+<li><strong>cache：</strong>cached manager 的核心数据结构，用于缓存查询结果。key 为 <code>&lt;op&gt;:&lt;resource_type&gt;:&lt;ops.hashcode(resource_name+resource_mesh)&gt;:tenantID</code>。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cacheKey := fmt.Sprintf(<span class="string">&quot;GET:%s:%s:%s&quot;</span>, res.Descriptor().Name, opts.HashCode(), tenantID)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>mutexes：为每一个 key 单独加锁，保证每一个 k-v 都互斥访问。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cached version of the ReadOnlyResourceManager designed to be used only for use cases of eventual consistency.</span></span><br><span class="line"><span class="comment">// This cache is NOT consistent across instances of the control plane.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// When retrieving elements from cache, they point to the same instances of the resources.</span></span><br><span class="line"><span class="comment">// We cannot do deep copies because it would consume lots of memory, therefore you need to be extra careful to NOT modify the resources.</span></span><br><span class="line"><span class="keyword">type</span> cachedManager <span class="keyword">struct</span> &#123;</span><br><span class="line">    delegate ReadOnlyResourceManager</span><br><span class="line">    cache    *cache.Cache</span><br><span class="line">    metrics  *prometheus.CounterVec</span><br><span class="line"></span><br><span class="line">    mutexes  <span class="keyword">map</span>[<span class="keyword">string</span>]*sync.Mutex</span><br><span class="line">    mapMutex sync.Mutex <span class="comment">// guards &quot;mutexes&quot; field</span></span><br><span class="line">    tenants  multitenant.Tenants</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/" class="post-title-link" itemprop="url">Kuma学习笔记 (6) Inter CP</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-30 16:40:46" itemprop="dateCreated datePublished" datetime="2024-01-30T16:40:46+08:00">2024-01-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Kuma-cp 的 Intercp（Control Plane Intercommunication）组件用于 kuma 控制面之间的通信，旨在实现 kuma-cp 的<strong>水平扩展。</strong></p>
+<p>kuma 的水平扩展包含三个方面：</p>
+<ul>
+<li><strong>Leader 选举机制：</strong>在 kuma 中，leader 选举机制非常简单，就是<strong>选择最新加入的 kuma-cp 节点作为 Leader</strong>。作为 Leader，会接收成员的心跳，并且定期监测超时的 kuma-cp 成员。</li>
+<li><strong>心跳机制：</strong>作为成员，会定期向 Leader 发送心跳，表明自己还存活。</li>
+<li><strong>EnvoyAdminServer：</strong>对于 Global Cp 的水平扩展多实例部署，会将 EnvoyAdmin 请求<strong>转发</strong>给 Leader Global Kuma-cp 执行。对于 Zone Cp 的水平扩展多实例部署，会在本实例执行对 envoy 发起 Admin 请求获取响应。</li>
+</ul>
+<blockquote>
+<p>下文中的实例，表示 kuma-cp 水平扩展中的某一实例。</p>
+</blockquote>
+<blockquote>
+<p>可以发现，kuma-cp 在水平扩展时，如果 leader 下线了<strong>没有自动故障切换机制</strong>，除非原来的 leader 再次上线或者有新的 kuma-cp 实例上线，leader 才会正常工作。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/#more" rel="contents">
+              <a class="btn" href="/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -792,7 +732,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-9-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/29/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -806,7 +746,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-9-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95/" class="post-title-link" itemprop="url">Simple-Redis实现 (9) 性能测试</a>
+            <a href="/2024/01/29/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/" class="post-title-link" itemprop="url">Triple协议 (7) 应用级别的服务发现</a>
         </h2>
 
         <div class="post-meta">
@@ -816,14 +756,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-12-12 14:58:13" itemprop="dateCreated datePublished" datetime="2023-12-12T14:58:13+08:00">2023-12-12</time>
+              <time title="创建时间：2024-01-29 19:52:09" itemprop="dateCreated datePublished" datetime="2024-01-29T19:52:09+08:00">2024-01-29</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -831,7 +771,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
                 </span>
             </span>
 
@@ -846,315 +786,467 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="性能测试"><a href="#性能测试" class="headerlink" title="性能测试"></a>性能测试</h1><h2 id="测试环境"><a href="#测试环境" class="headerlink" title="测试环境"></a>测试环境</h2><p>使用的机器为 MacBook Pro 13，处理器 Intel i5 四核，内存 8GB。</p>
-<h2 id="测试结果"><a href="#测试结果" class="headerlink" title="测试结果"></a>测试结果</h2><p>在同样的测试环境上，使用 redis-benchmark分别对 Redis 和 Simple-Redis 进行性能测试。</p>
-<p>发送一万条请求，对 <code>set,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange</code> 命令进行测试。</p>
-<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>Redis 测试结果如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">zhaohan08@MacBook-Pro redis % redis-benchmark -t <span class="built_in">set</span>,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange -n 10000 -q</span><br><span class="line">SET: 93457.95 requests per second, p50=0.263 msec</span><br><span class="line">GET: 96153.84 requests per second, p50=0.263 msec</span><br><span class="line">INCR: 96153.84 requests per second, p50=0.263 msec</span><br><span class="line">LPUSH: 100000.00 requests per second, p50=0.263 msec</span><br><span class="line">RPUSH: 97087.38 requests per second, p50=0.263 msec</span><br><span class="line">LPOP: 98039.22 requests per second, p50=0.263 msec</span><br><span class="line">RPOP: 93457.95 requests per second, p50=0.263 msec</span><br><span class="line">SADD: 93457.95 requests per second, p50=0.263 msec</span><br><span class="line">HSET: 87719.30 requests per second, p50=0.271 msec</span><br><span class="line">SPOP: 95238.10 requests per second, p50=0.263 msec</span><br><span class="line">ZADD: 100000.00 requests per second, p50=0.263 msec</span><br><span class="line">LPUSH (needed to benchmark LRANGE): 99009.90 requests per second, p50=0.263 msec</span><br><span class="line">LRANGE_100 (first 100 elements): 38167.94 requests per second, p50=0.647 msec</span><br><span class="line">LRANGE_300 (first 300 elements): 16366.61 requests per second, p50=1.503 msec</span><br><span class="line">LRANGE_500 (first 500 elements): 10989.01 requests per second, p50=2.223 msec</span><br><span class="line">LRANGE_600 (first 600 elements): 9363.30 requests per second, p50=2.639 msec</span><br></pre></td></tr></table></figure>
-
-<h3 id="Simple-Redis"><a href="#Simple-Redis" class="headerlink" title="Simple-Redis"></a>Simple-Redis</h3><p>Simple-Redis 测试结果如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">zhaohan08@MacBook-Pro redis % redis-benchmark -t <span class="built_in">set</span>,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange -n 10000 -q</span><br><span class="line">WARNING: Could not fetch server CONFIG</span><br><span class="line">SET: 68965.52 requests per second, p50=0.367 msec</span><br><span class="line">GET: 62111.80 requests per second, p50=0.399 msec</span><br><span class="line">INCR: 49751.24 requests per second, p50=0.487 msec</span><br><span class="line">LPUSH: 56497.18 requests per second, p50=0.447 msec</span><br><span class="line">RPUSH: 49504.95 requests per second, p50=0.503 msec</span><br><span class="line">LPOP: 68965.52 requests per second, p50=0.375 msec</span><br><span class="line">RPOP: 68493.15 requests per second, p50=0.375 msec</span><br><span class="line">SADD: 52631.58 requests per second, p50=0.495 msec</span><br><span class="line">HSET: 68027.21 requests per second, p50=0.375 msec</span><br><span class="line">SPOP: 68027.21 requests per second, p50=0.383 msec</span><br><span class="line">ZADD: 49751.24 requests per second, p50=0.503 msec</span><br><span class="line">LPUSH (needed to benchmark LRANGE): 56818.18 requests per second, p50=0.463 msec</span><br><span class="line">LRANGE_100 (first 100 elements): 25773.20 requests per second, p50=0.895 msec</span><br><span class="line">LRANGE_300 (first 300 elements): 13586.96 requests per second, p50=1.775 msec</span><br><span class="line">LRANGE_500 (first 500 elements): 9041.59 requests per second, p50=2.607 msec</span><br><span class="line">LRANGE_600 (first 600 elements): 7704.16 requests per second, p50=3.015 msec</span><br></pre></td></tr></table></figure>
-
-<h2 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h2><p>在单机时，可以得出结论，Simple-Redis 和 Redis 是有性能差距的，具体数据如下：</p>
-<ul>
-<li>string 类型：Simple-Redis 的性能大约是 Redis 的 70%。</li>
-<li>list 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-<li>hash 类型：Simple-Redis 大约是 Redis 的 75%。</li>
-<li>set 类型：Simple-Redis 的性能大约是 Redis 的 55%。</li>
-<li>zset 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/" class="post-title-link" itemprop="url">Simple-Redis实现 (8) AOF持久化</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:46:58" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:58+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p>本节说明 simple-redis 中的 AOF 持久化功能。AOF（append only file）是一种 Redis 持久化方式。，其优缺点总结如下：</p>
-<ul>
-<li><strong>优势：</strong><ul>
-<li>持久化文件是用户可以理解的。</li>
-<li>备份机制更稳健，<strong>丢失数据概率更低。</strong></li>
-<li>AOF日志文件的命令通过<strong>可读</strong>的方式进行<strong>记录</strong>，这个特性非常适合做<strong>灾难性的误删除的紧急恢复</strong>。比如某人不小心使用了flushall清空了所有数据库，只有重写操作还没有发生，那么就可以立即拷贝AOF文件，将最后一条flushall命令给删了，然后再将该AOF文件放回去，就可以通过恢复机制，自动恢复所有数据。</li>
-</ul>
-</li>
-<li><strong>劣势：</strong><ul>
-<li>比起RDB占用<strong>更多的磁盘空间。</strong></li>
-<li>恢复备份<strong>速度慢</strong>。</li>
-<li>每次读写都同步的话，有一定的性能压力。</li>
-</ul>
-</li>
-</ul>
-<h1 id="AOF-持久化"><a href="#AOF-持久化" class="headerlink" title="AOF 持久化"></a>AOF 持久化</h1><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>Persister 是 AOF 持久化中的核心数据结构，它从 channel 中接收消息并且将消息写入到 AOF 文件中。其中重要的字段如下：</p>
-<ul>
-<li><strong>db：</strong>指向 simple-redis 服务器。</li>
-<li><strong>tmpDBMaker：</strong>临时数据库创建函数，在进行 AOF 重写时，需要建立一个临时数据库加载 AOF 持久化文件，通过遍历临时数据库中的 key 实现 AOF 持久化文件的重写压缩。</li>
-<li><strong>aofChan：</strong>需要持久化的命令（payload 包含命令、数据库编号两个字段）发送到这个管道上进行持久化。</li>
-<li><strong>aofFilename：</strong>AOF 持久化文件名。</li>
-<li><strong>aofFsync：</strong>AOF 刷盘策略，共有三种策略分别是FsyncAlways、FsyncEverySec、FsyncNo。</li>
-<li><strong>currentDB：</strong>当前数据库编号。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> (</span><br><span class="line">   FsyncAlways   = <span class="literal">iota</span> <span class="comment">// 每一个命令都会进行刷盘操作</span></span><br><span class="line">   FsyncEverySec        <span class="comment">// 每秒进行一次刷盘操作</span></span><br><span class="line">   FsyncNo              <span class="comment">// 不主动进行刷盘操作，交给操作系统去决定</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CmdLine [][]<span class="keyword">byte</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> (</span><br><span class="line">   aofQueueSize = <span class="number">1</span> &lt;&lt; <span class="number">16</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Persister <span class="keyword">struct</span> &#123;</span><br><span class="line">   ctx         context.Context</span><br><span class="line">   cancel      context.CancelFunc</span><br><span class="line">   db          database.DBEngine</span><br><span class="line">   tmpDBMaker  <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">database</span>.<span class="title">DBEngine</span></span></span><br><span class="line">   aofChan     <span class="keyword">chan</span> *payload</span><br><span class="line">   aofFile     *os.File</span><br><span class="line">   aofFilename <span class="keyword">string</span></span><br><span class="line">   aofFsync    <span class="keyword">int</span> <span class="comment">// AOF 刷盘策略</span></span><br><span class="line">   <span class="comment">// aof goroutine will send msg to main goroutine through this channel when aof tasks finished and ready to shut down</span></span><br><span class="line">   aofFinished <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   <span class="comment">// pause aof for start/finish aof rewrite progress</span></span><br><span class="line">   pausingAof sync.Mutex</span><br><span class="line">   <span class="comment">// 表示正在aof重写，同时只有一个aof重写</span></span><br><span class="line">   aofRewriting sync.WaitGroup</span><br><span class="line">   currentDB    <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>payload 包含命令、数据库编号两个字段，它表示发送给 aofChan 的数据。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> payload <span class="keyword">struct</span> &#123;</span><br><span class="line">	cmdLine CmdLine</span><br><span class="line">	dbIndex <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/" class="post-title-link" itemprop="url">Simple-Redis实现 (7) 底层数据库</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:46:49" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:49+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="底层数据库"><a href="#底层数据库" class="headerlink" title="底层数据库"></a>底层数据库</h1><p>在上一节中，我们简述了 simple-redis 的工作方式，需要注意的是如 GET、SET 这样需要在某个具体的数据库中执行的命令，单机模式下 Server 会调用 Server.db.Exec 去执行这类命令。</p>
-<p>本节我们就聊一聊 simple-redis 的底层数据库，simple-redis 的底层数据库定义在 database/engine 文件夹中。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/" class="post-title-link" itemprop="url">Simple-Redis实现 (6) simple-redis服务器</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:46:36" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:36+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="Simple-Redis-服务器"><a href="#Simple-Redis-服务器" class="headerlink" title="Simple-Redis 服务器"></a>Simple-Redis 服务器</h1><p>在之前已经介绍了 TCP 服务器，本节介绍 Simple-Redis 服务器，这是一个<strong>应用层服务器</strong>。在 Handler 的 Handle 方法中，有这样一条命令 <code>result := h.db.Exec(client, r.Args)</code>，它将收到的命令交给 simple-redis 服务器去执行。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>simple-redis 服务器的被定义在 database/server.go 文件中，simple-redis 服务器的相关代码在 database 文件夹下。</p>
-<p>simple-redis 服务器的数据结构如下，需要说明的是：</p>
-<ul>
-<li>dbSet：代表底层的数据库。</li>
-<li>AofPersister：AOF 持久化。</li>
-<li>AofFileSize：用于记录上一次 AOF 重写后的文件大小。</li>
-<li>rewriteWait、rewriting：用于同步 AOF 重写过程。</li>
-<li>closed：接收关闭信号，用于优雅的关闭（用于关闭自动 AOF 重写协程）。</li>
-<li>cluster：集群相关。</li>
-<li>publish：订阅发布相关操作。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Server <span class="keyword">struct</span> &#123;</span><br><span class="line">   dbSet        []*atomic.Value <span class="comment">// *DB</span></span><br><span class="line">   AofPersister *aof.Persister  <span class="comment">// AOF 持久化</span></span><br><span class="line">   AofFileSize  <span class="keyword">int64</span></span><br><span class="line">   rewriteWait  sync.WaitGroup</span><br><span class="line">   rewriting    atomic.Bool</span><br><span class="line">   closed       <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   cluster      *cluster.Cluster</span><br><span class="line">   publish      publish.Publish</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
+          <p>在微服务架构中，如何感知后端服务实例的动态上下线，就是<strong>服务发现（Service Discovery）</strong>。业界比较有代表性的微服务框架如 SpringCloud、Dubbo 等都抽象了强大的动态地址发现能力，并且为了满足微服务业务场景的需求，绝大多数框架的地址发现都是基于自己设计的一套机制来实现。在 SpringCloud 中使用 Eureka 作为注册中心，Dubbo 通常采用 zookeeper 和 nacos 作为注册中心。注册中心不仅仅记录了 IP+Port，还包括微服务的元信息，如序列化类型，实例方法列表，各个方法级的定制化配置等。</p>
+<p>服务发现包含三种角色：<strong>服务提供者（Provider）、服务消费者（Consumer）和注册中心（Registry）</strong>。不同框架之间的区别在于如何组织注册中心中的数据。</p>
 <blockquote>
-<p>AOF 持久化、集群、发布订阅会在后面的章节中说明。</p>
+<p>dubbo中应用，服务和实例的概念区分：</p>
+<p><strong>应用</strong>是一个独立的逻辑单元，一个应用可以包含多个<strong>服务</strong>，每个服务可以包含多个<strong>实例</strong>。</p>
 </blockquote>
+<h1 id="业界服务发现方式"><a href="#业界服务发现方式" class="headerlink" title="业界服务发现方式"></a>业界服务发现方式</h1><h2 id="Spring-Cloud"><a href="#Spring-Cloud" class="headerlink" title="Spring Cloud"></a>Spring Cloud</h2><p>Spring Cloud 通过注册中心<strong>只同步了应用与实例地址</strong>，消费方可以基于实例地址与服务提供方建立链接，但是消费方对于如何发起 HTTP 调用（SpringCloud 基于 rest 通信）一无所知，比如对方有哪些 HTTP endpoint，需要传入哪些参数等。</p>
+<p>RPC 服务这部分信息目前都是通过线下约定或离线的管理系统来协商的。这种架构的优缺点总结如下。</p>
+<ul>
+<li><strong>优势</strong>： 部署结构清晰、地址推送量小。</li>
+<li><strong>缺点</strong>： 地址订阅需要指定应用名， provider 应用变更（拆分）需消费端感知；RPC 调用无法全自动同步。</li>
+</ul>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/d6b81ecf9bf5b3d630cab1fb0059756f.png" alt="img"></p>
+<h2 id="Dubbo"><a href="#Dubbo" class="headerlink" title="Dubbo"></a>Dubbo</h2><p>Dubbo 通过注册中心<strong>同时同步了实例地址和 RPC 方法</strong>，因此其能实现 RPC 过程的自动同步，面向 RPC 编程、面向 RPC 治理，对后端应用的拆分消费端无感知，其缺点则是<strong>地址推送数量变大</strong>，和 RPC 方法成正比。</p>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/d4863add6a9031faa9dda73f23ff0fab.png" alt="img"></p>
+<h2 id="Dubbo-Kubernetes"><a href="#Dubbo-Kubernetes" class="headerlink" title="Dubbo + Kubernetes"></a>Dubbo + Kubernetes</h2><p>Kubernetes Service 作为一个抽象概念，怎么映射到 Dubbo 是一个值得讨论的点。</p>
+<ol>
+<li><strong>Service Name - &gt; Application Name：</strong>Dubbo 应用和 Kubernetes 服务一一对应，对于微服务运维和建设环节透明，与开发阶段解耦（对应于应用服务发现）。</li>
+<li><strong>Service Name - &gt; Dubbo RPC Service：</strong>维护的 Service 数量变多，一个 Dubbo 应用可以运行多个接口，即一个 Dubbo 应用可以创建多个 Kubernetes Service（如 dubbo-app-service-1，dubbo-app- service-2 等）。</li>
+</ol>
+<h1 id="Dubbo-3-服务发现"><a href="#Dubbo-3-服务发现" class="headerlink" title="Dubbo 3 服务发现"></a>Dubbo 3 服务发现</h1><h2 id="服务自省"><a href="#服务自省" class="headerlink" title="服务自省"></a>服务自省</h2><h3 id="是什么？"><a href="#是什么？" class="headerlink" title="是什么？"></a>是什么？</h3><p>以 Dubbo 之前的地址发现数据格式为例，它是“RPC 服务粒度”的，它是以 RPC 服务作为 key，以实例列表作为 value 来组织数据的：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">&quot;RPC Service1&quot;</span>: [  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance1&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">1000</span>&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance2&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">2000</span>&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance3&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">3000</span>&#125;&#125;</span><br><span class="line">],</span><br><span class="line"></span><br><span class="line"><span class="string">&quot;RPC Service2&quot;</span>: [Instance list of RPC Service2],</span><br><span class="line"><span class="string">&quot;RPC ServiceN&quot;</span>: [Instance list of RPC ServiceN]</span><br></pre></td></tr></table></figure>
+
+<p>而 Dubbo 3 中的服务发现，<strong>是“应用粒度的服务发现”</strong>，它以<strong>应用名（Application）作为 key</strong>，以<strong>这个应用部署的一组实例（Instance）列表作为 value</strong>。这带来两点不同：</p>
+<ol>
+<li>数据映射关系变了，从 RPC Service -&gt; Instance 变为 Application -&gt; Instance。</li>
+<li><strong>数据变少了</strong>，注册中心没有了 RPC Service 及其相关配置信息。</li>
+</ol>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">&quot;application1&quot;</span>: [</span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance1&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance2&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instanceN&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<p>Dubbo 之前的服务发现粒度更细，在注册中心产生的数据条目也会更多（与 RPC 服务成正比），同时也存在一定的<strong>数据冗余</strong>。</p>
+<p>接着解释<strong>它为什么会被叫做“服务自省”？</strong>其实这还是得从它的工作原理说起，上面提到，应用粒度服务发现的数据模型有几个以下明显变化：数据中心的数据量少了，RPC 服务相关的数据在注册中心没有了，现在只有 application - instance 这两个层级的数据。</p>
+<p><strong>为了保证这部分缺少的 RPC 服务数据仍然能被 Consumer 端正确的感知</strong>，我们在 Consumer 和 Provider 间建立了一条单独的通信通道：Consumer 和 Provider 两两之间<strong>通过特定端口交换信息</strong>，我们把这种 Provider 自己<strong>主动暴露自身信息的行为</strong>认为是一种内省机制，因此整个机制命名为：服务自省。</p>
+<h3 id="为什么需要？"><a href="#为什么需要？" class="headerlink" title="为什么需要？"></a>为什么需要？</h3><p>为什么需要服务自省，这会带来以下优势：</p>
+<ol>
+<li><strong>与业界主流微服务模型对齐</strong>，比如 SpringCloud、Kubernetes Service 等。</li>
+<li><strong>提升性能与可伸缩性</strong>。<ul>
+<li>注册中心的数据减少了，<strong>大幅度的减轻注册中心的存储、推送压力</strong>，进而减少 Dubbo Consumer 侧的地址计算压力。</li>
+<li><strong>服务发现的数据规模，以及集群规模</strong>也开始变得<strong>可预测、可评估</strong>（与 RPC 接口数量无关，只与实例部署规模相关）。</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p>根据统计，平均情况下 Consumer 订阅的 3 个接口来自同一个 Provider 应用，如此计算下来，如果以应用粒度为地址通知和选址基本单位，则平均地址推送和计算量将下降 60% 还要多。而在极端情况下，也就是当 Consumer 端消费的接口更多的来自同一个应用时，这个地址推送与内存消耗的占用将会进一步得到降低，甚至可以超过 80% 以上。</p>
+<p>典型的例子是 API 网关，可能一个 API 网关有几十个甚至上百个定义的服务。</p>
+</blockquote>
+<h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><p>以下是服务自省的一个完整工作流程图，详细描述了服务注册、服务发现、MetadataService、RPC 调用间的协作流程。</p>
+<ul>
+<li>服务提供者启动，首先解析应用<strong>定义的“普通服务”并依次注册为 RPC 服务</strong>，紧接着<strong>注册内建的 MetadataService 服务</strong>，最后打开 TCP 监听端口。</li>
+<li>启动完成后，<strong>将实例信息注册到注册中心（仅限 ip、port 等实例相关数据）</strong>，提供者启动完成。</li>
+<li>服务消费者启动，首先依据其要<strong>“消费的 provider 应用名”</strong>到注册中心查询地址列表，并完成<strong>订阅</strong>（以实现后续地址变更自动通知）。</li>
+<li>消费端拿到地址列表后，紧接着<strong>对 MetadataService 发起调用</strong>，返回结果中包含了<strong>所有应用定义的“普通服务”及其相关配置信息</strong>。</li>
+<li>至此，消费者可以接收外部流量，并对提供者<strong>发起 Dubbo RPC 调用</strong>。</li>
+</ul>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/bf45f69f7a9fcb04e085be062481bba9.png" alt="img"></p>
+<h3 id="设计原则"><a href="#设计原则" class="headerlink" title="设计原则"></a>设计原则</h3><p>接口级服务发现的好处是数据量小，但是<strong>接口粒度的服务治理能力还是要继续保留</strong>。这就需要两点设计原则：</p>
+<ol>
+<li>新的服务发现模型要实现对原有 Dubbo 消费端开发者的<strong>无感知迁移</strong>，即 Dubbo 继续面向 RPC 服务编程、面向 RPC 服务治理，做到对用户侧完全无感知。</li>
+<li>建立 Consumer 与 Provider 间的<strong>自动化 RPC 服务元数据协调机制</strong>，解决传统微服务模型无法同步 RPC 级接口配置的缺点。</li>
+</ol>
+<h3 id="基本原理"><a href="#基本原理" class="headerlink" title="基本原理"></a>基本原理</h3><ol>
+<li><strong>注册中心的数据组织方式：</strong>以应用名为 key，实例列表为 value 组织数据。元数据只包含实例级别的元数据，不包含接口级别的元数据。注册中心的一个实例条目如下，仅仅包含实例地址，端口，实例级别的元数据信息等基本信息。</li>
+</ol>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">&quot;name&quot;</span>: <span class="string">&quot;provider-app-name&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;id&quot;</span>: <span class="string">&quot;192.168.0.102:20880&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;address&quot;</span>: <span class="string">&quot;192.168.0.102&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;port&quot;</span>: <span class="number">20880</span>,</span><br><span class="line">  <span class="attr">&quot;sslPort&quot;</span>: <span class="literal">null</span>,</span><br><span class="line">  <span class="attr">&quot;payload&quot;</span>: &#123;</span><br><span class="line">    <span class="attr">&quot;id&quot;</span>: <span class="literal">null</span>,</span><br><span class="line">    <span class="attr">&quot;name&quot;</span>: <span class="string">&quot;provider-app-name&quot;</span>,</span><br><span class="line">    <span class="attr">&quot;metadata&quot;</span>: &#123;</span><br><span class="line">      <span class="attr">&quot;metadataService&quot;</span>: <span class="string">&quot;&#123;\&quot;dubbo\&quot;:&#123;\&quot;version\&quot;:\&quot;1.0.0\&quot;,\&quot;dubbo\&quot;:\&quot;2.0.2\&quot;,\&quot;release\&quot;:\&quot;2.7.5\&quot;,\&quot;port\&quot;:\&quot;20881\&quot;&#125;&#125;&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;endpoints&quot;</span>: <span class="string">&quot;[&#123;\&quot;port\&quot;:20880,\&quot;protocol\&quot;:\&quot;dubbo\&quot;&#125;]&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;storage-type&quot;</span>: <span class="string">&quot;local&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;revision&quot;</span>: <span class="string">&quot;6785535733750099598&quot;</span>,</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;,</span><br><span class="line">  <span class="attr">&quot;registrationTimeUTC&quot;</span>: <span class="number">1583461240877</span>,</span><br><span class="line">  <span class="attr">&quot;serviceType&quot;</span>: <span class="string">&quot;DYNAMIC&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;uriSpec&quot;</span>: <span class="literal">null</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li><strong>服务调用者和提供者自行协商 RPC 方法信息。</strong>在注册中心不再同步 RPC 服务信息后，服务自省在服务消费端和提供端之间建立了一条内置的 RPC 服务信息协商机制。<strong>服务端实例会暴露一个预定义的 MetadataService RPC 服务</strong>，消费端通过调用 MetadataService 获取每个实例 RPC 方法相关的配置信息。当前 MetadataService 返回的数据格式如下：</li>
+</ol>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">  <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.DemoService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span>, </span><br><span class="line"> <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.HelloService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span>,</span><br><span class="line">  <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.WorldService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span></span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<h2 id="关键机制"><a href="#关键机制" class="headerlink" title="关键机制"></a>关键机制</h2><h3 id="元数据同步机制"><a href="#元数据同步机制" class="headerlink" title="元数据同步机制"></a>元数据同步机制</h3><p>Client 与 Server 间在收到地址推送后的配置同步是服务自省的关键环节，目前针对元数据同步有两种具体的可选方案，分别是：</p>
+<ul>
+<li><strong>内建的 MetadataService 服务</strong>。</li>
+<li><strong>独立的元数据中心</strong>，通过中心化的元数据集群协调数据。Provider 实例启动后，会尝试将内部的 RPC 服务组织成元数据的格式到元数据中心，而 consumer 则在每次收到注册中心推送更新后，主动查询元数据中心。</li>
+</ul>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/cef0a9b33a8f710d00e048fc7868925a.png" alt="img"></p>
+<h3 id="RPC-服务与应用之间的映射关系"><a href="#RPC-服务与应用之间的映射关系" class="headerlink" title="RPC 服务与应用之间的映射关系"></a>RPC 服务与应用之间的映射关系</h3><p><strong>从服务粒度到应用粒度</strong>，要想用户完全无感知必须<strong>知道 RPC 服务与应用名之间的映射关系</strong>。所以为了使整个开发流程对老的 Dubbo 用户更透明，同时避免指定 provider 对可扩展性带来的影响，设计了一套 RPC 服务到应用名的映射关系，以尝试在 consumer 自动完成 RPC 服务到 provider 应用名的转换。</p>
+<ul>
+<li>consumer 通过配置中心<strong>以服务名查询应用名</strong>。</li>
+<li>consumer 得到应用名，就可以检索注册中心，进行应用级别的服务发现了。</li>
+</ul>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/3ab172dd6153a031b4f65e034d9a03f0.png" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">用户增长 Marketing-API重构设计</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-29 13:57:27" itemprop="dateCreated datePublished" datetime="2024-01-29T13:57:27+08:00">2024-01-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          这是一篇加密文章，需要密码才能继续阅读
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/#more" rel="contents">
+              <a class="btn" href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
           <!--/noindex-->
         
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/" class="post-title-link" itemprop="url">Kuma学习笔记 (5) 网络</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-25 12:53:28" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:28+08:00">2024-01-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h1><p>本节介绍 kuma 如何处理 service mesh 中的服务发现问题，包括数据平面代理和控制平面之间的通信，控制平面代理间的通信。</p>
+<h2 id="数据平面代理和控制平面之间的通信"><a href="#数据平面代理和控制平面之间的通信" class="headerlink" title="数据平面代理和控制平面之间的通信"></a>数据平面代理和控制平面之间的通信</h2><p>当数据平面代理连接到控制平面时，它会<strong>启动到控制平面的 gRPC 流连接（xDS）</strong>。它从控制平面<strong>检索最新的策略配置</strong>并向控制平面发送诊断信息。</p>
+<ul>
+<li>在<strong>独立部署</strong>下，kuma-dp 直接连接到 kuma-cp 实例。</li>
+<li>在<strong>多区域部署</strong>下，<strong>kuma-dp 连接到 zone kuma-cp，zone kuma-cp 将通过 KDS 的 xDS API 扩展连接到 global kuma-cp</strong>。在多区域模式下，数据平面代理永远不会连接到全局控制平面，而仅连接到区域控制平面。</li>
+</ul>
+<blockquote>
+<p><strong>数据平面和控制平面之间的连接不在服务请求的执行路径上</strong>，这意味着如果数据平面暂时失去与控制平面的连接，服务流量不会受到影响。</p>
+</blockquote>
+<h2 id="数据平面代理间的通信"><a href="#数据平面代理间的通信" class="headerlink" title="数据平面代理间的通信"></a>数据平面代理间的通信</h2><p>数据平面会<strong>通报每一个服务的 IP 地址：</strong></p>
+<ul>
+<li>在 Kubernetes 环境中，IP 地址<strong>为 Pod 的地址</strong>。</li>
+<li>在 Universal 环境中，IP地址会<strong>检索 inbound listeners</strong>（用于配置控制平面代理的入站监听地址）。</li>
+</ul>
+<p>数据平面会通报 IP 地址到控制平面，这意味着在任何时间 kuma-cp 都知道每一个服务的每个副本关联的所有 IP 地址是什么。</p>
+<p>Kuma 数据平面代理间的通信，在独立部署和多区域部署使用自己的 DNS：</p>
+<ul>
+<li>在<strong>独立部署</strong>模式下，直接<strong>使用 IP 地址</strong>进行通信。</li>
+<li>在<strong>多区域部署</strong>模式下，Kuma 将自动<strong>解析域名</strong>，可以连接到在同一区域中运行的数据平面代理，或者通过 Egress（如果存在）和 另一个区域中的 Ingress 的地址 来实现跨区域连接。这意味着多区域部署模式下，<strong>服务之间可以跨集群</strong>（不管是 Kubernetes 还是 VM）连接。</li>
+</ul>
+<h1 id="DNS"><a href="#DNS" class="headerlink" title="DNS"></a>DNS</h1><p>对于每一份服务，都会生成一个以 <code>.mesh</code> 结尾的域名：</p>
+<ul>
+<li><p>对于一个 Kubernetes Service 和关联的 Pod，Kuma 控制面会自动的生成一个注解 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc_&lt;port&gt;</code>，其中 name 和 namespace 还有 port 均来自 Service 信息。</p>
+</li>
+<li><p>某些情况下 Pods 不属于任何的 Service，仅仅是单纯的一个 Pod（或者在 Universal 下）。在这种情况下，Kuma 会自动生成的注解为 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc</code> ，其中 name 和 namespace 来自于 Pod 资源。</p>
+</li>
+</ul>
+<p>服务的域名被定义为 <code>&lt;kuma.io/service的值&gt;.mesh</code>，默认端口为 80。</p>
+<h1 id="非-mesh-流量"><a href="#非-mesh-流量" class="headerlink" title="非 mesh 流量"></a>非 mesh 流量</h1><h2 id="传入流量"><a href="#传入流量" class="headerlink" title="传入流量"></a>传入流量</h2><p>启用 mTLS 后，来自网格外部的客户端无法访问网格内部的应用程序。如果想允许外部客户端使用服务网格，可以使用 Permissive mTLS 模式（宽松的 mTLS，即允许 mTLS，也允许明文请求）。</p>
+<p>所有域名查找均由数据平面代理在本地处理，而不是由控制平面处理。这种方法允许更稳健地处理名称解析，例如，当控制平面关闭时，数据平面代理仍然可以解析 DNS。</p>
+<p>数据平面代理 DNS 包括：</p>
+<ul>
+<li>Envoy DNS 过滤器提供来自网格的 DNS 记录响应。</li>
+<li>CoreDNS 用于 Envoy DNS 过滤器和原始主机 DNS 之间发送请求</li>
+<li>iptable 规则将原始 DNS 流量重定向到本地 CoreDNS 实例。</li>
+</ul>
+<h2 id="穿出流量"><a href="#穿出流量" class="headerlink" title="穿出流量"></a>穿出流量</h2><p>在默认设置中，Kuma 允许任何非网状流量通过 Envoy，而无需应用任何策略。当 <code>networking.outbound.passthrough</code> 为 <code>false</code> 时，任何非网格资源的流量都不能离开网格。</p>
+<p>使用 ProxyTemplate，可以设置非 mesh 流量的配置。如断路器，超时。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/" class="post-title-link" itemprop="url">Kuma学习笔记 (4) KDS</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-25 12:53:19" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:19+08:00">2024-01-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Kuma 通过 KDS（Kuma Discovery Service）进行 Global kuma-cp 和 Zone kuma-cp 的资源交换，以实现跨集群的通信。</p>
+<p>在第一节首先会简要说明 KDS 中需要同步的资源，第二节说明 KDS 的实现。</p>
+<h1 id="资源"><a href="#资源" class="headerlink" title="资源"></a>资源</h1><p>KDS 同步的资源按照资源的流向，可以分为两种类型：</p>
+<ul>
+<li>ZoneToGlobal：区域 cp 到全局 cp 同步的信息。</li>
+<li>GlobalToZone：全局 cp 到区域 cp 同步的信息。</li>
+</ul>
+<h2 id="ZoneToGlobal"><a href="#ZoneToGlobal" class="headerlink" title="ZoneToGlobal"></a>ZoneToGlobal</h2><h3 id="Dataplane"><a href="#Dataplane" class="headerlink" title="Dataplane"></a>Dataplane</h3><p><strong>Dataplane：</strong>允许 Zone kuma-cp -&gt; Global kuma-cp，Dataplane 定义了一个数据面 sidecar 代理的配置，spec 包括：</p>
+<ul>
+<li><strong>Network：网络</strong>，描述数据面代理的入站和出站地址。</li>
+<li>Metrics： 定义数据面收集的指标。</li>
+<li>Probes：暴露健康检查端口，健康检查配置。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Dataplane defines a configuration of a side-car proxy.</span></span><br><span class="line"><span class="keyword">type</span> Dataplane <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Networking describes inbound and outbound interfaces of the data plane</span></span><br><span class="line">    <span class="comment">// proxy.</span></span><br><span class="line">    Networking *Dataplane_Networking <span class="string">`protobuf:&quot;bytes,1,opt,name=networking,proto3&quot; json:&quot;networking,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Configuration for metrics that should be collected and exposed by the</span></span><br><span class="line">    <span class="comment">// data plane proxy.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Settings defined here will override their respective defaults</span></span><br><span class="line">    <span class="comment">// defined at a Mesh level.</span></span><br><span class="line">    Metrics *MetricsBackend <span class="string">`protobuf:&quot;bytes,2,opt,name=metrics,proto3&quot; json:&quot;metrics,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Probes describe a list of endpoints that will be exposed without mTLS.</span></span><br><span class="line">    <span class="comment">// This is useful to expose the health endpoints of the application so the</span></span><br><span class="line">    <span class="comment">// orchestration system (e.g. Kubernetes) can still health check the</span></span><br><span class="line">    <span class="comment">// application.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// See</span></span><br><span class="line">    <span class="comment">// https://kuma.io/docs/latest/policies/service-health-probes/#virtual-probes</span></span><br><span class="line">    <span class="comment">// for more information.</span></span><br><span class="line">    Probes *Dataplane_Probes <span class="string">`protobuf:&quot;bytes,3,opt,name=probes,proto3&quot; json:&quot;probes,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>DataplaneInsight：</strong>表示了数据平面的运行时状态，包括：</p>
+<ul>
+<li>Subscriptions：描述了由数据平面向控制平面创建的 ADS 订阅。</li>
+<li>MTLS：数据平面代理的 mTLS 状态，如证书过期时间，上次证书的生成时间等。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// DataplaneInsight defines the observed state of a Dataplane.</span></span><br><span class="line"><span class="keyword">type</span> DataplaneInsight <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// List of ADS subscriptions created by a given Dataplane.</span></span><br><span class="line">    Subscriptions []*DiscoverySubscription <span class="string">`protobuf:&quot;bytes,1,rep,name=subscriptions,proto3&quot; json:&quot;subscriptions,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Insights about mTLS for Dataplane.</span></span><br><span class="line">    MTLS *DataplaneInsight_MTLS <span class="string">`protobuf:&quot;bytes,2,opt,name=mTLS,proto3&quot; json:&quot;mTLS,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Egress"><a href="#Egress" class="headerlink" title="Egress"></a>Egress</h3><p><strong>Egress：</strong>用于定义 Zone Egress。</p>
+<ul>
+<li>Zone：所属的 Zone 名称。</li>
+<li>Network：描述了 Egress 监听的地址和端口。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneEgress allows us to configure dataplane in the Egress mode.</span></span><br><span class="line"><span class="keyword">type</span> ZoneEgress <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Zone field contains Zone name where egress is serving, field will be</span></span><br><span class="line">    <span class="comment">// automatically set by Global Kuma CP</span></span><br><span class="line">    Zone <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,opt,name=zone,proto3&quot; json:&quot;zone,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Networking defines the address and port of the Egress to listen on.</span></span><br><span class="line">    Networking *ZoneEgress_Networking <span class="string">`protobuf:&quot;bytes,2,opt,name=networking,proto3&quot; json:&quot;networking,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>EgressInsight：</strong>定义了 Zone Egress 的运行时状态，包括：</p>
+<ul>
+<li>DiscoverySubscription：定义了由 Zone kuma-cp 创建的 ADS 订阅。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneEgressInsight defines the observed state of a Zone Egress.</span></span><br><span class="line"><span class="keyword">type</span> ZoneEgressInsight <span class="keyword">struct</span> &#123;</span><br><span class="line">	state         protoimpl.MessageState</span><br><span class="line">	sizeCache     protoimpl.SizeCache</span><br><span class="line">	unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">	<span class="comment">// List of ADS subscriptions created by a given Zone Kuma CP.</span></span><br><span class="line">	Subscriptions []*DiscoverySubscription <span class="string">`protobuf:&quot;bytes,1,rep,name=subscriptions,proto3&quot; json:&quot;subscriptions,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Ingress"><a href="#Ingress" class="headerlink" title="Ingress"></a>Ingress</h3><p><strong>Ingress：</strong>定义了 Zone Ingress。允许 Zone kuma-cp -&gt; Global kuma-cp，和 Global kuma-cp -&gt; Zone kuma-cp，<strong>Global kuma-cp 接收 Zone kuma-cp 的 Ingress 资源，并向其他 Zone kuma-cp 同步 Ingress 信息</strong>。</p>
+<ul>
+<li>Zone：标识 Ingress 服务于哪个区域。</li>
+<li><strong>Networking：</strong>定义了 Zone Ingress 的监听地址和端口，以及公开的地址端口。</li>
+<li><strong>AvailableServices：</strong>定义了可以通过该 Zone Ingress 访问的服务，是 Kuma 跨集群通信的基础。<ul>
+<li>Tags：服务 tag。</li>
+<li>Instances：给定标签可用的服务实例数量。</li>
+<li>Mesh：给定标签可用的服务实例所属的服务网格名称。</li>
+<li>ExternalService：表明该服务是否为外部服务。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneIngress allows us to configure dataplane in the Ingress mode. In this</span></span><br><span class="line"><span class="comment">// mode, dataplane has only inbound interfaces. Every inbound interface matches</span></span><br><span class="line"><span class="comment">// with services that reside in that cluster.</span></span><br><span class="line"><span class="keyword">type</span> ZoneIngress <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Zone field contains Zone name where ingress is serving, field will be</span></span><br><span class="line">    <span class="comment">// automatically set by Global Kuma CP</span></span><br><span class="line">    Zone <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,opt,name=zone,proto3&quot; json:&quot;zone,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Networking defines the address and port of the Ingress to listen on.</span></span><br><span class="line">    <span class="comment">// Additionally publicly advertised address and port could be specified.</span></span><br><span class="line">    Networking *ZoneIngress_Networking <span class="string">`protobuf:&quot;bytes,2,opt,name=networking,proto3&quot; json:&quot;networking,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// AvailableService contains tags that represent unique subset of</span></span><br><span class="line">    <span class="comment">// endpoints</span></span><br><span class="line">    AvailableServices []*ZoneIngress_AvailableService <span class="string">`protobuf:&quot;bytes,3,rep,name=availableServices,proto3&quot; json:&quot;availableServices,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ZoneIngress_AvailableService <span class="keyword">struct</span> &#123;</span><br><span class="line">	state         protoimpl.MessageState</span><br><span class="line">	sizeCache     protoimpl.SizeCache</span><br><span class="line">	unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">	<span class="comment">// tags of the service</span></span><br><span class="line">	Tags <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,rep,name=tags,proto3&quot; json:&quot;tags,omitempty&quot; protobuf_key:&quot;bytes,1,opt,name=key,proto3&quot; protobuf_val:&quot;bytes,2,opt,name=value,proto3&quot;`</span></span><br><span class="line">	<span class="comment">// number of instances available for given tags</span></span><br><span class="line">	Instances <span class="keyword">uint32</span> <span class="string">`protobuf:&quot;varint,2,opt,name=instances,proto3&quot; json:&quot;instances,omitempty&quot;`</span></span><br><span class="line">	<span class="comment">// mesh of the instances available for given tags</span></span><br><span class="line">	Mesh <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,3,opt,name=mesh,proto3&quot; json:&quot;mesh,omitempty&quot;`</span></span><br><span class="line">	<span class="comment">// instance of external service available from the zone</span></span><br><span class="line">	ExternalService <span class="keyword">bool</span> <span class="string">`protobuf:&quot;varint,4,opt,name=externalService,proto3&quot; json:&quot;externalService,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>IngressInsight：</strong>定义了 ZoneIngress 的运行时状态。允许 Zone kuma-cp -&gt; Global kuma-cp，和 Global kuma-cp -&gt; Zone kuma-cp，Global kuma-cp 接收 Zone kuma-cp 的 IngressInsight 资源，并向其他 Zone kuma-cp 同步 IngressInsight 信息。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneIngressInsight defines the observed state of a Zone Ingress.</span></span><br><span class="line"><span class="keyword">type</span> ZoneIngressInsight <span class="keyword">struct</span> &#123;</span><br><span class="line">	state         protoimpl.MessageState</span><br><span class="line">	sizeCache     protoimpl.SizeCache</span><br><span class="line">	unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">	<span class="comment">// List of ADS subscriptions created by a given Zone Kuma CP.</span></span><br><span class="line">	Subscriptions []*DiscoverySubscription <span class="string">`protobuf:&quot;bytes,1,rep,name=subscriptions,proto3&quot; json:&quot;subscriptions,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="GlobalToZone"><a href="#GlobalToZone" class="headerlink" title="GlobalToZone"></a>GlobalToZone</h2><p>Global kuma-cp 到 zone kuma-cp 的资源，除了 Ingress 外剩下的均是来<strong>自于 Global kuma-cp 策略的更新</strong>。</p>
+<p>如 CircuitBreaker，FaultInjection，HealthCheck，Retry 等，这里不再详细说明。</p>
+<h1 id="KDS"><a href="#KDS" class="headerlink" title="KDS"></a>KDS</h1><p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/kds.svg" alt="kds"></p>
+<h2 id="KDS-v1"><a href="#KDS-v1" class="headerlink" title="KDS v1"></a>KDS v1</h2><h3 id="服务定义"><a href="#服务定义" class="headerlink" title="服务定义"></a>服务定义</h3><p>在 KDS v1 中，global 和 zone 之间在<strong>一个双向 gRPC 流</strong>中进行资源同步，KDS 服务定义如下：</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">MultiplexService</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> StreamMessage(stream Message) <span class="keyword">returns</span> (stream Message)</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">Message</span> </span>&#123;</span><br><span class="line">  <span class="keyword">oneof</span> value &#123;</span><br><span class="line">    envoy.api.v2.DiscoveryRequest legacy_request = <span class="number">1</span>;</span><br><span class="line">    envoy.api.v2.DiscoveryResponse legacy_response = <span class="number">2</span>;</span><br><span class="line">    envoy.service.discovery.v3.DiscoveryRequest request = <span class="number">3</span>;</span><br><span class="line">    envoy.service.discovery.v3.DiscoveryResponse response = <span class="number">4</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h3><p>在 zone kuma-cp 和 global kuma-cp 建立连接后：</p>
+<ul>
+<li><p>会<strong>创建 Session 对象</strong>，并启动两个协程用于<strong>读写 gRPC streaming</strong>。Session 底层抽象分离了 serverStream 和 clientStream 并实现了基于 buffer 的 streaming，用于表示 global 到 zone 和 zone 到 global 的连接。</p>
+</li>
+<li><p>接着<strong>调用 OnSessionStarted 回调函数</strong>，开启两个协程用于表示 server（global kuma-cp）和 client（global kuma-cp）。</p>
+<ul>
+<li><p>server 实现了 xDS 服务器，用于响应客户端的 xDS 请求。</p>
+</li>
+<li><p>client 在建立时：</p>
+<ul>
+<li>首先对所有需要从 zone 到 global（ZoneToGlobal）的资源发起 DiscoveryRequest。</li>
+<li>接收 xDS 响应，并同步资源到缓存中。</li>
+</ul>
+</li>
+<li><p>server 和 client 所有读写的数据，均从 serverStream 和 clientStream 中读取/发送。</p>
+</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128202501932.png" alt="image-20240128202501932"></p>
+<h2 id="KDS-v2"><a href="#KDS-v2" class="headerlink" title="KDS v2"></a>KDS v2</h2><h3 id="为什么引入-KDS-v2"><a href="#为什么引入-KDS-v2" class="headerlink" title="为什么引入 KDS v2"></a>为什么引入 KDS v2</h3><p>为什么要重新设计 KDS v2，因为 KDS v1 实现非常复杂并且可能存在一些 bug（如 <a target="_blank" rel="noopener" href="https://github.com/kumahq/kuma/pull/5373">issues #5373</a>）。KDS v2 主要的变化如下：</p>
+<ul>
+<li>分离 kds 中 zone 和 global 之间流的共用（这引入了复杂性和 bug）。</li>
+<li>当数据从 zone 同步到 global 时，使用<strong>增量更新</strong>而不是全量更新。</li>
+</ul>
+<p>KDS v1 使用<strong>一个</strong>双向流从同步 zone 和 global 之间的资源。KDS v2 引入 2 个<strong>独立</strong>的 RPC 来同步资源来简化逻辑，将简化逻辑和可读性，并且使用<strong>增量更新 Delta xDS</strong>。</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">KDSSyncService</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> GlobalToZoneSync(stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span></span><br><span class="line"><span class="function">  <span class="keyword">rpc</span> ZoneToGlobalSync(stream envoy.service.discovery.v3.DeltaDiscoveryResponse)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>KDS v1 zone 向 global 发送 DiscoveryRequest 并等待资源的更新通知。global 将状态存储在缓存中，并在发生变化时发送响应。在 global 到 zone 同步的情况下效果很好，但在<strong>大型部署中更多的流量来自从 zone 到 global 的同步</strong>。每当有变化时，zone 控制平面需要将所有数据平面资源发送到 global。所以，KDS v2 使用 delta xDS，可以用<strong>更高效的方式同步资源</strong>。</p>
+<h3 id="服务定义-1"><a href="#服务定义-1" class="headerlink" title="服务定义"></a>服务定义</h3><p>KDS v2 分离出了两个接口，GlobalToZoneSync 和 ZoneToGlobalSync，用于 global 和 zone 之间的资源同步，使用 delta xDS。</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// KDSSyncService is a service exposed by the control-plane for the</span></span><br><span class="line"><span class="comment">// synchronization of the resources between zone and global control-plane.</span></span><br><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">KDSSyncService</span> </span>&#123;</span><br><span class="line">  <span class="comment">// GlobalToZoneSync is logically a service exposed by global control-plane</span></span><br><span class="line">  <span class="comment">// that allows zone control plane to connect and synchronize resources from</span></span><br><span class="line">  <span class="comment">// the global control-plane to the zone control-plane. It uses delta xDS from</span></span><br><span class="line">  <span class="comment">// go-control-plane and responds only with the changes to the resources.</span></span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> GlobalToZoneSync(stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream envoy.service.discovery.v3.DeltaDiscoveryResponse)</span>;</span><br><span class="line">  <span class="comment">// ZoneToGlobalSync is logically a service exposed by global control-plane</span></span><br><span class="line">  <span class="comment">// that allows zone control plane to connect and synchronize resources to</span></span><br><span class="line">  <span class="comment">// the global control-plane. It uses delta xDS from go-control-plane and</span></span><br><span class="line">  <span class="comment">// responds only with the changes to the resources.</span></span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> ZoneToGlobalSync(stream envoy.service.discovery.v3.DeltaDiscoveryResponse)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="流程-1"><a href="#流程-1" class="headerlink" title="流程"></a>流程</h3><p>GlobalToZoneSync 和 ZoneToGobalSync 在连接开始时，都从 EventBus 订阅了 ZoneWentOffline 事件，接着向 EventBus 发送 ZoneOpenStream 事件（用于通知 HealthCheck 对新的 zone 和 的健康检查），<strong>用于结束与 zone 之间的连接</strong>（如正常结束，发生错误，健康检查超时）。</p>
+<ul>
+<li><p>在 GlobalToZoneSync 方法中，接着调用 OnGlobalToZoneSyncConnect 回调函数：</p>
+<ul>
+<li><strong>开启 delta xDS 服务器</strong>，用于响应 zone 到 global 对 GlobalToZone 资源的 xDS 请求。</li>
+</ul>
+</li>
+<li><p>ZoneToGobalSync 方法中，调用 OnGlobalToZoneSyncConnect 回调函数：</p>
+<ul>
+<li><strong>对所有 ZoneToGlobal 资源</strong>发起 DeltaDiscoveryRequest 请求。</li>
+<li>接收 xDS 响应，并<strong>同步</strong>资源到缓存中。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128201819505.png" alt="image-20240128201819505"></p>
+<h3 id="其他服务"><a href="#其他服务" class="headerlink" title="其他服务"></a>其他服务</h3><h4 id="ZoneWatch"><a href="#ZoneWatch" class="headerlink" title="ZoneWatch"></a>ZoneWatch</h4><p>ZoneWatch 订阅 ZoneOpenStream 事件，用于添加活跃的 zone 列表，并通知 zone kuma-cp 下线。</p>
+<ul>
+<li>每次都会轮询所有的 zone，检查上一次发送 HealthCheck 请求的时间是否超时。</li>
+<li>如果超时，则会发送 ZoneWentOffline 事件，通知 KDS 服务器终止与 zone kuma-cp 的连接。</li>
+</ul>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128210831447.png" alt="image-20240128210831447"></p>
+<h4 id="GlobalKDSService"><a href="#GlobalKDSService" class="headerlink" title="GlobalKDSService"></a>GlobalKDSService</h4><p><strong>Kuma 提供在在 Global Zone 上获取 zone xDS 配置、状态等信息的 API</strong>，所以需要通过 GlobalKDSService 收集 zone 的信息，并暴露方法以进行健康检查。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128210844323.png" alt="image-20240128210844323"></p>
+
       
     </div>
 
@@ -1172,7 +1264,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/2/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><span class="page-number current">3</span><a class="page-number" href="/page/4/">4</a><span class="space">&hellip;</span><a class="page-number" href="/page/37/">37</a><a class="extend next" rel="next" href="/page/4/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/2/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><span class="page-number current">3</span><a class="page-number" href="/page/4/">4</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/4/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1238,20 +1330,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-count">388</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">50</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-count">48</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Kubernetes 服务发现Kubernetes Service 服务发现模型在 Kubernetes 中，服务发现通过 Service 实现。每一个 Service 对象都被分配了一个唯一的 VIP，访问 Service.name 通过 CoreDNS 既可以访问到 VIP，kube-proxy 通过 iptables 将 VIP 映射为具体的某个 Pod IP 地址。流程为：  客户端通过">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triple协议 (8) Kubernetes作为注册中心">
+<meta property="og:url" content="http://dawnzzz.github.io/2024/03/25/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="Kubernetes 服务发现Kubernetes Service 服务发现模型在 Kubernetes 中，服务发现通过 Service 实现。每一个 Service 对象都被分配了一个唯一的 VIP，访问 Service.name 通过 CoreDNS 既可以访问到 VIP，kube-proxy 通过 iptables 将 VIP 映射为具体的某个 Pod IP 地址。流程为：  客户端通过">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/k8s-service-discovery.png">
+<meta property="og:image" content="http://dawnzzz.github.io/images/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/design.png">
+<meta property="article:published_time" content="2024-03-25T06:58:10.000Z">
+<meta property="article:modified_time" content="2024-03-25T07:49:58.198Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="dubbo-go - 云原生 - triple">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/k8s-service-discovery.png">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2024/03/25/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Triple协议 (8) Kubernetes作为注册中心 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/03/25/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Triple协议 (8) Kubernetes作为注册中心
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-03-25 14:58:10 / 修改时间：15:49:58" itemprop="dateCreated datePublished" datetime="2024-03-25T14:58:10+08:00">2024-03-25</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Kubernetes-服务发现"><a href="#Kubernetes-服务发现" class="headerlink" title="Kubernetes 服务发现"></a>Kubernetes 服务发现</h1><h2 id="Kubernetes-Service-服务发现模型"><a href="#Kubernetes-Service-服务发现模型" class="headerlink" title="Kubernetes Service 服务发现模型"></a>Kubernetes Service 服务发现模型</h2><p>在 Kubernetes 中，服务发现通过 Service 实现。每一个 Service 对象都被分配了一个<strong>唯一的 VIP</strong>，访问 Service.name 通过 CoreDNS 既可以访问到 VIP，<strong>kube-proxy 通过 iptables 将 VIP 映射为具体的某个 Pod IP 地址</strong>。流程为：</p>
+<ol>
+<li>客户端通过 CoreDNS 解析 Kubernetes-Service 对应的 VIP。</li>
+<li>客户端向 VIP 发起 HTTP 请求。</li>
+<li>HTTP 请求被 kube-proxy 拦截，通过 kube-proxy 创建的 iptables 将请求的目标地址映射到 Pod 的 IP 地址。</li>
+</ol>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/k8s-service-discovery.png" alt="img"></p>
+<h2 id="为什么无法使用-Kubernetes-Service-作为-Dubbo-接口级服务发现"><a href="#为什么无法使用-Kubernetes-Service-作为-Dubbo-接口级服务发现" class="headerlink" title="为什么无法使用 Kubernetes Service 作为 Dubbo 接口级服务发现"></a>为什么无法使用 Kubernetes Service 作为 Dubbo 接口级服务发现</h2><p>在 Dubbo 中<strong>接口级</strong>服务发现，无法直接使用 Kubernetes 作为注册中心主要有以下几点原因：</p>
+<ol>
+<li>在 Dubbo 调用时，需要<strong>元数据</strong>信息。但是 Kubernetes-Service 的服务描述字段中并不包含 Dubbo 元数据信息。</li>
+<li>Dubbo 的服务注册是基于每一个进程的，<strong>每一个 Dubbo 进程均需要独立的注册</strong>。</li>
+<li>Kubernetes-Service 默认为服务创建 VIP，提供 round-robin 的负载策略也<strong>与 dubbo-go自有的负载策略形成了冲突</strong>。</li>
+</ol>
+<span id="more"></span>
+
+<h2 id="Dubbo-应用级服务发现"><a href="#Dubbo-应用级服务发现" class="headerlink" title="Dubbo 应用级服务发现"></a>Dubbo 应用级服务发现</h2><p>在应用级服务发现中，是<strong>能够与 Kubernetes-Service 兼容</strong>的，因为本质上来说 Kubernetes-Service 也是一种应用级服务发现。</p>
+<blockquote>
+<p>因为有应用级别的元数据，<strong>如何在 Service 中携带应用级元数据？</strong>以下是本人猜想：通过在 Service 中加入注解实现，value 为应用级元数据的 base64 编码。</p>
+</blockquote>
+<h1 id="Dubbo-方案"><a href="#Dubbo-方案" class="headerlink" title="Dubbo 方案"></a>Dubbo 方案</h1><h2 id="接口级服务发现"><a href="#接口级服务发现" class="headerlink" title="接口级服务发现"></a>接口级服务发现</h2><p>因为 Kubernetes 原生的服务注册发现与 Dubbo 接口级服务发现产生了冲突，所以 Dubbo 放弃了 Kubernetes-Service 机制，转而另设计了一套 Dubbo 在 Kubernetes 体系下的服务注册和发现机制。</p>
+<h3 id="服务注册"><a href="#服务注册" class="headerlink" title="服务注册"></a>服务注册</h3><p>Dubbo-go 选择将元数据写入所在写入 Kubernetes-Pod Annotations 字段。为了避免与其他使用 Annotations 字段的 Operator 或者其他类型的控制器（ Istio ）的字段冲突。Dubbo-go 使用 Key 为 <strong>dubbo.io/annotation</strong>，value 为元数据的 base64 编码。</p>
+<h3 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h3><p><strong>Dubbo 通过 Kubernetes-Apiserver 的 Watch 功能实现服务发现</strong>。Dubbo-go为了避免 Watch 到非 Dubbo 进程的 Pod 变化，将 Watch 的条件限制在<strong>当前 Pod 所在的 namespace，并且 Watch 标签具有 Key 为 dubbo.io/label，Value为 dubbo.io-value 的 Pod</strong>。在 Watch 到对应Pod的变化后实时更新本地 Cache，此过程<strong>为 Informer 机制</strong>。</p>
+<h3 id="总体设计"><a href="#总体设计" class="headerlink" title="总体设计"></a>总体设计</h3><p>具体流程如下图所示：</p>
+<ol>
+<li>Provider 启动时，向 Dubbo-go Provider 应用所在的 Pod，<strong>以环境变量的方式注入 namespace 信息</strong>。</li>
+<li>Dubbo-go Provider 进程的 Pod 启动后通过环境变量获得当前的 namespace 以及该 Pod 名称，调用 Kubernetes-Apiserver PATCH 功能为本 Pod 添加 Key 为 <strong>dubbo.io/label</strong>，Value为 <strong>dubbo.io-value</strong>的 label。</li>
+<li>Dubbo-go Provider 进程调用 Kubernetes-Apiserver，将<strong>本进程的元数据通过 PATCH 接口写入当前 Pod 的 Annotations 字段</strong>（key 为 dubbo.io/annotation）。</li>
+<li>（Informer 机制）Dubbo-go Consumer 进程 LIST 当前 namespace 下其他<strong>具有同样标签的 Pod</strong>，并解码对应的 Annotations 字段，<strong>获取其他 Pod 的元数据信息</strong>，后续可以根据元数据信息进行调用。</li>
+<li>（Informer 机制）Dubbo-go  Consumer 进程 WATCH 当前 namespace 下其他具有同样标签的 Pod 的 Annotations 的字段变化。</li>
+</ol>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/design.png" alt="img"></p>
+<h2 id="应用级服务发现"><a href="#应用级服务发现" class="headerlink" title="应用级服务发现"></a>应用级服务发现</h2><p>对于应用级服务发现，官方文档并没有说明。以下是本人猜想：</p>
+<ol>
+<li>创建 Service，填写向其中填写应用级元数据。</li>
+<li>Provider 将<strong>本进程的元数据通过 PATCH 接口写入当前 Pod 的 Annotations 字段</strong>（key 为 dubbo.io/annotation），实现元数据的注册。</li>
+<li>Consumer 通过应用名，获取 Kubernetes-Service，进而获取到应用级别的元数据，同时也获取到了 Pod 地址。</li>
+<li>Consumer 通过 Informer 机制，监听 Pod 变化，实现元数据变化的监听。</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/dubbo-go-%E4%BA%91%E5%8E%9F%E7%94%9F-triple/" rel="tag"># dubbo-go - 云原生 - triple</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/" rel="prev" title="Kuma学习笔记 (8) KDS Watchdog">
+      <i class="fa fa-chevron-left"></i> Kuma学习笔记 (8) KDS Watchdog
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-1-Java%E7%BA%BF%E7%A8%8B%E6%A6%82%E8%BF%B0/" rel="next" title="Java面试之并发编程 (1) Java线程概述">
+      Java面试之并发编程 (1) Java线程概述 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kubernetes-%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">1.</span> <span class="nav-text">Kubernetes 服务发现</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Kubernetes-Service-%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.</span> <span class="nav-text">Kubernetes Service 服务发现模型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%97%A0%E6%B3%95%E4%BD%BF%E7%94%A8-Kubernetes-Service-%E4%BD%9C%E4%B8%BA-Dubbo-%E6%8E%A5%E5%8F%A3%E7%BA%A7%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">1.2.</span> <span class="nav-text">为什么无法使用 Kubernetes Service 作为 Dubbo 接口级服务发现</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Dubbo-%E5%BA%94%E7%94%A8%E7%BA%A7%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">1.3.</span> <span class="nav-text">Dubbo 应用级服务发现</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Dubbo-%E6%96%B9%E6%A1%88"><span class="nav-number">2.</span> <span class="nav-text">Dubbo 方案</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3%E7%BA%A7%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">2.1.</span> <span class="nav-text">接口级服务发现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E6%B3%A8%E5%86%8C"><span class="nav-number">2.1.1.</span> <span class="nav-text">服务注册</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">2.1.2.</span> <span class="nav-text">服务发现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E4%BD%93%E8%AE%BE%E8%AE%A1"><span class="nav-number">2.1.3.</span> <span class="nav-text">总体设计</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BA%94%E7%94%A8%E7%BA%A7%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">2.2.</span> <span class="nav-text">应用级服务发现</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

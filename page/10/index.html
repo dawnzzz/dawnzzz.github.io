@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/" class="post-title-link" itemprop="url">凤凰架构笔记 (6) 安全之授权和加密</a>
+            <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (1) 抽象文件系统</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-09 11:11:10" itemprop="dateCreated datePublished" datetime="2023-06-09T11:11:10+08:00">2023-06-09</time>
+              <time title="创建时间：2023-09-20 11:12:46" itemprop="dateCreated datePublished" datetime="2023-09-20T11:12:46+08:00">2023-09-20</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
                 </span>
             </span>
 
@@ -212,26 +212,24 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="授权"><a href="#授权" class="headerlink" title="授权"></a>授权</h1><p>授权的过程就是解决这样一个问题：谁拥有什么权限去操作哪些资源。</p>
-<h2 id="访问控制模型"><a href="#访问控制模型" class="headerlink" title="访问控制模型"></a>访问控制模型</h2><p>可以通过访问控制模型来解决授权问题，有常见的三种访问控制模型：DAC（自主访问控制）、MAC（强制访问控制）、RBAC（基于角色的访问控制）。</p>
-<h3 id="DAC"><a href="#DAC" class="headerlink" title="DAC"></a>DAC</h3><p>自主访问控制就是<strong>资源的所有者，规定谁有权限访问它们</strong>。</p>
-<p>Linux 文件的权限就是 DAC 的一种实现方式。</p>
-<h3 id="MAC"><a href="#MAC" class="headerlink" title="MAC"></a>MAC</h3><p>主体和客体都有一个<strong>固定属性</strong>，系统用该安全属性来决定一个主体是否可以访问某个客体。</p>
-<blockquote>
-<p>保护敏感信息一般用 MAC，需要用户提供灵活的保护，更多的考虑共享信息时，使用 DAC。</p>
-</blockquote>
-<h3 id="RBAC"><a href="#RBAC" class="headerlink" title="RBAC"></a>RBAC</h3><p>将权限从用户身上剥离，<strong>将权限分配在角色上，再给用户分配角色</strong>，这是最常用的访问控制模型。</p>
-<p>RBAC 有以下特点：</p>
+          <h1 id="文件系统抽象"><a href="#文件系统抽象" class="headerlink" title="文件系统抽象"></a>文件系统抽象</h1><p>在 dubbo-kubernetes 中，利用 golang 提供的 fs 抽象接口，实现了多种不同文件系统。各种文件系统的实现在 <code>app/dubboctl/internal/filesystem</code> 文件夹下，首先定义了一个 Filesystem 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Filesystem <span class="keyword">interface</span> &#123;</span><br><span class="line">	fs.ReadDirFS</span><br><span class="line">	fs.StatFS</span><br><span class="line">	Readlink(link <span class="keyword">string</span>) (<span class="keyword">string</span>, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Filesystem 接口将访问 template 文件（至于什么是模版，可以不知道）的各种实现差异，封装到这个接口中。Filesystem 接口的实现包括以下：</p>
 <ul>
-<li>通过角色实现用户和权限的<strong>解耦</strong>，具有很高的<strong>灵活性</strong>。</li>
-<li>同时还天然的满足<strong>最小分配原则</strong>。在 RBAC 模型中，角色拥有许可的数量是根据完成该角色工作职责所需的最小权限来赋予的。</li>
-<li>不同的<strong>角色</strong>之间可以有<strong>继承性</strong>，也可以有<strong>互斥性</strong>（角色的互斥约束可限制同一用户只能分配到一组互斥角色集合中至多一个角色）。</li>
+<li><strong>zipFS：</strong>用于<strong>对 zip 压缩文件</strong>的读写，将 zip 压缩文件作为一个文件系统，压缩文件中的一个个被压缩的文件或者文件夹就是文件系统中的文件。</li>
+<li><strong>billyFS：</strong>表示 git repo 中的文件系统，用于访问在<strong>远程 git 仓库</strong>中的 template。</li>
+<li><strong>osFilesystem：</strong>由操作系统支持的文件系统，用于访问 template。</li>
+<li><strong>subFS：</strong>表示 Filesystem 中的<strong>子目录</strong>，单独作为一个文件系统。</li>
+<li><strong>maskingFS：</strong>基于 Filesystem，用于<strong>屏蔽</strong>某些文件的文件系统。</li>
 </ul>
-<h2 id="OAuth2"><a href="#OAuth2" class="headerlink" title="OAuth2"></a>OAuth2</h2><p>OAuth2 是<strong>面向于解决第三方应用</strong>的认证授权协议，以 token 代替密码访问资源服务器。整个授权的流程如下图所示：</p>
-<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/image-20230609155251566.png" alt="image-20230609155251566"></p>
+<blockquote>
+<p>Golang 提供了 io.Reader 和 io.Writer 接口，抽象出对文件、字节流、socket 的读写。至于问什么提出这样的接口，将对象看作是文件一样读写，可以在 Linux 中找到启发：<strong>Linux 中，一切皆是文件</strong>。</p>
+<p>在 1.6 中提供了 fs.FS 抽象文件系统抽象，既然很多对象可以被看作是对象，那么这些抽象的文件聚集起来，就可以抽象出文件系统。</p>
+</blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/#more" rel="contents">
+              <a class="btn" href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -255,7 +253,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -269,7 +267,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/" class="post-title-link" itemprop="url">凤凰架构笔记 (5) 安全之认证和凭证</a>
+            <a href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/" class="post-title-link" itemprop="url">用户增长-实时归因</a>
         </h2>
 
         <div class="post-meta">
@@ -279,14 +277,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-08 21:09:35" itemprop="dateCreated datePublished" datetime="2023-06-08T21:09:35+08:00">2023-06-08</time>
+              <time title="创建时间：2023-09-18 10:26:36" itemprop="dateCreated datePublished" datetime="2023-09-18T10:26:36+08:00">2023-09-18</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-03-14 15:01:48" itemprop="dateModified" datetime="2024-03-14T15:01:48+08:00">2024-03-14</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -294,7 +292,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
                 </span>
             </span>
 
@@ -309,29 +307,10 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h1><p>认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。</p>
-<h2 id="HTTP-认证"><a href="#HTTP-认证" class="headerlink" title="HTTP 认证"></a>HTTP 认证</h2><p>HTTP 认证<strong>通过 Authication Header 实现</strong>，服务器告知客户端应该采用哪种认证方式：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">WWW-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br><span class="line"><span class="attribute">Proxy-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br></pre></td></tr></table></figure>
-
-<p>客户端进行响应：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br><span class="line"><span class="attribute">Proxy-Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br></pre></td></tr></table></figure>
-
-<p>认证方案如下：</p>
-<ul>
-<li><strong>Basic：</strong>让用户输入用户名和密码，经过 Base64 编码后作为凭证内容。</li>
-<li><strong>Digest：</strong>HTTP 摘要认证，Digest 认证把用户名和密码加盐（Nonce）后通过哈希后发送出去。</li>
-<li><strong>Bearer：</strong>基于 OAuth 2 规范来完成认证。</li>
-</ul>
-<h2 id="Web-认证"><a href="#Web-认证" class="headerlink" title="Web 认证"></a>Web 认证</h2><p>Web 认证就是通过 Web 表单让用户去填写用户名密码等信息。</p>
-<blockquote>
-<p>这种认证方法<strong>没有固定的标准</strong>，没有一个统一的标准去规定用户名、密码、验证码是否需要加密，并且用何种方法进行加密。这不是缺点，<strong>反而是一大优点</strong>，因为足够的<strong>自主性</strong>，可以设计出符合需求的各种认证方式。</p>
-</blockquote>
-<p>请注意，Web 认证是可以基于 HTTP 认证实现的，也就是说可以使用 HTTP Authentication Header 记录认证信息。</p>
-<h3 id="WebAuthn"><a href="#WebAuthn" class="headerlink" title="WebAuthn"></a>WebAuthn</h3><p>2019 年 W3C 起草了<strong>第一份 Web 内容认证标准 WebAuthn</strong>，WebAuthn 彻底抛弃了传统的密码登录方式，改为直接采用<strong>生物识别</strong>（指纹、人脸、虹膜、声纹）或者<strong>实体密钥</strong>（以 USB、蓝牙、NFC 连接的物理密钥容器）来作为身份凭证。所以，这个规范不关注界面该是什么样子、要不要验证码、是否要前端校验这些问题。</p>
-<p>WebAuthn包含注册和登录两大流程。</p>
+          这是一篇加密文章，需要密码才能继续阅读
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/#more" rel="contents">
+              <a class="btn" href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -355,7 +334,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -369,7 +348,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/" class="post-title-link" itemprop="url">凤凰架构笔记 (4) 透明多级分流系统之传输链路</a>
+            <a href="/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/" class="post-title-link" itemprop="url">用户增长-增长平台业务梳理</a>
         </h2>
 
         <div class="post-meta">
@@ -379,7 +358,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-07 22:07:51" itemprop="dateCreated datePublished" datetime="2023-06-07T22:07:51+08:00">2023-06-07</time>
+              <time title="创建时间：2023-09-14 20:29:42" itemprop="dateCreated datePublished" datetime="2023-09-14T20:29:42+08:00">2023-09-14</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -394,7 +373,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
                 </span>
             </span>
 
@@ -409,14 +388,10 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="传输链路"><a href="#传输链路" class="headerlink" title="传输链路"></a>传输链路</h1><p>数据通过 HTTP 协议进行通信，所以这里的传输链路指的是 HTTP 在传输链路上的优化。</p>
-<h2 id="连接数优化"><a href="#连接数优化" class="headerlink" title="连接数优化"></a>连接数优化</h2><p>HTTP over TCP，需要三次握手才能进行传输，并且 TCP 还有慢启动的特性，所以减少连接数可以优化传输时延。</p>
-<h3 id="HTTP-1-x"><a href="#HTTP-1-x" class="headerlink" title="HTTP 1.x"></a>HTTP 1.x</h3><p>在 HTTP 1.0 版本就已经支持<strong>连接复用</strong>技术（在 HTTP 1.0 默认关闭，在 HTTP 1.1 默认开启），即与服务器维护一个或者多个持久连接。客户端维护一个 FIFO 队列，每一次得到完整的响应后发出下一个请求。这种方法的问题在于队头阻塞，如果第一个请求的响应非常慢那么会直接阻塞后续请求的发出。</p>
-<p>后续又<strong>提出 HTTP 管道复用</strong>技术，令 HTTP 服务器也维护一个 FIFO 队列，客户端一次性把所有的请求都发送给服务器，由服务端来安排返回顺序。由于 HTTP 管道需要多方共同支持，协调起来相当复杂，推广得并不算成功。</p>
-<h3 id="HTTP-2-0"><a href="#HTTP-2-0" class="headerlink" title="HTTP 2.0"></a>HTTP 2.0</h3><p>HTTP 2.0 中，<strong>帧（Frame）是传输的最小单位</strong>，每一个帧都<strong>附带一个 ID 用于标识这个帧属于哪个流</strong>，从而可以通过不同流重组出 HTTP 请求和响应，被<strong>称为 HTTP 2 多路复用技术</strong>。HTTP 与同一个服务器只维护<strong>一个连接</strong>。</p>
+          这是一篇加密文章，需要密码才能继续阅读
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/#more" rel="contents">
+              <a class="btn" href="/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -440,7 +415,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-4-%E7%B4%A2%E5%BC%95%E5%92%8C%E5%85%B3%E7%B3%BB%E5%BC%95%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -454,7 +429,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/" class="post-title-link" itemprop="url">凤凰架构笔记 (3) 透明多级分流系统之缓存</a>
+            <a href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-4-%E7%B4%A2%E5%BC%95%E5%92%8C%E5%85%B3%E7%B3%BB%E5%BC%95%E7%94%A8/" class="post-title-link" itemprop="url">MongoDB学习 (4) 索引和关系引用</a>
         </h2>
 
         <div class="post-meta">
@@ -464,7 +439,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-07 15:58:30" itemprop="dateCreated datePublished" datetime="2023-06-07T15:58:30+08:00">2023-06-07</time>
+              <time title="创建时间：2023-08-28 16:54:46" itemprop="dateCreated datePublished" datetime="2023-08-28T16:54:46+08:00">2023-08-28</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -479,7 +454,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/MongoDB%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">MongoDB学习</span></a>
                 </span>
             </span>
 
@@ -494,50 +469,238 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="客户端缓存"><a href="#客户端缓存" class="headerlink" title="客户端缓存"></a>客户端缓存</h1><p>客户端缓存依赖于 HTTP 缓存机制，通过 HTTP Header 控制。</p>
-<h2 id="强制缓存"><a href="#强制缓存" class="headerlink" title="强制缓存"></a>强制缓存</h2><p>HTTP 强制缓存<strong>规定了一个过期时间</strong>，在这个时间点之前客户端可以不发出请求，直接使用本地缓存。</p>
-<p>根据约定，强制缓存在浏览器的地址输入、页面链接跳转、新开窗口、前进和后退中均可生效，但在用户主动<strong>刷新</strong>页面时应当自动<strong>失效</strong>。</p>
-<p>两类 HTTP Header 保证了强制缓存：</p>
+          <h1 id="索引"><a href="#索引" class="headerlink" title="索引"></a>索引</h1><p>MongoDB 支持建立索引，索引可以建立在一个或者多个字段上。并且由于索引是在内存中的，所以查询效率很高。但是在写操作时，由于还需要维护索引，所以写操作的效率会有所降低。</p>
+<blockquote>
+<p>MongoDB 索引的数据结构<strong>是 B 树</strong>。</p>
+</blockquote>
+<h2 id="索引覆盖查询"><a href="#索引覆盖查询" class="headerlink" title="索引覆盖查询"></a>索引覆盖查询</h2><p><strong>索引覆盖查询</strong>就是之间在索引上查询并返回结果，不需要在磁盘上扫描结果。索引覆盖查询需要满足以下条件：</p>
 <ul>
-<li><strong>Expires：</strong>Expires 是 HTTP 1.0 提供的 Header，后面跟随一个截止时间用于定于缓存的有效时间。</li>
+<li>索引字段包含了查询条件中的所有字段。</li>
+<li>查询条件中只包含索引字段，不包含其他字段。</li>
+<li>查询结果只需要索引字段的值，不需要其他字段的值。</li>
+</ul>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// users有三个字段name，gender，email</span></span><br><span class="line"><span class="comment">// 在name和gender字段上建立索引</span></span><br><span class="line"><span class="comment">// 仅仅查询gender字段，没有排除_id，查询就不会被覆盖</span></span><br><span class="line">db.users.find(&#123;<span class="attr">gender</span>:<span class="string">&quot;M&quot;</span>&#125;,&#123;<span class="attr">user_name</span>:<span class="number">1</span>,<span class="attr">_id</span>:<span class="number">0</span>&#125;)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>对于索引覆盖查询来说，不会去数据库文件中去查找，而是<strong>在索引中直接提取数据</strong>。</p>
+</blockquote>
+<h1 id="关系"><a href="#关系" class="headerlink" title="关系"></a>关系</h1><p>在 MongoDB 中，可以表示一对一、一对多、多对一、多对多关系。</p>
+<p>对于一对多关系，可以有两种方法：</p>
+<ul>
+<li><strong>嵌入完整的文档：</strong>在更新时需要非常的小心，需要同时更新所有嵌入的完整文档。同时冗余数据多，数据量不断变大，会影响读写性能。</li>
+<li><strong>关系引用：</strong>通过引用文档的 _id 字段来建立关系。也就是说，MongoDB 支持在文档中引用其他文档。</li>
+</ul>
+<h2 id="引用"><a href="#引用" class="headerlink" title="引用"></a>引用</h2><p>在 MongoDB 中，数据库引用有两种方式：手动引用和DBRefs。</p>
+<p>手动引用就是直接去在对应的字段中记录 _id 信息。</p>
+<p>DBRefs 的形式为 <code>&#123; $ref : , $id : , $db :  &#125;</code>。三个字段表示的意义如下：</p>
+<ul>
+<li>$ref：集合名称。</li>
+<li>$id：引用的 _id。</li>
+<li>$db：引用的数据库名称，可选参数。</li>
 </ul>
 <blockquote>
-<p>Expires 有设计缺陷：</p>
-<ul>
-<li>受限于客户端的本地时间。</li>
-<li>无法处理涉及客户端身份的私有资源。</li>
-<li>无法描述不缓存。</li>
-</ul>
+<p>因为 DBRefs 可以指定引用的 id 和数据库名称，所以更加相比于手动引用更加规范和灵活。</p>
 </blockquote>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-3-%E5%A4%8D%E5%88%B6%E5%92%8C%E5%88%86%E7%89%87/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-3-%E5%A4%8D%E5%88%B6%E5%92%8C%E5%88%86%E7%89%87/" class="post-title-link" itemprop="url">MongoDB学习 (3) 复制和分片</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-28 15:57:24" itemprop="dateCreated datePublished" datetime="2023-08-28T15:57:24+08:00">2023-08-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MongoDB%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">MongoDB学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="复制"><a href="#复制" class="headerlink" title="复制"></a>复制</h1><p>复制提供了数据的冗余备份，并在多个服务器上存储数据副本，提高了数据的可用性， 并可以保证数据的安全性。</p>
+<p>MongoDB 的数据复制至少需要两个节点，<strong>一个主节点，其余的节点为从节点（称为副本集）</strong>。主节点记录在其上的所有操作 oplog，<strong>从节点定期轮询</strong>主节点获取这些操作，然后对自己的数据副本执行这些操作，从而保证从节点的数据与主节点一致。</p>
+<p><img src="/../images/MongoDB%E5%AD%A6%E4%B9%A0-3-%E5%A4%8D%E5%88%B6%E5%92%8C%E5%88%86%E7%89%87/replication.png" alt="MongoDB复制结构图"></p>
+<p>在 MongoDB 中，副本集中所有的<strong>写操作都在主节点上进行</strong>，任何一个节点都可以称为主节点，并且可以<strong>自动故障转移</strong>和<strong>自动恢复</strong>。</p>
+<h1 id="分片"><a href="#分片" class="headerlink" title="分片"></a>分片</h1><p>在 MongoDB 中也可以进行分片，分片可以提高数据的吞吐量。一个分片集群结构如下，包含三个部分：</p>
 <ul>
-<li><strong>Cache-Control：</strong>Cache-Control 是 HTTP 1.1 种定义的 Header，如果 Cache-Control 和 Expires 同时存在，并且语义存在冲突，规定必须以 Cache-Control 为准。它有一系列参数：<ul>
-<li><strong>max-age 和 s-maxage：</strong>max-age 后面跟随一个以秒为单位的数字，表明相对于请求时间多少秒以内缓存是有效的。s-maxage 中的 s 为 Share，即允许被 CDN、代理等持有的缓存有效时间。</li>
-<li><strong>public 和 private：</strong>指明是否涉及到用户身份的私有资源，如果是 public，则可以被代理、CDN 等缓存，如果是 private，则只能由用户的客户端进行私有缓存。</li>
-<li><strong>no-cache 和 no-store：</strong>no-cache 指明该资源不应该被缓存，如果一个页面中引用了两张相同的图片，则会请求两次。no-store 指不能保存在本地，但是用一个页面中引用了两张相同的图片，只会请求一次。</li>
-<li><strong>no-transform：</strong>禁止资源被任何形式地修改。某些 CDN、透明代理支持自动 GZip 压缩图片或文本，以提升网络性能，而 no-transform 就禁止了这样的行为。</li>
-<li><strong>min-fresh 和 only-if-cached：</strong>这两个参数是仅用于客户端的请求 Header。min-fresh 后续跟随一个以秒为单位的数字，用于建议服务器能返回一个不少于该时间的缓存资源。only-if-cached 表示客户端要求不必给它发送资源的具体内容，此时客户端就仅能使用事先缓存的资源来进行响应，若缓存不能命中，就直接返回 503/Service Unavailable 错误。</li>
+<li><strong>Shard：</strong>用于存储实际的数据块，实际生产环境中一个 shard server 角色可由几台机器组成个一个 replica set 承担，防止主机单点故障。</li>
+<li><strong>Config Server：</strong>MongoDB服务器实例，存储了整个集群的元信息。</li>
+<li><strong>Query Routers：</strong>客户端由此接入，且让整个集群看上去像单一数据库，前端应用可以透明使用。</li>
 </ul>
-</li>
-</ul>
-<h2 id="协商缓存"><a href="#协商缓存" class="headerlink" title="协商缓存"></a>协商缓存</h2><p><strong>强制缓存</strong>有一个缓存过期时间，<strong>没有一个检测变化的机制</strong>，如果缓存还没有过期即使内容发生变化，客户端也不会向服务器请求而是使用本地缓存。</p>
-<p><strong>协商缓存</strong>在一致性上有更好的表现，但是<strong>性能</strong>上会<strong>差一些</strong>，因为需要<strong>一次检测变化的开销</strong>。</p>
-<blockquote>
-<p>强制缓存和协商缓存是完全<strong>并行工作</strong>的，当强制缓存存在时，直接从强制缓存中返回资源，无须进行变动检查；而当强制缓存超过时效，或者被禁止（no-cache）时，协商缓存依然可以工作。</p>
-</blockquote>
-<p>协商缓存有两种变化检测机制，分别是根据资源的<strong>修改时间</strong>、以及根据资源<strong>唯一标识符</strong>进行检查。</p>
-<ul>
-<li><strong>Last-Modified 和 If-Modified-Since：</strong>服务器通过 Last-Modified 告诉客户端资源最后修改时间，客户端通过 If-Modified-Since 将这个时间回送给服务器。</li>
-<li><strong>Etag 和 If-None-Match：</strong>服务器通过 Etag 告诉客户端这个资源的唯一标识符，客户端通过 If-None-Match 将这个唯一标识符回送给服务器。</li>
-</ul>
-<p>如果此时服务端发现资源<strong>没有变动</strong>（通过最后修改时间或者唯一标识符），就只要<strong>返回一个 304/Not Modified 的响应</strong>即可，无须附带消息体。如果发现<strong>有变动</strong>，则<strong>返回 200 并携带完整内容</strong>。</p>
-<blockquote>
-<p>Last-Modified 只能精确到秒级，如果一秒之内发生了多次变化，则不能准确标注修改时间。</p>
-</blockquote>
-<p>HTTP Vary Header 在响应中，用于<strong>指定其他 HTTP 头部作为客户端缓存命中的依据</strong>，如下表示根据 MIME 类型和浏览器类型来缓存资源。</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Vary</span><span class="punctuation">: </span>Accept, User-Agent</span><br></pre></td></tr></table></figure>
+<p><img src="/../images/MongoDB%E5%AD%A6%E4%B9%A0-3-%E5%A4%8D%E5%88%B6%E5%92%8C%E5%88%86%E7%89%87/sharding.png" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-2-%E6%95%B0%E6%8D%AE%E5%BA%93-%E9%9B%86%E5%90%88-%E6%96%87%E6%A1%A3%E6%93%8D%E4%BD%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-2-%E6%95%B0%E6%8D%AE%E5%BA%93-%E9%9B%86%E5%90%88-%E6%96%87%E6%A1%A3%E6%93%8D%E4%BD%9C/" class="post-title-link" itemprop="url">MongoDB学习 (2) 数据库 集合 文档操作</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-28 14:51:23" itemprop="dateCreated datePublished" datetime="2023-08-28T14:51:23+08:00">2023-08-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/MongoDB%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">MongoDB学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="数据库操作"><a href="#数据库操作" class="headerlink" title="数据库操作"></a>数据库操作</h1><h2 id="创建数据库"><a href="#创建数据库" class="headerlink" title="创建数据库"></a>创建数据库</h2><p>在 MongoDB 中，使用 use 命令并且插入一条数据，就可以完成创建一个数据库了。</p>
+<h2 id="删除数据库"><a href="#删除数据库" class="headerlink" title="删除数据库"></a>删除数据库</h2><p>使用 db.dropDatabase() 删除数据库。</p>
+<h1 id="集合操作"><a href="#集合操作" class="headerlink" title="集合操作"></a>集合操作</h1><h2 id="创建集合"><a href="#创建集合" class="headerlink" title="创建集合"></a>创建集合</h2><p>在 MongoDB 中，当插入文档时会<strong>自动</strong>的创建集合。</p>
+<p>使用 createCollection 方法显式的创建集合。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">db.createCollection(name, options)</span><br></pre></td></tr></table></figure>
+
+<p>options 可以是如下参数：</p>
+<table>
+<thead>
+<tr>
+<th align="left">字段</th>
+<th align="left">类型</th>
+<th align="left">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">capped</td>
+<td align="left">布尔</td>
+<td align="left">（可选）如果为 true，则创建固定集合。固定集合是指有着固定大小的集合，当达到最大值时，它会自动覆盖最早的文档。 <strong>当该值为 true 时，必须指定 size 参数。</strong></td>
+</tr>
+<tr>
+<td align="left">autoIndexId</td>
+<td align="left">布尔</td>
+<td align="left">3.2 之后不再支持该参数。（可选）如为 true，自动在 _id 字段创建索引。默认为 false。</td>
+</tr>
+<tr>
+<td align="left">size</td>
+<td align="left">数值</td>
+<td align="left">（可选）为固定集合指定一个最大值，即字节数。 <strong>如果 capped 为 true，也需要指定该字段。</strong></td>
+</tr>
+<tr>
+<td align="left">max</td>
+<td align="left">数值</td>
+<td align="left">（可选）指定固定集合中包含文档的最大数量。</td>
+</tr>
+</tbody></table>
+<h2 id="删除集合"><a href="#删除集合" class="headerlink" title="删除集合"></a>删除集合</h2><p>使用 db.COLLECTION_NAME.drop() 删除集合。</p>
+<h1 id="文档操作"><a href="#文档操作" class="headerlink" title="文档操作"></a>文档操作</h1><p>MongoDB 针对文档，同样支持增删改查操作，这里特别说明一下查询文档。</p>
+<h2 id="查询文档"><a href="#查询文档" class="headerlink" title="查询文档"></a>查询文档</h2><p>使用 db.COLLECTION_NAME.find 方法查询文档，find 内部可以填写查询条件。如果需要以易读的方式来读取数据，可以使用 pretty() 方法。如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">db.col.find(&#123;</span><br><span class="line">	&quot;likes&quot;: &#123;$gt:50&#125;, </span><br><span class="line">	$or: [</span><br><span class="line">		&#123;&quot;by&quot;: &quot;xxx&quot;&#125;,</span><br><span class="line">		&#123;&quot;title&quot;: &quot;MongoDB学习&quot;&#125;</span><br><span class="line">		]</span><br><span class="line">	&#125;</span><br><span class="line">).pretty()</span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/#more" rel="contents">
+              <a class="btn" href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-2-%E6%95%B0%E6%8D%AE%E5%BA%93-%E9%9B%86%E5%90%88-%E6%96%87%E6%A1%A3%E6%93%8D%E4%BD%9C/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -561,7 +724,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -575,7 +738,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/" class="post-title-link" itemprop="url">凤凰架构笔记 (2) 事务处理</a>
+            <a href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/" class="post-title-link" itemprop="url">MongoDB学习 (1) 基础概念</a>
         </h2>
 
         <div class="post-meta">
@@ -585,7 +748,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-05 21:14:28" itemprop="dateCreated datePublished" datetime="2023-06-05T21:14:28+08:00">2023-06-05</time>
+              <time title="创建时间：2023-08-28 11:28:24" itemprop="dateCreated datePublished" datetime="2023-08-28T11:28:24+08:00">2023-08-28</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -600,7 +763,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/MongoDB%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">MongoDB学习</span></a>
                 </span>
             </span>
 
@@ -615,64 +778,62 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><blockquote>
-<p>以下都是基本原理，请不要与 MySQL 挂钩！MySQL 的基本思想肯定是这样，但肯定不是完全照搬。</p>
-</blockquote>
-<h2 id="原子性和持久性"><a href="#原子性和持久性" class="headerlink" title="原子性和持久性"></a>原子性和持久性</h2><p>按照事务提交时点为界，划分为 FORCE 和 STEAL 两类情况：</p>
+          <h1 id="介绍-MongoDB"><a href="#介绍-MongoDB" class="headerlink" title="介绍 MongoDB"></a>介绍 MongoDB</h1><p>MongoDB 是一个由 C++ 编写的，<strong>分布式文档型数据库</strong>。在高负载的情况下，可以添加更多的节点，可以保证服务器性能。MongoDB 将数据存储为一个文档，数据结构由<strong>键值对</strong>构成，MongoDB 文档类似于 JSON 对象。字段值可以包含字面量，其他文档，数组及文档数组。</p>
+<h2 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h2><p>MongoDB 的特点是：</p>
 <ul>
-<li><strong>FORCE：</strong>指的是事务的实际写入发生在<strong>提交之后</strong>。当事务提交后，要求数据必须<strong>同时完成写入则称为 FORCE</strong>，如果<strong>不强制</strong>数据必须<strong>同时完成写入则称为 NO-FORCE</strong>。现实中绝大多数数据库采用的都是 NO-FORCE 策略，因为只要有了日志，变动数据随时可以持久化，从优化磁盘 I/O 性能考虑，没有必要强制数据写入立即进行。</li>
-<li><strong>STEAL：</strong>在事务提交前，允许数据<strong>提前写入则称为 STEAL</strong>，<strong>不允许则称为 NO-STEAL</strong>。从优化磁盘 I/O 性能考虑，允许数据提前写入，有利于利用空闲 I/O 资源，也有利于节省数据库缓存区的内存。</li>
+<li>支持索引，利用索引可以实现更快的排序。</li>
+<li>支持数据分片和数据复制，也就是具备分布式能力。</li>
+<li>支持 Map/Reduce，用于对数据进行批量的处理和聚合操作。</li>
+<li>允许在服务器端执行 Javascript 脚本。</li>
 </ul>
-<p>在数据库中，因为写入磁盘这个操作不是原子操作，所以可能出现<strong>崩溃</strong>的情况。为了保证事务的原子性和持久性，通常通过<strong>日志</strong>（顺序追加，这是最高效的写入方式）的方式，分为两种方法：</p>
-<ul>
-<li><strong>Commit Logging：</strong>允许 NO-FORCE，但是不允许 STEAL。</li>
-<li><strong>Write-Ahead Logging：</strong>允许 NO-FORCE，也允许 STEAL。</li>
-</ul>
-<blockquote>
-<p>通过日志实现事务的原子性和持久性是当今的主流方案，但并不是唯一的选择。除了日志外，还有一种称之为 Shadow Paging（影子分页）来实现，SqLite v3 就是这种机制。</p>
-<p>Shadow Paging 在数据写入磁盘时，不会直接修改原来的数据，而是将原来的数据复制一份副本，保留原数据只修改副本。事务成功提交后，最后一步是去修改数据的引用指针，将引用从原数据改为新复制出来修改后的副本（这个修改指针被认为是原子操作）。但是 Shadow Paging 并发能力不强，所以应用不多。</p>
-</blockquote>
-<h3 id="Commit-Logging"><a href="#Commit-Logging" class="headerlink" title="Commit Logging"></a>Commit Logging</h3><p><strong>Commit Logging 中只有一种日志，就是 redo 日志</strong>。对数据的操作都会记录在 redo 日志中，事务的<strong>提交</strong>就是在日志中<strong>写入</strong>代表提交成功的<strong>提交记录（Commit Record）</strong>。在数据库看到提交记录（Commit Record）后，才根据日志内容对数据进行真正的修改，<strong>修改完成</strong>后向日志中加入一条<strong>结束记录（End Record）</strong>表示事务已经成功完成持久化。</p>
-<p>一旦写入了 Commit Record，即使在写入磁盘之前崩溃了，重启后也能根据日志恢复，保证了持久性。如果在日志没有 Commit Record 时就发生了崩溃，则整个任务就是失败的，因为没有真正写入磁盘，所以就好像发生了回滚一样，保证了原子性。</p>
-<p>Commit Logging 的原理非常清晰，如 OceanBase 就是采用了这种方法。但是 Commit Logging 的一个<strong>缺陷</strong>就是：所有对数据的真实修改<strong>必须发生在提交之后</strong>，在提交之前即使磁盘 I/O 是空闲的也不允许写入数据，并且占用了大量的内存缓冲区。</p>
-<blockquote>
-<p>因为 Commit Logging 只有 redo log，所以不允许 STEAL，否则无法回滚（回滚需要 undo log）。</p>
-</blockquote>
-<h3 id="Write-Ahead-Logging"><a href="#Write-Ahead-Logging" class="headerlink" title="Write-Ahead Logging"></a>Write-Ahead Logging</h3><p>Write-Ahead Logging 是改进的方案，所谓 Write-Ahead（提前写入）指的就是在提交之前写入数据。<strong>Write-Ahead Logging 在 redo log 的基础上，引入了 undo log 用于回滚</strong>。当变动数据写入磁盘前，必须先记录 Undo Log，注明修改了哪个位置的数据、从什么值改成什么值等等。以便在事务回滚或者崩溃恢复时根据 undo log 对提前写入的数据变动进行擦除。</p>
-<p>在崩溃恢复时，根据 redo log 对没有写入磁盘但是已经提交的数据进行持久化，根据 undo log 对没有提交但是已经写入磁盘的数据进行回滚。</p>
-<blockquote>
-<p><strong>redo log 保证事务的持久性，而 undo log 保证事务的原子性。</strong></p>
-</blockquote>
-<h2 id="隔离性"><a href="#隔离性" class="headerlink" title="隔离性"></a>隔离性</h2><h3 id="锁"><a href="#锁" class="headerlink" title="锁"></a>锁</h3><p>实现隔离性最直观的方式，就是加锁。现代数据库均提供以下三种锁：</p>
-<ul>
-<li><strong>写锁：</strong>对一行数据加写锁，写锁与其他锁都互斥。</li>
-<li><strong>读锁：</strong>对一行数据加读锁，读锁与读锁不互斥，与写锁互斥。</li>
-<li><strong>范围锁：</strong>对一个范围加锁。</li>
-</ul>
-<blockquote>
-<p>注意，范围锁<strong>不等于</strong>对多行数据加锁，因为数据与数据之间有间隙（这就是为什么 MySQL 中有间隙锁）。</p>
-</blockquote>
-<p>隔离性用隔离级别来体现，有以下几种隔离级别（这几种隔离级别都解决了脏读问题）：</p>
-<ul>
-<li><strong>可串行化（Serializable）：</strong>可串行化是最高的隔离级别，也是并发程度最低的隔离级别。可串行化中相当于<strong>全局加锁</strong>，不存在幻读、不可重复读、脏读问题。</li>
-<li><strong>可重复读（Repeatable Read）：</strong>可重复读中，对于事务中<strong>涉及到的数据</strong>会加上<strong>读锁和写锁</strong>，但<strong>不会加范围锁</strong>。不加范围锁导致的问题，就是会出现<strong>幻读</strong>问题。</li>
-<li><strong>读已提交（Read Commited）：</strong>在读已提交中，<strong>写锁会持续到事务结束</strong>，<strong>读锁</strong>在查询完成后会<strong>马上释放</strong>。读锁在查询结束后马上释放的带来的问题，就是会导致<strong>不可重复读</strong>。</li>
-<li><strong>读未提交（Read Uncommitted）：</strong>读未提交中，<strong>写锁会持续到事务结束</strong>，但是完全<strong>不会加读锁</strong>。不加读锁带来的问题就是<strong>脏读</strong>，可能会读取到其他事务还未提交的数据。</li>
-</ul>
-<blockquote>
-<p>在 MySQL 中的默认隔离级别未可重复读，但它在<strong>只读</strong>事务中可以<strong>完全避免幻读问题</strong>。</p>
-</blockquote>
-<h3 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h3><p>MVCC 多版本并发控制是一种<strong>读优化</strong>策略，MVCC 的基本思路是对数据库的任何修改都不会直接覆盖之前的数据，而是产生一个新版副本与老版本共存，以此达到读取时可以完全不加锁的目的。</p>
-<ul>
-<li>如果隔离级别是<strong>可重复读</strong>：读取小于等于当前事务 ID 的最大版本。</li>
-<li>如果隔离级别是<strong>读已提交</strong>：读取最新版本。</li>
-</ul>
-<blockquote>
-<p>读未提交直接修改原始数据即可，不需要版本。</p>
-</blockquote>
+<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>在 mongodb 中，最基本的概念就是文档、集合、数据库。</p>
+<table>
+<thead>
+<tr>
+<th align="left">SQL术语/概念</th>
+<th align="left">MongoDB术语/概念</th>
+<th align="left">解释/说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">database</td>
+<td align="left">database</td>
+<td align="left">数据库</td>
+</tr>
+<tr>
+<td align="left">table</td>
+<td align="left">collection</td>
+<td align="left">数据库表/集合</td>
+</tr>
+<tr>
+<td align="left">row</td>
+<td align="left">document</td>
+<td align="left">数据记录行/文档</td>
+</tr>
+<tr>
+<td align="left">column</td>
+<td align="left">field</td>
+<td align="left">数据字段/域</td>
+</tr>
+<tr>
+<td align="left">index</td>
+<td align="left">index</td>
+<td align="left">索引</td>
+</tr>
+<tr>
+<td align="left">table joins</td>
+<td align="left"></td>
+<td align="left">表连接，MongoDB不支持</td>
+</tr>
+<tr>
+<td align="left">primary key</td>
+<td align="left">primary key</td>
+<td align="left">主键，MongoDB自动将_id字段设置为主键</td>
+</tr>
+</tbody></table>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/#more" rel="contents">
+              <a class="btn" href="/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -696,7 +857,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -710,7 +871,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/" class="post-title-link" itemprop="url">Kubernetes学习 (8) 卷 配置</a>
+            <a href="/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (5) 数据分区</a>
         </h2>
 
         <div class="post-meta">
@@ -720,7 +881,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-30 21:53:55" itemprop="dateCreated datePublished" datetime="2023-05-30T21:53:55+08:00">2023-05-30</time>
+              <time title="创建时间：2023-08-06 23:04:37" itemprop="dateCreated datePublished" datetime="2023-08-06T23:04:37+08:00">2023-08-06</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -735,7 +896,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
                 </span>
             </span>
 
@@ -750,117 +911,35 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="卷"><a href="#卷" class="headerlink" title="卷"></a>卷</h1><p>Kubernetes 中卷是 Pod 的组成部分，因此卷可以在 Pod 中定义。Kubernetes 卷不是单独的对象，也不能单独创建或者删除。</p>
-<p>卷有很多类型可以选择，包括 emptyDir（临时卷，生命周期与 Pod 相同）、hostPath（指向节点文件系统上的文件或者目录）、持久卷等。</p>
-<h2 id="Pod-与底层存储技术解耦"><a href="#Pod-与底层存储技术解耦" class="headerlink" title="Pod 与底层存储技术解耦"></a>Pod 与底层存储技术解耦</h2><p><strong>但是！！</strong>在 Kubernetes 上部署应用的开发人员<strong>不需要知道</strong>底层使用的是哪种存储技术，同理他们也<strong>不需要了解</strong>应该使用哪些类型的物理服务器来运行 Pod。所以，需要令具体的类型的存储卷与开发人员<strong>解耦</strong>，当开发入员需要一定数量的持久化存储来进行应用时，可以向 Kubernetes 请求然后 Kubernetes 再进行分配。</p>
-<p>因此，Kubernetes 引入了两种新的资源，<strong>持久卷（Persistent Volume，PV）</strong>和<strong>持久卷声明（Persistent Volume Claim）</strong>。开发人员无需向 Pod 中添加特定技术的卷，而是由集群管理员设置底层存储，<strong>创建持久卷并注册</strong>。开发人员<strong>创建持久卷声明</strong>，指定需要的容量和访问模式，Kubernetes 会<strong>自动</strong>的<strong>匹配到持久卷并绑定到 PVC 中</strong>。</p>
+          <p>本节首先会介绍数据集<strong>切分的方法</strong>，并讨论索引和分片的配合；然后将会讨论分片<strong>再平衡</strong>（rebalancing），集群节点增删会引起数据再平衡；最后，会探讨数据库如何将请求<strong>路由</strong>到相应的分片并执行。</p>
+<h1 id="分片方法"><a href="#分片方法" class="headerlink" title="分片方法"></a>分片方法</h1><p>分片方法都是基于<strong>键值对</strong>的，键值对是数据的一种最通用、泛化的表示，其他种类数据库都可以转化为键值对表示：</p>
+<ul>
+<li>关系型数据库：primary key → row</li>
+<li>文档型数据库：document id → document</li>
+<li>图数据库：vertex id → vertex，edge id → edge</li>
+</ul>
+<p>所以数据分片的基本方法就是，首先<strong>将数据转化为键值对，然后进行分区</strong>。<strong>分片（Partition）</strong> 的本质是对数据集合的划分，可以分为两个步骤：</p>
+<ul>
+<li>对数据集进行<strong>逻辑</strong>划分。</li>
+<li>将逻辑分片<strong>调度到物理节点</strong>上。</li>
+</ul>
+<p>本节介绍逻辑划分方法，分别是按照键范围分区和按键散列分区。</p>
+<h2 id="按键范围分区"><a href="#按键范围分区" class="headerlink" title="按键范围分区"></a>按键范围分区</h2><p>将该连续的定义域进行切分，每个分区内可以按照关键字排序保存（SSLTable）。保存每个切分的上下界，在给出某个 Key 时，就能通过比较，定位其所在分区。</p>
+<ul>
+<li>按键范围分区<strong>好处</strong>在于可以进行<strong>快速的范围查询</strong>。</li>
+<li><strong>坏处</strong>在于，数据分散<strong>不均匀</strong>，且容易造成<strong>热点</strong>。</li>
+</ul>
 <blockquote>
-<p>可以声明访问模式、回收策略等。</p>
+<p>比如关键字是时间戳，可能导致在近期的分区写入负载高，但是其他分区处于空闲状态。</p>
+<p>解决方法就是使用除了时间戳以外的其他内容作为关键字的第一项，使用<strong>拼接主键</strong>的方式。</p>
 </blockquote>
-<h2 id="动态声明持久卷"><a href="#动态声明持久卷" class="headerlink" title="动态声明持久卷"></a>动态声明持久卷</h2><p>通过 PV 和 PVC 的配合，开发人员已经无需关心底层的存储是怎样实现的，但是还需要管理员来配置和创建持久卷。</p>
-<p>Kubernetes 可以<strong>通过 StorageClass 来动态的执行此过程</strong>，管理员只需要定义 StorageClass 对象，系统在每次通过持久卷声明请求时创建一个新的持久卷。用户也可以再 PVC 中引用 StorageClass，并且可以指定大小和访问模式，StorageClass 对象会根据 PVC 中的要求动态的创建持久化卷并与相应的 Pod 绑定。</p>
-<h1 id="配置"><a href="#配置" class="headerlink" title="配置"></a>配置</h1><p>Kubernetes 中的应用程序需要读取配置信息，ConfigMap 用于读取一般配置，而 Secret 用于读取密码等敏感信息。</p>
-<h2 id="ConfigMap"><a href="#ConfigMap" class="headerlink" title="ConfigMap"></a>ConfigMap</h2><p>ConfigMap 实际上就是<strong>键值对</strong>，<strong>值</strong>的内容可以是<strong>字面量</strong>，也可以是完整的<strong>配置文件</strong>。应用程序无法直接读取 ConfigMap，甚至不知道其是否存在，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
+<h2 id="按键散列分区"><a href="#按键散列分区" class="headerlink" title="按键散列分区"></a>按键散列分区</h2><p>为了避免数据倾斜和读写热点，许多数据系统使用散列函数对键进行分区。</p>
 <blockquote>
-<p>如果 Pod 引用了不存在的 ConifgMap，则会无法启动。</p>
-</blockquote>
-<p>ConfigMap 相比于直接在镜像中打入环境变量更加灵活，因为 ConfigMap 可以随时更新配置信息。</p>
-<h2 id="Secret"><a href="#Secret" class="headerlink" title="Secret"></a>Secret</h2><p>Secret 也是键值对，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
-<blockquote>
-<p>Secret 只会存储在节点的内存中，永远不会写入物理内存。</p>
-</blockquote>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/" class="post-title-link" itemprop="url">Kubernetes学习 (7) 服务 通信</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-05-30 16:16:15" itemprop="dateCreated datePublished" datetime="2023-05-30T16:16:15+08:00">2023-05-30</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="服务"><a href="#服务" class="headerlink" title="服务"></a>服务</h1><p>Kubernetes 中<strong>服务</strong>是一种为<strong>一组功能相同</strong>的 Pod 提供<strong>单一不变的入口点</strong>的资源。当服务存在时，入口地址不会改变。 客户端通过 服务的入口地址建立连接，<strong>这些连接会被路由到提供该服务的任意一个 pod 上</strong>。 通过这种方式， 客户端不需要知道每个单独的提供服务的 pod 的地址， 这样这些 pod 就可以在集群中随时被创建或移除。</p>
-<h2 id="创建服务"><a href="#创建服务" class="headerlink" title="创建服务"></a>创建服务</h2><p>服务使用<strong>标签</strong>来选择哪些 Pod 属于服务，哪些标签不属于服务。spec. ports.port 声明服务对外暴露的端口，而 spec.ports.targetPort 声明的是将消息转发给 Pod 的端口。</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">kubia</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">ports:</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">https</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">443</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8443</span></span><br><span class="line">	<span class="attr">selector:</span></span><br><span class="line">		<span class="attr">app:</span> <span class="string">kubia</span></span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>如果希望<strong>特定客户端</strong>产生的所有请求每次都<strong>指向同一个 Pod</strong>，则可以设置服务的 spec.sessionAffinity 属性为 ClientIP。sessionAffinity 属性仅支持两个值，none（默认）和 ClientIP。</p>
-</blockquote>
-<h2 id="DNS-服务发现"><a href="#DNS-服务发现" class="headerlink" title="DNS 服务发现"></a>DNS 服务发现</h2><p>在集群内部的客户端如何知道访问服务的地址，这就需要<strong>服务发现</strong>了。在 Kubernetes 中<strong>提供了 DNS 服务器</strong>，Pod 可以使用内部的 DNS 服务器作为服务发现。客户端可以通过<strong>全限定域名（FQDN）</strong>来访问。</p>
-<p>在创建一个服务时，Kubernetes 会<strong>创建一个相应的 DNS 条目</strong>，条目的内容为 <code>&lt;服务名称&gt;.&lt;名字空间名称&gt;.svc.cluster.local</code>，其中 svc.cluster.local 是在所有<strong>集群本地服务</strong>名称中使用的<strong>可配置</strong>集群域后缀。</p>
-<p>如果客户端 Pod 和目标 Pod 在同一个命名空间下，则可以省略 svc.cluster.local 后缀，甚至是命名空间名字。</p>
-<h1 id="Endpoint"><a href="#Endpoint" class="headerlink" title="Endpoint"></a>Endpoint</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>服务 和 Pod 不是直接相连的，而是通过 Endpoint 资源进行连接。Endpoint 就是一个记录 IP 和 端口的列表，用于指示服务的转发地址。</p>
-<p>尽管在 服务中定义了 Pod 选择器，但在重定向传入连接时不会直接使用它。<strong>选择器用于构建 Pod 的 IP 端口列表</strong>，然后存储在 Endpoint 资源中。当客户端连接服务时，会<strong>从 Endpoint 资源中选择一个地址</strong>，将客户端的请求重定向到这个地址上。</p>
-<h2 id="手动配置-Endpoint"><a href="#手动配置-Endpoint" class="headerlink" title="手动配置 Endpoint"></a>手动配置 Endpoint</h2><p>当服务和 Endpoint 解耦后，可以<strong>分别手动配置</strong>它们。如果创建了不包含 Pod 选择器的服务，那么 Kubernetes 就不会创建 Endpoint 资源。所以在<strong>创建服务时不指定 Pod 选择器</strong>，然后手动的<strong>创建 Endpoint 资源</strong>，实现服务的<strong>任意重定向</strong>。</p>
-<blockquote>
-<p>Endpoints 资源与服务需要具有相同的名称，这样才能使二者进行绑定。</p>
+<p><strong>一致性哈希</strong>也是基于散列分区，它不仅解决了从键到分区的映射，也解决了分区到节点的映射。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/#more" rel="contents">
+              <a class="btn" href="/2023/08/06/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-5-%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -884,7 +963,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -898,7 +977,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/" class="post-title-link" itemprop="url">凤凰架构笔记 (1) 架构的演进</a>
+            <a href="/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (4) 数据复制</a>
         </h2>
 
         <div class="post-meta">
@@ -908,7 +987,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-30 10:33:44" itemprop="dateCreated datePublished" datetime="2023-05-30T10:33:44+08:00">2023-05-30</time>
+              <time title="创建时间：2023-08-03 11:16:25" itemprop="dateCreated datePublished" datetime="2023-08-03T11:16:25+08:00">2023-08-03</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -923,7 +1002,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
                 </span>
             </span>
 
@@ -938,53 +1017,55 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="单体系统"><a href="#单体系统" class="headerlink" title="单体系统"></a>单体系统</h1><blockquote>
-<p>需要摆正这样一个观念，<strong>单体系统并不是反派角色</strong>。</p>
-</blockquote>
-<p>单体系统适用于小型系统，有自己的优缺点，并不是一无是处。</p>
-<p><strong>优点：</strong></p>
+          <p>本节讨论主从复制、多主节点复制和无主节点复制。冗余复制有多个好处：</p>
 <ul>
-<li>对<strong>小型系统</strong>而言，单体系统不仅易于开发、易于测试、易于部署，且由于系统中各个功能、模块、方法的调用过程都是进程内调用，不会发生进程间通信。</li>
+<li>降低延迟。</li>
+<li>提高可用性。</li>
+<li>提高读吞吐。</li>
 </ul>
-<p><strong>缺点：主要是缺乏隔离性</strong>，全部的代码全部在一个进程内运行，这样带来的坏处有两个。</p>
+<h1 id="主从复制"><a href="#主从复制" class="headerlink" title="主从复制"></a>主从复制</h1><blockquote>
+<p>主从复制需要注意因为读取不同从数据库、或者从数据库与主数据库的不同步，而造成的暂时不一致性。</p>
+</blockquote>
+<p>主从复制的原理如下：</p>
 <ul>
-<li><strong>无法隔离错误</strong>，如果某个模块出现了错误，遇到了如内存泄漏等 Bug，那么整个程序都会受到影响。</li>
-<li><strong>无法做到模块级别的单独停止、升级</strong>，因为不可能停止一部分的进程、重启一部分的经常。</li>
+<li><strong>指定某一个副本为主节点。</strong>当客户端写数据库时，必须将写请求发给主节点，主节点首先将新数据写入本地存储。</li>
+<li><strong>其他副本为从节点。</strong>主节点将日志发送给所有的从节点，从节点收到日志后应用到本地存储。</li>
+<li>客户端可以从主节点或者从节点中执行查询操作。</li>
 </ul>
 <blockquote>
-<p>单体系统架构潜在的要求整个系统都是可靠的，但是我们在软件架构的演进中应该有这样的观念：<strong>从尽量追求不出错，到正视出错是必然</strong>。</p>
-<p>架构如凤凰一样不死，反复涅槃重生，这就是软件架构所追求的目标。</p>
+<p>主从复制中，只有主节点是可写的，从节点仅可读。</p>
 </blockquote>
-<h1 id="SOA-时代"><a href="#SOA-时代" class="headerlink" title="SOA 时代"></a>SOA 时代</h1><p>SOA（Service Oriented Architecture）面向服务的架构，就是将一个大型的单机系统进行拆分，拆分成独立的子系统。看起来 SOA 与微服务的概念差不多，实际上有很大的差异。</p>
-<blockquote>
-<p><strong>微服务架构 vs SOA</strong></p>
-<p>SOA（Service Oriented Architecture）指的是面向服务的架构，SOA 也是进行了服务划分，它与微服务架构看似相同，但是深入研究就会发现二者的巨大差异。</p>
+<h2 id="同步复制-异步复制"><a href="#同步复制-异步复制" class="headerlink" title="同步复制 异步复制"></a>同步复制 异步复制</h2><p>复制分为同步复制和异步复制。</p>
 <ul>
-<li><strong>服务间的通信：</strong>SOA 常吃采用重量级的技术，如 ESB（Enterprise Service Bus）、SOAP 和 WebService。而微服务架构倾向于使用轻量级的技术，如 REST 或者 gRPC 这类轻量级的协议。</li>
-<li><strong>数据管理：</strong>SOA 一般有一个全局的数据库。而微服务与之相反，每一个服务都有一个自己的私有数据模型。</li>
-<li><strong>服务规模：</strong>SOA 应用通常包含若干个大型的服务。而微服务架构则常常由属实个甚至上百个更小的服务组成。</li>
+<li><strong>同步复制：</strong> 主节点发送消息，等待从节点响应。同步复制的优点是，从库保证有与主库一致的最新数据副本。缺点是，如果同步从库没有响应，主库就无法处理写入操作。</li>
+<li><strong>异步复制：</strong>主节点发送消息，但不等待从节点的响应。异步复制的速度快、效率高，但是可能会出现数据丢失的情形。</li>
 </ul>
-</blockquote>
-<h1 id="微服务时代"><a href="#微服务时代" class="headerlink" title="微服务时代"></a>微服务时代</h1><p><strong>微服务</strong>是一种通过<strong>多个小型服务组合</strong>来构建单个应用的架构风格，这些服务<strong>围绕业务能力</strong>而非特定的技术标准来构建。各个服务可以采用<strong>不同的编程语言</strong>，<strong>不同的数据存储技术</strong>，运行在<strong>不同的进程</strong>之中。服务采取<strong>轻量级的通信机制</strong>和<strong>自动化的部署机制</strong>实现通信与运维。</p>
-<p>微服务的九个核心特征如下：</p>
+<p>基于同步复制和异步复制的优缺点，所以通常情况下采用<strong>半同步复制</strong>。半同步复制就是有既有同步从节点（一个），又有异步从节点。当所有的同步从节点响应后完成写入操作。</p>
+<h2 id="从节点的日志同步"><a href="#从节点的日志同步" class="headerlink" title="从节点的日志同步"></a>从节点的日志同步</h2><p>在新的从节点出现时，需要同步主节点中所有的数据。过程如下：</p>
 <ul>
-<li><strong>围绕业务能力构建。</strong>因为<strong>团队之间的沟通成本是巨大</strong>的，一个微服务应该是一个可以自治的单体，所以<strong>一种业务就应该被限定在一种服务内部</strong>。这就是为什么微服务中的服务划分非常重要，而微服务的划分通常与 DDD 一致。即使刚开始的架构并不是按照业务能力划分的，随着时间的发展，最终的架构也会向着这种形式演化。</li>
-<li><strong>分散治理。</strong>一个微服务应该是一个<strong>可以自治的单体</strong>，而不会依赖于其他服务。也就是说，服务之间可以是<strong>异构的</strong>、可以是<strong>跨语言的</strong>。</li>
-<li><strong>通过服务来实现独立自治的组件。</strong>通过服务，而不是通过类库（Library）来构建组件。因为<strong>服务是进程外组件</strong>，通过<strong>远程调用</strong>来提供功能，尽管进程外调用比进程内调用复杂且效率低，但是这是微服务的必然代价。</li>
-<li><strong>产品化思维。</strong>服务看作是一种产品，开发人员<strong>负责整个生命周期</strong>（开发、测试、运维、部署等等）。</li>
-<li><strong>数据去中心化。</strong>每一种服务独立的<strong>维护自己的数据库</strong>，而不是一个中心化的数据库。中心化的数据库的好处就是数据的一致性可以保证，缺点则是可能会让多个服务使用同一个数据表（服务无法独立的修改数据表 schema），使得服务之间丧失独立性。微服务去中心化的存储选择了维护独立性，而数据之间的一致性可以通过分布式事务保证。</li>
-<li><strong>强终端弱管道。</strong>管道指进程间通信机制，<strong>通信机制采用最基本的即可</strong>，特殊的能力需求由服务（终端）完成。</li>
-<li><strong>容错性设计</strong>。微服务设计中，<strong>必须有容错性设计</strong>，在必要的时候进行隔离。所以熔断器在实际生产环境中是必不可少的组件，如果没有这种容错性设计，则系统很容易就因为一两个服务的崩溃所带来的雪崩效应淹没。</li>
-<li><strong>演进式设计。</strong>演进式设计<strong>允许服务被升级、淘汰</strong>。如果系统中出现了无法升级、淘汰的服务，这是一种设计上的脆弱表现。</li>
-<li><strong>基础设施自动化。</strong>微服务下运维的对象比起单体架构要有数量级的增长，基础设施自动化减少了构建、发布、运维工作的复杂性。</li>
+<li>在第一次同步时，主节点会给从节点发送某个时刻的一致性<strong>快照</strong>。</li>
+<li>从节点同步快照后，此后的同步，就是<strong>增量</strong>拉取所有的数据变更。</li>
+</ul>
+<h2 id="处理节点宕机"><a href="#处理节点宕机" class="headerlink" title="处理节点宕机"></a>处理节点宕机</h2><p>在分布式系统中，任何节点都可能发生宕机。所以必须处理节点的宕机行为，保证集群的高可用。</p>
+<h3 id="从库失效：追赶恢复"><a href="#从库失效：追赶恢复" class="headerlink" title="从库失效：追赶恢复"></a>从库失效：追赶恢复</h3><p>如果是从节点失效了，则恢复比较<strong>容易</strong>。从节点可以从日志中知道，在发生故障之前<strong>处理的最后一个事务</strong>。从库因此可以向主库请求<strong>同步之后的所有数据变更</strong>，直到追上主节点的数据。</p>
+<h3 id="主库失效：故障切换"><a href="#主库失效：故障切换" class="headerlink" title="主库失效：故障切换"></a>主库失效：故障切换</h3><p>如果是主节点失效了，则恢复起来非常<strong>棘手</strong>。其中<strong>一个从库需要被提升为新的主库</strong>，并且需要重新配<strong>置客户端中主库的地址</strong>，其他从节点需要拉取新的主节点的数据变更，这个过程就是<strong>故障切换</strong>。</p>
+<p>故障切换可以手动进行（通过数据库管理员），或者是自动进行。自动故障切换的过程如下：</p>
+<ul>
+<li><strong>确认主库失效。</strong>大多数系统只是简单使用 <strong>超时</strong>：节点频繁地相互来回传递<strong>心跳</strong>，并且如果一个节点在一段时间内没有响应，就认为它挂了。</li>
+<li><strong>选择一个新的主库。</strong>通过<strong>选举过程</strong>（这是<strong>共识</strong>问题）来完成，或者可以由之前选定的<strong>控制器节点</strong>来指定新的主库。主库的<strong>最佳人选通常是拥有旧主库最新数据副本的从库</strong>。</li>
 </ul>
 <blockquote>
-<p>与 SOA 这种强约束和规定的架构风格不同，微服务是一种<strong>自由</strong>的风格。</p>
-<p>微服务中存在服务发现、进程间调用、负载均衡、事务处理等等问题，但是不会约束具体用什么方式去实现，微服务倡导以<strong>实践标准</strong>代替规范标准。</p>
+<p>故障切换回导致很多问题：</p>
+<ul>
+<li>如果采用<strong>异步复制</strong>，则可能出现写入操作<strong>丢失</strong>的情况。</li>
+<li><strong>新老主节点数据冲突。</strong>新主副本在上位前没有同步完所有日志，旧主副本恢复后，可能会发现和新主副本数据冲突。</li>
+<li>发生<strong>脑裂</strong>，集群内部出现多个主节点。</li>
+<li><strong>超时阈值选取</strong>。如果超时阈值选取的过小，在不稳定的网络环境中可能会造成主副本频繁的切换。</li>
+</ul>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/#more" rel="contents">
+              <a class="btn" href="/2023/08/03/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-4-%E6%95%B0%E6%8D%AE%E5%A4%8D%E5%88%B6/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1008,7 +1089,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-3-%E7%BC%96%E7%A0%81%E4%B8%8E%E6%BC%94%E5%8C%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1022,7 +1103,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/" class="post-title-link" itemprop="url">微服务架构设计模式 (9) 安全性 可配置性 可观测性</a>
+            <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-3-%E7%BC%96%E7%A0%81%E4%B8%8E%E6%BC%94%E5%8C%96/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (3) 编码与演化</a>
         </h2>
 
         <div class="post-meta">
@@ -1032,7 +1113,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-25 10:51:20" itemprop="dateCreated datePublished" datetime="2023-05-25T10:51:20+08:00">2023-05-25</time>
+              <time title="创建时间：2023-08-02 20:37:15" itemprop="dateCreated datePublished" datetime="2023-08-02T20:37:15+08:00">2023-08-02</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -1047,7 +1128,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
                 </span>
             </span>
 
@@ -1062,126 +1143,36 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h1><p>在安全性中，主要讨论用户身份认证的问题。目前有两种方法实现身份认证，Session 和 JWT。</p>
-<h2 id="Session-的缺陷"><a href="#Session-的缺陷" class="headerlink" title="Session 的缺陷"></a>Session 的缺陷</h2><p>在单体应用程序中，可以使用 Cookie+Session 来进行身份认证，Session 信息是由<strong>服务器维护</strong>的。但是在微服务架构中，由于会水平扩展所以由服务本地维护 Session 信息是不现实的，有两种解决方法：</p>
+          <p>当数据 schema 发生变化时，意味着<strong>数据库</strong>和<strong>应用程序</strong>都会发生变化：</p>
 <ul>
-<li>将 Session 信息放在<strong>数据库</strong>中，这样 Session 信息在多个实例中就是共享的。</li>
-<li>使用特定的<strong>负载均衡算法</strong>，如对客户端地址进行哈希，使得同一个客户端发出的请求到达同一个实例。</li>
+<li><strong>数据库：</strong>关系型数据库可以<strong>通过 ALTER 语句修改数据表结构</strong>。读时模式数据库不会强制模式，因此数据库可以包含在不同时间写入的<strong>新老数据格式的混合</strong>。</li>
+<li><strong>应用程序：</strong>新旧版本的代码，以及新旧数据格式可能会在系统中同时共处。所以需要保持<strong>双向兼容性</strong>（后向兼容和前向兼容）。</li>
 </ul>
-<h2 id="JWT"><a href="#JWT" class="headerlink" title="JWT"></a>JWT</h2><p>如果由服务器端来维护用户身份信息会带来种种设计上的问题，那么可以由<strong>客户端自己维护</strong>用户身份信息。JWT 就是这样一种思想，JWT 包含一个 Json 对象，其中有用户信息以及其他元信息（如到期时间）。JWT 包含的 Json 对象是被加密过的（token），并且签名可以保证第三方无法伪造。</p>
-<p>因为 JWT 是客户端<strong>自包含</strong>的，所以请求不论被路由到哪一个服务实例上，服务实例都可以根据 JWT 去验证用户信息。</p>
 <blockquote>
-<p>JWT 的<strong>缺点</strong>在于无法验证被恶意第三方偷取的 JWT token，只要恶意第三方获取到了 token 就等于获取了这个用户的登录信息。一种缓解的方法是使用<strong>较短的到期时间</strong>，但是随之而来的问题就是客户端需要频繁的请求 JWT 认证重新获取 token。</p>
+<p><strong>后向兼容通常不难实现：</strong>新代码的作者当然知道由旧代码使用的数据格式，因此可以显示地处理它。</p>
+<p><strong>向前兼容性可能会更棘手</strong>，因为旧版的程序需要忽略新版数据格式中新增的部分。</p>
 </blockquote>
-<h1 id="可配置性"><a href="#可配置性" class="headerlink" title="可配置性"></a>可配置性</h1><p>在微服务架构中，最常使用的是<strong>外部化配置</strong>，即从服务外部而不是源代码中获取配置信息。</p>
+<h1 id="编码"><a href="#编码" class="headerlink" title="编码"></a>编码</h1><p>采用适当的编码（序列化和反序列化），可以应对新旧数据格式共存的情形。</p>
+<h2 id="Json-和-XML"><a href="#Json-和-XML" class="headerlink" title="Json 和 XML"></a>Json 和 XML</h2><p>Json 和 XML 是文本格式的编码，具有人类可读性。但是因为其没有用 IDL 定义其格式、传输效率低等问题，而被人诟病。</p>
 <blockquote>
-<p>在源代码中直接定义配置文件有两个<strong>缺点</strong>：</p>
+<p>尽管可以对 Json（MessagePack、BSON 等）和 XML（WBXML、Fast Infoset 等）格式的数据进行<strong>二进制编码</strong>，但是相比于 Thrift 以及 Protobuf 等编码来说，节省的空间太小。</p>
+</blockquote>
+<h2 id="Thrift-和-ProtoBuf"><a href="#Thrift-和-ProtoBuf" class="headerlink" title="Thrift 和 ProtoBuf"></a>Thrift 和 ProtoBuf</h2><h3 id="Thrift"><a href="#Thrift" class="headerlink" title="Thrift"></a>Thrift</h3><p>Apache Thrift 需要用 IDL 进行定义：</p>
+<figure class="highlight thrift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">Person</span> </span>&#123;</span><br><span class="line">    <span class="number">1</span>: <span class="keyword">required</span> <span class="built_in">string</span>       userName,</span><br><span class="line">    <span class="number">2</span>: <span class="keyword">optional</span> <span class="built_in">i64</span>          favoriteNumber,</span><br><span class="line">    <span class="number">3</span>: <span class="keyword">optional</span> list&lt;<span class="keyword">string</span>&gt; interests</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Thrift 有两种不同的二进制编码格式，分别称为BinaryProtocol 和 CompactProtocol</strong>，另外还有两种不同的基于 JSON 的编码格式。</p>
+<p>在编码时与 Json 不同，<strong>不会记录字段名字只记录编号</strong>。</p>
 <ul>
-<li>密码等敏感信息是直接存在于源代码中的，这可能会造成一些<strong>安全性</strong>问题。</li>
-<li><strong>不够灵活</strong>，如果需要修改配置信息就必须修改源代码文件。</li>
+<li><strong>BinaryProtocol：</strong>每个字段都有一个类型注释，还可以根据需要指定长度。</li>
 </ul>
-</blockquote>
-<p>外部化配置主要有两种方式实现，推送模型和拉取模型。</p>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-3-%E7%BC%96%E7%A0%81%E4%B8%8E%E6%BC%94%E5%8C%96/fig4-2.png" alt="img"></p>
+<ul>
+<li><strong>CompactProtocol：</strong>在语义上等同于 BinaryProtocol，它通过将<strong>字段类型和标签号打包到单个字节中</strong>，并使用<strong>可变长度整数</strong>来实现（每个字节的最高位用来指示是否还有更多的字节来。）。</li>
+</ul>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-3-%E7%BC%96%E7%A0%81%E4%B8%8E%E6%BC%94%E5%8C%96/fig4-3.png" alt="img"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">微服务架构设计模式 (8) 外部API模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-05-24 22:23:25" itemprop="dateCreated datePublished" datetime="2023-05-24T22:23:25+08:00">2023-05-24</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>客户端直接访问服务会导致很多问题：</p>
-<ul>
-<li><strong>多次客户端请求导致用户体验不佳：</strong>因为客户端到服务之间是互联网（带宽低，时延高），而服务之间是局域网（带宽高，时延低）。多次客户端直接到服务的请求均通过互联网传输，传输时延高。</li>
-<li><strong>客户端与服务耦合度高：</strong>因为客户端与服务是直接请求的，所以做出的任何更改都会影响到彼此。</li>
-<li><strong>服务可能选用对客户端不友好的进程间通信机制：</strong>一般而言，客户端使用的通信协议通常是 HTTP 或者 WebSockets 等协议，而服务选用的通信协议可能是 gRPC，RPC 通信对客户端是不友好的，甚至无法穿透防火墙。</li>
-</ul>
-<p>所以可以采用 API Gateway 或者后端前置的方式。</p>
-<h1 id="API-Gateway"><a href="#API-Gateway" class="headerlink" title="API Gateway"></a>API Gateway</h1><p>把 API Gateway 作为外部客户端请求的<strong>唯一入口点</strong>，它为客户端提供 API，也可以进行<strong>身份认证</strong>、<strong>充当 API 组合器</strong>、<strong>传输协议转换</strong>等职责。</p>
-<blockquote>
-<p>可以把 API Gateway 看作是面向设计中的<strong>外观模式</strong>，它封装了内部架构，并为客户端提供API。</p>
-</blockquote>
-<h2 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h2><p>下面说明 API Gateway 的典型作用。</p>
-<h3 id="请求路由"><a href="#请求路由" class="headerlink" title="请求路由"></a>请求路由</h3><p>将客户端的请求路由到相应的服务中，来实现一些 API 操作，这与反向代理的功能类似。</p>
-<h3 id="API-组合"><a href="#API-组合" class="headerlink" title="API 组合"></a>API 组合</h3><p>API Gateway 也可以作为 API 组合器，它通过对内通过对多个服务的查询、并且将查询结果聚合，来实现对外提供粗粒度的 API。</p>
-<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/image-20230525100940886.png" alt="image-20230525100940886"></p>
-<h3 id="协议转换"><a href="#协议转换" class="headerlink" title="协议转换"></a>协议转换</h3><p>API Gateway 可以实现协议转换，它可以对外提供 HTTP RESTful API，内部使用 gRPC 进行通信。</p>
-<h3 id="实现边缘功能"><a href="#实现边缘功能" class="headerlink" title="实现边缘功能"></a>实现边缘功能</h3><p>边缘功能包括：身份认证、访问授权、速率限制、缓存、请求日志等。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/#more" rel="contents">
+              <a class="btn" href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-3-%E7%BC%96%E7%A0%81%E4%B8%8E%E6%BC%94%E5%8C%96/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1204,7 +1195,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/9/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/9/">9</a><span class="page-number current">10</span><a class="page-number" href="/page/11/">11</a><span class="space">&hellip;</span><a class="page-number" href="/page/37/">37</a><a class="extend next" rel="next" href="/page/11/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/9/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/9/">9</a><span class="page-number current">10</span><a class="page-number" href="/page/11/">11</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/11/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1270,20 +1261,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-count">388</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">50</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-count">48</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

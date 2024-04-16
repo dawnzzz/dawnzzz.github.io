@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%A4%9A%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/" class="post-title-link" itemprop="url">Simple-Redis实现 (5) 数据结构之List和SortedSet</a>
+            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%A4%9A%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">Kuma学习笔记 (3) 多集群部署方案</a>
         </h2>
 
         <div class="post-meta">
@@ -182,14 +182,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-12-11 21:46:22" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:22+08:00">2023-12-11</time>
+              <time title="创建时间：2024-01-25 12:53:03" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:03+08:00">2024-01-25</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
                 </span>
             </span>
 
@@ -212,927 +212,1105 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>Godis 中定义了 List 接口，以定义 List 的各种操作。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Expected check whether given item is equals to expected value</span></span><br><span class="line"><span class="keyword">type</span> Expected <span class="function"><span class="keyword">func</span><span class="params">(a <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Consumer traverses list.</span></span><br><span class="line"><span class="comment">// It receives index and value as params, returns true to continue traversal, while returns false to break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(i <span class="keyword">int</span>, v <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> List <span class="keyword">interface</span> &#123;</span><br><span class="line">   Add(val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Get(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Set(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Insert(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Remove(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveLast() (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveAllByVal(expected Expected) <span class="keyword">int</span></span><br><span class="line">   RemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   ReverseRemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   Len() <span class="keyword">int</span></span><br><span class="line">   ForEach(consumer Consumer)</span><br><span class="line">   Contains(expected Expected) <span class="keyword">bool</span></span><br><span class="line">   Range(start <span class="keyword">int</span>, stop <span class="keyword">int</span>) []<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="快速链表"><a href="#快速链表" class="headerlink" title="快速链表"></a>快速链表</h3><p>在 godis 中，采用<strong>快速链表</strong>作为 List 的数据结构。</p>
-<p>快速链表实际上就是一个<strong>双向链表</strong>，但是双向链表中的每一个节点不是存储一个数据，而是<strong>将数据连续存放形成一段连续的存储空间</strong>作为链表的节点。</p>
-<p>这一段连续的存储空间在 godis 中被称为 page（每一个 page 的大小为 1024），page 的类型为<strong>空接口切片</strong>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// pageSize must be even</span></span><br><span class="line"><span class="keyword">const</span> pageSize = <span class="number">1024</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// QuickList is a linked list of page (which type is []interface&#123;&#125;)</span></span><br><span class="line"><span class="comment">// QuickList has better performance than LinkedList of Add, Range and memory usage</span></span><br><span class="line"><span class="keyword">type</span> QuickList <span class="keyword">struct</span> &#123;</span><br><span class="line">   data *list.List <span class="comment">// list of []interface&#123;&#125;</span></span><br><span class="line">   size <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-4-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-4-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/" class="post-title-link" itemprop="url">Simple-Redis实现 (4) 数据结构之Hash表和LockMap</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:46:05" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:05+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-03-20 10:23:23" itemprop="dateModified" datetime="2024-03-20T10:23:23+08:00">2024-03-20</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="Hash-表"><a href="#Hash-表" class="headerlink" title="Hash 表"></a>Hash 表</h1><p>KV 内存数据库的核心是并发安全的哈希表，simple-redis 采用<strong>分段锁</strong>策略。<strong>将 key 分散到固定数量的 shard 中，在一个 shard 内的读写操作不会阻塞其他 shard 内的操作</strong>。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>定义 Dict 接口，该接口表示一个哈希表的操作：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Consumer is used to traversal dict, if it returns false the traversal will be break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Dict is interface of a key-value data structure</span></span><br><span class="line"><span class="keyword">type</span> Dict <span class="keyword">interface</span> &#123;</span><br><span class="line">	Get(key <span class="keyword">string</span>) (val <span class="keyword">interface</span>&#123;&#125;, exists <span class="keyword">bool</span>)</span><br><span class="line">	Len() <span class="keyword">int</span></span><br><span class="line">	Put(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">	PutIfAbsent(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">	PutIfExists(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">	Remove(key <span class="keyword">string</span>) (result <span class="keyword">int</span>)</span><br><span class="line">	ForEach(consumer Consumer)</span><br><span class="line">	Keys() []<span class="keyword">string</span></span><br><span class="line">	RandomKeys(limit <span class="keyword">int</span>) []<span class="keyword">string</span></span><br><span class="line">	RandomDistinctKeys(limit <span class="keyword">int</span>) []<span class="keyword">string</span></span><br><span class="line">	Clear()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>定义 ConcurrentDict 实现了 Dict 接口，ConcurrentDict 为并发安全的哈希表。<strong>将 key 映射到不同的 shard 中，不同 shard 上的操作是不会相互影响的</strong>，提高了<strong>并发性</strong>。</p>
-<blockquote>
-<p>注意，这里 shard 的数量恒为 2 的整数幂。</p>
-</blockquote>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ConcurrentDict <span class="keyword">struct</span> &#123;</span><br><span class="line">	table      []*shard</span><br><span class="line">	count      <span class="keyword">int64</span></span><br><span class="line">	shardCount <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> shard <span class="keyword">struct</span> &#123;</span><br><span class="line">	m     <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">	mutex sync.RWMutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-4-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-3-%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-3-%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/" class="post-title-link" itemprop="url">Simple-Redis实现 (3) 协议解析器</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:45:46" itemprop="dateCreated datePublished" datetime="2023-12-11T21:45:46+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="RESP-协议"><a href="#RESP-协议" class="headerlink" title="RESP 协议"></a>RESP 协议</h1><p>simple-redis 的通信使用 RESP 协议，<strong>Redis 自 2.0 版本起使用了统一的协议 RESP（REdis Serialization Protocol，Redis 序列化协议）</strong>，该协议易于实现，计算机可以高效的进行解析且易于被人类读懂。</p>
-<p>RESP 是一个<strong>二进制安全</strong>的文本协议，工作于 TCP 协议上。RESP 以<strong>行</strong>作为单位，客户端和服务器发送的命令或数据一律以 \r\n （CRLF）作为换行符。</p>
-<h2 id="RESP-的五种格式"><a href="#RESP-的五种格式" class="headerlink" title="RESP 的五种格式"></a>RESP 的五种格式</h2><p>RESP 定义了 5 种格式：</p>
+          <h1 id="多集群部署方案"><a href="#多集群部署方案" class="headerlink" title="多集群部署方案"></a>多集群部署方案</h1><p>Kuma 支持多区域部署，甚至是 Kubernetes 集群和 Universal 集群的混合部署。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%A4%9A%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/kuma_multizone-20240122105251305.svg" alt="Kuma 服务网格多区域部署，无区域出口"></p>
+<h2 id="运行机制"><a href="#运行机制" class="headerlink" title="运行机制"></a>运行机制</h2><p>在 Kuma 中将服务标记以 <code>kuma.io/service</code> 标签标记，这意味着<strong>运行在任何地方</strong>的数据平面代理可以通过 <code>kuma.io/service</code> 标签值找到该服务。<strong>不同区域上的同一服务</strong>用相同的 <code>kuma.io/service</code> 标记，可以在特定区域发生故障时自动进行<strong>服务故障转移</strong>。</p>
+<p>如果一个新的后端服务 serviceA 部署在区域 zone-b，下面看这两个问题。</p>
+<ol>
+<li>这个新的后端服务如何被通告到 zone-a 区域（区域间的同步）。</li>
+<li>一个来自于 zone-a 区域的请求如何被路由到 zone-b 区域（区域间的请求路由）。</li>
+</ol>
+<h3 id="区域间的信息同步"><a href="#区域间的信息同步" class="headerlink" title="区域间的信息同步"></a>区域间的信息同步</h3><p>当 zone-b 区域中加入了一个新的服务 serviceA 后，区域间的信息同步如下：</p>
 <ul>
-<li><strong>简单字符串（Simple String）：</strong>服务器用来返回简单的结果，比如 OK。非二进制安全，不允许换行。</li>
-<li><strong>错误信息（Error）：</strong>服务器用来返回简单的错误信息，比如 ERR Invalid Synatx。非二进制安全，且不允许换行。</li>
-<li><strong>整数（Integer）：</strong>llen、scard 等命令的返回值，64位有符号整数。</li>
-<li><strong>字符串（Bulk String）：</strong>二进制安全字符串。</li>
-<li><strong>数组（Array，又称 Multi Bulk Strings）：</strong>Bulk String 数组，客户端发送指令以及 lrange 等命令响应的格式。</li>
+<li><strong>zone-b 的控制面</strong>将该服务<strong>加入到 zone-b Ingress 资源的 availableServices（可用服务列表）</strong>中，Ingress 持有可用服务列表，以便可以路由区域外的请求。</li>
+<li><strong>zone-b 的控制平面</strong>也会将<strong>该区域的 Ingress 资源信息</strong>（Ingress 的地址等），<strong>同步到 Global 全局控制平面</strong>。</li>
+<li><strong>全局控制平面</strong>将通过 Kuma 发现服务（<strong>KDS</strong>，基于 xDS 的协议）<strong>将区域入口 Ingress 资源和所有策略传播到所有其他区域</strong>。</li>
 </ul>
-<p>RESP 通过第一个字符表示格式：</p>
+<h3 id="区域间的请求路由"><a href="#区域间的请求路由" class="headerlink" title="区域间的请求路由"></a>区域间的请求路由</h3><p>当 zone-a 中有请求想请求 serviceA 服务时：</p>
 <ul>
-<li><strong>简单字符串：以 + 开始</strong>，如 +OK\r\n。</li>
-<li><strong>错误：以 - 开始</strong>，如 -ERR Invalid Syntax\r\n。</li>
-<li><strong>整数：以 : 开始</strong>，如 :1\r\n。</li>
-<li><strong>字符串：以 $ 开始</strong>。Bulk String 有两行，第一行为 $+正文长度，第二行为实际内容。$-1 表示 nil，当使用 get 查询一个不存在的 key 时，响应为 nil。</li>
-<li><strong>数组：以 * 开始</strong>。第一行为 *+数组长度，其后是相应数量的 Bulk String。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-3-%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/" class="post-title-link" itemprop="url">Simple-Redis实现 (2) 客户端</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:44:30" itemprop="dateCreated datePublished" datetime="2023-12-11T21:44:30+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="客户端连接"><a href="#客户端连接" class="headerlink" title="客户端连接"></a>客户端连接</h1><p>在上一篇文章中，Handler 在 Handle 方法中，对于一个新的连接 conn 要初始化一个<strong>客户端与服务器连接的抽象 connect.Connection</strong>。这个结构体定义在 redis/connection/conn.go 中。</p>
-<h2 id="Connection-结构体"><a href="#Connection-结构体" class="headerlink" title="Connection 结构体"></a>Connection 结构体</h2><p>Connection 的结构体定义如下，有一些字段需要说明：</p>
-<ul>
-<li><strong>sendingData：</strong>用于优雅的结束连接。当结束连接时会等待，直到数据发送完成或者超时。</li>
-<li>password：当配置了 password 后，当发送 auth 命令时就会修改这个字段，数据库服务器就会检查这个字段是否是正确的。</li>
-<li><strong>selectedDB：</strong>当客户端发送 select 命令时，就会修改此字段的值，用于控制当前客户端处于哪个数据库中。</li>
-<li>isMulti，queue，syntaxErrQueue，watching，TxID：与事务相关的字段。</li>
-<li>subscribeChannels：记录客户端订阅的频道。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Connection represents a connection with a client</span></span><br><span class="line"><span class="keyword">type</span> Connection <span class="keyword">struct</span> &#123;</span><br><span class="line">   conn net.Conn</span><br><span class="line"></span><br><span class="line">   <span class="comment">// wait until finish sending data, used for graceful shutdown</span></span><br><span class="line">   sendingData wait.Wait</span><br><span class="line"></span><br><span class="line">   <span class="comment">// lock while server sending response</span></span><br><span class="line">   mu sync.Mutex</span><br><span class="line"></span><br><span class="line">   <span class="comment">// password may be changed by CONFIG command during runtime, so store the password</span></span><br><span class="line">   password <span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// selected db</span></span><br><span class="line">   selectedDB <span class="keyword">int</span></span><br><span class="line"></span><br><span class="line">   isMulti        <span class="keyword">bool</span>              <span class="comment">// 表明是否在 multi 开启事务中</span></span><br><span class="line">   queue          [][][]<span class="keyword">byte</span>        <span class="comment">// 事务中排队的命令</span></span><br><span class="line">   syntaxErrQueue []redis.Reply     <span class="comment">// 事务中的语法错误</span></span><br><span class="line">   watching       <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// 正在WATCH的key值</span></span><br><span class="line">   TxID           <span class="keyword">string</span>            <span class="comment">// 事务ID，在分布式事务中用到</span></span><br><span class="line"></span><br><span class="line">   subscribeChannels <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125; <span class="comment">// 订阅的频道</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/" class="post-title-link" itemprop="url">Simple-Redis实现 (1) TCP服务器</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:37:56" itemprop="dateCreated datePublished" datetime="2023-12-11T21:37:56+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p><code>main.go</code> 文件用于<strong>开启一个 simple-redis 服务器</strong>，其流程如下：</p>
-<ul>
-<li> 首先加载配置文件</li>
-<li> 接着加载日志记录模块</li>
-<li> 最后开启 TCP 服务器</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> configFilename <span class="keyword">string</span></span><br><span class="line"><span class="keyword">var</span> defaultConfigFileName = <span class="string">&quot;config.yaml&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">   flag.StringVar(&amp;configFilename, <span class="string">&quot;f&quot;</span>, defaultConfigFileName, <span class="string">&quot;the config file&quot;</span>)</span><br><span class="line">   flag.Parse()</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 加载配置文件</span></span><br><span class="line">   config.SetupConfig(configFilename)</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 加载日志</span></span><br><span class="line">   logger.SetupLogger()</span><br><span class="line"></span><br><span class="line">   <span class="comment">//</span></span><br><span class="line">   <span class="keyword">if</span> err := tcp.ListenAndServeWithSignal(server.MakeHandler()); err != <span class="literal">nil</span> &#123;</span><br><span class="line">      logger.Error(err)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="TCP-服务器"><a href="#TCP-服务器" class="headerlink" title="TCP 服务器"></a>TCP 服务器</h1><p><code>tcp/setver.go</code> 用于实现 TCP 服务器。</p>
-<p>在 main 函数中，调用 ListenAndServeWithSignal 函数开启了一个 TCP 服务器。ListenAndServeWithSignal 的函数头如下：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ListenAndServeWithSignal 服务器开启监听,并且使用 signal 作为结束信号</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">ListenAndServeWithSignal</span><span class="params">(handler tcp.Handler)</span> <span class="title">error</span></span></span><br></pre></td></tr></table></figure>
-
-<p><strong>tcp.Handler 为 TCP 服务器上层应用接口，在本项目中代表一个 simple-redis 服务器</strong>。</p>
-<h2 id="ListenAndServeWithSignal"><a href="#ListenAndServeWithSignal" class="headerlink" title="ListenAndServeWithSignal"></a>ListenAndServeWithSignal</h2><p>ListenAndServeWithSignal 用于<strong>绑定端口，开启一个 TCP 服务器</strong>，它的流程如下：</p>
-<ul>
-<li>首先<strong>开启两个通道</strong>，一个用于接收<strong>系统信号</strong>（系统信号用于关闭），一个用于传递<strong>关闭信号</strong>。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">closeChan := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)   <span class="comment">// 监听结束信号</span></span><br><span class="line">signalChan := <span class="built_in">make</span>(<span class="keyword">chan</span> os.Signal) <span class="comment">// 监听 signal</span></span><br><span class="line">signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)</span><br></pre></td></tr></table></figure>
-
-<ul>
-<li>开启一个<strong>协程</strong>用于接收系统信号，当<strong>接收到关闭的系统信号时，向关闭管道中传入数据</strong>，表明要关闭服务器。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">   <span class="keyword">for</span> &#123;</span><br><span class="line">      sig := &lt;-signalChan</span><br><span class="line">      <span class="keyword">switch</span> sig &#123;</span><br><span class="line">      <span class="keyword">case</span> syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT:</span><br><span class="line">         closeChan &lt;- <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">         <span class="keyword">return</span></span><br><span class="line">      <span class="keyword">default</span>:</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;()</span><br></pre></td></tr></table></figure>
-
-<ul>
-<li>开始监听 TCP 端口。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">address := fmt.Sprintf(<span class="string">&quot;%v:%v&quot;</span>, config.Properties.Bind, config.Properties.Port)</span><br><span class="line">listener, err := net.Listen(<span class="string">&quot;tcp&quot;</span>, address)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<ul>
-<li>调用 ListenAndServe 开启真正的<strong>应用层服务</strong>。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">logger.Infoln(<span class="string">&quot;tcp server is listening at:&quot;</span>, address)</span><br><span class="line">ListenAndServe(listener, handler, closeChan)</span><br><span class="line"></span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span></span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/08/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/08/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">用户增长 增长平台方案设计</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-08 14:57:33" itemprop="dateCreated datePublished" datetime="2023-12-08T14:57:33+08:00">2023-12-08</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          这是一篇加密文章，需要密码才能继续阅读
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/08/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/" class="post-title-link" itemprop="url">Triple协议 (6) Triple实现之协议接口定义</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-03 17:04:55" itemprop="dateCreated datePublished" datetime="2023-12-03T17:04:55+08:00">2023-12-03</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Triple 协议接口定义如下，包括两个方法：<strong>有 grpcProtocol 和 tripleProtocol 实现了这个接口</strong>，其中 grpc 用于处理 gRPC 协议（包括 Unary 和 Streaming，Triple 协议底层的 Streaming 通信用 gRPC 实现）和 Triple 协议（仅仅支持 Unary，但是同时支持 HTTP 1 和 HTTP 2）。</p>
-<ul>
-<li><strong>NewHandler：</strong>创建服务端 Handler 的方法，输入为 Handler 的参数，输出为 protocolHandler。</li>
-<li><strong>NewClient：</strong>创建客户端 Client 的方法，输入为 Client 的参数，输出为 protocolClient。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// A Protocol defines the HTTP semantics to use when sending and receiving</span></span><br><span class="line"><span class="comment">// messages. It ties together codecs, compressors, and net/http to produce</span></span><br><span class="line"><span class="comment">// Senders and Receivers.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// For example, triple supports the gRPC protocol using this abstraction. Among</span></span><br><span class="line"><span class="comment">// many other things, the protocol implementation is responsible for</span></span><br><span class="line"><span class="comment">// translating timeouts from Go contexts to HTTP and vice versa. For gRPC, it</span></span><br><span class="line"><span class="comment">// converts timeouts to and from strings (for example, 10*time.Second &lt;-&gt;</span></span><br><span class="line"><span class="comment">// &quot;10S&quot;), and puts those strings into the &quot;Grpc-Timeout&quot; HTTP header. Other</span></span><br><span class="line"><span class="comment">// protocols might encode durations differently, put them into a different HTTP</span></span><br><span class="line"><span class="comment">// header, or ignore them entirely.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// We don&#x27;t have any short-term plans to export this interface; it&#x27;s just here</span></span><br><span class="line"><span class="comment">// to separate the protocol-specific portions of triple from the</span></span><br><span class="line"><span class="comment">// protocol-agnostic plumbing.</span></span><br><span class="line"><span class="keyword">type</span> protocol <span class="keyword">interface</span> &#123;</span><br><span class="line">    NewHandler(*protocolHandlerParams) protocolHandler</span><br><span class="line">    NewClient(*protocolClientParams) (protocolClient, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Handler"><a href="#Handler" class="headerlink" title="Handler"></a>Handler</h1><p>Handler 在 Triple 协议总被定义为服务器。</p>
-<h2 id="Handler-配置"><a href="#Handler-配置" class="headerlink" title="Handler 配置"></a>Handler 配置</h2><p>Handler 配置 protocolHandlerParams 定义如下：</p>
-<ul>
-<li><strong>Spec：</strong>定义了 handler spec，包括传输类型、请求 Path（Procedure）、是否为客户端、IdempotencyLevel。</li>
-<li><strong>Codecs：</strong>保存了这个 Handler 支持的<strong>编码</strong>类型。</li>
-<li><strong>CompressionPools：</strong>保存了这个 Handler 支持的<strong>压缩</strong>方法。</li>
-<li><strong>CompressMinBytes：</strong>当小于这个值时，不进行压缩，即<strong>进行压缩的最小长度</strong>。</li>
-<li><strong>BufferPool：</strong>当接受请求或者发送响应时，进行编码和压缩时用的 buffer，这些 buffer 通过 BufferPool 进行<strong>复用</strong>（底层为 sync.Pool）。</li>
-<li><strong>ReadMaxBytes：</strong>最大请求读取长度。</li>
-<li><strong>SendMaxBytes：</strong>最大响应写入长度。</li>
-<li><strong>RequireTripleProtocolHeader：</strong>是否需要检测 Triple-Protocol-Version Header，如果<strong>可以通过这个 Header 快速判断是否为 Triple 请求</strong>。</li>
-<li>IdempotencyLevel：幂等等级。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-6-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%8D%8F%E8%AE%AE%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-5-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E5%85%A8%E5%8F%8C%E5%B7%A5%E9%80%9A%E4%BF%A1/" class="post-title-link" itemprop="url">Triple协议 (5) Triple实现之全双工通信</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-03 15:17:57" itemprop="dateCreated datePublished" datetime="2023-12-03T15:17:57+08:00">2023-12-03</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="全双工通信"><a href="#全双工通信" class="headerlink" title="全双工通信"></a>全双工通信</h1><p>Triple 协议中的全双工通信请求指的是<strong>从客户端发出请求</strong>，到从服务端<strong>收到响应</strong>的全双工通信。全双工通信请求 duplexHTTPCall 重要的字段如下：</p>
-<ul>
-<li><strong>httpClient：</strong>HTTP 客户端，用于发出 HTTP 请求。</li>
-<li><strong>streamType：</strong>通信类型，包括 Unary 和 Streaming。</li>
-<li><strong>requestBodyReader 和 requestBodyWriter：</strong>由于写入请求 Body 是<strong>通过 io.Pipe 实现</strong>的，所以需要记录 writer 和 reader，在写入 writer 后，HTTP 请求的 Body 通过 Reader 读取写入的内容。</li>
-<li><strong>request 和 response：</strong>HTTP 请求和响应。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// duplexHTTPCall is a full-duplex stream between the client and server. The</span></span><br><span class="line"><span class="comment">// request body is the stream from client to server, and the response body is</span></span><br><span class="line"><span class="comment">// the reverse.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// Be warned: we need to use some lesser-known APIs to do this with net/http.</span></span><br><span class="line"><span class="keyword">type</span> duplexHTTPCall <span class="keyword">struct</span> &#123;</span><br><span class="line">    ctx              context.Context</span><br><span class="line">    httpClient       HTTPClient</span><br><span class="line">    streamType       StreamType</span><br><span class="line">    validateResponse <span class="function"><span class="keyword">func</span><span class="params">(*http.Response)</span> *<span class="title">Error</span></span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// We&#x27;ll use a pipe as the request body. We hand the read side of the pipe to</span></span><br><span class="line">    <span class="comment">// net/http, and we write to the write side (naturally). The two ends are</span></span><br><span class="line">    <span class="comment">// safe to use concurrently.</span></span><br><span class="line">    requestBodyReader *io.PipeReader</span><br><span class="line">    requestBodyWriter *io.PipeWriter</span><br><span class="line"></span><br><span class="line">    sendRequestOnce sync.Once</span><br><span class="line">    responseReady   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    request         *http.Request</span><br><span class="line">    response        *http.Response</span><br><span class="line"></span><br><span class="line">    errMu sync.Mutex</span><br><span class="line">    err   error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h2><p>全双工通信的初始化如下，<strong>请求通过 io.Pipe 实现</strong>，用户（可以多次，即 client streaming ）<strong>向 writer 中写入请求内容</strong>，请求 Body 读取请求内容并发送请求。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newDuplexHTTPCall</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    ctx context.Context,</span></span></span><br><span class="line"><span class="params"><span class="function">    httpClient HTTPClient,</span></span></span><br><span class="line"><span class="params"><span class="function">    url *url.URL,</span></span></span><br><span class="line"><span class="params"><span class="function">    spec Spec,</span></span></span><br><span class="line"><span class="params"><span class="function">    header http.Header,</span></span></span><br><span class="line"><span class="params"><span class="function">)</span> *<span class="title">duplexHTTPCall</span></span> &#123;</span><br><span class="line">    <span class="comment">// ensure we make a copy of the url before we pass along to the</span></span><br><span class="line">    <span class="comment">// Request. This ensures if a transport out of our control wants</span></span><br><span class="line">    <span class="comment">// to mutate the req.URL, we don&#x27;t feel the effects of it.</span></span><br><span class="line">    url = cloneURL(url)</span><br><span class="line">    pipeReader, pipeWriter := io.Pipe()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// todo(DMwangnima): remove cloneURL logic in WithContext</span></span><br><span class="line">    <span class="comment">// This is mirroring what http.NewRequestContext did, but</span></span><br><span class="line">    <span class="comment">// using an already parsed url.URL object, rather than a string</span></span><br><span class="line">    <span class="comment">// and parsing it again. This is a bit funny with HTTP/1.1</span></span><br><span class="line">    <span class="comment">// explicitly, but this is logic copied over from</span></span><br><span class="line">    <span class="comment">// NewRequestContext and doesn&#x27;t effect the actual version</span></span><br><span class="line">    <span class="comment">// being transmitted.</span></span><br><span class="line">    request := (&amp;http.Request&#123;</span><br><span class="line">       Method:     http.MethodPost,</span><br><span class="line">       URL:        url,</span><br><span class="line">       Header:     header,</span><br><span class="line">       Proto:      <span class="string">&quot;HTTP/1.1&quot;</span>,</span><br><span class="line">       ProtoMajor: <span class="number">1</span>,</span><br><span class="line">       ProtoMinor: <span class="number">1</span>,</span><br><span class="line">       Body:       pipeReader,</span><br><span class="line">       Host:       url.Host,</span><br><span class="line">    &#125;).WithContext(ctx)</span><br><span class="line">    <span class="keyword">return</span> &amp;duplexHTTPCall&#123;</span><br><span class="line">       ctx:               ctx,</span><br><span class="line">       httpClient:        httpClient,</span><br><span class="line">       streamType:        spec.StreamType,</span><br><span class="line">       requestBodyReader: pipeReader,</span><br><span class="line">       requestBodyWriter: pipeWriter,</span><br><span class="line">       request:           request,</span><br><span class="line">       responseReady:     <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;),</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="写请求"><a href="#写请求" class="headerlink" title="写请求"></a>写请求</h2><p>写请求 Body 如下，通过向 requestBodyWriter 写入实现。但是可以注意到，<strong>在写入之前</strong>，首先调用了 d.ensureRequestMade  确保双工的通信流已经被初始化。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Write to the request body. Returns an error wrapping io.EOF after SetError</span></span><br><span class="line"><span class="comment">// is called.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">Write</span><span class="params">(data []<span class="keyword">byte</span>)</span> <span class="params">(<span class="keyword">int</span>, error)</span></span> &#123;</span><br><span class="line">    <span class="comment">// ensure stream has been initialized</span></span><br><span class="line">    d.ensureRequestMade()</span><br><span class="line">    <span class="comment">// Before we send any data, check if the context has been canceled.</span></span><br><span class="line">    <span class="keyword">if</span> err := d.ctx.Err(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, wrapIfContextError(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// It&#x27;s safe to write to this side of the pipe while net/http concurrently</span></span><br><span class="line">    <span class="comment">// reads from the other side.</span></span><br><span class="line">    bytesWritten, err := d.requestBodyWriter.Write(data)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &amp;&amp; errors.Is(err, io.ErrClosedPipe) &#123;</span><br><span class="line">       <span class="comment">// Signal that the stream is closed with the more-typical io.EOF instead of</span></span><br><span class="line">       <span class="comment">// io.ErrClosedPipe. This makes it easier for protocol-specific wrappers to</span></span><br><span class="line">       <span class="comment">// match grpc-go&#x27;s behavior.</span></span><br><span class="line">       <span class="keyword">return</span> bytesWritten, io.EOF</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> bytesWritten, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="确保双工流被初始化"><a href="#确保双工流被初始化" class="headerlink" title="确保双工流被初始化"></a>确保双工流被初始化</h3><p>在 ensureRequestMade 方法中，只会执行一次 <code>go d.makeRequest</code> 用于创建一个请求。在调用 httpClient.Do 方法发出一个 message 后，客户端返回一个 response，用于表示响应流。</p>
-<p>在返回 response 后，关闭 responseReady 表示可以读取响应了。这个建立流的过程是异步的，这样不会阻塞 Write 写入 message 方法。</p>
-<blockquote>
-<p>由于 streaming 通信模式：</p>
-<ul>
-<li>客户端可以<strong>通过 request Body 多次写入</strong>，发送多个 message</li>
-<li>同样的，服务器的响应<strong>通过多次读取 response Body</strong>，接收多个 message。</li>
-</ul>
-</blockquote>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">ensureRequestMade</span><span class="params">()</span></span> &#123;</span><br><span class="line">    d.sendRequestOnce.Do(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="keyword">go</span> d.makeRequest()</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">makeRequest</span><span class="params">()</span></span> &#123;</span><br><span class="line">    <span class="comment">// This runs concurrently with Write and CloseWrite. Read and CloseRead wait</span></span><br><span class="line">    <span class="comment">// on d.responseReady, so we can&#x27;t race with them.</span></span><br><span class="line">    <span class="keyword">defer</span> <span class="built_in">close</span>(d.responseReady)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Once we send a message to the server, they send a message back and</span></span><br><span class="line">    <span class="comment">// establish the receive side of the stream.</span></span><br><span class="line">    response, err := d.httpClient.Do(d.request) <span class="comment">//nolint:bodyclose</span></span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="comment">// stream knowledge</span></span><br><span class="line">       err = wrapIfContextError(err)</span><br><span class="line">       err = wrapIfLikelyH2CNotConfiguredError(d.request, err)</span><br><span class="line">       err = wrapIfLikelyWithGRPCNotUsedError(err)</span><br><span class="line">       err = wrapIfRSTError(err)</span><br><span class="line">       <span class="keyword">if</span> _, ok := asError(err); !ok &#123;</span><br><span class="line">          err = NewError(CodeUnavailable, err)</span><br><span class="line">       &#125;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    d.response = response</span><br><span class="line">    <span class="keyword">if</span> err := d.validateResponse(response); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (d.streamType&amp;StreamTypeBidi) == StreamTypeBidi &amp;&amp; response.ProtoMajor &lt; <span class="number">2</span> &#123;</span><br><span class="line">       <span class="comment">// If we somehow dialed an HTTP/1.x server, fail with an explicit message</span></span><br><span class="line">       <span class="comment">// rather than returning a more cryptic error later on.</span></span><br><span class="line">       d.SetError(errorf(</span><br><span class="line">          CodeUnimplemented,</span><br><span class="line">          <span class="string">&quot;response from %v is HTTP/%d.%d: bidi streams require at least HTTP/2&quot;</span>,</span><br><span class="line">          d.request.URL,</span><br><span class="line">          response.ProtoMajor,</span><br><span class="line">          response.ProtoMinor,</span><br><span class="line">       ))</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="读响应"><a href="#读响应" class="headerlink" title="读响应"></a>读响应</h2><p>读响应 Body 很简单（可以多次读取），只是在读之前需要调用 BlockUntilResponseReady 阻塞，<strong>确保响应流已经准备好</strong>，可以进行读取。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Read from the response body. Returns the first error passed to SetError.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">Read</span><span class="params">(data []<span class="keyword">byte</span>)</span> <span class="params">(<span class="keyword">int</span>, error)</span></span> &#123;</span><br><span class="line">    <span class="comment">// For sure that server-to-client stream has been initialized</span></span><br><span class="line">    <span class="comment">// First, we wait until we&#x27;ve gotten the response headers and established the</span></span><br><span class="line">    <span class="comment">// server-to-client side of the stream.</span></span><br><span class="line">    d.BlockUntilResponseReady()</span><br><span class="line">    <span class="keyword">if</span> err := d.getError(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="comment">// The stream is already closed or corrupted.</span></span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// Before we read, check if the context has been canceled.</span></span><br><span class="line">    <span class="keyword">if</span> err := d.ctx.Err(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">       d.SetError(err)</span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, wrapIfContextError(err)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> d.response == <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="number">0</span>, fmt.Errorf(<span class="string">&quot;nil response from %v&quot;</span>, d.request.URL)</span><br><span class="line">    &#125;</span><br><span class="line">    n, err := d.response.Body.Read(data)</span><br><span class="line">    <span class="keyword">return</span> n, wrapIfRSTError(err)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(d *duplexHTTPCall)</span> <span class="title">BlockUntilResponseReady</span><span class="params">()</span></span> &#123;</span><br><span class="line">	&lt;-d.responseReady</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/" class="post-title-link" itemprop="url">Triple协议 (4) Triple实现之编码和压缩</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-03 14:00:48" itemprop="dateCreated datePublished" datetime="2023-12-03T14:00:48+08:00">2023-12-03</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>从本节开始，来阅读 Triple 源码，地址为：<a target="_blank" rel="noopener" href="https://github.com/apache/dubbo-go/tree/main/protocol/triple/triple_protocol">https://github.com/apache/dubbo-go/tree/main/protocol/triple/triple_protocol</a></p>
-<h1 id="编码"><a href="#编码" class="headerlink" title="编码"></a>编码</h1><p><strong>Triple 支持 protobuf、json 多种编码方法</strong>，这些编码方法都实现了 Codec 接口：</p>
-<ul>
-<li>Name 方法：返回编码名称，如 proto 和 json。</li>
-<li>Marshal 方法：用于序列化。</li>
-<li>Unmarshal 方法：用于反序列化。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/03/Triple%E5%8D%8F%E8%AE%AE-4-Triple%E5%AE%9E%E7%8E%B0%E4%B9%8B%E7%BC%96%E7%A0%81%E5%92%8C%E5%8E%8B%E7%BC%A9/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/11/30/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/" class="post-title-link" itemprop="url">Triple协议 (3) gRPC协议</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-11-30 10:57:38" itemprop="dateCreated datePublished" datetime="2023-11-30T10:57:38+08:00">2023-11-30</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>gRPC 是谷歌开源的一套 RPC 协议框架，基本上也是最为广泛使用的 RPC 协议。理解 gRPC 就要从两方面去理解：数据编码（序列化）和数据传输。</p>
-<h2 id="数据编码（序列化）"><a href="#数据编码（序列化）" class="headerlink" title="数据编码（序列化）"></a>数据编码（序列化）</h2><p>数据编码顾名思义就是在将请求的<strong>内存对像</strong>转化成可以传输的<strong>字节流</strong>发给服务端，并将收到的<strong>字节流</strong>再转化成<strong>内存对像</strong>。gRPC 默认使用 Protobuf 进行序列化，也支持 Json 格式的序列化。</p>
-<h2 id="Json"><a href="#Json" class="headerlink" title="Json"></a>Json</h2><p>Json 序列化的优点：</p>
-<ul>
-<li>可读性高。</li>
-</ul>
-<p>缺点：</p>
-<ul>
-<li>编码低效，是非二进制编码。</li>
-<li>信息冗余，对于同一个 Json 对象，需要传输 key。</li>
-</ul>
-<h2 id="Protobuf"><a href="#Protobuf" class="headerlink" title="Protobuf"></a>Protobuf</h2><p>Protobuf 序列化的优点：</p>
-<ul>
-<li>编码高效，是二进制编码，且会进行压缩。</li>
-<li>信息不存在冗余，给每一个字段一个编号，传输时只需要传输这个编号即可。</li>
-</ul>
-<p>缺点：</p>
-<ul>
-<li>人类不可读性。</li>
+<li>首先会进行本地服务和远程服务之间的<strong>负载均衡</strong>，决定发往本区域服务还是远程区域服务。</li>
+<li>如果存在区域 Egress，流量会先通过本地区域 zone-a 出口进行路由，然后再<strong>发送到远程区域 zone-b 入口</strong>。</li>
+<li>远程区域 zone-b 入口收到请求后，<strong>路由</strong>到本地服务 ServiceA。</li>
 </ul>
 <blockquote>
-<p><strong>Protobuf 需要 IDL 描述接口</strong>，使用 IDL 进行强约束<strong>有好处也有坏处</strong>。</p>
-<p><strong>好处</strong>就是对字段有了约束，只需要传输编号，避免信息冗余。<strong>坏处</strong>就是需要相关的工具链（protoc），为 IDL 生成代码。</p>
+<p>对于负载平衡，是<strong>根据其后面运行的实例数量进行加权</strong>。因此，具有 2 个实例的区域接收的流量是具有 1 个实例的区域的两倍。可以配置<strong>位置感知的负载均衡</strong>，来支持本地服务实例。</p>
 </blockquote>
-<h1 id="数据传输"><a href="#数据传输" class="headerlink" title="数据传输"></a>数据传输</h1><p>gRPC 使用的是 HTTP/2 协议，可以简单的认为一个 gRPC 请求就是一个 HTTP 请求，这个 HTTP 请求用的是 POST 方法。</p>
-<h2 id="请求-Request"><a href="#请求-Request" class="headerlink" title="请求 Request"></a>请求 Request</h2><p>一个 gRPC 的请求报文如下，包括：</p>
+<h2 id="组件"><a href="#组件" class="headerlink" title="组件"></a>组件</h2><p>多区域部署包括：</p>
 <ul>
-<li>HTTP Header</li>
-<li>HTTP Body：又分为 Length-Prefixed Message 和 Protobuf 消息。</li>
+<li><strong>全局控制平面（Global kuma-cp）：</strong><ul>
+<li>仅接受来自<strong>区域控制平面的连接</strong>。</li>
+<li>接受对将应用于数据平面代理的<strong>策略的创建和更改</strong>。</li>
+<li><strong>将策略发送到区域控制平面</strong>。</li>
+<li><strong>将区域入口向下发送到区域控制平面</strong>。</li>
+<li>保留所有区域中运行的所有数据平面代理的清单（这样做只是为了可观察性，但对于操作不是必需的）。</li>
+<li><strong>拒绝</strong>来自数据平面代理的连接。</li>
 </ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/cb61f83b81734411aa983a0841650533.awebp" alt="image2022-1-27_15-20-18"></p>
-<h3 id="HTTP-Header"><a href="#HTTP-Header" class="headerlink" title="HTTP Header"></a>HTTP Header</h3><p>一个 gRPC 定义包含三个部分，包名、服务名和接口名。在发起 HTTP 请求时，Path 路径如下：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/$&#123;包名&#125;.$&#123;服务名&#125;/$&#123;接口名&#125;</span><br></pre></td></tr></table></figure>
-
-<p>gRPC 协议规定Content-Type 的取值为 application/grpc（默认，使用 protobuf 编码）、application/grpc+proto（使用 protobuf 编码）、application/json（使用 json 编码）。</p>
-<h3 id="HTTP-Body"><a href="#HTTP-Body" class="headerlink" title="HTTP Body"></a>HTTP Body</h3><p>HTTP Body 并不会直接存放 Protobuf 消息，而是<strong>先添加 5 个字节的 Length-Prefixed Message 头部</strong>，其中用 4 个字节明确 Protobuf 消息的长度，1 字节表示消息是否被压缩过。</p>
-<p>为什么要多此一举呢？这是因为，<strong>gRPC 支持流式消息</strong>，即在 HTTP/2 的 1 条 Stream 中，<strong>通过 DATA 帧发送多个 gRPC 消息</strong>，而 Length-Prefixed Message 就可以将不同的消息分离开。</p>
-<blockquote>
-<p>因为 Length-Prefixed Message 的五个字节，<strong>导致 gRPC 只能是二进制协议</strong>，即使是 json 进行编码，<strong>curl 和浏览器（web）都不能原生的支持 gRPC</strong>，只能用专用的工具！</p>
-</blockquote>
-<h2 id="返回-Response"><a href="#返回-Response" class="headerlink" title="返回 Response"></a>返回 Response</h2><p>一个 gRPC 响应报文如下，包括：</p>
+</li>
+<li><strong>区域控制平面（Zone kuma-cp）：</strong><ul>
+<li>接受来自该<strong>区域内启动的数据平面代理的连接</strong>。</li>
+<li><strong>从全局控制平面接收策略更新</strong>。</li>
+<li>将数据平面代理和区域入口的<strong>更改发送到全局控制平面</strong>。</li>
+<li>使用 XDS 计算配置并<strong>将其发送到本地数据平面代理</strong>。</li>
+<li>更新区域入口中区域中存在的服务列表。</li>
+<li><strong>拒绝</strong>非来自全球的政策变化。</li>
+</ul>
+</li>
+<li><strong>数据平面代理（Envoy）：</strong><ul>
+<li>连接到本地区域控制平面。</li>
+<li>使用 XDS 从<strong>本地区域控制平面接收配置</strong>。</li>
+<li>连接到其他本地数据平面代理。</li>
+<li><strong>连接到区域入口以发送跨区域流量。</strong></li>
+<li><strong>从本地数据平面代理和本地区域入口接收流量。</strong></li>
+</ul>
+</li>
+<li><strong>区域入口（Ingress）：</strong><ul>
+<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
+<li><strong>从其他区域数据平面代理到本地数据平面代理的代理流量。</strong></li>
+</ul>
+</li>
+<li><strong>（可选）区域出口（Egress）：</strong><ul>
+<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
+<li><strong>来自本地数据平面代理的代理流量：</strong><ul>
+<li>来自其他区域的区域入口代理；</li>
+<li>从本地区域到外部服务。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h1 id="跨区域服务发现和连接"><a href="#跨区域服务发现和连接" class="headerlink" title="跨区域服务发现和连接"></a>跨区域服务发现和连接</h1><h2 id="KDS"><a href="#KDS" class="headerlink" title="KDS"></a>KDS</h2><p>在多区域部署中，Kuma 提供了几个重要功能：</p>
 <ul>
-<li>HTTP 头部：包括 Header 和 Tailer。</li>
-<li>HTTP Body：又分为 Length-Prefixed Message 和 Protobuf 消息。 </li>
+<li>有<strong>两种</strong>控制平面，global 和 zone 控制面。</li>
+<li>一种<strong>新的 DNS</strong>，用于跨集群通信。</li>
+<li>一种<strong>新的 Ingress 数据平面代理</strong>，可以在 Kuma service mesh 实现区域之间的连接。</li>
 </ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-3-gRPC%E5%8D%8F%E8%AE%AE/a4470a81562140cd8574ddd57d06fdc.awebp" alt="image2022-1-27_15-24-18"></p>
-<p>其中 HTTP 头部被分为 Header 和 Tailer。Tailer 中的 grpc-status 和 grpc-message 是在 DATA 帧的最后，这样就允许服务器在发送完消息后再给出错误码。</p>
-<p><strong>gRPC 中以 grpc-status 和 grpc-message 表示自己的返回状态和消息。</strong></p>
-<blockquote>
-<p>HTTP 2 中的 HEADER 帧和 DATA 帧是独立的，对于一个 gRPC 响应可以先发一个 HEADER 帧告知 HTTP 状态，再发送 DATA 帧传输 gRPC 消息，最后发送一个 HEADER 帧传输 grpc-status。</p>
-<p>一般都是先发 HEADER 再发 DATA，<strong>为什么 gRPC 需要在发完 DATA 之后才发 grpc-status 头呢</strong>？</p>
-<p>因为<strong>流</strong>式传输，在所有的流式消息没有传输完成之前，服务端也不知道要传什么 grpc-status。</p>
-</blockquote>
-<h1 id="gRPC-中的-Tailer-设计"><a href="#gRPC-中的-Tailer-设计" class="headerlink" title="gRPC 中的 Tailer 设计"></a>gRPC 中的 Tailer 设计</h1><h2 id="Tailer-介绍"><a href="#Tailer-介绍" class="headerlink" title="Tailer 介绍"></a>Tailer 介绍</h2><h3 id="H1-1-中的-Tailer"><a href="#H1-1-中的-Tailer" class="headerlink" title="H1.1 中的 Tailer"></a>H1.1 中的 Tailer</h3><p>HTTP 协议在返回数据的时候通常是先发送 Header 信息，再发送 Body 数据。<strong>但 Trailers 是一类特殊的 Header，它们是在 Body 传输结束后才发送给客户端的</strong>。因为发送顺序不同，所以，<strong>在 HTTP/1.1 中 Trailers 只能跟 chunked 传输编码配合使用</strong>。</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">HTTP/1.1</span> <span class="number">200</span> OK</span><br><span class="line"><span class="attribute">Content-Type</span><span class="punctuation">: </span>text/plain</span><br><span class="line"><span class="attribute">Transfer-Encoding</span><span class="punctuation">: </span>chunked</span><br><span class="line"><span class="attribute">Trailer</span><span class="punctuation">: </span>MD5</span><br><span class="line"></span><br><span class="line"><span class="taggerscript">7<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">Mozilla<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">9<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">Developer<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">7<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">Network<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">0<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript">MD5: 68b329da9893e34099c7d8ad5cb9c940<span class="symbol">\r</span><span class="symbol">\n</span></span></span><br><span class="line"><span class="taggerscript"><span class="symbol">\r</span><span class="symbol">\n</span></span></span><br></pre></td></tr></table></figure>
+<p>在分布式部署中，global 控制平面将负责接受 Kuma 资源，通过原生 Kubernetes CRD 或基于 VM 的部署中的 YAML 来确定服务网格的行为。</p>
+<h3 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h3><p>Global 将负责将这些资源传播到 zone 控制平面。<strong>zone 控制平面和 global 控制平面通过 KDS</strong>（Kuma Discovery Service）以 gRPC（H2）的方式进行<strong>资源的同步</strong>。Zone 控制面还会接收来自于数据面的请求，zone 控制面和其下的所有控制平面代理属于同一区域。</p>
+<p>Zone 控制平面还嵌入<strong>一个 DNS 服务发现</strong>，可用于跨不同区域的服务。</p>
+<h3 id="分层的好处"><a href="#分层的好处" class="headerlink" title="分层的好处"></a>分层的好处</h3><p>global 和 zone 架构有几个好处：</p>
+<ul>
+<li>可以通过拓展 zone 控制平面来独立拓展每个区域，并且在某个区域出现问题的时候<strong>实现 HA 故障转移</strong>。</li>
+<li><strong>没有单点故障</strong>。即使 global 控制平面发生故障，仍然可以在 zone 控制平面上创建和销毁数据平面代理，并且每个服务的最新地址仍然可以传播到 sidecar 中。</li>
+<li>global 控制平面自动传播每个区域的状态，<strong>同时确保“远程”控制平面了解每个区域的Kuma Ingress，以实现跨区域连接</strong>。</li>
+</ul>
 
-<p>Trailer 头里面表示数据传输结束后还有额外的 Header，Header 的名字为 MD5。可以指定多个，以逗号分隔。所以在分段数据之后又额外发送了所有数据的 MD5 值用作校验。<strong>因为 Body 的内容是动态生成的，不可能事先得到它的 MD5 值</strong>。只能是一边传输一边计算，等传完了也就计算好了，然后使用 Trailer 头「补发」给客户端。</p>
-<h3 id="H2-中的-Tailer"><a href="#H2-中的-Tailer" class="headerlink" title="H2 中的 Tailer"></a>H2 中的 Tailer</h3><p>到了 HTTP/2 时代，因为有了帧的概念，所以 Header 和 Body 可以并发传输，不再有先发 Header 再传 Body 的限制。因此，<strong>在 HTTP/2 中，Trailers 不需要依赖 chunked 传输编码，所有的响应都能发送 Trailers 信息</strong>。</p>
-<h2 id="gRPC-中的-Tailer"><a href="#gRPC-中的-Tailer" class="headerlink" title="gRPC 中的 Tailer"></a>gRPC 中的 Tailer</h2><p>gRPC 中为什么用到了 Tailer？原因就是流传输，在流式接口中因为一个帧可能携带多条数据，所以无法事先确定数据的长度（所以不可能使用 Content-Length 头）</p>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/22/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/01/22/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/" class="post-title-link" itemprop="url">Kuma学习笔记 (2) 部署拓扑</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-22 10:40:35" itemprop="dateCreated datePublished" datetime="2024-01-22T10:40:35+08:00">2024-01-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Kuma 提供的部署模式在 service mesh 领域非常独特，有两种部署模式：</p>
+<ul>
+<li><strong>独立式：</strong>Kuma 的默认部署模型具有一个控制平面（可以水平扩展）和许多直接与其连接的数据平面。</li>
+<li><strong>多区域：</strong>Kuma 的高级部署模型<strong>支持多个 Kubernetes 或基于 VM 的区域</strong>，或在 Kubernetes 和 VM 上运行的<strong>混合</strong>服务网格。</li>
+</ul>
+<h1 id="独立部署"><a href="#独立部署" class="headerlink" title="独立部署"></a>独立部署</h1><p>这是 Kuma 最简单的部署模式，也是默认的部署模式。</p>
+<ul>
+<li><strong>控制平面</strong>：有一种可以水平扩展的控制平面部署。</li>
+<li><strong>数据平面代理</strong>：数据平面代理连接到控制平面，无论部署在何处。</li>
+<li><strong>服务连接性</strong>：每个数据平面代理都必须能够连接到每个其他数据平面代理，无论它们部署在何处。</li>
+</ul>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/flat-diagram.png" alt="img"></p>
+<p>独立部署模式下，有一定的<strong>局限性：</strong></p>
+<ul>
+<li><strong>要求</strong>所有的数据平面代理与<strong>其他所有</strong>的数据平面代理<strong>都能进行通信</strong>。</li>
+<li>独立部署只能<strong>连接到一个集群</strong>。</li>
+<li>无法混合 Universal 和 Kubernetes 集群工作负载。</li>
+</ul>
+<h2 id="组件"><a href="#组件" class="headerlink" title="组件"></a>组件</h2><p>独立部署包括：</p>
+<ul>
+<li>控制平面（kuma-cp）：<ul>
+<li>接受来自数据平面代理的连接。</li>
+<li>接受对将应用于数据平面代理的策略的创建和更改。</li>
+<li>保存所有正在运行的数据平面代理的清单。</li>
+<li>使用 XDS 将配置发送到数据平面代理。</li>
+</ul>
+</li>
+<li>数据平面代理（envoy）：<ul>
+<li>连接到区域控制平面。</li>
+<li>使用 XDS 从控制平面接收配置。</li>
+<li>连接到其他数据平面代理。</li>
+</ul>
+</li>
+</ul>
+<h2 id="失效模式"><a href="#失效模式" class="headerlink" title="失效模式"></a>失效模式</h2><p><strong>控制平面离线：</strong></p>
+<ul>
+<li><strong>新的数据平面代理将无法加入网格</strong>。这包括通过自动部署机制（例如滚动更新过程）新创建的新实例（Pod/VM），这意味着控制平面连接故障可能会阻止应用程序的更新和创建新实例的事件。</li>
+<li>在启用 mTLS 的网格上，数据平面代理可能<strong>无法</strong>在到期（默认为 24 小时）之前<strong>刷新其客户端证书</strong>，从而导致来自/流向该数据平面的流量失败。</li>
+<li>数据平面代理<strong>配置将不会更新</strong>。</li>
+<li>数据平面代理之间的<strong>通信仍然有效</strong>。</li>
+</ul>
+<h1 id="多区域部署"><a href="#多区域部署" class="headerlink" title="多区域部署"></a>多区域部署</h1><p>Kuma 支持多区域部署，甚至是 Kubernetes 集群和 Universal 集群的混合部署。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/kuma_multizone-20240122105251305.svg" alt="Kuma 服务网格多区域部署，无区域出口"></p>
+<h2 id="运行机制"><a href="#运行机制" class="headerlink" title="运行机制"></a>运行机制</h2><p>在 Kuma 中将服务标记以 <code>kuma.io/service</code> 标签标记，这意味着<strong>运行在任何地方</strong>的数据平面代理可以通过 <code>kuma.io/service</code> 标签值找到该服务。<strong>不同区域上的同一服务</strong>用相同的 <code>kuma.io/service</code> 标记，可以在特定区域发生故障时自动进行<strong>服务故障转移</strong>。</p>
+<p>如果一个新的后端服务 serviceA 部署在区域 zone-b，下面看这两个问题。</p>
+<ol>
+<li>这个新的后端服务如何被通告到 zone-a 区域（区域间的同步）。</li>
+<li>一个来自于 zone-a 区域的请求如何被路由到 zone-b 区域（区域间的请求路由）。</li>
+</ol>
+<h3 id="区域间的信息同步"><a href="#区域间的信息同步" class="headerlink" title="区域间的信息同步"></a>区域间的信息同步</h3><p>当 zone-b 区域中加入了一个新的服务 serviceA 后，区域间的信息同步如下：</p>
+<ul>
+<li><strong>zone-b 的控制面</strong>将该服务<strong>加入到 zone-b Ingress 资源的 availableServices（可用服务列表）</strong>中，Ingress 持有可用服务列表，以便可以路由区域外的请求。</li>
+<li><strong>zone-b 的控制平面</strong>也会将<strong>该区域的 Ingress 资源信息</strong>（Ingress 的地址等），<strong>同步到 Global 全局控制平面</strong>。</li>
+<li><strong>全局控制平面</strong>将通过 Kuma 发现服务（<strong>KDS</strong>，基于 xDS 的协议）<strong>将区域入口 Ingress 资源和所有策略传播到所有其他区域</strong>。</li>
+</ul>
+<h3 id="区域间的请求路由"><a href="#区域间的请求路由" class="headerlink" title="区域间的请求路由"></a>区域间的请求路由</h3><p>当 zone-a 中有请求想请求 serviceA 服务时：</p>
+<ul>
+<li>首先会进行本地服务和远程服务之间的<strong>负载均衡</strong>，决定发往本区域服务还是远程区域服务。</li>
+<li>如果存在区域 Egress，流量会先通过本地区域 zone-a 出口进行路由，然后再<strong>发送到远程区域 zone-b 入口</strong>。</li>
+<li>远程区域 zone-b 入口收到请求后，<strong>路由</strong>到本地服务 ServiceA。</li>
+</ul>
 <blockquote>
-<p>长度不确定，为什么不使用 chunked 传输？</p>
-<p>假如客户端跟服务器之前有一个代理，代理收到响应之后开始将数据转发给客户端。首先就是把 Header 部分发送给客户端，于是调用方确定本次的状态码为 200，成功了。然后逐段转发数据部分，如果代理在转发完第一段数据后服务端异常退出了，那代理需要给客户端发送什么信号呢？</p>
-<p>因为状态码已经发出去，所以没办法把 200 改成 5xx 了。也不能直接发送 <code>0\r\n</code> 来结束 chunked 传输，这样客户端没有办法得知服务器已经异常退出的信息。唯一能做的就是直接关闭对应的底层连接，但这样会因为客户端创建新的连接而消耗额外的资源。</p>
-<p>所以需要找一种尽量复用底层连接的条件下通知客户端服务器出错的办法，最终 gRPC 团队决定使用 Trailers 来传输，Tailer 中携带 grpc-status 来反应响应的状态。</p>
+<p>对于负载平衡，是<strong>根据其后面运行的实例数量进行加权</strong>。因此，具有 2 个实例的区域接收的流量是具有 1 个实例的区域的两倍。可以配置<strong>位置感知的负载均衡</strong>，来支持本地服务实例。</p>
 </blockquote>
-<h3 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h3><p>Tailer 导致了不支持浏览器（Chrome 认为 Tailer 会导致安全问题），而 Length-Prefixed Message 同样导致无法直接用 curl + json 的方式来调试 gRPC 接口，必须使用专门的工具。</p>
+<h2 id="组件-1"><a href="#组件-1" class="headerlink" title="组件"></a>组件</h2><p>多区域部署包括：</p>
+<ul>
+<li><strong>全局控制平面（Global kuma-cp）：</strong><ul>
+<li>仅接受来自<strong>区域控制平面的连接</strong>。</li>
+<li>接受对将应用于数据平面代理的<strong>策略的创建和更改</strong>。</li>
+<li><strong>将策略发送到区域控制平面</strong>。</li>
+<li><strong>将区域入口向下发送到区域控制平面</strong>。</li>
+<li>保留所有区域中运行的所有数据平面代理的清单（这样做只是为了可观察性，但对于操作不是必需的）。</li>
+<li><strong>拒绝</strong>来自数据平面代理的连接。</li>
+</ul>
+</li>
+<li><strong>区域控制平面（Zone kuma-cp）：</strong><ul>
+<li>接受来自该<strong>区域内启动的数据平面代理的连接</strong>。</li>
+<li><strong>从全局控制平面接收策略更新</strong>。</li>
+<li>将数据平面代理和区域入口的<strong>更改发送到全局控制平面</strong>。</li>
+<li>使用 XDS 计算配置并<strong>将其发送到本地数据平面代理</strong>。</li>
+<li>更新区域入口中区域中存在的服务列表。</li>
+<li><strong>拒绝</strong>非来自全球的政策变化。</li>
+</ul>
+</li>
+<li><strong>数据平面代理（Envoy）：</strong><ul>
+<li>连接到本地区域控制平面。</li>
+<li>使用 XDS 从<strong>本地区域控制平面接收配置</strong>。</li>
+<li>连接到其他本地数据平面代理。</li>
+<li><strong>连接到区域入口以发送跨区域流量。</strong></li>
+<li><strong>从本地数据平面代理和本地区域入口接收流量。</strong></li>
+</ul>
+</li>
+<li><strong>区域入口（Ingress）：</strong><ul>
+<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
+<li><strong>从其他区域数据平面代理到本地数据平面代理的代理流量。</strong></li>
+</ul>
+</li>
+<li><strong>（可选）区域出口（Egress）：</strong><ul>
+<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
+<li><strong>来自本地数据平面代理的代理流量：</strong><ul>
+<li>来自其他区域的区域入口代理；</li>
+<li>从本地区域到外部服务。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="失效模式-1"><a href="#失效模式-1" class="headerlink" title="失效模式"></a>失效模式</h2><h3 id="全局控制平面离线"><a href="#全局控制平面离线" class="headerlink" title="全局控制平面离线"></a>全局控制平面离线</h3><ul>
+<li><strong>政策更新将不可能</strong>。</li>
+<li><strong>区域之间服务列表的更改不会传播：</strong><ul>
+<li>在其他区域中将无法发现新服务。</li>
+<li>从区域中删除的服务在其他区域中仍将显示为可用。</li>
+</ul>
+</li>
+<li><strong>无法禁用或删除区域</strong>。</li>
+</ul>
 <blockquote>
-<p>然有了消息前缀，那完全可以把 Trailers 的职能转移到消息前缀里，比如可以设置一个特殊的前缀来传输 grpc-status 等字段。如果当初这样做的话，那么现在也就可以直接在浏览器调用 gRPC 接口了，可以惜木已成舟。</p>
+<p><strong>本地和跨区域</strong>应用程序流量均不会受到此故障情况的影响；数据平面代理更改将在其区域内传播。</p>
+</blockquote>
+<h3 id="区域控制平面离线"><a href="#区域控制平面离线" class="headerlink" title="区域控制平面离线"></a>区域控制平面离线</h3><ul>
+<li><strong>新的数据平面代理将无法加入网格</strong>。这包括通过自动部署机制（例如滚动更新过程）新创建的新实例（Pod/VM），这意味着控制平面连接故障可能会阻止应用程序的更新和创建新实例的事件。</li>
+<li>在启用 mTLS 的网格上，数据平面代理可能无法在到期（默认为 24 小时）之前刷新其客户端证书，从而导致来自/流向该数据平面的流量失败。</li>
+<li>数据平面代理配置将不会更新。</li>
+<li>数据平面代理之间的通信仍然有效。</li>
+<li>跨区域通信仍然有效。</li>
+<li>其他区域不受影响。</li>
+</ul>
+<blockquote>
+<p>这种故障案例，<strong>与独立部署的控制平面离线故障一致</strong>。</p>
+</blockquote>
+<h3 id="全局和区域控制平面之间的通信失效"><a href="#全局和区域控制平面之间的通信失效" class="headerlink" title="全局和区域控制平面之间的通信失效"></a>全局和区域控制平面之间的通信失效</h3><p>控制平面之间的配置错误或网络连接问题可能会发生这种情况：</p>
+<ul>
+<li><p><strong>区域内</strong>的操作是<strong>正常</strong>的（数据平面代理可以加入、离开，所有配置都将正确更新和发送）。</p>
+</li>
+<li><p>策略更改<strong>不会传播到区域控制平面</strong>。</p>
+</li>
+<li><p><strong>区域 Ingress，区域 Egress 和数据平面的变更不会传播到全局控制平面：</strong></p>
+<ul>
+<li>数据平面代理的全局清单视图将过时（这只会影响可观察性）。</li>
+<li>其他区域不会看到该区域内注册的新服务。</li>
+<li>其他区域不会看到该区域不再运行某服务。</li>
+<li>其他区域不会看到本地区域中运行的每个服务的实例数量发生变化。</li>
+</ul>
+</li>
+<li><p><strong>全局控制平面不会将其他区域入口的更改发送到该区域：</strong></p>
+<ul>
+<li>本地数据平面代理不会看到在其他区域注册的新服务。</li>
+<li>本地数据平面代理将看不到其他区域不再运行某服务。</li>
+<li>本地数据平面代理不会看到在其他区域中运行的每个服务的实例数量的变化。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p><strong>本地和跨区域</strong>应用程序流量均不会受到此故障情况的影响。</p>
+</blockquote>
+<h3 id="两个区域之间的通信失效"><a href="#两个区域之间的通信失效" class="headerlink" title="两个区域之间的通信失效"></a>两个区域之间的通信失效</h3><p>如果存在区域之间的网络连接问题，可能是以下原因：</p>
+<ul>
+<li>在控制平面和来自其他区域的区域入口之间。</li>
+<li>在控制平面和区域出口之间（如果存在）。</li>
+<li>在区域出口（如果存在）和其他区域的区域入口之间。</li>
+<li>区域的所有区域出口实例（如果存在）均已关闭。</li>
+<li>区域的所有区域入口实例均已关闭。</li>
+</ul>
+<p>当它发生时：</p>
+<ul>
+<li>每个区域<strong>内</strong>的通信和操作<strong>不受影响</strong>。</li>
+<li>每个区域<strong>之间</strong>的通信将<strong>失败</strong>。</li>
+</ul>
+<blockquote>
+<p>通过<strong>配置正确的弹性设置</strong>（重试、探针、局部感知负载均衡、断路器），可以<strong>快速切断故障区域</strong>并将流量重新路由到另一个区域。</p>
 </blockquote>
 
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/21/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/01/21/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Kuma学习笔记 (1) 概述</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-01-21 19:42:41" itemprop="dateCreated datePublished" datetime="2024-01-21T19:42:41+08:00">2024-01-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p><a target="_blank" rel="noopener" href="https://kuma.io/">Kuma</a> 是一个与平台无关的开源控制平面，用于 service mesh 和微服务的管理，支持 Kubernetes，VM 和 裸机环境。Kuma 有以下特性：</p>
+<ul>
+<li><strong>兼容通用环境和 Kubernetes 环境：</strong>与平台无关，可以在任何地方运行和操作。</li>
+<li><strong>独立和多区域：</strong>可以独立部署，也支持多区域、多集群。</li>
+<li><strong>多服务网格：</strong>可以通过一个控制平面管理多个单独的服务网格，降低整个组织的运维成本。</li>
+<li><strong>基于属性的策略：</strong>允许通过 tag 细粒度的选择 source 和 destination 策略。</li>
+<li><strong>基于 Envoy：</strong>采用 Envoy 作为数据平面。</li>
+<li><strong>水平扩展</strong>。</li>
+</ul>
+<p>Kuma 多集群部署示例图如下：</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/kuma_multizone.svg" alt="Kuma 服务网格多区域部署"></p>
+<h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><h3 id="Sidecar"><a href="#Sidecar" class="headerlink" title="Sidecar"></a>Sidecar</h3><p>在编写网络应用程序时，会遇到可观测性、流量管理、安全性等共性问题。可以当然可以采用 sdk 的形式去将这些问题集成在框架中，但这是和语言相关的，必须为每一种编程语言提供这样的 sdk，并且需要考虑不同语言之间的兼容性问题。</p>
+<p>一个想法是<strong>采用 sidecar 代理</strong>：将所有网络连接中可观测性、流量管理等问题，<strong>委托给进程外的 sidecar 完成</strong>，sidecar 接管所有传入和穿出的请求和响应。开发人员可以专注于应用程序本身，而不是处理复杂的网络问题上去。</p>
+<p>由于一个系统具有多个服务，每一个服务有许多实例，这要求具有相同数量的代理。因此，sidecar 代理模型<strong>需要</strong>一个<strong>控制平面</strong>，允许<strong>动态配置代理</strong>的行为，而无需手动配置它们。代理与控制平面的连接以接收新配置，控制平面也为代理提供最新的配置。</p>
+<blockquote>
+<p>服务网格包括数据平面和控制平面，通常服务网格出现在 Kubernetes 环境中，但是任何环境（VM 和裸机）上都可以构建服务网格）。</p>
+</blockquote>
+<h3 id="运行模式"><a href="#运行模式" class="headerlink" title="运行模式"></a>运行模式</h3><p>kuma-cp 是 Kuma 控制面的可执行文件，<strong>支持通用环境和 Kubernetes 环境</strong>：</p>
+<ul>
+<li><strong>在 Kubernetes 上运行：</strong>不需要外部依赖，<strong>利用 K8s API 服务器存储配置</strong>。</li>
+<li><strong>在通用环境上运行：</strong>Kuma 需要 PostgreSQL 数据库作为依赖项，用于存储配置。</li>
+</ul>
+<h1 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h1><p>Kuma 网络由数据平面和控制平面两个部分组成：</p>
+<ul>
+<li><strong>数据平面：</strong>由一个个<strong>应用服务+Sidecar 代理</strong>组成，在数据平面中代理接管网络流量，<strong>Kuma 采用 Envoy 作为数据平面代理</strong>。</li>
+<li><strong>控制平面：</strong>用于<strong>配置数据平面</strong>，独立于数据平面运行。用户可以在控制平面配置策略，控制平面生成数据平面配置并分发到数据平面。Kuma 实现了<a target="_blank" rel="noopener" href="https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol">Envoy <strong>xDS</strong> API</a> ，以便数据平面代理可以从控制平面检索其配置。</li>
+</ul>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/diagram-06.jpg" alt="img"></p>
+<p>Kuma 按照运行环境的不同，分为 Kubernetes 和通用（universal）两种运行模式。</p>
+<h2 id="Kubernetes-模式"><a href="#Kubernetes-模式" class="headerlink" title="Kubernetes 模式"></a>Kubernetes 模式</h2><p>当在 <strong>Kubernetes</strong> 模式下运行时，Kuma 将其所有状态和配置存储在<strong>底层 Kubernetes API 服务器上</strong>。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/diagram-08.jpg" alt="img"></p>
+<p>将 Kubernetes 中的服务加入服务网格进行管理的唯一步骤就是<strong>开启 Sidecar 注入</strong>，<code>kuma.io/sidecar-injection: enabled</code> 标签用于将 sidecar 注入到 pod 中。</p>
+<h3 id="Services-和-Pods"><a href="#Services-和-Pods" class="headerlink" title="Services 和 Pods"></a>Services 和 Pods</h3><ul>
+<li><p>对于一个 Kubernetes Service 和关联的 Pod，Kuma 控制面会自动的生成一个注解 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc_&lt;port&gt;</code>，其中 name 和 namespace 还有 port 均来自 Service 信息。</p>
+</li>
+<li><p>某些情况下 Pods 不属于任何的 Service，仅仅是单纯的一个 Pod。在这种情况下，Kuma 会自动生成的注解为 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc</code> ，其中 name 和 namespace 来自于 Pod 资源。</p>
+</li>
+</ul>
+<h2 id="Universal-模式"><a href="#Universal-模式" class="headerlink" title="Universal 模式"></a>Universal 模式</h2><p>在通用模式下运行时，<strong>Kuma 需要 PostgreSQL 数据库来存储其状态</strong>。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/diagram-09.jpg" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (8) 控制平面之安全性</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-27 13:42:35" itemprop="dateCreated datePublished" datetime="2023-12-27T13:42:35+08:00">2023-12-27</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>以下是 CA 安全性的概述，分为两个部分：</p>
+<ul>
+<li><p><strong>控制面：</strong>实现了一个 CA 负责为网格中的各个服务签发证书，并将证书颁发给各个服务，具体的做法有两个：</p>
+<ul>
+<li>通过（webhook）<strong>动态准入控制器</strong>的方式，将 CA 的证书挂载到 Pod 里面去，同时添加了环境变量，只需要读取环境变量就可以获取路径了。</li>
+<li>Dubbo 应用通过与 CA 建立双向 TLS 连接（CA 证书已经被挂载到了 Pod 中，所以可以验证 CA 证书），<strong>发送 CSR 请求申请这个 dubbo 应用的证书</strong>，dubbo-cp 会验证客户端的 CSR 请求并签发证书返回给客户端。</li>
+</ul>
+</li>
+<li><p><strong>数据面：</strong>在网格中服务相互之前发起通信的时候，dubbo sdk 会拦截服务请求，采用证书进行双向 TLS 认证并建立一个 TLS 连接，使用该 TLS 连接来在网格中传输数据。</p>
+</li>
+</ul>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/1703656322.png" alt="1703656322"></p>
+<p>在 dubbo-cp 中，要实现一个 CA 要做两方面的事情：</p>
+<ol>
+<li><strong>维护 CA：</strong>维护 CA 的证书状态，存储 CA 证书。</li>
+<li><strong>签发证书：</strong>接受 CSR 请求，为 Dubbo 应用签发证书。</li>
+</ol>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (7) 控制平面之dds</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-25 21:55:27" itemprop="dateCreated datePublished" datetime="2023-12-25T21:55:27+08:00">2023-12-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>类似于 istio 中的 xDS，在 dubbo-kubernetes 中 dds 组件做了一些<strong>对于 dubbo 规则的监听与分发</strong>。它的<strong>作用</strong>是接受各种 dubbo 规则（留了管控、认证、授权），将规则下发至各个 dubbo 应用，<strong>完成具有 dubbo 特色的服务治理</strong>。即作为控制面，将规则下发到数据面进行应用。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/image-20231225215623017.png" alt="image-20231225215623017"></p>
+<p>对于 dds 而言，当一个客户端连接到 dubbo-cp dds，dubbo 规则的推送主要来自两个方面：</p>
+<ol>
+<li>Informer 机制监听到 CRD 资源发生变化，<strong>主动推送</strong>消息给客户端。</li>
+<li>客户端发生 Request 请求，dds 服务器进行<strong>响应</strong>。</li>
+</ol>
+<p>dds 接口定义如下，因为推送的机制，所以定义为双向 streaming：</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">ObserveRequest</span> </span>&#123;</span><br><span class="line">  <span class="built_in">string</span> nonce = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> type = <span class="number">2</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">ObserveResponse</span> </span>&#123;</span><br><span class="line">  <span class="built_in">string</span> nonce = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> type = <span class="number">2</span>;</span><br><span class="line">  <span class="built_in">int64</span> revision = <span class="number">3</span>;</span><br><span class="line">  <span class="keyword">repeated</span> google.protobuf.Any data = <span class="number">4</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">RuleService</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> Observe(stream ObserveRequest)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream ObserveResponse) </span>&#123;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/19/LMQ%E5%AE%9E%E7%8E%B0-6-LmqLookup/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/19/LMQ%E5%AE%9E%E7%8E%B0-6-LmqLookup/" class="post-title-link" itemprop="url">LMQ实现 (6) LmqLookup</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-19 20:05:38" itemprop="dateCreated datePublished" datetime="2023-12-19T20:05:38+08:00">2023-12-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
+<h1 id="Lookup"><a href="#Lookup" class="headerlink" title="Lookup"></a>Lookup</h1><p>LMQ Lookup 的功能就是存储 LMQ 分布式<strong>拓扑</strong>结构，为客户端提供<strong>查询</strong>服务。</p>
+<h2 id="拓扑结构"><a href="#拓扑结构" class="headerlink" title="拓扑结构"></a>拓扑结构</h2><p><strong>Lookup 维护了 lmqd，topic 和 channel 之间的拓扑结构</strong>，三者的对应关系如下。其中，lmqd 和 topic 为多对多的关系，topic 和 channel 为一对多的关系。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lmqd(producer) &lt;--- M:N ---&gt; topic &lt;--- 1:N ---&gt; channel</span><br></pre></td></tr></table></figure>
+
+<h2 id="存储结构"><a href="#存储结构" class="headerlink" title="存储结构"></a>存储结构</h2><p>根据 lookup 维护的拓扑结构，look 主要维护了这样一个注册字典：</p>
+<ul>
+<li>字典的键值分为两种类型，channel 和 topic。</li>
+<li>字典的值是对应的所有的生产者（Lmqd）。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> RegistrationDB <span class="keyword">struct</span> &#123;</span><br><span class="line">    sync.RWMutex</span><br><span class="line">    registrationMap <span class="keyword">map</span>[iface.IRegistration]iface.ProducerMap</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>所以，存储结构如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">&#123;topic, topicName1, <span class="string">&quot;&quot;</span>&#125; ---&gt; [&#123;id1: producer1&#125;, &#123;id2: producer2&#125;, ...]</span><br><span class="line">&#123;topic, topicName2, <span class="string">&quot;&quot;</span>&#125; ---&gt; [&#123;id3: producer3&#125;, &#123;id4: producer4&#125;, ...]</span><br><span class="line">...</span><br><span class="line"></span><br><span class="line">&#123;channel, topicName1, channelName1&#125; ---&gt; [&#123;id1: producer1&#125;, &#123;id2: producer2&#125;, ...]</span><br><span class="line">&#123;channel, topicName2, channelName2&#125; ---&gt; [&#123;id3: producer3&#125;, &#123;id4: producer4&#125;, ...]</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/19/LMQ%E5%AE%9E%E7%8E%B0-6-LmqLookup/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-5-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-5-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE/" class="post-title-link" itemprop="url">LMQ实现 (5) 通信协议</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-18 19:51:50" itemprop="dateCreated datePublished" datetime="2023-12-18T19:51:50+08:00">2023-12-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-19 16:47:46" itemprop="dateModified" datetime="2023-12-19T16:47:46+08:00">2023-12-19</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
+<h1 id="消息格式"><a href="#消息格式" class="headerlink" title="消息格式"></a>消息格式</h1><p>LMQ 中的消息格式包括一个全局唯一的 ID（用分布式雪花 ID 生成的），数据，生产消息的时间戳，重试次数。</p>
+<blockquote>
+<p>如时间戳、重试次数、消息 ID 等消息元数据，随着消息传输给客户端，这样做<strong>简化了客户端</strong>，客户端不需要维护消息的状态。</p>
+</blockquote>
+<p>消息会被序列化为<strong>字节流</strong>（依次以<strong>大端存储</strong>的方式保存消息 ID、时间戳、重试次数、数据），保存在了响应的 message 字段中。</p>
+<blockquote>
+<p>客户端与服务器之间的请求和响应统一采用 Json 进行编码。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Message <span class="keyword">struct</span> &#123;</span><br><span class="line">   ID        iface.MessageID <span class="string">`json:&quot;ID&quot;`</span></span><br><span class="line">   Data      []<span class="keyword">byte</span>          <span class="string">`json:&quot;Data&quot;`</span></span><br><span class="line">   Timestamp <span class="keyword">int64</span>           <span class="string">`json:&quot;Timestamp&quot;`</span></span><br><span class="line">   Attempts  <span class="keyword">uint16</span>          <span class="string">`json:&quot;Attempts&quot;`</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// 优先队列中使用到的数据结构</span></span><br><span class="line">   clientID <span class="keyword">uint64</span></span><br><span class="line">   pri      <span class="keyword">int64</span></span><br><span class="line">   index    <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="通信协议"><a href="#通信协议" class="headerlink" title="通信协议"></a>通信协议</h1><p>LMQ 中客户端与 lmqd 的通信协议如下：</p>
+<ul>
+<li>首先客户端进行连接。</li>
+<li>发送 SUB 命令订阅某个 Channel。</li>
+<li>发送 RDY 命令更新可以接收消息的数量。</li>
+<li>LMQ 服务器会持续推送规定数量之内的消息。</li>
+<li>最后客户端返回 FIN 和 REQ 表示消息的接收状态。</li>
+</ul>
+<p><img src="/../images/LMQ%E5%AE%9E%E7%8E%B0-5-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE/design5.png" alt="nsq protocol"></p>
+<h2 id="客户端流量控制"><a href="#客户端流量控制" class="headerlink" title="客户端流量控制"></a>客户端流量控制</h2><p>通过<strong>推送</strong>数据到客户端最大限度地<strong>提高性能和吞吐量</strong>，而不是等待客户端拉数据。LMQ 的客户端<strong>通过 RDY 状态表示自己准备好接受消息的数量</strong>，这是一种<strong>客户端流量控制</strong>的方法。</p>
+<p>当客户端连接到 lmqd 和并订阅到一个 channel 时，客户端的 RDY 初始化为 0。当客户端的 RDY 状态被更新为大于零时，channel 才开始给这个客户端发送消息。</p>
+<h2 id="消息确认"><a href="#消息确认" class="headerlink" title="消息确认"></a>消息确认</h2><p>客户端在收到消息后，需要<strong>发送 FIN 消息</strong>，表示消息已经成功接受。客户端也可以<strong>返回 REQ 消息</strong>，表示消息接受失败，此条消息重新进行排队。</p>
+<p>当 lmqd 在超时时间内没有接受到 FIN 或者 REQ 消息，会<strong>自动判定客户端超时</strong>，这条消息会重新排队发送。</p>
+<p>通过消息确认机制，可以<strong>保证消息确认被客户端收到</strong>，（在 lmqd 不崩溃的情况下）消息不会丢失。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/" class="post-title-link" itemprop="url">LMQ实现 (4) 磁盘队列和超时队列</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-18 19:51:31" itemprop="dateCreated datePublished" datetime="2023-12-18T19:51:31+08:00">2023-12-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-21 10:26:51" itemprop="dateModified" datetime="2023-12-21T10:26:51+08:00">2023-12-21</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
+<h1 id="磁盘队列"><a href="#磁盘队列" class="headerlink" title="磁盘队列"></a>磁盘队列</h1><p>每一个 topic 都会维护一个磁盘消息队列，每一个 channel 也会维护一个磁盘消息队列。当内存消息队列满了之后，新的消息就会存储在磁盘消息队列中。</p>
+<p>在 lmqd 退出时消息的<strong>持久化</strong>也是依靠磁盘消息队列实现（将内存消息队列中的消息全部推入磁盘消息队列中，进行持久化存储）。</p>
+<h2 id="元数据"><a href="#元数据" class="headerlink" title="元数据"></a>元数据</h2><p>一个磁盘消息队列会维护多个文件，以 index 标识顺序。一个磁盘队列的核心元数据就是记录四个变量（元数据也会被持久化，以便标识下一次启动时的读取和写入位置）：</p>
+<ul>
+<li>当前读取的文件号，当前读取的文件位置。</li>
+<li>当前写入的文件号，当前写入的文件位置。</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/" class="post-title-link" itemprop="url">LMQ实现 (3) Topic和Channel</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-18 19:50:45" itemprop="dateCreated datePublished" datetime="2023-12-18T19:50:45+08:00">2023-12-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-21 10:26:51" itemprop="dateModified" datetime="2023-12-21T10:26:51+08:00">2023-12-21</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
+<p>lmqd 中的元数据是指 lmqd 中的 Topic 和 Channel 信息</p>
+<h1 id="Topic"><a href="#Topic" class="headerlink" title="Topic"></a>Topic</h1><p>Topic 负责接受生产者的消息，并且将消息复制分发给每一个 channel 中。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>Topic 的结构如下，主要的属性有：</p>
+<ul>
+<li>name：topic 的名称。</li>
+<li>isTemporary：是否是临时的 Topic，如果名称带有 <code>#tmp</code> 则表明这是一个临时的 Topic。<ul>
+<li>对于临时 Topic，backendQueue（磁盘队列）为 nil，所以超出内存队列长度的数据会被直接丢弃。</li>
+<li>若 channel 为空，则会立即删除这个 topic。</li>
+<li>一个临时的 topic 不会持久化到磁盘中。</li>
+</ul>
+</li>
+<li>channels：topic 下有多个 channel，保存所有在此 topic 下的 channel。</li>
+<li>memoryMsgChan：内存消息队列。</li>
+<li>backendMsgChan：磁盘消息队列。</li>
+<li>deleteCallback：这个 topic 删除后的回调函数，主要用于删除 lmqd 中维护的 topic 信息。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Topic <span class="keyword">struct</span> &#123;</span><br><span class="line">   lmqd iface.ILmqDaemon</span><br><span class="line"></span><br><span class="line">   name         <span class="keyword">string</span></span><br><span class="line">   isTemporary  <span class="keyword">bool</span>                      <span class="comment">// 标记是否是临时的topic</span></span><br><span class="line">   isPausing    atomic.Bool               <span class="comment">// 标记是否已经暂停</span></span><br><span class="line">   isExiting    atomic.Bool               <span class="comment">// 标记是否已经退出</span></span><br><span class="line">   channels     <span class="keyword">map</span>[<span class="keyword">string</span>]iface.IChannel <span class="comment">// 保存所有的channel字典</span></span><br><span class="line">   channelsLock sync.RWMutex              <span class="comment">// 控制对channel字典的互斥访问</span></span><br><span class="line"></span><br><span class="line">   guidFactory *GUIDFactory <span class="comment">// message id 生成器</span></span><br><span class="line"></span><br><span class="line">   memoryMsgChan <span class="keyword">chan</span> iface.IMessage       <span class="comment">// 内存chan</span></span><br><span class="line">   backendQueue  backendqueue.BackendQueue <span class="comment">// 当内存chan满了之后，将消息存入到后端队列中（持久化保存）</span></span><br><span class="line"></span><br><span class="line">   deleteCallback <span class="function"><span class="keyword">func</span><span class="params">(topic iface.ITopic)</span></span></span><br><span class="line">   deleter        sync.Once</span><br><span class="line"></span><br><span class="line">   startChan   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   updateChan  <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   pauseChan   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   closingChan <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   closedChan  <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">   messageCount atomic.Uint64</span><br><span class="line">   messageBytes atomic.Uint64</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="生产消息"><a href="#生产消息" class="headerlink" title="生产消息"></a>生产消息</h2><p>通过 select，在内存队列中放入消息。如果内存队列已满，则会进入 default 分支，将消息送入磁盘消息队列中。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">LMQ实现 (2) 整体设计</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-18 19:47:20" itemprop="dateCreated datePublished" datetime="2023-12-18T19:47:20+08:00">2023-12-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-19 10:59:19" itemprop="dateModified" datetime="2023-12-19T10:59:19+08:00">2023-12-19</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
+<p>LMQ 与 NSQ 的整体设计类似。</p>
+<h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><h2 id="特性"><a href="#特性" class="headerlink" title="特性"></a>特性</h2><p>LMQ 是分布式的消息队列，特性为：</p>
+<ul>
+<li>支持<strong>无单点故障</strong>的分布式拓扑。</li>
+<li>无缝的支持<strong>水平扩展</strong>，无缝的添加更多节点到集群。</li>
+<li>主要是在<strong>内存</strong>中传递消息，直接<strong>使用 TCP 协议</strong>而不是 HTTP 协议，所以<strong>性能</strong>可以保障。</li>
+<li><strong>客户端发现</strong>的方式，通过查询 LmqLookup 找到生产者。</li>
+</ul>
+<h2 id="消息保证"><a href="#消息保证" class="headerlink" title="消息保证"></a>消息保证</h2><h3 id="消息不持久化机制"><a href="#消息不持久化机制" class="headerlink" title="消息不持久化机制"></a>消息不持久化机制</h3><p>LMQ 支持<strong>内存队列</strong>和<strong>磁盘队列</strong>，超过内存队列长度的消息会被存放在磁盘队列中。在内存队列中的消息可能因为宕机而丢失，存储在磁盘中的消息不会丢失。</p>
+<p>可以通过<strong>设置内存队列长度为 0</strong>，所有的消息将会存储到磁盘，这样<strong>消息不会丢失</strong>。</p>
+<p>在正常推出的情况下，内存中的消息会被推送至磁盘队列中，在磁盘中保存持久化，元数据信息以 json 的格式进行持久化。</p>
+<h3 id="消息最少被投递一次"><a href="#消息最少被投递一次" class="headerlink" title="消息最少被投递一次"></a>消息最少被投递一次</h3><p>由于客户端超时导致的消息重新排队等原因，<strong>消息会被重复投递</strong>，消息<strong>通过 ID 区分</strong>，由客户端负责操作。</p>
+<h3 id="消息是无序的"><a href="#消息是无序的" class="headerlink" title="消息是无序的"></a>消息是无序的</h3><p>LMQ 不保证消息的投递顺序和生产顺序是一致的。因为 LMQ 由<strong>内存队列、磁盘队列、重排队列混合组成</strong>，所以消息是<strong>无序</strong>的。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
       
     </div>
 
@@ -1150,7 +1328,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/3/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span><a class="page-number" href="/page/5/">5</a><span class="space">&hellip;</span><a class="page-number" href="/page/37/">37</a><a class="extend next" rel="next" href="/page/5/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/3/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span><a class="page-number" href="/page/5/">5</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/5/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1216,20 +1394,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-count">388</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">50</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-count">48</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/15/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/" class="post-title-link" itemprop="url">Kuma学习笔记 (8) KDS Watchdog</a>
+            <a href="/2024/04/15/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/" class="post-title-link" itemprop="url">Java面试之JVM (3) 垃圾回收</a>
         </h2>
 
         <div class="post-meta">
@@ -183,7 +183,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-03-08 10:59:20 / 修改时间：15:18:07" itemprop="dateCreated datePublished" datetime="2024-03-08T10:59:20+08:00">2024-03-08</time>
+              <time title="创建时间：2024-04-15 10:36:12 / 修改时间：15:48:13" itemprop="dateCreated datePublished" datetime="2024-04-15T10:36:12+08:00">2024-04-15</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -191,7 +191,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -206,625 +206,219 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="Watchdog"><a href="#Watchdog" class="headerlink" title="Watchdog"></a>Watchdog</h1><h2 id="什么是-Watchdog"><a href="#什么是-Watchdog" class="headerlink" title="什么是 Watchdog"></a>什么是 Watchdog</h2><p>在 Kuma KDS 中，<strong>当 Zone CP 和 Global CP 建立 streaming 连接后</strong>，需要推送资源的一方在每一条连接开启一个 Watchdog。</p>
-<p>Watchdog 用于收集变化的资源，并定期更新 xds-cache（xds-cache 的更新会引发 xds 推送），<strong>完成从 Global CP 与 Zone CP 之间的被更新资源的主动推送过程</strong>。</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/image-20240308110246222.png" alt="image-20240308110246222"></p>
-<h2 id="Watchdog-数据结构"><a href="#Watchdog-数据结构" class="headerlink" title="Watchdog 数据结构"></a>Watchdog 数据结构</h2><p>Watchdog 的数据结构如下：</p>
+          <p>在 Java 7 以及之前，堆分为三个区域新生代（Eden、S0、S1）、老生代（Tenured）、永久代；但是从 Java 8 开始，永久代已经被元空间所代替，元空间使用的是直接内存。</p>
+<h1 id="垃圾回收"><a href="#垃圾回收" class="headerlink" title="垃圾回收"></a>垃圾回收</h1><h2 id="空间回收原则"><a href="#空间回收原则" class="headerlink" title="空间回收原则"></a>空间回收原则</h2><p>针对 HotSpot VM 的实现，它里面的 GC 其实准确分类只有两大种：</p>
 <ul>
-<li>Node：表示一个 envoy 节点，这里是一个 Zone CP 节点。</li>
-<li>EventBus：事件总线，Watchdog 通过事件总线订阅资源更新的事件。</li>
-<li>Reconciler：调和器，用于重新计算配置资源，并更新 xds-cache。</li>
-<li>ProvidedTypes：需要同步的所有资源类型。</li>
+<li><p><strong>部分收集 (Partial GC)：</strong></p>
+<ul>
+<li><strong>新生代收集（Minor GC / Young GC）：</strong>只对新生代进行垃圾收集；</li>
+<li><strong>老年代收集（Major GC / Old GC）：</strong>只对老年代进行垃圾收集。需要注意的是 Major GC 在有的语境中也用于指代整堆收集；</li>
+<li><strong>混合收集（Mixed GC）：</strong>对整个新生代和<strong>部分</strong>老年代进行垃圾收集。</li>
 </ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> EventBasedWatchdog <span class="keyword">struct</span> &#123;</span><br><span class="line">   Ctx                 context.Context</span><br><span class="line">   Node                *envoy_core.Node</span><br><span class="line">   EventBus            events.EventBus</span><br><span class="line">   Reconciler          reconcile.Reconciler</span><br><span class="line">   ProvidedTypes       <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   Log                 logr.Logger</span><br><span class="line">   NewFlushTicker      <span class="function"><span class="keyword">func</span><span class="params">()</span> *<span class="title">time</span>.<span class="title">Ticker</span></span></span><br><span class="line">   NewFullResyncTicker <span class="function"><span class="keyword">func</span><span class="params">()</span> *<span class="title">time</span>.<span class="title">Ticker</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><p>在 Start 方法中定义了 Watchdog 的工作流程：</p>
+</li>
+<li><p><strong>整堆收集 (Full GC)：</strong>收集整个 Java 堆和方法区。</p>
+</li>
+</ul>
+<p>JVM 内存分配与空间回收有以下几个原则：</p>
+<ul>
+<li>对象优先在 Eden 区分配。</li>
+<li>大对象直接进入老年代。</li>
+<li>长期存活的对象进入老年代。</li>
+<li>空间分配担保。</li>
+</ul>
+<h3 id="对象优先在-Eden-分配"><a href="#对象优先在-Eden-分配" class="headerlink" title="对象优先在 Eden 分配"></a>对象优先在 Eden 分配</h3><p>大多数情况下，对象在新生代中 Eden 区分配。<strong>当 Eden 区没有足够空间进行分配时，虚拟机将发起一次 Minor GC</strong>，然后在 Eden 区分配。</p>
+<h3 id="大对象直接进入老年代"><a href="#大对象直接进入老年代" class="headerlink" title="大对象直接进入老年代"></a>大对象直接进入老年代</h3><p>大对象直接进入老年代的行为是由虚拟机动态决定的，它与具体使用的垃圾回收器和相关参数有关。大对象直接进入老年代是一种优化策略，旨在<strong>避免将大对象放入新生代，从而减少新生代的垃圾回收频率和成本</strong>。</p>
+<ul>
+<li>G1 垃圾回收器根据 <code>-XX:G1HeapRegionSize</code> 参数设置的堆区域大小和 <code>-XX:G1MixedGCLiveThresholdPercent</code> 参数设置的阈值，来决定哪些对象会直接进入老年代。</li>
+<li>Parallel Scavenge 垃圾回收器中，默认情况下，并没有一个固定的阈值来决定何时直接在老年代分配大对象。而是由虚拟机根据当前的堆内存情况和历史数据动态决定。</li>
+</ul>
+<h3 id="长期存活的对象进入老年代"><a href="#长期存活的对象进入老年代" class="headerlink" title="长期存活的对象进入老年代"></a>长期存活的对象进入老年代</h3><p>虚拟机给每一个对象一个年龄计数器，作为对象存活的年龄。大部分情况，对象都会首先在 Eden 区域分配。如果对象在 Eden 出生并<strong>经过第一次 Minor GC 后仍然存活</strong>，并且能被 Survivor 容纳的话，将被移动到 Survivor 空间（s0 或者 s1）中，<strong>并将对象年龄设为 1</strong>。</p>
+<p>对象在 Survivor 中每熬过一次 MinorGC,年龄就增加 1 岁，当它的年龄增加到一定程度（默认为 15 岁），就会被晋升到老年代中。对象晋升到老年代的年龄阈值，可以通过参数 <code>-XX:MaxTenuringThreshold</code> 来设置。</p>
+<blockquote>
+<p>Hotspot 遍历所有对象时，按照年龄从小到大对其所占用的大小进行累加，当累加到某个年龄时，<strong>所累加的大小超过了 Survivor 区的一半</strong>，则取这个年龄和 <code>MaxTenuringThreshold</code> 中更小的一个值，作为新的晋升年龄阈值。</p>
+</blockquote>
+<h3 id="空间分配担保"><a href="#空间分配担保" class="headerlink" title="空间分配担保"></a>空间分配担保</h3><p>空间分配担保是为了确保<strong>在 Minor GC 之前老年代本身还有容纳新生代所有对象的剩余空间</strong>。</p>
+<p>只要老年代的连续空间大于<strong>新生代对象总大小</strong>或者<strong>历次晋升的平均大小</strong>，就会进行 Minor GC，否则将进行 Full GC。</p>
+<h2 id="死亡对象判别"><a href="#死亡对象判别" class="headerlink" title="死亡对象判别"></a>死亡对象判别</h2><p>死亡对象判别常用方法有：应用计数法和可达性分析。</p>
+<blockquote>
+<p><strong>如何判断废弃常量？</strong></p>
+<p>如果没有任何一个 String 对象引用一个字符串常量，那么这个字符串常量就是废弃的。</p>
+<p><strong>如何判断无用的类？</strong></p>
+<p>判断无用的类，需要满足三个条件（虚拟机可以对满足上述 3 个条件的无用类进行回收，仅仅是可以，不是一定）：</p>
 <ol>
-<li>首先，从事件总线中<strong>订阅 ResourceChangedEvent 资源更新事件</strong>。</li>
+<li>该类的所有实例被回收。</li>
+<li>加载该类的 ClassLoader 被回收。</li>
+<li>该类对应的 <code>java.lang.Class</code> 对象没有在任何地方被引用，无法在任何地方通过反射访问该类的方法。</li>
 </ol>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">listener := e.EventBus.Subscribe(<span class="function"><span class="keyword">func</span><span class="params">(event events.Event)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">   resChange, ok := event.(events.ResourceChangedEvent)</span><br><span class="line">   <span class="keyword">if</span> !ok &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> _, ok := e.ProvidedTypes[resChange.Type]; !ok &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
-<li>changedTypes 记录已经修改的资源，<strong>第一次同步的是全量的资源</strong>。</li>
-</ol>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// for the first reconcile assign all types</span></span><br><span class="line">changedTypes := maps.Clone(e.ProvidedTypes)</span><br><span class="line">reasons := <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;&#123;</span><br><span class="line">   ReasonResync: &#123;&#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
-<li>开启<strong>两个定时器 flushTicker 和 fullResyncTicker</strong>。flushTicker 用于<strong>定期向 xds-cache 中同步被修改的资源</strong>；fullResyncTicker 用于定期向 xds-cache 进行<strong>全量</strong>的资源同步。</li>
-</ol>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">   <span class="keyword">select</span> &#123;</span><br><span class="line">   <span class="keyword">case</span> &lt;-stop:</span><br><span class="line">      <span class="keyword">if</span> err := e.Reconciler.Clear(e.Ctx, e.Node); err != <span class="literal">nil</span> &#123;</span><br><span class="line">         e.Log.Error(err, <span class="string">&quot;reconcile clear failed&quot;</span>)</span><br><span class="line">      &#125;</span><br><span class="line">      listener.Close()</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   <span class="keyword">case</span> &lt;-flushTicker.C:</span><br><span class="line">      <span class="keyword">if</span> <span class="built_in">len</span>(changedTypes) == <span class="number">0</span> &#123;</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line">      reason := strings.Join(util_maps.SortedKeys(reasons), <span class="string">&quot;_and_&quot;</span>)</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;reconcile&quot;</span>, <span class="string">&quot;changedTypes&quot;</span>, changedTypes, <span class="string">&quot;reason&quot;</span>, reason)</span><br><span class="line">      err, _ := e.Reconciler.Reconcile(e.Ctx, e.Node, changedTypes, e.Log)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &amp;&amp; errors.Is(err, context.Canceled) &#123;</span><br><span class="line">         e.Log.Error(err, <span class="string">&quot;reconcile failed&quot;</span>, <span class="string">&quot;changedTypes&quot;</span>, changedTypes, <span class="string">&quot;reason&quot;</span>, reason)</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">         changedTypes = <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">         reasons = <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">      &#125;</span><br><span class="line">   <span class="keyword">case</span> &lt;-fullResyncTicker.C:</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;schedule full resync&quot;</span>)</span><br><span class="line">      changedTypes = maps.Clone(e.ProvidedTypes)</span><br><span class="line">      reasons[ReasonResync] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   <span class="keyword">case</span> event := &lt;-listener.Recv():</span><br><span class="line">      resChange := event.(events.ResourceChangedEvent)</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;schedule sync for type&quot;</span>, <span class="string">&quot;typ&quot;</span>, resChange.Type)</span><br><span class="line">      changedTypes[resChange.Type] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">      reasons[ReasonEvent] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Reconciler-调和器"><a href="#Reconciler-调和器" class="headerlink" title="Reconciler 调和器"></a>Reconciler 调和器</h1><p>Reconciler 用于重新计算给定 node 的配置资源信息，并同步到 xds-cache 中，接口定义如下：</p>
+</blockquote>
+<h3 id="引用计数法"><a href="#引用计数法" class="headerlink" title="引用计数法"></a>引用计数法</h3><p><strong>引用计数法：</strong>每一个对象有一个引用计数器，<strong>这个方法实现简单，效率高，但是没有办法解决循环引用问题。</strong></p>
+<h3 id="可达性分析"><a href="#可达性分析" class="headerlink" title="可达性分析"></a>可达性分析</h3><p><strong>可达性分析：</strong>从 <strong>GC ROOT</strong> 出发，找到所有可达对象；不可达对象就是需要被回收的。</p>
+<p><strong>哪些对象可以作为 GC Roots 呢？</strong></p>
 <ul>
-<li><strong>Reconcile 方法：</strong>调和已经修改的资源类型，从老的 Snapshot 中取未改变的资源，再重新查询已经改变的资源，并以此创建新的 Snapshot 并更新给 xds-cache。</li>
-<li>Clear 方法：在 xds-cache 中清理 Snapshot，在 streaming 结束时调用。</li>
+<li>虚拟机栈（栈帧中的局部变量表）中引用的对象</li>
+<li>本地方法栈（Native 方法）中引用的对象</li>
+<li>方法区中类静态属性引用的对象</li>
+<li>方法区中常量引用的对象</li>
+<li>所有被同步锁持有的对象</li>
+<li>JNI（Java Native Interface）引用的对象</li>
 </ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Reconciler re-computes configuration for a given node.</span></span><br><span class="line"><span class="keyword">type</span> Reconciler <span class="keyword">interface</span> &#123;</span><br><span class="line">   <span class="comment">// Reconcile reconciles state of node given changed resource types.</span></span><br><span class="line">   <span class="comment">// Returns error and bool which is true if any resource was changed.</span></span><br><span class="line">   Reconcile(context.Context, *envoy_core.Node, <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;, logr.Logger) (error, <span class="keyword">bool</span>)</span><br><span class="line">   Clear(context.Context, *envoy_core.Node) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Reconcile-方法"><a href="#Reconcile-方法" class="headerlink" title="Reconcile 方法"></a>Reconcile 方法</h2><p>Reconcile 方法调和已经修改的资源类型，从老的 Snapshot 中取未改变的资源，再重新查询已经改变的资源，并<strong>以此创建新的 Snapshot 并更新给 xds-cache</strong>。具体流程如下：</p>
+<h3 id="引用类型"><a href="#引用类型" class="headerlink" title="引用类型"></a>引用类型</h3><p>JDK1.2 之前，Java 中引用的定义很传统：如果 reference 类型的数据存储的数值代表的是另一块内存的起始地址，就称这块内存代表一个引用。</p>
+<p>JDK1.2 以后，Java 对引用的概念进行了扩充，将引用分为强引用、软引用、弱引用、虚引用四种（引用强度逐渐减弱）。</p>
 <ol>
-<li>首先从 xds-cache 中查询老的 Snapshot。</li>
+<li><strong>强引用（StrongReference）：</strong>类似于<strong>必不可少的生活用品</strong>，平时的引用就是强引用。当内存空间不足，Java 虚拟机宁愿抛出 OutOfMemoryError 错误，使程序异常终止，也不会回收具有强引用的对象来解决内存不足问题。</li>
+<li><strong>软引用（SoftReference）：</strong>类似于<strong>可有可无的生活用品</strong>。如果内存空间足够，垃圾回收器就不会回收它，<strong>如果内存空间不足了，就会回收这些对象的内存</strong>。只要垃圾回收器没有回收它，该对象就可以被程序使用。软引用可以和一个引用队列（ReferenceQueue）联合使用，如果软引用所引用的对象被垃圾回收，JAVA 虚拟机就会把这个软引用加入到与之关联的引用队列中。</li>
+<li><strong>弱引用（WeekReference）：</strong>类似于<strong>可有可无的生活用品</strong>。弱引用与软引用的区别在于：只具有弱引用的对象拥有更短暂的生命周期。在垃圾回收器线程扫描它所管辖的内存区域的过程中，<strong>一旦发现了只具有弱引用的对象，不管当前内存空间足够与否，都会回收它的内存</strong>。弱引用可以和一个引用队列（ReferenceQueue）联合使用，如果弱引用所引用的对象被垃圾回收，Java 虚拟机就会把这个弱引用加入到与之关联的引用队列中。</li>
+<li><strong>虚引用（PhantomReference）：</strong>虚引用并不会决定对象的生命周期。如果一个对象仅持有虚引用，那么它就和没有任何引用一样，在任何时候都可能被垃圾回收。</li>
 </ol>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">id := r.hasher.ID(node)</span><br><span class="line">old, _ := r.cache.GetSnapshot(id)</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
-<li>对于<strong>未变更的资源</strong>，直接<strong>从老的 Snapshot 中获取</strong>。接着调用 <code>r.generator.GenerateSnapshot</code> 方法，<strong>重新查询已经修改的资源</strong>，并根据已变更和未变更的资源<strong>创建新的 Snapshot</strong>。</li>
+<blockquote>
+<p><strong>虚引用主要用来跟踪对象被垃圾回收的活动</strong>。</p>
+<p><strong>虚引用与软引用和弱引用的一个区别在于：</strong> 虚引用<strong>必须</strong>和引用队列（ReferenceQueue）联合使用。当垃圾回收器准备回收一个对象时，如果发现它还有虚引用，就会在回收对象的内存之前，把这个虚引用加入到与之关联的引用队列中。程序可以通过判断引用队列中是否已经加入了虚引用，来了解被引用的对象是否将要被垃圾回收。程序如果发现某个虚引用已经被加入到引用队列，那么就可以在所引用的对象的内存被回收之前采取必要的行动。</p>
+<p>在程序设计中一般很少使用弱引用与虚引用，使用软引用的情况较多，这是因为<strong>软引用可以加速 JVM 对垃圾内存的回收速度，可以维护系统的运行安全，防止内存溢出（OutOfMemory）等问题的产生</strong>。</p>
+</blockquote>
+<h2 id="垃圾清扫算法"><a href="#垃圾清扫算法" class="headerlink" title="垃圾清扫算法"></a>垃圾清扫算法</h2><h3 id="标记-清除"><a href="#标记-清除" class="headerlink" title="标记-清除"></a>标记-清除</h3><p>标记-清除（Mark-and-Sweep）算法分为“标记（Mark）”和“清除（Sweep）”阶段：首先标记出所有不需要回收的对象，在标记完成后统一回收掉所有没有被标记的对象。</p>
+<p>这种垃圾收集算法会带来两个明显的问题：</p>
+<ol>
+<li><strong>效率问题</strong>：标记和清除两个过程效率都不高。</li>
+<li><strong>空间问题</strong>：标记清除后会产生大量不连续的<strong>内存碎片</strong>。</li>
 </ol>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// construct builder with unchanged types from the old snapshot</span></span><br><span class="line">builder := cache.NewSnapshotBuilder()</span><br><span class="line"><span class="keyword">if</span> old != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">for</span> _, typ := <span class="keyword">range</span> util_dds.GetSupportedTypes() &#123;</span><br><span class="line">      resType := core_model.ResourceType(typ)</span><br><span class="line">      <span class="keyword">if</span> _, ok := changedTypes[resType]; ok &#123;</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      oldRes := old.GetResources(typ)</span><br><span class="line">      <span class="keyword">if</span> <span class="built_in">len</span>(oldRes) &gt; <span class="number">0</span> &#123;</span><br><span class="line">         builder = builder.With(resType, maps.Values(oldRes))</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="built_in">new</span>, err := r.generator.GenerateSnapshot(ctx, node, builder, changedTypes)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> err, <span class="literal">false</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> <span class="built_in">new</span> == <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> errors.New(<span class="string">&quot;nil snapshot&quot;</span>), <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="复制"><a href="#复制" class="headerlink" title="复制"></a>复制</h3><p>它可以将内存分为大小相同的两块，每次使用其中的一块。当这一块的内存使用完后，就<strong>将还存活的对象复制到另一块</strong>去，然后再<strong>把使用的空间一次清理掉</strong>。这样就使每次的内存回收都是对内存区间的一半进行回收。虽然改进了标记-清除算法，但依然存在下面这些问题：</p>
+<ul>
+<li><strong>可用内存变小</strong>：可用内存缩小为原来的一半。</li>
+<li><strong>不适合老年代</strong>：如果存活对象数量比较大，复制性能会变得很差。</li>
+</ul>
+<h3 id="标记-整理（标记-压缩）"><a href="#标记-整理（标记-压缩）" class="headerlink" title="标记-整理（标记-压缩）"></a>标记-整理（标记-压缩）</h3><p>标记-整理（压缩）算法是根据<strong>老年代</strong>的特点提出的一种算法，在回收时，<strong>让所有存活的对象向一端移动</strong>。</p>
+<p>由于多了整理这一步，因此效率也不高，适合老年代这种垃圾回收频率不是很高的场景。</p>
+<h3 id="分代收集"><a href="#分代收集" class="headerlink" title="分代收集"></a>分代收集</h3><p>当前虚拟机的垃圾收集都采用分代收集算法，根据对象存活周期的不同将内存分为几块，<strong>不同代采用不同的算法</strong>。一般将 Java 堆分为新生代和老年代，这样就可以根据各个年代的特点选择合适的垃圾收集算法。</p>
+<p>比如在<strong>新生代</strong>中，<strong>每次收集都会有大量对象死去</strong>，所以可以选择”<strong>标记-复制</strong>“算法，只需要付出少量对象的复制成本就可以完成每次垃圾收集。而<strong>老年代</strong>的对象<strong>存活几率比较高</strong>，而且没有额外的空间对它进行分配担保，所以必须<strong>选择“标记-清除”或“标记-整理”算法</strong>进行垃圾收集。</p>
+<h2 id="垃圾收集器"><a href="#垃圾收集器" class="headerlink" title="垃圾收集器"></a>垃圾收集器</h2><p>JDK 默认垃圾收集器（使用 <code>java -XX:+PrintCommandLineFlags -version</code> 命令查看）：</p>
+<ul>
+<li>JDK 8：Parallel Scavenge（新生代）+ Parallel Old（老年代）</li>
+<li>JDK 9 ~ JDK20: G1</li>
+</ul>
+<h3 id="Serial-Serial-Old-收集器"><a href="#Serial-Serial-Old-收集器" class="headerlink" title="Serial/Serial Old 收集器"></a>Serial/Serial Old 收集器</h3><p>Serial 负责新生代，Serial Old 负责老年代。二者都是<strong>单线程</strong>收集器，在垃圾回收的过程中需要 STW，直到垃圾收集结束。<strong>新生代采用标记-复制算法，老年代采用标记-整理算法。</strong></p>
+<p>优点：它<strong>简单而高效（与其他收集器的单线程相比）</strong>。Serial 收集器由于没有线程交互的开销，自然可以获得很高的单线程收集效率。Serial 收集器对于运行在 Client 模式下的虚拟机来说是个不错的选择。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/serial-garbage-collector.png" alt="Serial 收集器"></p>
+<h3 id="ParNew-收集器"><a href="#ParNew-收集器" class="headerlink" title="ParNew 收集器"></a>ParNew 收集器</h3><p>ParNew 是 Serial 收集器的<strong>多线程</strong>版本。<strong>新生代采用标记-复制算法，老年代采用标记-整理算法。</strong></p>
+<p>它是许多运行在 Server 模式下的虚拟机的首要选择，除了 Serial 收集器外，只有它能与 CMS 收集器配合工作。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parnew-garbage-collector.png" alt="ParNew 收集器 "></p>
+<h3 id="Parallel-Scavenge-Parallel-Old-收集器"><a href="#Parallel-Scavenge-Parallel-Old-收集器" class="headerlink" title="Parallel Scavenge/Parallel Old 收集器"></a>Parallel Scavenge/Parallel Old 收集器</h3><p><strong>Parallel Scavenge 收集器是负责年轻代的垃圾回收</strong>，也是使用<strong>标记-复制</strong>算法的多线程收集器。Parallel Scavenge 收集器关注点是吞吐量，CMS 等垃圾收集器的关注点更多的是用户线程的停顿时间（提高用户体验）。Parallel Scavenge 收集器提供了很多参数供用户找到最合适的停顿时间或最大吞吐量，如果对于收集器运作不太了解，手工优化存在困难的时候，使用 Parallel Scavenge 收集器配合自适应调节策略，把内存管理优化交给虚拟机去完成也是一个不错的选择。</p>
+<p><strong>Parallel Old 是 Parallel Scavenge 收集器的老年代版本</strong>。使用多线程和<strong>标记-整理</strong>算法。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parallel-scavenge-garbage-collector.png" alt="Parallel Old收集器运行示意图"></p>
+<h3 id="CMS-收集器"><a href="#CMS-收集器" class="headerlink" title="CMS 收集器"></a>CMS 收集器</h3><p><strong>CMS（Concurrent Mark Sweep）收集器是一种以获取最短回收停顿时间为目标的收集器。它非常符合在注重用户体验的应用上使用。</strong></p>
+<p><strong>CMS（Concurrent Mark Sweep）收集器是 HotSpot 虚拟机第一款真正意义上的并发收集器，它第一次实现了让垃圾收集线程与用户线程（基本上）同时工作。</strong></p>
+<p>CMS 收集器是一种<strong>标记-清除算法</strong>实现的，它的运作过程相比于前面几种垃圾收集器来说更加复杂一些。整个过程分为四个步骤：</p>
+<ul>
+<li><strong>初始标记：</strong> 暂停所有的其他线程，并记录下直接与 root 相连的对象，速度很快 ；</li>
+<li><strong>并发标记：</strong> 同时开启 GC 和用户线程，用一个闭包结构去记录可达对象。但在这个阶段结束，这个闭包结构并不能保证包含当前所有的可达对象。因为用户线程可能会不断的更新引用域，所以 GC 线程无法保证可达性分析的实时性。所以这个算法里会跟踪记录这些发生引用更新的地方。</li>
+<li><strong>重新标记：</strong> 重新标记阶段就是为了修正并发标记期间因为用户程序继续运行而导致标记产生变动的那一部分对象的标记记录，这个阶段的停顿时间一般会比初始标记阶段的时间稍长，远远比并发标记阶段时间短。</li>
+<li><strong>并发清除：</strong> 开启用户线程，同时 GC 线程开始对未标记的区域做清扫。</li>
+</ul>
+<p>主要优点：<strong>并发收集、低停顿</strong>。但是它有下面三个明显的缺点：</p>
+<ul>
+<li><strong>对 CPU 资源敏感；</strong></li>
+<li><strong>无法处理浮动垃圾；</strong></li>
+<li><strong>它使用的回收算法-“标记-清除”算法会导致收集结束时会有大量空间碎片产生。</strong></li>
+</ul>
+<p><strong>从 JDK9 开始，CMS 收集器已被弃用。</strong></p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/cms-garbage-collector.png" alt="CMS 收集器"></p>
+<h3 id="G1-收集器"><a href="#G1-收集器" class="headerlink" title="G1 收集器"></a>G1 收集器</h3><p><strong>G1 (Garbage-First) 是一款面向服务器的垃圾收集器，主要针对配备多颗处理器及大容量内存的机器。以极高概率满足 GC 停顿时间要求的同时，还具备高吞吐量性能特征。</strong></p>
+<p>它具备以下特点：</p>
+<ul>
+<li><strong>并行与并发</strong>：G1 能充分利用 CPU、多核环境下的硬件优势，使用多个 CPU（CPU 或者 CPU 核心）来缩短 Stop-The-World 停顿时间。部分其他收集器原本需要停顿 Java 线程执行的 GC 动作，G1 收集器仍然可以通过并发的方式让 java 程序继续执行。</li>
+<li><strong>分代收集</strong>：虽然 G1 可以不需要其他收集器配合就能独立管理整个 GC 堆，但是还是保留了分代的概念。</li>
+<li><strong>空间整合</strong>：与 CMS 的“标记-清除”算法不同，G1 从整体来看是基于“标记-整理”算法实现的收集器；从局部上来看是基于“标记-复制”算法实现的。</li>
+<li><strong>可预测的停顿</strong>：这是 G1 相对于 CMS 的另一个大优势，降低停顿时间是 G1 和 CMS 共同的关注点，但 G1 除了追求低停顿外，还能建立可预测的停顿时间模型，能让使用者明确指定在一个长度为 M 毫秒的时间片段内，消耗在垃圾收集上的时间不得超过 N 毫秒。</li>
+</ul>
+<p>G1 收集器的运作大致分为以下几个步骤：</p>
+<ul>
+<li><strong>初始标记</strong></li>
+<li><strong>并发标记</strong></li>
+<li><strong>最终标记</strong></li>
+<li><strong>筛选回收</strong></li>
+</ul>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/g1-garbage-collector.png" alt="G1 收集器"></p>
+<p><strong>G1 收集器在后台维护了一个优先列表，每次根据允许的收集时间，优先选择回收价值最大的 Region（这也就是它的名字 Garbage-First 的由来）</strong>。这种使用 Region 划分内存空间以及有优先级的区域回收方式，保证了 G1 收集器在有限时间内可以尽可能高的收集效率。</p>
+<p><strong>从 JDK9 开始，G1 垃圾收集器成为了默认的垃圾收集器。</strong></p>
+<h3 id="ZGC-收集器"><a href="#ZGC-收集器" class="headerlink" title="ZGC 收集器"></a>ZGC 收集器</h3><p>ZGC 在 Java 11 引入，处于实验阶段；在 Java15 已经可以正式使用了；在 Java 21 中引入分代 ZGC。</p>
 
-<ol start="3">
-<li>若新的 Snapshot 相比于老的<strong>发生了修改</strong>，则<strong>同步</strong>到 xds-cache 中。</li>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/" class="post-title-link" itemprop="url">Java面试之JVM (2) HotSpot对象</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-14 17:14:08 / 修改时间：17:30:44" itemprop="dateCreated datePublished" datetime="2024-04-14T17:14:08+08:00">2024-04-14</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>下面解释一下 HotSpot 虚拟机对象的一些面试问题。</p>
+<h1 id="对象的创建"><a href="#对象的创建" class="headerlink" title="对象的创建"></a>对象的创建</h1><p>对象的创建分为五步：</p>
+<ol>
+<li>类加载检查。</li>
+<li>内存分配。</li>
+<li>初始化零值。</li>
+<li>设置对象头。</li>
+<li>执行 init 方法。</li>
 </ol>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">new</span>, changed := r.Version(<span class="built_in">new</span>, old)</span><br><span class="line"><span class="keyword">if</span> changed &#123;</span><br><span class="line">   r.logChanges(logger, <span class="built_in">new</span>, old, node)</span><br><span class="line">   r.meterConfigReadyForDelivery(<span class="built_in">new</span>, old, node.Id)</span><br><span class="line">   <span class="keyword">return</span> r.cache.SetSnapshot(ctx, id, <span class="built_in">new</span>), <span class="literal">true</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br></pre></td></tr></table></figure>
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/" class="post-title-link" itemprop="url">Pulsar消息队列(4)延迟消息投递</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-22 20:19:25" itemprop="dateCreated datePublished" datetime="2024-02-22T20:19:25+08:00">2024-02-22</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="延迟消息投递"><a href="#延迟消息投递" class="headerlink" title="延迟消息投递"></a>延迟消息投递</h1><p>开源的 NSQ、RabbitMQ、ActiveMQ 和 Pulsar 也都内置了延迟消息的处理能力。虽然每个 MQ 项目的使用和实现方式不同，但核心实现思路都一样：<strong>Producer 将一个延迟消息发送到某个 Topic 中，Broker 将延迟消息放到临时存储进行暂存，延迟跟踪服务（Delayed Tracker Service）会检查消息是否到期，将到期的消息进行投递</strong>。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.png" alt="图片"></p>
-<p>延迟消息投递是要暂缓对当前消息的处理，在未来的某个时间点再触发投递，实际的应用场景非常多，比如异常检测重试、订单超时取消、预约提醒等。</p>
-<p>Pulsar 最早是在 2.4.0 引入了延迟消息投递的特性，在 Pulsar 中使用延迟消息，可以精确指定延迟投递的时间，有 deliverAfter 和 deliverAt 两种方式。其中 deliverAt 可以指定具体的时间戳；deliverAfter 可以指定在当前多长时间后执行。</p>
-<p>在 Pulsar 中，可以支持跨度很大的延时消息，比方说一个月、半年；同时在一个 Topic 里，既支持延时消息，也支持非延时消息。下图展示了 Pulsar 中延迟消息的具体过程：</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640-20240222202207636.png" alt="图片"></p>
-<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>Pulsar 实现延迟消息投递的方式比较简单，<strong>Delayed Message Tracker 在堆外内存维护着一个 delayed index 优先级队列</strong>，根据延迟时间进行堆排序，延迟时间最短的会放在头上，时间越长越靠后。</p>
-<p>Consumer 在消费时，会先去 Delayed Message Tracker 检查，是否有到期需要投递的消息，如果有到期的消息，则从 Tracker 中拿出对应的 index，找到对应的消息进行消费；如果没有到期的消息，则直接消费正常的消息。</p>
-<p>如果集群出现 Broker 宕机，Pulsar 会重建 delayed index 队列，来保证延迟投递的消息能够正常工作。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.jpeg" alt="图片"></p>
-<h2 id="风险"><a href="#风险" class="headerlink" title="风险"></a>风险</h2><p>从 Pulsar 的延迟消息投递实现原理可以看出，该方法简单高效，对 Pulsar 内核侵入性较小，可以支持到任意时间的延迟消息。但同时发现，Pulsar 的实现方案无法支持大规模使用延迟消息，主要有以下两个原因：</p>
-<p><strong>1. delayed index队列受到内存限制</strong></p>
-<p><strong>2. delayed index队列重建时间开销</strong></p>
-<h2 id="未来工作"><a href="#未来工作" class="headerlink" title="未来工作"></a>未来工作</h2><p>Pulsar 目前的延迟消息投递方案简单高效，但处理大规模延迟消息时仍然存在风险。关于延迟消息投递，社区和数据平台部 MQ 团队下一步将聚焦在支持大规模延迟消息。目前讨论的方案是在 delayed index 队列加入时间分区，Broker 只加载当前较近的时间片 delayed index 到内存，其余时间片分区持久化磁盘，</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Pulsar消息队列(3)订阅模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-22 20:12:02" itemprop="dateCreated datePublished" datetime="2024-02-22T20:12:02+08:00">2024-02-22</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Consumer 订阅 Topic 的时候，通过<strong>订阅模式</strong>来控制消息的使用模式，指定如何将消息投递给一个组一个的或多个的 Consumer。Pulsar 支持 4 种订阅模式:</p>
-<ul>
-<li>exclusive（独占模式）</li>
-<li>failover（故障转移模式，也叫灾备模式）</li>
-<li>shared（共享模式）</li>
-<li>key-shared（基于key的共享模式）</li>
-</ul>
-<h1 id="订阅模式"><a href="#订阅模式" class="headerlink" title="订阅模式"></a>订阅模式</h1><h2 id="exclusive"><a href="#exclusive" class="headerlink" title="exclusive"></a>exclusive</h2><p>独占模式，只能有一个 Consumer 绑定到订阅上。如果多于一个 Consumer 尝试以使用相同的订阅订阅 Topic，就会抛出异常且无法连接。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-exclusive-subscriptions.png" alt="pulsar-exclusive-subscriptions.png"></p>
-<h2 id="failover"><a href="#failover" class="headerlink" title="failover"></a>failover</h2><p>在灾备订阅模式中，多个 Consumer 可以绑定到同一个订阅上， Consumer 将会<strong>按字典顺序排序</strong>，<strong>第一个 Consumer 被初始化为唯一接受消息的消费者</strong>，被称为 Master Consumer。 当 Master Consumer 断开时，所有的未被确认和后续进入的消息将会被投递给下一个 Consumer。</p>
-<blockquote>
-<p>灾备模式提供了高可用性。</p>
-</blockquote>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-failover-subscriptions.png" alt="pulsar-failover-subscriptions.png"></p>
-<h2 id="shared"><a href="#shared" class="headerlink" title="shared"></a>shared</h2><p>在共享模式中，多个 Consumer 可以绑定到同一个订阅上。 <strong>消息通过 round robin 轮询机制分发给不同的消费者</strong>，并且每个消息仅会被分发给一个消费者。 当一个消费者断开连接时，所有已经投递给它但还没有被确认的消息将被重新投递，分发给其它存活的消费者。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-shared-subscriptions.png" alt="pulsar-shared-subscriptions.png"></p>
-<h2 id="key-shared"><a href="#key-shared" class="headerlink" title="key-shared"></a>key-shared</h2><p>key-shared 模式是共享模式的一种特例，它也允许多个 Consumer 可以绑定到同一个订阅上，与共享模式中的 round robin 轮询消费消息不同，key-shared 模式增加了一个辅助 key，<strong>确保具有相同 key 的消息被交付给相同的消费者</strong>。</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/" class="post-title-link" itemprop="url">Pulsar消息队列(2)租户 命名空间 Topic</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-22 20:02:09" itemprop="dateCreated datePublished" datetime="2024-02-22T20:02:09+08:00">2024-02-22</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Pulsar 在逻辑上的层级，从上到下依次为租户、命名空间、Topic。</p>
-<p>每个租户都可以有单独的认证和授权机制，可以针对租户设置存储配额、消息生存时间 TTL 和隔离策略。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/pulsar-logical-arch2.png" alt="pulsar-logical-arch2.png"></p>
-<p>默认情况下一个 Topic 中的消息只能由 Pulsar 服务层中的一个 Broker 提供服务，因此单个 Topic 的吞吐量受限于为其提供服务的 Broker 的计算能力。 </p>
-<p>好在 Pulsar 还支持<strong>分区主题</strong>，这允许多个 Broker 提供服务，就可以将负载分布到多台机器上。在 Pulsar 内部，<strong>分区主题被实现为 N 个内部 Topic</strong>，N 是分区数量，分区跨 Broker 的分布<strong>由 Pulsar 自动管理</strong>，这对用户来说是完全透明的。 Pulsar 将分区主题实现为多个内部主题，这样就可以在需要增加分区数量的时候不必重新平衡整个主题，Pulsar 只需在其内部创建新的内部主题就能够立即接收新的消息，使客户端能在不中断的情况下对现有分区进行消息读写。</p>
-<p>当生产者发布消息到分区主题时，不需要特意指定路由模式，默认以轮循的方式将消息均匀分布到各个分区。支持以下3种路由模式:</p>
-<ul>
-<li><strong>SinglePartition：</strong>如果没有消息 key 提供，生产者将会随机选择一个固定的分区来发布消息（同一个生产者生产在同一个分区中），可用于将来自特定生产者的消息分组在一起，以在没有键值时维护消息顺序。</li>
-<li><strong>RoundRobinPartition：</strong>如果没有消息 key 提供，将以轮循的方式将消息均匀分布到各个分区。</li>
-<li><strong>CustomPartition：</strong>定制实现路由模式，控制消息分发到 Topic 的分区中。</li>
-</ul>
-<p>如果提供了消息 key，<strong>会以 key 做 hash，然后分配消息到指定分区</strong>。因此分区中消息的顺序与路由模式和消息的key有关，所有拥有相同的 key 的消息有序，将会被发送到相同的分区</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">Pulsar消息队列(1)简介</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-22 13:06:00" itemprop="dateCreated datePublished" datetime="2024-02-22T13:06:00+08:00">2024-02-22</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Apache Pulsar是一个支持<strong>多租户的、高性能的、分布式</strong>的<strong>多租户</strong>消息系统，最初由雅虎开发，现在是Apache软件基金会的顶级项目。 Pulsar提供非常低的消息发布和端到端的延迟、保障消息可靠传递零丢失。</p>
-<h1 id="分布式消息系统"><a href="#分布式消息系统" class="headerlink" title="分布式消息系统"></a>分布式消息系统</h1><blockquote>
-<p>Pulsar 是<strong>基于段</strong>的分布式消息队列。</p>
-</blockquote>
-<p>一般的消息系统在逻辑上都可分为<strong>服务层</strong>和存储层两层:</p>
-<ul>
-<li><strong>服务层：</strong>直接与消息的<strong>生产者和消费者交互</strong>，接收传入的消息并将消息路由到一个或多个目的地。服务层通过支持的消息协议进行通讯，例如AMQP。服务层在消息协议转换上依赖CPU，在通信上依赖网络带宽。</li>
-<li><strong>存储层：</strong>负责消息的<strong>存储</strong>。存储层与服务层交互提供服务层请求的消息，存储层保持消息的正确顺序。存储层严重依赖硬盘来存储消息。</li>
-</ul>
-<blockquote>
-<p>分布式消息系统与传统单点消息系统在架构上的主要<strong>差别</strong>在于<strong>存储层的设计方式</strong>。在<strong>分布式</strong>消息传递系统中，数据分布在集群中的多台机器上，允许在单个主题中保留超过单个机器存储容量的消息。分布式消息系统存储层的<strong>关键架构抽象是 write-ahead-log</strong>，它将<strong>存储的消息看成是单个仅追加的数据结构</strong>。 对于分布式消息系统，当新消息发布到主题时，从逻辑的角度来看，消息将被追加到日志的末尾；从物理的角度来看，消息可能写入集群中的任何服务器。</p>
-</blockquote>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/partion-based-msg.png" alt="partion-based-msg.png"></p>
-<p>分布式消息系统的好处是<strong>将负载分散到多台机器上</strong>，可以提高消息的生产和消费的吞吐量，每台服务器都有自己硬盘和写入路径，将提供更好的写入速率。 在分布式消息系统集群中分布消息数据时，有两种不同的方法: <strong>基于分区（Partion-based）和基于段（Segment-based）</strong>。</p>
-<h2 id="基于分区"><a href="#基于分区" class="headerlink" title="基于分区"></a>基于分区</h2><blockquote>
-<p> Kafka 采用的是基于分区的消息存储架构。</p>
-</blockquote>
-<p>在基于分区的消息存储结构中，<strong>Topic 被划分为固定数量的分区</strong>，发布到 Topic 中的数据均匀的分布在分区中，同时为了确保数据冗余，<strong>每个分区会被复制到不同的节点</strong>。</p>
-<p>Topic 中消息的总存储量为 Topic 的分区数乘以分区的大小，如果达到这个限制，需要向集群添加更多的节点同时增加 Topic 的分区数量才能继续向分区中添加数据，增加分区的数量还需要执行重新平衡，这是一个十分复杂和耗时的过程。</p>
-<p>在基于分区的消息存储结构的分布式消息系统中，一般在创建 Topic 的时候需要预先确定分区数量，但这样做有一些缺点，因为单个分区只会存储在集群中单个集群节点上，因此单个分区的大小就受限于该节点上的硬盘空间大小，由于 Topic 中的数据均匀分布在所有分区中，所以如果集群节点的硬盘容量不一样的话，<strong>那么 Topic 的每个分区的大小将限制为最小硬盘容量的节点</strong>。当 Topic 达到容量限制后，<strong>唯一能做的就是增加 Topic 的分区数量</strong>，但这个扩容的过程包括<strong>重新平衡整个 Topic</strong>，Topic 中的数据将被重新分布到该 Topic 的所有分区中，平衡数据的过程<strong>十分消耗网络带宽和磁盘 I/O</strong>。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/kafka-partitions.png" alt="kafka-partitions"></p>
-<h2 id="基于段"><a href="#基于段" class="headerlink" title="基于段"></a>基于段</h2><blockquote>
-<p>Pulsar 采用的是基于段的消息存储结构。</p>
-<p>Pulsar 中服务层合存储层都是<strong>无状态</strong>的，可以任意的进行<strong>水平</strong>扩容。<strong>引入 Zookeeper 集群</strong>，用于集群级别的配置和协调，Zookeeper 中存储 Pulsar 集群的所有元数据（例如 Topic 元数据、Broker 负载数据等等)</p>
-</blockquote>
-<p><strong>Pulsar 依赖 Apache BookKeeper 项目来实现消息的持久存储</strong>，BookKeeper 的逻辑存储模型是基于无限流记录作为顺序日志存储的概念。</p>
-<p>在BookKeeper中，<strong>每个日志被分解成更小的数据块</strong>，称为段（Segament），这些数据块又由多个日志条目组成。然后，为了实现冗余和扩展，这些段会在存储层中被称为 bookies 的多个节点上写入。可以<strong>将段放在集群节点具有足够硬盘容量的任何位置</strong>，当没有足够的空间用于存储新的段时，可以方便地添加节点并立即存储数据。基于段的存储架构的优点在于<strong>可以实现真正的水平伸缩</strong>，段可以被无限创建并存储在任何位置。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/pulsar-segaments.png" alt="pulsar-segaments"></p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/04/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Resource-Manager/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/04/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Resource-Manager/" class="post-title-link" itemprop="url">Kuma学习笔记 (7) Resource Manager</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-04 17:00:10" itemprop="dateCreated datePublished" datetime="2024-02-04T17:00:10+08:00">2024-02-04</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Kuma 将使用的对象抽象为各种资源（Resource），如 Zone，Ingress，Dataplain，RateLimit 等，<strong>由资源管理器（Resource Manager）对资源存储（Resource Store）进行增删改查等操作</strong>。</p>
-<p><strong>Resource Store 向上屏蔽了底层存储的差异</strong>，在 Kuma 中使用两种存储模式，kubernetes API Server 和 PostgreSQL 数据库。而 <strong>Resource Manager 屏蔽了对于各个资源操作的差异</strong>。</p>
-<h1 id="Resource-Store"><a href="#Resource-Store" class="headerlink" title="Resource Store"></a>Resource Store</h1><h2 id="接口定义"><a href="#接口定义" class="headerlink" title="接口定义"></a>接口定义</h2><p>ResourceStore 接口用于定义资源的底层存储，ResourceStore 需要实现 Create、Update、Delete、Get、List 操作。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ResourceStore <span class="keyword">interface</span> &#123;</span><br><span class="line">    Create(context.Context, model.Resource, ...CreateOptionsFunc) error</span><br><span class="line">    Update(context.Context, model.Resource, ...UpdateOptionsFunc) error</span><br><span class="line">    Delete(context.Context, model.Resource, ...DeleteOptionsFunc) error</span><br><span class="line">    Get(context.Context, model.Resource, ...GetOptionsFunc) error</span><br><span class="line">    List(context.Context, model.ResourceList, ...ListOptionsFunc) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="接口实现"><a href="#接口实现" class="headerlink" title="接口实现"></a>接口实现</h2><p>在 Kuma 中，ResourceStore 接口由 k8s、memory、postgres、remote 实现。其中：</p>
-<ul>
-<li><strong>K8s：</strong>在 Kubernetes 模式下，以 Kubernetes API Server 存储资源。</li>
-<li><strong>Postgres：</strong>在 Universal 模式下，以 PostgreSQL 作为底层数据库存储数据。</li>
-<li>Memory：内存数据库，用于测试。</li>
-<li>Remote：为 kuma-ctl 做资源存储，负责以 HTTP Restful API 的方式操作 kuma-cp。</li>
-</ul>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">├── k8s</span><br><span class="line">├── memory</span><br><span class="line">├── postgres</span><br><span class="line">└── remote</span><br></pre></td></tr></table></figure>
-
-<h2 id="CustomizableResourceStore"><a href="#CustomizableResourceStore" class="headerlink" title="CustomizableResourceStore"></a>CustomizableResourceStore</h2><p>Customizable Resource Store 为<strong>某一种具体的资源</strong>提供<strong>定制化</strong>的 Resource Store：</p>
-<ul>
-<li><strong>Customize 方法：</strong>为 model.ReourceType 类型的资源<strong>指定</strong>资源存储器。</li>
-<li><strong>ResourceStore 方法：</strong>返回 model.ResourceType 类型的资源存储器，如果没有该类型，则会返回默认的资源存储器。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ResourceStoreWrapper is a function that takes a ResourceStore and returns a wrapped ResourceStore.</span></span><br><span class="line"><span class="comment">// The wrapped ResourceStore can be used to modify or augment the behavior of the original ResourceStore.</span></span><br><span class="line"><span class="keyword">type</span> ResourceStoreWrapper = <span class="function"><span class="keyword">func</span><span class="params">(delegate ResourceStore)</span> <span class="title">ResourceStore</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CustomizableResourceStore <span class="keyword">interface</span> &#123;</span><br><span class="line">    ResourceStore</span><br><span class="line">    ResourceStore(typ model.ResourceType) ResourceStore</span><br><span class="line">    DefaultResourceStore() ResourceStore</span><br><span class="line">    Customize(typ model.ResourceType, store ResourceStore)</span><br><span class="line">    WrapAll(wrapper ResourceStoreWrapper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Resource-Manager"><a href="#Resource-Manager" class="headerlink" title="Resource Manager"></a>Resource Manager</h1><h2 id="接口定义-1"><a href="#接口定义-1" class="headerlink" title="接口定义"></a>接口定义</h2><p>Resource Manager 用于对资源（Zone、Dataplain 等）进行操作，定义的方法与 Resource Store 差不多，都是增删改查。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ReadOnlyResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    Get(context.Context, model.Resource, ...store.GetOptionsFunc) error</span><br><span class="line">    List(context.Context, model.ResourceList, ...store.ListOptionsFunc) error</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    ReadOnlyResourceManager</span><br><span class="line">    Create(context.Context, model.Resource, ...store.CreateOptionsFunc) error</span><br><span class="line">    Update(context.Context, model.Resource, ...store.UpdateOptionsFunc) error</span><br><span class="line">    Delete(context.Context, model.Resource, ...store.DeleteOptionsFunc) error</span><br><span class="line">    DeleteAll(context.Context, model.ResourceList, ...store.DeleteAllOptionsFunc) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="CustomizableResourceManager"><a href="#CustomizableResourceManager" class="headerlink" title="CustomizableResourceManager"></a>CustomizableResourceManager</h2><p>Customizable Resource Manager 为<strong>某一种具体的资源</strong>提供<strong>定制化</strong>的 Resource Manager：</p>
-<ul>
-<li><strong>Customize 方法：</strong>为 model.ReourceType 类型的资源<strong>指定</strong>资源管理器。</li>
-<li><strong>ResourceManager 方法：</strong>返回 model.ResourceType 类型的资源管理器，如果没有该类型，则会返回默认的资源管理器。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ResourceManagerWrapper = <span class="function"><span class="keyword">func</span><span class="params">(delegate ResourceManager)</span> <span class="title">ResourceManager</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CustomizableResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    ResourceManager</span><br><span class="line">    Customize(model.ResourceType, ResourceManager)</span><br><span class="line">    ResourceManager(model.ResourceType) ResourceManager</span><br><span class="line">    WrapAll(ResourceManagerWrapper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h3><p>在 kuma-cp 初始化 Resource Manager 时，会为<strong>每一种资源指定一种资源管理器</strong>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initializeResourceManager</span><span class="params">(cfg kuma_cp.Config, builder *core_runtime.Builder)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    defaultManager := core_manager.NewResourceManager(builder.ResourceStore())</span><br><span class="line">    customizableManager := core_manager.NewCustomizableResourceManager(defaultManager, <span class="literal">nil</span>)</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.MeshType,</span><br><span class="line">       mesh_managers.NewMeshManager(</span><br><span class="line">          builder.ResourceStore(),</span><br><span class="line">          customizableManager,</span><br><span class="line">          builder.CaManagers(),</span><br><span class="line">          registry.Global(),</span><br><span class="line">          builder.ResourceValidators().Mesh,</span><br><span class="line">          cfg.Store.UnsafeDelete,</span><br><span class="line">          builder.Extensions(),</span><br><span class="line">       ),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    rateLimitValidator := ratelimit_managers.RateLimitValidator&#123;</span><br><span class="line">       Store: builder.ResourceStore(),</span><br><span class="line">    &#125;</span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.RateLimitType,</span><br><span class="line">       ratelimit_managers.NewRateLimitManager(builder.ResourceStore(), rateLimitValidator),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    externalServiceValidator := externalservice_managers.ExternalServiceValidator&#123;</span><br><span class="line">       Store: builder.ResourceStore(),</span><br><span class="line">    &#125;</span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ExternalServiceType,</span><br><span class="line">       externalservice_managers.NewExternalServiceManager(builder.ResourceStore(), externalServiceValidator),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.DataplaneType,</span><br><span class="line">       dataplane.NewDataplaneManager(builder.ResourceStore(), builder.Config().Multizone.Zone.Name, builder.ResourceValidators().Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.DataplaneInsightType,</span><br><span class="line">       dataplaneinsight.NewDataplaneInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.ZoneType,</span><br><span class="line">       zone.NewZoneManager(builder.ResourceStore(), zone.Validator&#123;Store: builder.ResourceStore()&#125;, builder.Config().Store.UnsafeDelete),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.ZoneInsightType,</span><br><span class="line">       zoneinsight.NewZoneInsightManager(builder.ResourceStore(), builder.Config().Metrics.Zone),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ZoneIngressInsightType,</span><br><span class="line">       zoneingressinsight.NewZoneIngressInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ZoneEgressInsightType,</span><br><span class="line">       zoneegressinsight.NewZoneEgressInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> cipher secret_cipher.Cipher</span><br><span class="line">    <span class="keyword">switch</span> cfg.Store.Type &#123;</span><br><span class="line">    <span class="keyword">case</span> store.KubernetesStore:</span><br><span class="line">       cipher = secret_cipher.None() <span class="comment">// deliberately turn encryption off on Kubernetes</span></span><br><span class="line">    <span class="keyword">case</span> store.MemoryStore, store.PostgresStore:</span><br><span class="line">       cipher = secret_cipher.TODO() <span class="comment">// get back to encryption in universal case</span></span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">       <span class="keyword">return</span> errors.Errorf(<span class="string">&quot;unknown store type %s&quot;</span>, cfg.Store.Type)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">var</span> secretValidator secret_manager.SecretValidator</span><br><span class="line">    <span class="keyword">if</span> cfg.IsFederatedZoneCP() &#123;</span><br><span class="line">       secretValidator = secret_manager.ValidateDelete(<span class="function"><span class="keyword">func</span><span class="params">(ctx context.Context, secretName <span class="keyword">string</span>, secretMesh <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123; <span class="keyword">return</span> <span class="literal">nil</span> &#125;)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       secretValidator = secret_manager.NewSecretValidator(builder.CaManagers(), builder.ResourceStore())</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.SecretType,</span><br><span class="line">       secret_manager.NewSecretManager(builder.SecretStore(), cipher, secretValidator, cfg.Store.UnsafeDelete),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.GlobalSecretType,</span><br><span class="line">       secret_manager.NewGlobalSecretManager(builder.SecretStore(), cipher),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    builder.WithResourceManager(customizableManager)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> builder.Config().Store.Cache.Enabled &#123;</span><br><span class="line">       cachedManager, err := core_manager.NewCachedManager(</span><br><span class="line">          customizableManager,</span><br><span class="line">          builder.Config().Store.Cache.ExpirationTime.Duration,</span><br><span class="line">          builder.Metrics(),</span><br><span class="line">          builder.Tenants(),</span><br><span class="line">       )</span><br><span class="line">       <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">          <span class="keyword">return</span> err</span><br><span class="line">       &#125;</span><br><span class="line">       builder.WithReadOnlyResourceManager(cachedManager)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       builder.WithReadOnlyResourceManager(customizableManager)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Cached-Manager"><a href="#Cached-Manager" class="headerlink" title="Cached Manager"></a>Cached Manager</h2><p>Cached Manager 实现了只读资源管理器 Read Only Resource Manager，为对资源的 Get 和 List 操作进行<strong>缓存</strong>（有过期时间）。</p>
-<ul>
-<li>delegate：底层 ReadOnlyResourceManager，若缓存未命中则会从底层只读资源管理器中读取数据，并记录在缓存中。</li>
-<li><strong>cache：</strong>cached manager 的核心数据结构，用于缓存查询结果。key 为 <code>&lt;op&gt;:&lt;resource_type&gt;:&lt;ops.hashcode(resource_name+resource_mesh)&gt;:tenantID</code>。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cacheKey := fmt.Sprintf(<span class="string">&quot;GET:%s:%s:%s&quot;</span>, res.Descriptor().Name, opts.HashCode(), tenantID)</span><br></pre></td></tr></table></figure>
-
-<ul>
-<li>mutexes：为每一个 key 单独加锁，保证每一个 k-v 都互斥访问。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cached version of the ReadOnlyResourceManager designed to be used only for use cases of eventual consistency.</span></span><br><span class="line"><span class="comment">// This cache is NOT consistent across instances of the control plane.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// When retrieving elements from cache, they point to the same instances of the resources.</span></span><br><span class="line"><span class="comment">// We cannot do deep copies because it would consume lots of memory, therefore you need to be extra careful to NOT modify the resources.</span></span><br><span class="line"><span class="keyword">type</span> cachedManager <span class="keyword">struct</span> &#123;</span><br><span class="line">    delegate ReadOnlyResourceManager</span><br><span class="line">    cache    *cache.Cache</span><br><span class="line">    metrics  *prometheus.CounterVec</span><br><span class="line"></span><br><span class="line">    mutexes  <span class="keyword">map</span>[<span class="keyword">string</span>]*sync.Mutex</span><br><span class="line">    mapMutex sync.Mutex <span class="comment">// guards &quot;mutexes&quot; field</span></span><br><span class="line">    tenants  multitenant.Tenants</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/" class="post-title-link" itemprop="url">Kuma学习笔记 (6) Inter CP</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-01-30 16:40:46" itemprop="dateCreated datePublished" datetime="2024-01-30T16:40:46+08:00">2024-01-30</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Kuma-cp 的 Intercp（Control Plane Intercommunication）组件用于 kuma 控制面之间的通信，旨在实现 kuma-cp 的<strong>水平扩展。</strong></p>
-<p>kuma 的水平扩展包含三个方面：</p>
-<ul>
-<li><strong>Leader 选举机制：</strong>在 kuma 中，leader 选举机制非常简单，就是<strong>选择最新加入的 kuma-cp 节点作为 Leader</strong>。作为 Leader，会接收成员的心跳，并且定期监测超时的 kuma-cp 成员。</li>
-<li><strong>心跳机制：</strong>作为成员，会定期向 Leader 发送心跳，表明自己还存活。</li>
-<li><strong>EnvoyAdminServer：</strong>对于 Global Cp 的水平扩展多实例部署，会将 EnvoyAdmin 请求<strong>转发</strong>给 Leader Global Kuma-cp 执行。对于 Zone Cp 的水平扩展多实例部署，会在本实例执行对 envoy 发起 Admin 请求获取响应。</li>
-</ul>
-<blockquote>
-<p>下文中的实例，表示 kuma-cp 水平扩展中的某一实例。</p>
-</blockquote>
-<blockquote>
-<p>可以发现，kuma-cp 在水平扩展时，如果 leader 下线了<strong>没有自动故障切换机制</strong>，除非原来的 leader 再次上线或者有新的 kuma-cp 实例上线，leader 才会正常工作。</p>
-</blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/#more" rel="contents">
+              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -848,7 +442,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/29/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -862,7 +456,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/29/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/" class="post-title-link" itemprop="url">Triple协议 (7) 应用级别的服务发现</a>
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/" class="post-title-link" itemprop="url">Java面试之JVM (1) 内存模型</a>
         </h2>
 
         <div class="post-meta">
@@ -871,23 +465,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-29 19:52:09" itemprop="dateCreated datePublished" datetime="2024-01-29T19:52:09+08:00">2024-01-29</time>
+              <time title="创建时间：2024-04-14 16:05:54 / 修改时间：17:14:17" itemprop="dateCreated datePublished" datetime="2024-04-14T16:05:54+08:00">2024-04-14</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -902,165 +490,12 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>在微服务架构中，如何感知后端服务实例的动态上下线，就是<strong>服务发现（Service Discovery）</strong>。业界比较有代表性的微服务框架如 SpringCloud、Dubbo 等都抽象了强大的动态地址发现能力，并且为了满足微服务业务场景的需求，绝大多数框架的地址发现都是基于自己设计的一套机制来实现。在 SpringCloud 中使用 Eureka 作为注册中心，Dubbo 通常采用 zookeeper 和 nacos 作为注册中心。注册中心不仅仅记录了 IP+Port，还包括微服务的元信息，如序列化类型，实例方法列表，各个方法级的定制化配置等。</p>
-<p>服务发现包含三种角色：<strong>服务提供者（Provider）、服务消费者（Consumer）和注册中心（Registry）</strong>。不同框架之间的区别在于如何组织注册中心中的数据。</p>
-<blockquote>
-<p>dubbo中应用，服务和实例的概念区分：</p>
-<p><strong>应用</strong>是一个独立的逻辑单元，一个应用可以包含多个<strong>服务</strong>，每个服务可以包含多个<strong>实例</strong>。</p>
-</blockquote>
-<h1 id="业界服务发现方式"><a href="#业界服务发现方式" class="headerlink" title="业界服务发现方式"></a>业界服务发现方式</h1><h2 id="Spring-Cloud"><a href="#Spring-Cloud" class="headerlink" title="Spring Cloud"></a>Spring Cloud</h2><p>Spring Cloud 通过注册中心<strong>只同步了应用与实例地址</strong>，消费方可以基于实例地址与服务提供方建立链接，但是消费方对于如何发起 HTTP 调用（SpringCloud 基于 rest 通信）一无所知，比如对方有哪些 HTTP endpoint，需要传入哪些参数等。</p>
-<p>RPC 服务这部分信息目前都是通过线下约定或离线的管理系统来协商的。这种架构的优缺点总结如下。</p>
-<ul>
-<li><strong>优势</strong>： 部署结构清晰、地址推送量小。</li>
-<li><strong>缺点</strong>： 地址订阅需要指定应用名， provider 应用变更（拆分）需消费端感知；RPC 调用无法全自动同步。</li>
-</ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/d6b81ecf9bf5b3d630cab1fb0059756f.png" alt="img"></p>
-<h2 id="Dubbo"><a href="#Dubbo" class="headerlink" title="Dubbo"></a>Dubbo</h2><p>Dubbo 通过注册中心<strong>同时同步了实例地址和 RPC 方法</strong>，因此其能实现 RPC 过程的自动同步，面向 RPC 编程、面向 RPC 治理，对后端应用的拆分消费端无感知，其缺点则是<strong>地址推送数量变大</strong>，和 RPC 方法成正比。</p>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/d4863add6a9031faa9dda73f23ff0fab.png" alt="img"></p>
-<h2 id="Dubbo-Kubernetes"><a href="#Dubbo-Kubernetes" class="headerlink" title="Dubbo + Kubernetes"></a>Dubbo + Kubernetes</h2><p>Kubernetes Service 作为一个抽象概念，怎么映射到 Dubbo 是一个值得讨论的点。</p>
-<ol>
-<li><strong>Service Name - &gt; Application Name：</strong>Dubbo 应用和 Kubernetes 服务一一对应，对于微服务运维和建设环节透明，与开发阶段解耦（对应于应用服务发现）。</li>
-<li><strong>Service Name - &gt; Dubbo RPC Service：</strong>维护的 Service 数量变多，一个 Dubbo 应用可以运行多个接口，即一个 Dubbo 应用可以创建多个 Kubernetes Service（如 dubbo-app-service-1，dubbo-app- service-2 等）。</li>
-</ol>
-<h1 id="Dubbo-3-服务发现"><a href="#Dubbo-3-服务发现" class="headerlink" title="Dubbo 3 服务发现"></a>Dubbo 3 服务发现</h1><h2 id="服务自省"><a href="#服务自省" class="headerlink" title="服务自省"></a>服务自省</h2><h3 id="是什么？"><a href="#是什么？" class="headerlink" title="是什么？"></a>是什么？</h3><p>以 Dubbo 之前的地址发现数据格式为例，它是“RPC 服务粒度”的，它是以 RPC 服务作为 key，以实例列表作为 value 来组织数据的：</p>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">&quot;RPC Service1&quot;</span>: [  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance1&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">1000</span>&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance2&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">2000</span>&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance3&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">3000</span>&#125;&#125;</span><br><span class="line">],</span><br><span class="line"></span><br><span class="line"><span class="string">&quot;RPC Service2&quot;</span>: [Instance list of RPC Service2],</span><br><span class="line"><span class="string">&quot;RPC ServiceN&quot;</span>: [Instance list of RPC ServiceN]</span><br></pre></td></tr></table></figure>
-
-<p>而 Dubbo 3 中的服务发现，<strong>是“应用粒度的服务发现”</strong>，它以<strong>应用名（Application）作为 key</strong>，以<strong>这个应用部署的一组实例（Instance）列表作为 value</strong>。这带来两点不同：</p>
-<ol>
-<li>数据映射关系变了，从 RPC Service -&gt; Instance 变为 Application -&gt; Instance。</li>
-<li><strong>数据变少了</strong>，注册中心没有了 RPC Service 及其相关配置信息。</li>
-</ol>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">&quot;application1&quot;</span>: [</span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance1&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance2&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instanceN&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
-
-<p>Dubbo 之前的服务发现粒度更细，在注册中心产生的数据条目也会更多（与 RPC 服务成正比），同时也存在一定的<strong>数据冗余</strong>。</p>
-<p>接着解释<strong>它为什么会被叫做“服务自省”？</strong>其实这还是得从它的工作原理说起，上面提到，应用粒度服务发现的数据模型有几个以下明显变化：数据中心的数据量少了，RPC 服务相关的数据在注册中心没有了，现在只有 application - instance 这两个层级的数据。</p>
-<p><strong>为了保证这部分缺少的 RPC 服务数据仍然能被 Consumer 端正确的感知</strong>，我们在 Consumer 和 Provider 间建立了一条单独的通信通道：Consumer 和 Provider 两两之间<strong>通过特定端口交换信息</strong>，我们把这种 Provider 自己<strong>主动暴露自身信息的行为</strong>认为是一种内省机制，因此整个机制命名为：服务自省。</p>
-<h3 id="为什么需要？"><a href="#为什么需要？" class="headerlink" title="为什么需要？"></a>为什么需要？</h3><p>为什么需要服务自省，这会带来以下优势：</p>
-<ol>
-<li><strong>与业界主流微服务模型对齐</strong>，比如 SpringCloud、Kubernetes Service 等。</li>
-<li><strong>提升性能与可伸缩性</strong>。<ul>
-<li>注册中心的数据减少了，<strong>大幅度的减轻注册中心的存储、推送压力</strong>，进而减少 Dubbo Consumer 侧的地址计算压力。</li>
-<li><strong>服务发现的数据规模，以及集群规模</strong>也开始变得<strong>可预测、可评估</strong>（与 RPC 接口数量无关，只与实例部署规模相关）。</li>
-</ul>
-</li>
-</ol>
-<blockquote>
-<p>根据统计，平均情况下 Consumer 订阅的 3 个接口来自同一个 Provider 应用，如此计算下来，如果以应用粒度为地址通知和选址基本单位，则平均地址推送和计算量将下降 60% 还要多。而在极端情况下，也就是当 Consumer 端消费的接口更多的来自同一个应用时，这个地址推送与内存消耗的占用将会进一步得到降低，甚至可以超过 80% 以上。</p>
-<p>典型的例子是 API 网关，可能一个 API 网关有几十个甚至上百个定义的服务。</p>
-</blockquote>
-<h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><p>以下是服务自省的一个完整工作流程图，详细描述了服务注册、服务发现、MetadataService、RPC 调用间的协作流程。</p>
-<ul>
-<li>服务提供者启动，首先解析应用<strong>定义的“普通服务”并依次注册为 RPC 服务</strong>，紧接着<strong>注册内建的 MetadataService 服务</strong>，最后打开 TCP 监听端口。</li>
-<li>启动完成后，<strong>将实例信息注册到注册中心（仅限 ip、port 等实例相关数据）</strong>，提供者启动完成。</li>
-<li>服务消费者启动，首先依据其要<strong>“消费的 provider 应用名”</strong>到注册中心查询地址列表，并完成<strong>订阅</strong>（以实现后续地址变更自动通知）。</li>
-<li>消费端拿到地址列表后，紧接着<strong>对 MetadataService 发起调用</strong>，返回结果中包含了<strong>所有应用定义的“普通服务”及其相关配置信息</strong>。</li>
-<li>至此，消费者可以接收外部流量，并对提供者<strong>发起 Dubbo RPC 调用</strong>。</li>
-</ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/bf45f69f7a9fcb04e085be062481bba9.png" alt="img"></p>
-<h3 id="设计原则"><a href="#设计原则" class="headerlink" title="设计原则"></a>设计原则</h3><p>接口级服务发现的好处是数据量小，但是<strong>接口粒度的服务治理能力还是要继续保留</strong>。这就需要两点设计原则：</p>
-<ol>
-<li>新的服务发现模型要实现对原有 Dubbo 消费端开发者的<strong>无感知迁移</strong>，即 Dubbo 继续面向 RPC 服务编程、面向 RPC 服务治理，做到对用户侧完全无感知。</li>
-<li>建立 Consumer 与 Provider 间的<strong>自动化 RPC 服务元数据协调机制</strong>，解决传统微服务模型无法同步 RPC 级接口配置的缺点。</li>
-</ol>
-<h3 id="基本原理"><a href="#基本原理" class="headerlink" title="基本原理"></a>基本原理</h3><ol>
-<li><strong>注册中心的数据组织方式：</strong>以应用名为 key，实例列表为 value 组织数据。元数据只包含实例级别的元数据，不包含接口级别的元数据。注册中心的一个实例条目如下，仅仅包含实例地址，端口，实例级别的元数据信息等基本信息。</li>
-</ol>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">&quot;name&quot;</span>: <span class="string">&quot;provider-app-name&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;id&quot;</span>: <span class="string">&quot;192.168.0.102:20880&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;address&quot;</span>: <span class="string">&quot;192.168.0.102&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;port&quot;</span>: <span class="number">20880</span>,</span><br><span class="line">  <span class="attr">&quot;sslPort&quot;</span>: <span class="literal">null</span>,</span><br><span class="line">  <span class="attr">&quot;payload&quot;</span>: &#123;</span><br><span class="line">    <span class="attr">&quot;id&quot;</span>: <span class="literal">null</span>,</span><br><span class="line">    <span class="attr">&quot;name&quot;</span>: <span class="string">&quot;provider-app-name&quot;</span>,</span><br><span class="line">    <span class="attr">&quot;metadata&quot;</span>: &#123;</span><br><span class="line">      <span class="attr">&quot;metadataService&quot;</span>: <span class="string">&quot;&#123;\&quot;dubbo\&quot;:&#123;\&quot;version\&quot;:\&quot;1.0.0\&quot;,\&quot;dubbo\&quot;:\&quot;2.0.2\&quot;,\&quot;release\&quot;:\&quot;2.7.5\&quot;,\&quot;port\&quot;:\&quot;20881\&quot;&#125;&#125;&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;endpoints&quot;</span>: <span class="string">&quot;[&#123;\&quot;port\&quot;:20880,\&quot;protocol\&quot;:\&quot;dubbo\&quot;&#125;]&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;storage-type&quot;</span>: <span class="string">&quot;local&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;revision&quot;</span>: <span class="string">&quot;6785535733750099598&quot;</span>,</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;,</span><br><span class="line">  <span class="attr">&quot;registrationTimeUTC&quot;</span>: <span class="number">1583461240877</span>,</span><br><span class="line">  <span class="attr">&quot;serviceType&quot;</span>: <span class="string">&quot;DYNAMIC&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;uriSpec&quot;</span>: <span class="literal">null</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
-<li><strong>服务调用者和提供者自行协商 RPC 方法信息。</strong>在注册中心不再同步 RPC 服务信息后，服务自省在服务消费端和提供端之间建立了一条内置的 RPC 服务信息协商机制。<strong>服务端实例会暴露一个预定义的 MetadataService RPC 服务</strong>，消费端通过调用 MetadataService 获取每个实例 RPC 方法相关的配置信息。当前 MetadataService 返回的数据格式如下：</li>
-</ol>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">  <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.DemoService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span>, </span><br><span class="line"> <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.HelloService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span>,</span><br><span class="line">  <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.WorldService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span></span><br><span class="line">]</span><br></pre></td></tr></table></figure>
-
-<h2 id="关键机制"><a href="#关键机制" class="headerlink" title="关键机制"></a>关键机制</h2><h3 id="元数据同步机制"><a href="#元数据同步机制" class="headerlink" title="元数据同步机制"></a>元数据同步机制</h3><p>Client 与 Server 间在收到地址推送后的配置同步是服务自省的关键环节，目前针对元数据同步有两种具体的可选方案，分别是：</p>
-<ul>
-<li><strong>内建的 MetadataService 服务</strong>。</li>
-<li><strong>独立的元数据中心</strong>，通过中心化的元数据集群协调数据。Provider 实例启动后，会尝试将内部的 RPC 服务组织成元数据的格式到元数据中心，而 consumer 则在每次收到注册中心推送更新后，主动查询元数据中心。</li>
-</ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/cef0a9b33a8f710d00e048fc7868925a.png" alt="img"></p>
-<h3 id="RPC-服务与应用之间的映射关系"><a href="#RPC-服务与应用之间的映射关系" class="headerlink" title="RPC 服务与应用之间的映射关系"></a>RPC 服务与应用之间的映射关系</h3><p><strong>从服务粒度到应用粒度</strong>，要想用户完全无感知必须<strong>知道 RPC 服务与应用名之间的映射关系</strong>。所以为了使整个开发流程对老的 Dubbo 用户更透明，同时避免指定 provider 对可扩展性带来的影响，设计了一套 RPC 服务到应用名的映射关系，以尝试在 consumer 自动完成 RPC 服务到 provider 应用名的转换。</p>
-<ul>
-<li>consumer 通过配置中心<strong>以服务名查询应用名</strong>。</li>
-<li>consumer 得到应用名，就可以检索注册中心，进行应用级别的服务发现了。</li>
-</ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/3ab172dd6153a031b4f65e034d9a03f0.png" alt="img"></p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">用户增长 Marketing-API重构设计</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-01-29 13:57:27" itemprop="dateCreated datePublished" datetime="2024-01-29T13:57:27+08:00">2024-01-29</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          这是一篇加密文章，需要密码才能继续阅读
+          <h1 id="内存区域"><a href="#内存区域" class="headerlink" title="内存区域"></a>内存区域</h1><p>JDK 1.8 和之前的 JVM 内存区域有所不同。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/java-runtime-data-areas-jdk1.7.png" alt="Java 运行时数据区域（JDK1.7）"></p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/java-runtime-data-areas-jdk1.8.png" alt="Java 运行时数据区域（JDK1.8 ）"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/#more" rel="contents">
+              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1084,7 +519,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1098,7 +533,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/" class="post-title-link" itemprop="url">Kuma学习笔记 (5) 网络</a>
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/" class="post-title-link" itemprop="url">Java面试之IO (3) IO模型</a>
         </h2>
 
         <div class="post-meta">
@@ -1107,23 +542,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-25 12:53:28" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:28+08:00">2024-01-25</time>
+              <time title="创建时间：2024-04-14 14:34:25 / 修改时间：16:06:34" itemprop="dateCreated datePublished" datetime="2024-04-14T14:34:25+08:00">2024-04-14</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -1138,44 +567,621 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h1><p>本节介绍 kuma 如何处理 service mesh 中的服务发现问题，包括数据平面代理和控制平面之间的通信，控制平面代理间的通信。</p>
-<h2 id="数据平面代理和控制平面之间的通信"><a href="#数据平面代理和控制平面之间的通信" class="headerlink" title="数据平面代理和控制平面之间的通信"></a>数据平面代理和控制平面之间的通信</h2><p>当数据平面代理连接到控制平面时，它会<strong>启动到控制平面的 gRPC 流连接（xDS）</strong>。它从控制平面<strong>检索最新的策略配置</strong>并向控制平面发送诊断信息。</p>
+          <p>当应用程序发起 IO 系统调用后，会经历两个阶段：</p>
 <ul>
-<li>在<strong>独立部署</strong>下，kuma-dp 直接连接到 kuma-cp 实例。</li>
-<li>在<strong>多区域部署</strong>下，<strong>kuma-dp 连接到 zone kuma-cp，zone kuma-cp 将通过 KDS 的 xDS API 扩展连接到 global kuma-cp</strong>。在多区域模式下，数据平面代理永远不会连接到全局控制平面，而仅连接到区域控制平面。</li>
+<li>内核等待 I/O 设备准备好数据。</li>
+<li>内核将数据从内核空间拷贝到用户空间。</li>
+</ul>
+<h1 id="BIO"><a href="#BIO" class="headerlink" title="BIO"></a>BIO</h1><p>BIO（Blocking IO）属于同步阻塞 IO，<strong>应用程序发起 read 调用后，会一直阻塞</strong>，直到内核把数据拷贝到用户空间。BIO 因为应用程序一直阻塞，直到系统调用返回，所以效率不高。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/6a9e704af49b4380bb686f0c96d33b81~tplv-k3u1fbpfcp-watermark.png" alt="图源：《深入拆解Tomcat &amp; Jetty》"></p>
+<h1 id="NIO"><a href="#NIO" class="headerlink" title="NIO"></a>NIO</h1><p>NIO（Non-blocking/New IO），可以看作是多路复用 IO，Java 在 1.4 中引入 <code>java.nio</code> 包，提供了 <code>Channel</code> , <code>Selector</code>，<code>Buffer</code> 等抽象。</p>
+<p>IO 多路复用模型中，线程首先发起 select 调用，询问内核数据是否准备就绪，等内核把数据准备好了，用户线程再发起 read 调用。read 调用的过程（数据从内核空间 -&gt; 用户空间）还是阻塞的。<strong>IO 多路复用模型，通过减少无效的系统调用，减少了对 CPU 资源的消耗。</strong></p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/88ff862764024c3b8567367df11df6ab~tplv-k3u1fbpfcp-watermark.png" alt="img"></p>
+<p>Java 中的 NIO ，有一个非常重要的<strong>选择器 ( Selector )</strong> 的概念，也可以被称为 <strong>多路复用器</strong>。通过它，只需要一个线程便可以管理多个客户端连接。当客户端数据到了之后，才会为其服务。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/channel-buffer-selector.png" alt="Buffer、Channel和Selector三者之间的关系"></p>
+<h1 id="AIO"><a href="#AIO" class="headerlink" title="AIO"></a>AIO</h1><p>AIO（Asynchronous IO）异步 IO，Java 7 中引入。异步 IO 是基于<strong>事件</strong>和<strong>回调机制</strong>实现的，也就是应用操作之后会直接返回，不会堵塞在那里，当后台处理完成，操作系统会通知相应的线程进行后续的操作。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/3077e72a1af049559e81d18205b56fd7~tplv-k3u1fbpfcp-watermark.png" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-2-IO%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-2-IO%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Java面试之IO (2) IO设计模式</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-14 14:34:15 / 修改时间：16:12:18" itemprop="dateCreated datePublished" datetime="2024-04-14T14:34:15+08:00">2024-04-14</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="IO-设计模式"><a href="#IO-设计模式" class="headerlink" title="IO 设计模式"></a>IO 设计模式</h1><p>在 Java IO 中，所用到的设计模式总结。</p>
+<h2 id="装饰器模式"><a href="#装饰器模式" class="headerlink" title="装饰器模式"></a>装饰器模式</h2><p><strong>装饰器（Decorator）模式</strong> 可以在<strong>不改变原有对象</strong>的情况下<strong>拓展</strong>其功能。</p>
+<p>对于字节流，FilterInputStream 和 FilterOutputStream 是装饰器模式的核心，用于增强 InputStream 和 OutputStream 子类对象的功能。</p>
+<p>对于装饰器类而言，构造器的输入为被装饰类，同时可以嵌套多个装饰器。所以，装<strong>饰器类需要跟原始类继承相同的抽象类或者实现相同的接口</strong>。</p>
+<blockquote>
+<p>举例，BufferedInputStream 为 InputStream 提供了缓冲功能，ZipOutputStream 为 OutputStream 提供了 zip 压缩功能，他们的构造函数都是输出一个 InputStream 或者 OutputStream。</p>
+</blockquote>
+<h2 id="适配器模式"><a href="#适配器模式" class="headerlink" title="适配器模式"></a>适配器模式</h2><p><strong>适配器（Adapter Pattern）模式</strong> 主要用于接口互不兼容的类的协调工作，适配器模式中存在被适配的对象或者类称为<strong>适配者(Adaptee)</strong> ，作用于适配者的对象或者类称为<strong>适配器(Adapter)</strong> 。适配器分为对象适配器和类适配器。类适配器使用继承关系来实现，对象适配器使用组合关系来实现。</p>
+<p>IO 流中的字符流和字节流的接口不同，它们之间可以协调工作就是基于适配器模式来做的，更准确点来说是对象适配器。<strong>通过适配器</strong>，可以<strong>将字节流对象适配成一个字符流对象</strong>，可以直接通过字节流对象来读取或者写入字符数据。</p>
+<h3 id="InputStreamReader-OutputStreamWriter"><a href="#InputStreamReader-OutputStreamWriter" class="headerlink" title="InputStreamReader OutputStreamWriter"></a>InputStreamReader OutputStreamWriter</h3><p>之前提到的 <strong>InputStreamReader</strong> 和 <strong>OutputStreamWriter</strong> 就是两个适配器，是<strong>字节流和字符流之间的桥梁</strong>。</p>
+<ul>
+<li>InputStreamReader 使用 StreamDecoder（流解码器）对字节进行解码，<strong>实现字节流到字符流的转换</strong>。</li>
+<li>OutputStreamWriter 使用 StreamEncoder（流编码器）对字节进行编码，实现字符流到字节流的转换。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">InputStreamReader</span> <span class="keyword">extends</span> <span class="title">Reader</span> </span>&#123;</span><br><span class="line"> <span class="comment">//用于解码的对象</span></span><br><span class="line"> <span class="keyword">private</span> <span class="keyword">final</span> StreamDecoder sd;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">InputStreamReader</span><span class="params">(InputStream in)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>(in);</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// 获取 StreamDecoder 对象</span></span><br><span class="line">            sd = StreamDecoder.forInputStreamReader(in, <span class="keyword">this</span>, (String)<span class="keyword">null</span>);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (UnsupportedEncodingException e) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> Error(e);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 使用 StreamDecoder 对象做具体的读取工作</span></span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">read</span><span class="params">()</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> sd.read();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="工厂模式"><a href="#工厂模式" class="headerlink" title="工厂模式"></a>工厂模式</h2><p>工厂模式用于创建对象，NIO 中大量用到了工厂模式，比如 <code>Files</code> 类的 <code>newInputStream</code> 方法用于创建 <code>InputStream</code> 对象（静态工厂）、 <code>Paths</code> 类的 <code>get</code> 方法创建 <code>Path</code> 对象（静态工厂）、<code>ZipFileSystem</code> 类（<code>sun.nio</code>包下的类，属于 <code>java.nio</code> 相关的一些内部实现）的 <code>getPath</code> 的方法创建 <code>Path</code> 对象（简单工厂）。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">InputStream is = Files.newInputStream(Paths.get(generatorLogoPath))</span><br></pre></td></tr></table></figure>
+
+<h2 id="观察者模式"><a href="#观察者模式" class="headerlink" title="观察者模式"></a>观察者模式</h2><p>NIO 中的文件目录监听服务使用到了观察者模式。NIO 中的文件目录监听服务基于 <code>WatchService</code> 接口和 <code>Watchable</code> 接口。<code>WatchService</code> 属于观察者，<code>Watchable</code> 属于被观察者。使用方法如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建 WatchService 对象</span></span><br><span class="line">WatchService watchService = FileSystems.getDefault().newWatchService();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化一个被监控文件夹的 Path 类:</span></span><br><span class="line">Path path = Paths.get(<span class="string">&quot;workingDirectory&quot;</span>);</span><br><span class="line"><span class="comment">// 将这个 path 对象注册到 WatchService（监控服务） 中去</span></span><br><span class="line">WatchKey watchKey = path.register(watchService, StandardWatchEventKinds...);</span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> ((key = watchService.take()) != <span class="keyword">null</span>) &#123;</span><br><span class="line">    <span class="keyword">for</span> (WatchEvent&lt;?&gt; event : key.pollEvents()) &#123;</span><br><span class="line">      <span class="comment">// 可以调用 WatchEvent 对象的方法做一些事情比如输出事件的具体上下文信息</span></span><br><span class="line">    &#125;</span><br><span class="line">    key.reset();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Watchable"><a href="#Watchable" class="headerlink" title="Watchable"></a>Watchable</h3><p>Path 实现了 Watchable 接口，说明 Path 是被观察者。Watchable 接口中，watcher 指定了观察者，events 指定了被观察的事件（监听事件）。常用的监听事件：<code>StandardWatchEventKinds.ENTRY_CREATE</code>：文件创建；<code>StandardWatchEventKinds.ENTRY_DELETE</code> : 文件删除；<code>StandardWatchEventKinds.ENTRY_MODIFY</code> : 文件修改。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Path</span></span></span><br><span class="line"><span class="class">    <span class="keyword">extends</span> <span class="title">Comparable</span>&lt;<span class="title">Path</span>&gt;, <span class="title">Iterable</span>&lt;<span class="title">Path</span>&gt;, <span class="title">Watchable</span></span>&#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Watchable</span> </span>&#123;</span><br><span class="line">    <span class="function">WatchKey <span class="title">register</span><span class="params">(WatchService watcher,</span></span></span><br><span class="line"><span class="params"><span class="function">                      WatchEvent.Kind&lt;?&gt;[] events,</span></span></span><br><span class="line"><span class="params"><span class="function">                      WatchEvent.Modifier... modifiers)</span></span></span><br><span class="line"><span class="function">        <span class="keyword">throws</span> IOException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="WatchService"><a href="#WatchService" class="headerlink" title="WatchService"></a>WatchService</h3><p>WatchService 内部<strong>通过一个 daemon thread（守护线程）采用定期轮询的方式来检测文件的变化</strong>，伪代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PollingWatchService</span></span></span><br><span class="line"><span class="class">    <span class="keyword">extends</span> <span class="title">AbstractWatchService</span></span></span><br><span class="line"><span class="class"></span>&#123;</span><br><span class="line">    <span class="comment">// 定义一个 daemon thread（守护线程）轮询检测文件变化</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ScheduledExecutorService scheduledExecutor;</span><br><span class="line"></span><br><span class="line">    PollingWatchService() &#123;</span><br><span class="line">        scheduledExecutor = Executors</span><br><span class="line">            .newSingleThreadScheduledExecutor(<span class="keyword">new</span> ThreadFactory() &#123;</span><br><span class="line">                 <span class="meta">@Override</span></span><br><span class="line">                 <span class="function"><span class="keyword">public</span> Thread <span class="title">newThread</span><span class="params">(Runnable r)</span> </span>&#123;</span><br><span class="line">                     Thread t = <span class="keyword">new</span> Thread(r);</span><br><span class="line">                     t.setDaemon(<span class="keyword">true</span>);</span><br><span class="line">                     <span class="keyword">return</span> t;</span><br><span class="line">                 &#125;&#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">enable</span><span class="params">(Set&lt;? extends WatchEvent.Kind&lt;?&gt;&gt; events, <span class="keyword">long</span> period)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">      <span class="comment">// 更新监听事件</span></span><br><span class="line">      <span class="keyword">this</span>.events = events;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 开启定期轮询</span></span><br><span class="line">      Runnable thunk = <span class="keyword">new</span> Runnable() &#123; <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123; poll(); &#125;&#125;;</span><br><span class="line">      <span class="keyword">this</span>.poller = scheduledExecutor</span><br><span class="line">        .scheduleAtFixedRate(thunk, period, period, TimeUnit.SECONDS);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/" class="post-title-link" itemprop="url">Java面试之IO (1) IO流</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-14 13:49:47 / 修改时间：14:34:34" itemprop="dateCreated datePublished" datetime="2024-04-14T13:49:47+08:00">2024-04-14</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>IO 流在 Java 中分为输入流和输出流，按照传输单位（数据处理方式）又分为字节流和字符流。Java 有四个 IO 流抽象类基类：</p>
+<ul>
+<li> InputStream/OutputStream：字节输入流，字节输出流。</li>
+<li>Reader/Writer：字符输入流，字符输出流。</li>
+</ul>
+<h1 id="字节流"><a href="#字节流" class="headerlink" title="字节流"></a>字节流</h1><h2 id="InputStream"><a href="#InputStream" class="headerlink" title="InputStream"></a>InputStream</h2><p>InputStream 用于从源头（如文件）读取字节数据到内存中，InputStream 的常用用法：</p>
+<ul>
+<li><code>read()</code>：返回输入流中下一个字节的数据。返回的值介于 0 到 255 之间。如果未读取任何字节，则代码返回 <code>-1</code> ，表示文件结束。</li>
+<li><code>read(byte b[ ])</code> : 从输入流中读取一些字节存储到数组 <code>b</code> 中。如果数组 <code>b</code> 的长度为零，则不读取。如果没有可用字节读取，返回 <code>-1</code>。如果有可用字节读取，则最多读取的字节数最多等于 <code>b.length</code> ， 返回读取的字节数。这个方法等价于 <code>read(b, 0, b.length)</code>。</li>
+<li><code>read(byte b[], int off, int len)</code>：在 <code>read(byte b[ ])</code> 方法的基础上增加了 <code>off</code> 参数（偏移量）和 <code>len</code> 参数（要读取的最大字节数）。</li>
+<li><code>skip(long n)</code>：忽略输入流中的 n 个字节 ,返回实际忽略的字节数。</li>
+<li><code>available()</code>：返回输入流中可以读取的字节数。</li>
+<li><code>close()</code>：关闭输入流释放相关的系统资源。</li>
+</ul>
+<p>从 Java 9 开始，InputStream 新增加了多个实用的方法：</p>
+<ul>
+<li><code>readAllBytes()</code>：读取输入流中的所有字节，返回字节数组。</li>
+<li><code>readNBytes(byte[] b, int off, int len)</code>：阻塞直到读取 <code>len</code> 个字节。</li>
+<li><code>transferTo(OutputStream out)</code>：将所有字节从一个输入流传递到一个输出流。</li>
+</ul>
+<h3 id="常见-InputStream"><a href="#常见-InputStream" class="headerlink" title="常见 InputStream"></a>常见 InputStream</h3><p>常用的 InputStream 如下：</p>
+<ul>
+<li>FileInputStream：用于读取文件。</li>
+<li>BufferInputStream：带缓冲区的 InputStream，缓冲区缓冲数据，有助于减少 IO。</li>
+<li>DataInputStream：用于读取指定类型数据，如 readBoolean、readInt、readUTF 等。</li>
+<li>ObjectInputStream：用于从输入流中读取 Java 对象（反序列化）。</li>
 </ul>
 <blockquote>
-<p><strong>数据平面和控制平面之间的连接不在服务请求的执行路径上</strong>，这意味着如果数据平面暂时失去与控制平面的连接，服务流量不会受到影响。</p>
+<p>OnjectInputStream 用于序列化和反序列化的类必须实现 <code>Serializable</code> 接口，对象中如果有属性不想被序列化，使用 <code>transient</code> 修饰。</p>
 </blockquote>
-<h2 id="数据平面代理间的通信"><a href="#数据平面代理间的通信" class="headerlink" title="数据平面代理间的通信"></a>数据平面代理间的通信</h2><p>数据平面会<strong>通报每一个服务的 IP 地址：</strong></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/11/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/11/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/" class="post-title-link" itemprop="url">Java面试之集合 (3) Map</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-11 09:48:46 / 修改时间：10:59:08" itemprop="dateCreated datePublished" datetime="2024-04-11T09:48:46+08:00">2024-04-11</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h1><h2 id="HashMap"><a href="#HashMap" class="headerlink" title="HashMap"></a>HashMap</h2><h3 id="HashMap-和-Hashtable-的区别"><a href="#HashMap-和-Hashtable-的区别" class="headerlink" title="HashMap 和 Hashtable 的区别"></a>HashMap 和 Hashtable 的区别</h3><p>HashMap 和 Hashtable 的区别如下：</p>
 <ul>
-<li>在 Kubernetes 环境中，IP 地址<strong>为 Pod 的地址</strong>。</li>
-<li>在 Universal 环境中，IP地址会<strong>检索 inbound listeners</strong>（用于配置控制平面代理的入站监听地址）。</li>
+<li><strong>线程安全：</strong>HashMap 不是线程安全的，Hashtable 是线程安全的（函数都由 synchronized 修饰，但是锁的粒度很大，并发度为一），</li>
+<li><strong>效率：</strong>HashMap 效率更高，因为 Hashtable 线程安全，效率更低（Hashtable 已被淘汰，不要使用）。</li>
+<li><strong>对 Null 的支持：</strong>HashMap 支持 Null 的 Key 和 Value，而 Hashtable 不支持。</li>
+<li><strong>初始容量和扩容大小：</strong><ul>
+<li>Hashtable：如果不指定初始容量，默认初始容量为 11，每一次扩容 2n+1。</li>
+<li>HashMap：如果不知道初始容量，默认初始容量为 16，每一次扩容 2n；指定初始容量时，容量扩充为 2 的幂次方大小。</li>
 </ul>
-<p>数据平面会通报 IP 地址到控制平面，这意味着在任何时间 kuma-cp 都知道每一个服务的每个副本关联的所有 IP 地址是什么。</p>
-<p>Kuma 数据平面代理间的通信，在独立部署和多区域部署使用自己的 DNS：</p>
-<ul>
-<li>在<strong>独立部署</strong>模式下，直接<strong>使用 IP 地址</strong>进行通信。</li>
-<li>在<strong>多区域部署</strong>模式下，Kuma 将自动<strong>解析域名</strong>，可以连接到在同一区域中运行的数据平面代理，或者通过 Egress（如果存在）和 另一个区域中的 Ingress 的地址 来实现跨区域连接。这意味着多区域部署模式下，<strong>服务之间可以跨集群</strong>（不管是 Kubernetes 还是 VM）连接。</li>
-</ul>
-<h1 id="DNS"><a href="#DNS" class="headerlink" title="DNS"></a>DNS</h1><p>对于每一份服务，都会生成一个以 <code>.mesh</code> 结尾的域名：</p>
-<ul>
-<li><p>对于一个 Kubernetes Service 和关联的 Pod，Kuma 控制面会自动的生成一个注解 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc_&lt;port&gt;</code>，其中 name 和 namespace 还有 port 均来自 Service 信息。</p>
 </li>
-<li><p>某些情况下 Pods 不属于任何的 Service，仅仅是单纯的一个 Pod（或者在 Universal 下）。在这种情况下，Kuma 会自动生成的注解为 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc</code> ，其中 name 和 namespace 来自于 Pod 资源。</p>
+<li><strong>底层数据结构：</strong>HashMap 在 JDK 1.8 之前，采用数组+链表的方式，之后采用数组+链表/红黑树的方式（当链表长度大于16，会将链表转为红黑树。但是如果数组长度小于 64，会优先扩容数组）</li>
+</ul>
+<blockquote>
+<p><strong>为什么 HashMap 的容量是 2 的幂次方？</strong></p>
+<p>因为在通过对哈希取模选则数组下标时，2 的幂次方可以<strong>快速计算</strong>：<code>(n-1) &amp; hash = hash % 数组长度</code></p>
+</blockquote>
+<h3 id="HashMap-和-TreeMap-的区别"><a href="#HashMap-和-TreeMap-的区别" class="headerlink" title="HashMap 和 TreeMap 的区别"></a>HashMap 和 TreeMap 的区别</h3><p>HashMap 和 TreeMap 都继承自 AbstractMap，<strong>但是 TreeMap 还实现了 NavigableMap 接口和 SortedMap 接口</strong>。实现 NavigableMap 接口让 TreeMap 有了对集合内元素的<strong>搜索</strong>能力；实现 SortedMap 接口让 TreeMap 有了对集合中元素根据 key 的<strong>排序</strong>能力。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/treemap_hierarchy.png" alt="TreeMap 继承关系图"></p>
+<h3 id="HashMap-多线程死循环问题"><a href="#HashMap-多线程死循环问题" class="headerlink" title="HashMap 多线程死循环问题"></a>HashMap 多线程死循环问题</h3><p><strong>JDK1.7 及之前版本的 HashMap 在多线程环境下扩容操作可能存在死循环问题</strong>，这是由于当一个桶位中有多个元素需要进行扩容时，多个线程同时对链表进行操作，<strong>头插法</strong>可能会导致链表中的节点指向错误的位置，从而形成一个<strong>环形链表</strong>，进而使得查询元素的操作陷入死循环无法结束。</p>
+<p>为了解决这个问题，JDK1.8 版本的 HashMap 采用了<strong>尾插法</strong>而不是头插法来避免链表倒置，使得插入的节点永远都是放在链表的末尾，避免了链表中的环形结构。</p>
+<h2 id="ConcurrentHashMap"><a href="#ConcurrentHashMap" class="headerlink" title="ConcurrentHashMap"></a>ConcurrentHashMap</h2><h3 id="ConcurrentHashMap-和-Hashtable-的区别"><a href="#ConcurrentHashMap-和-Hashtable-的区别" class="headerlink" title="ConcurrentHashMap 和 Hashtable 的区别"></a>ConcurrentHashMap 和 Hashtable 的区别</h3><p>ConcurrentHashMap 和 Hashtable 的区别主要体现在实现线程安全的方式不同：</p>
+<ul>
+<li><strong>底层数据结构：</strong>Hashtable 采用数组+链表的方式。ConcurrentHashMap 在 JDK 1.7 采用分段锁+链表，JDK 1.8 采用数组+链表/红黑树的方式。</li>
+<li><strong>实现线程安全的方式：</strong><ul>
+<li>ConcurrentHashMap：在 JDK 1.7 时，使用<strong>分段锁</strong>的方式保证线程安全；在 JDK 1.8 时，摒弃了分段锁而是直接使用 Node 数组+链表/红黑树的方式，<strong>并发控制使用 synchronized 和 CAS 操作</strong>。</li>
+<li>Hashtable：使用 synchronized（同一把锁）保证线程安全，并发程度为 1。</li>
+</ul>
 </li>
 </ul>
-<p>服务的域名被定义为 <code>&lt;kuma.io/service的值&gt;.mesh</code>，默认端口为 80。</p>
-<h1 id="非-mesh-流量"><a href="#非-mesh-流量" class="headerlink" title="非 mesh 流量"></a>非 mesh 流量</h1><h2 id="传入流量"><a href="#传入流量" class="headerlink" title="传入流量"></a>传入流量</h2><p>启用 mTLS 后，来自网格外部的客户端无法访问网格内部的应用程序。如果想允许外部客户端使用服务网格，可以使用 Permissive mTLS 模式（宽松的 mTLS，即允许 mTLS，也允许明文请求）。</p>
-<p>所有域名查找均由数据平面代理在本地处理，而不是由控制平面处理。这种方法允许更稳健地处理名称解析，例如，当控制平面关闭时，数据平面代理仍然可以解析 DNS。</p>
-<p>数据平面代理 DNS 包括：</p>
+<h3 id="ConcurrentHashMap-并发实现机制"><a href="#ConcurrentHashMap-并发实现机制" class="headerlink" title="ConcurrentHashMap 并发实现机制"></a>ConcurrentHashMap 并发实现机制</h3><p>ConcurrentHashMap 在 JDK 1.7 和 1.8 中实现并发的机制不同：</p>
 <ul>
-<li>Envoy DNS 过滤器提供来自网格的 DNS 记录响应。</li>
-<li>CoreDNS 用于 Envoy DNS 过滤器和原始主机 DNS 之间发送请求</li>
-<li>iptable 规则将原始 DNS 流量重定向到本地 CoreDNS 实例。</li>
+<li>JDK 1.7：<strong>分段锁</strong>的方式实现并发，默认 16 个段，也就是说最多支持 16 个线程并发访问。段的个数一旦初始化之后不能改变。</li>
+<li>JDK 1.8：摈弃了分段锁的概念，<strong>采用 Node 数组+synchronized+CAS 保证并发安全</strong>。锁粒度更细，<strong>synchronized 只锁定当前链表或红黑二叉树的首节点</strong>，这样只要 hash 不冲突，就不会产生并发，就不会影响其他 Node 的读写，效率大幅提升。</li>
 </ul>
-<h2 id="穿出流量"><a href="#穿出流量" class="headerlink" title="穿出流量"></a>穿出流量</h2><p>在默认设置中，Kuma 允许任何非网状流量通过 Envoy，而无需应用任何策略。当 <code>networking.outbound.passthrough</code> 为 <code>false</code> 时，任何非网格资源的流量都不能离开网格。</p>
-<p>使用 ProxyTemplate，可以设置非 mesh 流量的配置。如断路器，超时。</p>
+<h3 id="ConcurrentHashMap-为什么-key-和-value-不支持-null"><a href="#ConcurrentHashMap-为什么-key-和-value-不支持-null" class="headerlink" title="ConcurrentHashMap 为什么 key 和 value 不支持 null"></a>ConcurrentHashMap 为什么 key 和 value 不支持 null</h3><p><strong>多线程环境下</strong>，存在一个线程操作该 ConcurrentHashMap 时，其他的线程将该 ConcurrentHashMap 修改的情况，所以<strong>无法通过 containsKey(key) 来判断否存在这个键值对</strong>，也就没办法解决二义性问题了。</p>
+<p>与此形成对比的是，HashMap 可以存储 null 的 key 和 value，但 null 作为键只能有一个，null 作为值可以有多个。如果传入 null 作为参数，就会返回 hash 值为 0 的位置的值。<strong>单线程环境下</strong>，不存在一个线程操作该 HashMap 时，其他的线程将该 HashMap 修改的情况，所以<strong>可以通过 contains(key)来做判断是否存在这个键值对</strong>，从而做相应的处理，也就不存在二义性问题。</p>
+<p><strong>也就是说，多线程下无法正确判定键值对是否存在（存在其他线程修改的情况），单线程是可以的（不存在其他线程修改的情况）。</strong></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/" class="post-title-link" itemprop="url">Java面试之集合 (2) List Set Queue</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-10 10:09:40 / 修改时间：12:17:10" itemprop="dateCreated datePublished" datetime="2024-04-10T10:09:40+08:00">2024-04-10</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>ArrayList、LinkedList、Vector 实现了 List 接口。其中 Vector 是 ArrayList 的古老实现类，最重要的还是 ArrayList 和 LinkedList。<strong>那么 ArrayList 和 LinkedList 的区别有什么？</strong></p>
+<ul>
+<li><strong>是否线程安全：</strong>二者都是线程不安全的，不保证并发访问。</li>
+<li><strong>底层数据结构：</strong>ArrayList 底层采用数组，而 LinkedList 底层采用双向链表。</li>
+<li><strong>插入和删除：</strong>ArrayList 除了在尾部插入和删除的时间复杂度为 <code>O(1)</code>，其余时间复杂度均为 <code>O(n)</code>。LinkedList 在头尾插入和删除的时间复杂度为 <code>O(1)</code>，其余位置因为需要先定位元素再删除，时间复杂度为 <code>O(n)</code>。</li>
+<li><strong>是否支持随机访问：</strong>ArrayList 支持快速的随机访问，而 LinkedList 不支持。</li>
+<li><strong>内存占用：</strong>ArrayList 的空间浪费体现在容量大于长度的情况，LinkedList 的空间浪费体现在每一个元素都要记录前驱和后继。</li>
+</ul>
+<blockquote>
+<p>一般都会使用 ArrayList，需要用到 LinkedList 的场景几乎可以用 ArrayList 代替。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Java面试之集合 (1) 概述</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-10 10:09:28 / 修改时间：10:33:12" itemprop="dateCreated datePublished" datetime="2024-04-10T10:09:28+08:00">2024-04-10</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="集合概述"><a href="#集合概述" class="headerlink" title="集合概述"></a>集合概述</h1><p>Java 集合（容器）由两大接口派生而来：Collection 接口，用于存放单一的元素；Map 接口，用于存放键值对。对于 Collection 接口，派生出了几个子接口：List、Set、Queue。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/java-collection-hierarchy.png" alt="Java 集合框架概览"></p>
+<h2 id="区别"><a href="#区别" class="headerlink" title="区别"></a>区别</h2><p>几个接口的区别如下：</p>
+<ul>
+<li>List：顺序存储元素。</li>
+<li>Set：存储的元素是不可重复的。</li>
+<li>Queue：队列，按照某种规则进行排队。</li>
+<li>Map：键值对。</li>
+</ul>
+<h2 id="底层数据结构"><a href="#底层数据结构" class="headerlink" title="底层数据结构"></a>底层数据结构</h2><h3 id="Collection"><a href="#Collection" class="headerlink" title="Collection"></a>Collection</h3><p>Collection 接口下集合的数据结构：</p>
+<ul>
+<li>List：<ul>
+<li><strong>ArrayList：</strong>Object 数组。</li>
+<li><strong>Vector：</strong>Object 数组，并发安全，是 ArrayList 的古老实现类。</li>
+<li><strong>LinkedList：</strong>双向链表。</li>
+</ul>
+</li>
+<li>Set：<ul>
+<li><strong>HashSet：</strong>基于 HashMap 实现，底层使用 HashMap 存储元素。</li>
+<li><strong>LinkedHashSet：</strong>是 HashSet 的子类，内部是通过 LinkedHashMap 实现的。</li>
+<li><strong>TreeSet：</strong>红黑树。</li>
+</ul>
+</li>
+<li>Queue：<ul>
+<li><strong>PriorityQueue：</strong>Object 数组实现的小顶堆。</li>
+<li><strong>DelayQueue：</strong>延迟队列，基于 PriorityQueue 实现的。</li>
+<li><strong>ArrayDeque：</strong>可以动态扩容的双向数组。</li>
+</ul>
+</li>
+</ul>
+<h3 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h3><p>Map 接口下集合的数据结构：</p>
+<ul>
+<li><strong>HashMap：</strong>JDK 1.8 之前由<strong>数组+链表</strong>组成，使用拉链法解决哈希冲突。JDK 1.8 之后在解决哈希冲突时有了较大变化，当链表长度大于阈值（默认为 8）（将链表转换成红黑树前会判断，如果当前数组的长度小于 64，那么会选择先进行数组扩容，而不是转换为红黑树）时，将链表转化为<strong>红黑树</strong>，以减少搜索时间。</li>
+<li><strong>LinkedHashMap：</strong>继承自 HashMap，底层依然是数组+链表/红黑树的结构。另外，LinkedHashMap 在HashMap 的基础上，增加了一条<strong>双向链表</strong>，使得上面的结构可以<strong>保持键值对的插入顺序</strong>。同时通过对链表进行相应的操作，实现了顺序访问相关逻辑。</li>
+<li><strong>Hashtable：</strong>数组+链表组成，使用拉链法解决哈希冲突。</li>
+<li><strong>TreeMap：</strong>红黑树。</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/09/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/09/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">GaiaDB 架构简介</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-09 20:58:08 / 修改时间：21:16:05" itemprop="dateCreated datePublished" datetime="2024-04-09T20:58:08+08:00">2024-04-09</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/gaiadb/" itemprop="url" rel="index"><span itemprop="name">gaiadb</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>GaiaDB 是百度自研的<strong>云原生数据库</strong>，GaiaDB 采用计算与存储分离的架构，不仅在性能、扩展性和高可用方面有大幅提升，而且架构的解耦使得计算层和存储层都获得了很大的优化空间。</p>
+<h1 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h1><p>GaiaDB 在运行形态上是一个<strong>多节点集群</strong>，集群中有一个<strong>主节点</strong>和多个<strong>从节点</strong>，<strong>日志服务（LogService）</strong>用于持久化主节点生成的日志，所有节点共享底层的<strong>分布式存储</strong>（PageServer），各模块分布到不同的K8S容器内。</p>
+<p>架构上采用合-分-合的架构，在扩展性和使用便捷性之间保持了平衡，使得对于上层应用程序来说，就像使用一个单点的MySQL数据库一样简单。</p>
+<ul>
+<li>【合】最上层是接入代理，作为统一的入口。</li>
+<li>【分】中间数据库引擎作为计算层，扩展为一个主节点合多个从节点，提高扩展性。</li>
+<li>【合】底层采用一套分布式存储，节省成本。</li>
+</ul>
+<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763097015_6751dd8.png" alt="img"></p>
+<h2 id="GaiaDB-代理层"><a href="#GaiaDB-代理层" class="headerlink" title="GaiaDB 代理层"></a>GaiaDB 代理层</h2><p>GaiaDB 通过内部的代理层（Proxy）对外提供服务，也就是说所有的应用程序都先经过这层代理，然后才访问到具体的数据库节点。这样的好处：</p>
+<ul>
+<li>Proxy 提供<strong>安全</strong>认证和保护。</li>
+<li><strong>Proxy 解析 SQL</strong>，把写操作（比如事务、Update、Insert、Delete、DDL 等）发送到主节点，把读操作（比如 Select）均衡地分发到多个读节点，这个也叫<strong>读写分离</strong>。</li>
+<li>通过 Proxy 把<strong>不同的业务用不同的连接地址，使用不同的数据节点</strong>。这样就可以避免相互影响，不会影响在线业务。</li>
+</ul>
+<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763335982_9d10ab8.png" alt="img"></p>
+<h2 id="GaiaDB-计算层"><a href="#GaiaDB-计算层" class="headerlink" title="GaiaDB 计算层"></a>GaiaDB 计算层</h2><p>计算层由一个主节点合最多十五个从节点组成。计算层百分百支持 MySQL 语法，相对于 MySQL 的主从节点来说，GaiaDB 的计算节点是无状态的。</p>
+<ul>
+<li>主节点：处理读写请求，处理事务。相比于 MySQL 的主节点，GaiaDB 的主节点仅需要将日志（RedoLog）发送至日志服务（LogService）持久化，不需要写数据。数据是由数据存储节点<strong>（PageServer）</strong>从 LogService 拉取日志并回放。</li>
+<li>从节点：处理只读负载。从 <strong>PageServer</strong> 拉取最新的数据。</li>
+</ul>
+<p>这样的设计具有以下<strong>优势</strong>：</p>
+<ul>
+<li><strong>计算节点无状态，弹性快速扩容</strong>。计算层节点无持久化数据，本地文件不复存在，包括日志文件，所以<strong>支持快速扩容</strong>，大概在 30 秒内就能快速创建从节点并提供服务。</li>
+<li><strong>只有单机事务</strong>，没有分布式事务问题。集群所有的事务都请求到主节点，<strong>主节点自身保障事务的 ACID 特性</strong>。</li>
+<li><strong>单机故障不影响集群一致性</strong>，底层存储层利用 Raft 一致性算法保障数据的一致性。事务产生的 Redo 日志均实时写入 LogService，从节点利用 <strong>PageServer</strong> 上的数据文件和 LogService 中的 Redo 日志，在内存中恢复最新的数据对外提供服务。每一次主备故障切换，从节点均可以获取最新的事务 Redo 日志，因此不会出现数据丢失。</li>
+</ul>
+<h2 id="GaiaDB-存储层"><a href="#GaiaDB-存储层" class="headerlink" title="GaiaDB 存储层"></a>GaiaDB 存储层</h2><p>存储层是由多组数据存储节点（PageServer）和一组日志服务节点（LogService）组成。包括两个组件，LogService 和 Page Server。</p>
+<ul>
+<li><p>LogService 用于<strong>持久化数据库日志</strong>（RedoLog），采用 Raft 一致性协议保障日志的高可用和一致性。<strong>缓存近期产生的日志</strong>，供从节点和 PageServer 快速拉取。</p>
+</li>
+<li><p>PageServer 用于<strong>缓存和持久化数据页</strong>，每组包含三个 PageServer 节点，一组 PageServer 管理 32GB 的数据（这 32GB 的数据称为一个 Segment）。</p>
+</li>
+</ul>
+<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763429701_7c175ad.png" alt="img"></p>
+<p>这样的设计有以下<strong>优势</strong>：</p>
+<ul>
+<li>数据的<strong>一致性和数据存储分离</strong>，LogService 专注一致性保障，PageServer 专注持久化数据。</li>
+<li>PageServer 和 LogService 都采用<strong>多副本</strong>的方式保障高可用。</li>
+<li>PageServer 之间<strong>逻辑独立</strong>。独立从 LogService 拉取数据，LogService 保障数据的一致性。</li>
+<li>存储节点的扩容只需要增加 PageServer 的个数，<strong>扩容操作对用户无感</strong>。</li>
+</ul>
 
       
     </div>
@@ -1194,7 +1200,7 @@
 
   
   <nav class="pagination">
-    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><span class="space">&hellip;</span><a class="page-number" href="/page/37/">37</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1260,20 +1266,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-count">388</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">50</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-count">48</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

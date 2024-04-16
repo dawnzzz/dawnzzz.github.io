@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/06/MySQL%E9%AB%98%E7%BA%A7-11-%E5%A4%9A%E7%89%88%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-9-%E6%93%8D%E4%BD%9CZooKeeper/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/06/MySQL%E9%AB%98%E7%BA%A7-11-%E5%A4%9A%E7%89%88%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6/" class="post-title-link" itemprop="url">MySQL高级 (11) 多版本并发控制</a>
+            <a href="/2022/03/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-9-%E6%93%8D%E4%BD%9CZooKeeper/" class="post-title-link" itemprop="url">GO语言杂谈 (9) 操作ZooKeeper</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-06 15:28:19" itemprop="dateCreated datePublished" datetime="2022-03-06T15:28:19+08:00">2022-03-06</time>
+              <time title="创建时间：2022-03-15 15:42:43" itemprop="dateCreated datePublished" datetime="2022-03-15T15:42:43+08:00">2022-03-15</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
                 </span>
             </span>
 
@@ -212,14 +212,121 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p><strong>多版本并发控制（Multi-Version Concurrency Control，MVCC）</strong>，通过数据<strong>行</strong>的多个版本管理来实现数据库的并发控制。</p>
-<p><strong>在MySQL中，可重复读是默认的隔离级别</strong>。可重复读隔离级别下，不仅解决了<strong>脏读</strong>和<strong>不可重复读</strong>问题，因为使用了<strong>MVCC</strong>，所以还一定程度上解决了<strong>幻读</strong>的问题。</p>
-<h2 id="快照读"><a href="#快照读" class="headerlink" title="快照读"></a>快照读</h2><p>快照读又叫<strong>一致性读</strong>，读取的是<strong>快照数据</strong>。<strong>不加锁的简单的SELECT语句，都属于快照读</strong>。</p>
-<p>之所以出现快照读的情况，是基于<strong>提高并发性能</strong>的考虑，快照读的实现是<strong>基于MVCC</strong>，它在很多情况下，<strong>避免了加锁操作，降低了开销</strong>。既然是基于多版本，那么快照读可能读到的并不一定是数据的最新版本，而有可能是之前的历史版本。</p>
-<h2 id="当前读"><a href="#当前读" class="headerlink" title="当前读"></a>当前读</h2><p>当前读读取的是记录的<strong>最新版本</strong>的数据，读取时还要保证其他并发事务不能修改当前记录，会对读取的记录进行<strong>加锁</strong>。<strong>加锁的SELECT语句，以及对数据进行增删改都会进行当前读</strong>。</p>
+          <h1 id="基本操作"><a href="#基本操作" class="headerlink" title="基本操作"></a>基本操作</h1><h2 id="连接zookeeper"><a href="#连接zookeeper" class="headerlink" title="连接zookeeper"></a>连接zookeeper</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 连接zookeeper服务器</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="增"><a href="#增" class="headerlink" title="增"></a>增</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">conn zookeeper连接</span></span><br><span class="line"><span class="comment">path 节点</span></span><br><span class="line"><span class="comment">data 节点数据</span></span><br><span class="line"><span class="comment">flags有4种取值：</span></span><br><span class="line"><span class="comment">   0:永久，除非手动删除</span></span><br><span class="line"><span class="comment">   zk.FlagEphemeral = 1:短暂，session断开则改节点也被删除</span></span><br><span class="line"><span class="comment">   zk.FlagSequence  = 2:会自动在节点后面添加序号</span></span><br><span class="line"><span class="comment">   3:Ephemeral和Sequence，即，短暂且自动添加序号</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	s, err := conn.Create(path, data, flags, acls)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create success:&quot;</span>, s)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="删"><a href="#删" class="headerlink" title="删"></a>删</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get version failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="改"><a href="#改" class="headerlink" title="改"></a>改</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 更新节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">set</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get version failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 更新</span></span><br><span class="line">	stat, err = conn.Set(path, data, stat.Version)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;set failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;set success ,stat: %v\n&quot;</span>, stat)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="查"><a href="#查" class="headerlink" title="查"></a>查</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 查询</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">get</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="params">([]<span class="keyword">byte</span>, error)</span></span> &#123;</span><br><span class="line">	b, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;info of node for %v: %v\n&quot;</span>, path, stat)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> b, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Watch机制"><a href="#Watch机制" class="headerlink" title="Watch机制"></a>Watch机制</h1><h2 id="只监听一次"><a href="#只监听一次" class="headerlink" title="只监听一次"></a>只监听一次</h2><p>调用<code>zk.WithEventCallback(callback)</code>设置回调</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/samuel/go-zookeeper/zk&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// zk watch 回调函数</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">callback</span><span class="params">(event zk.Event)</span></span> &#123;</span><br><span class="line">	<span class="comment">// zk.EventNodeCreated</span></span><br><span class="line">	<span class="comment">// zk.EventNodeDeleted</span></span><br><span class="line">	fmt.Println(<span class="string">&quot;###########################&quot;</span>)</span><br><span class="line">	fmt.Println(<span class="string">&quot;path: &quot;</span>, event.Path)</span><br><span class="line">	fmt.Println(<span class="string">&quot;type: &quot;</span>, event.Type.String())</span><br><span class="line">	fmt.Println(<span class="string">&quot;state: &quot;</span>, event.State.String())</span><br><span class="line">	fmt.Println(<span class="string">&quot;---------------------------&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	eventCallbackOption := zk.WithEventCallback(callback)</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>, eventCallbackOption)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	_, err := conn.Create(path, data, flags, acls)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listenOne</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">//调用conn.ExistsW(path) 或GetW(path)为对应节点设置监听，该监听只生效一次</span></span><br><span class="line">	_, _, _, err := conn.ExistsW(path)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := initZk()</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	path := <span class="string">&quot;/dawn111&quot;</span></span><br><span class="line">	data := []<span class="keyword">byte</span>(<span class="string">&quot;hello world&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 开始监听path，只监听一次</span></span><br><span class="line">	err = listenOne(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 触发创建数据操作</span></span><br><span class="line">	err = add(conn, path, data, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;创建数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//再次监听path</span></span><br><span class="line">	err = listenOne(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 触发删除数据操作</span></span><br><span class="line">	err = <span class="built_in">delete</span>(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;删除数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="开启一个channel处理"><a href="#开启一个channel处理" class="headerlink" title="开启一个channel处理"></a>开启一个channel处理</h2><p>可以开一一个协程来处理chanel中传来的event事件，可以持续监听</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/samuel/go-zookeeper/zk&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	_, err := conn.Create(path, data, flags, acls)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listenOneChannel</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	_, _, ch, err := conn.ExistsW(path)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		event := &lt;-ch</span><br><span class="line">		fmt.Println(<span class="string">&quot;*******************&quot;</span>)</span><br><span class="line">		fmt.Println(<span class="string">&quot;path:&quot;</span>, event.Path)</span><br><span class="line">		fmt.Println(<span class="string">&quot;type:&quot;</span>, event.Type.String())</span><br><span class="line">		fmt.Println(<span class="string">&quot;state:&quot;</span>, event.State.String())</span><br><span class="line">		fmt.Println(<span class="string">&quot;-------------------&quot;</span>)</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := initZk()</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	path := <span class="string">&quot;/dawn111&quot;</span></span><br><span class="line">	data := []<span class="keyword">byte</span>(<span class="string">&quot;hello world&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 开启一个管道持续监听</span></span><br><span class="line">	err = listenOneChannel(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 创建数据触发事件</span></span><br><span class="line">	err = add(conn, path, data, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;创建数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除数据触发事件</span></span><br><span class="line">	err = <span class="built_in">delete</span>(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;删除数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">ZooKeeper学习 (2) 实现分布式锁和watch机制</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-15 15:00:20" itemprop="dateCreated datePublished" datetime="2022-03-15T15:00:20+08:00">2022-03-15</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-03-15 10:37:20" itemprop="dateModified" datetime="2024-03-15T10:37:20+08:00">2024-03-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="ZooKeeper实现分布式锁"><a href="#ZooKeeper实现分布式锁" class="headerlink" title="ZooKeeper实现分布式锁"></a>ZooKeeper实现分布式锁</h1><p>zookeeper中可以实现两种锁：</p>
+<ul>
+<li><strong>读锁（共享锁）</strong>：可以一起读，但是与写锁互斥。</li>
+<li><strong>写锁（互斥锁）</strong>：与读锁和写锁都互斥。</li>
+</ul>
+<h2 id="实现读锁"><a href="#实现读锁" class="headerlink" title="实现读锁"></a>实现读锁</h2><ul>
+<li>创建⼀个<strong>临时序号节点</strong>，节点的数据是read，表示是读锁</li>
+<li>获取当前zookeeper中序号比自己小的所有节点。若这些节点有写锁，则加锁不成功。</li>
+</ul>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328212101.png" alt="读锁"></p>
+<h2 id="实现写锁"><a href="#实现写锁" class="headerlink" title="实现写锁"></a>实现写锁</h2><ul>
+<li>创建⼀个<strong>临时序号节点</strong>，节点的数据是write，表示是写锁</li>
+<li>获取zookeeper中所有的子节点</li>
+<li>判断自己是否是最小的节点：<ul>
+<li>如果是，则上锁成功</li>
+<li>如果不是，说明前面还有锁，上锁失败，为最小节点设置监听。阻塞等待，watch机制会当最小节点发生变化时通知当前节点，再执行第二步</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328263477.png" alt="写锁"></p>
+<h2 id="羊群效应"><a href="#羊群效应" class="headerlink" title="羊群效应"></a>羊群效应</h2><p>羊群效应：如果采用上述的上锁方式，只要有节点发生变化，就会触发其他节点的监听事件，这样对于zookeeper的压力非常大。</p>
+<p>可以调整成链式监听：</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328378251.png" alt="链式监听"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/03/06/MySQL%E9%AB%98%E7%BA%A7-11-%E5%A4%9A%E7%89%88%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6/#more" rel="contents">
+              <a class="btn" href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -243,7 +350,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -257,7 +364,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/" class="post-title-link" itemprop="url">Redis学习 (6) 主从复制和哨兵模式</a>
+            <a href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/" class="post-title-link" itemprop="url">ZooKeeper学习 (1) 介绍</a>
         </h2>
 
         <div class="post-meta">
@@ -267,7 +374,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-25 17:47:09" itemprop="dateCreated datePublished" datetime="2022-02-25T17:47:09+08:00">2022-02-25</time>
+              <time title="创建时间：2022-03-14 20:43:39" itemprop="dateCreated datePublished" datetime="2022-03-14T20:43:39+08:00">2022-03-14</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -282,7 +389,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
                 </span>
             </span>
 
@@ -297,17 +404,16 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>主从复制就是，主机数据更新后，自动同步到备机的<strong>master/slaver机制，master以写为主，slaver以读为主</strong>。</p>
-<p><strong>好处：</strong></p>
-<ul>
-<li>读写分离</li>
-<li>容灾快速恢复（一台服务器宕机了，转到其他服务器）</li>
-</ul>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646618358482.png" alt="主从复制"></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"># 在从机上使用slaveof命令加入主机，host为主机地址，port为主机端口</span><br><span class="line"># slaveof是异步操作，不论成功与否，直接返回OK，然后在后台异步与主机连接</span><br><span class="line">slaveof host port</span><br><span class="line"></span><br><span class="line"># 查看主从状态</span><br><span class="line">info replication</span><br></pre></td></tr></table></figure>
+          <h1 id="ZooKeeper介绍"><a href="#ZooKeeper介绍" class="headerlink" title="ZooKeeper介绍"></a>ZooKeeper介绍</h1><p>ZooKeeper是一种<strong>分布式协调服务</strong>，用于<strong>管理大型分布式集群</strong>。在分布式环境中协调和管理服务是一个复杂的过程，但是ZooKeeper通过其简单的架构和API解决了这个问题。</p>
+<h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><h3 id="分布式协调组件"><a href="#分布式协调组件" class="headerlink" title="分布式协调组件"></a>分布式协调组件</h3><p>在分布式系统中，需要zookeeper作为<strong>分布式协调组件</strong>，协调分布式系统中的状态。如下图，用户更改了一台服务器A-2上的状态，但是另一台主机A-1上的flag没有做出及时的更改，这就需要zookeeper进行协调，更改A-1的状态，以协调分布式系统中所有服务器的状态。</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647262007675.png" alt="zk作为分布式协调组件"></p>
+<h3 id="分布式锁"><a href="#分布式锁" class="headerlink" title="分布式锁"></a>分布式锁</h3><p>zookeeper在实现<strong>分布式锁</strong>上，可以做到<strong>强⼀致性</strong>。</p>
+<p>分布式锁就是将锁放在zookeeper上，当需要上锁时到zookeeper中获取锁。</p>
+<h3 id="无状态化的实现"><a href="#无状态化的实现" class="headerlink" title="无状态化的实现"></a>无状态化的实现</h3><p>对于分布式系统，将Session或者Cookie等状态信息保存在各个主机上是不现实的。可以利用zookeeper实现分布式系统的<strong>无状态化</strong>，将登录信息统一保存在zookeeper中，各个分布式主机在zookeeper中获取状态信息。</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647262224747.png" alt="zk作为无状态化的实现"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/#more" rel="contents">
+              <a class="btn" href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -331,7 +437,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -345,7 +451,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/" class="post-title-link" itemprop="url">算法刷题笔记 (22) 零钱兑换II 打家劫舍 奇偶链表 Pow(x,n) 二叉搜索树中第K小的元素</a>
+            <a href="/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/" class="post-title-link" itemprop="url">从零开始的日志收集项目 (3) 收集系统信息</a>
         </h2>
 
         <div class="post-meta">
@@ -355,7 +461,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-24 21:24:39" itemprop="dateCreated datePublished" datetime="2022-02-24T21:24:39+08:00">2022-02-24</time>
+              <time title="创建时间：2022-03-13 20:29:02" itemprop="dateCreated datePublished" datetime="2022-03-13T20:29:02+08:00">2022-03-13</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -370,7 +476,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
+                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
                 </span>
             </span>
 
@@ -385,20 +491,34 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="零钱兑换-II"><a href="#零钱兑换-II" class="headerlink" title="零钱兑换 II"></a>零钱兑换 II</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/coin-change-2">零钱兑换 II</a></p>
-<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>利用<strong>动态规划</strong>，<code>dp[i]</code>表示金额为<code>i</code>的硬币组合数，边界条件是<code>dp[0] = 1</code>，表示组成金额<code>0</code>有一种组合数。</p>
+          <h1 id="上一版的改进"><a href="#上一版的改进" class="headerlink" title="上一版的改进"></a>上一版的改进</h1><h2 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h2><p>因为log agent可以部署在多台机器上，每一台机器上需要收集的日志可能不尽相同，所以需要<strong>针对不同机器部署不同的配置文件</strong>。</p>
+<h2 id="改进"><a href="#改进" class="headerlink" title="改进"></a>改进</h2><p>因为不同的机器上拥有不同的配置文件，所以etcd中每一台机器对应的配置文件的key应该是唯一可标识的，这样可以区分不同的机器。在key中加入IP地址以区别不同的key，故<code>config.ini</code>做出以下更改：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 原来是collect_conf_key = collect_conf</span></span><br><span class="line"><span class="comment"># 改进版：</span></span><br><span class="line"><span class="comment"># 保存日志收集配置文件的key，根据IP地址(%s)得到key</span></span><br><span class="line"><span class="attr">collect_conf_key</span> = collect_%s_conf</span><br></pre></td></tr></table></figure>
+
+<p>相对应的增加一个获取IP地址的函数，用于获取IP地址：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// GetOutboundIP 获取本机的IP地址</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">GetOutboundIP</span><span class="params">()</span> <span class="params">(ip <span class="keyword">string</span>, err error)</span></span> &#123;</span><br><span class="line">	conn, err := net.Dial(<span class="string">&quot;udp&quot;</span>, <span class="string">&quot;8.8.8.8:80&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line"></span><br><span class="line">	localAddr := conn.LocalAddr().(*net.UDPAddr)</span><br><span class="line">	<span class="comment">// fmt.Println(localAddr.String())</span></span><br><span class="line">	ip = strings.Split(localAddr.IP.String(), <span class="string">&quot;:&quot;</span>)[<span class="number">0</span>]</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在<code>main</code>主函数中，首先获取本机的IP地址：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取本机ip</span></span><br><span class="line">ip, err := common.GetOutboundIP()</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;get local ip failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>根据配置文件中的<code>collect_conf_key = collect_%s_conf</code>项格式化字符串，替换配置文件结构体中的相应字段：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 用ip替换collect_conf_key中的%s</span></span><br><span class="line">configObj.EtcdConfig.CollectConfKey = fmt.Sprintf(configObj.EtcdConfig.CollectConfKey, ip)</span><br></pre></td></tr></table></figure>
+
+<h1 id="收集系统信息"><a href="#收集系统信息" class="headerlink" title="收集系统信息"></a>收集系统信息</h1><p>目前，已经完成了日志收集log agent的构建。</p>
+<p>现在来构建用于收集系统日志的sys info agent，需要收集的系统信息包括CPU、主存、磁盘、网络信息，将收集到的系统信息发送给Kafka。基本思路与log agent相同：</p>
 <ul>
-<li>初始化：<code>dp[0] = 1</code></li>
-<li>遍历<code>coins</code>，对于其中的每个元素<code>coin</code>：<ul>
-<li>遍历<code>i</code>从<code>coin</code>到amount，<code>dp[i] += dp[i-coin]</code></li>
+<li>首先根据配置文件获取Kafka的相关配置信息</li>
+<li>根据配置信息初始化Kafka<ul>
+<li>连接Kafka</li>
+<li>初始化消息管道，这个消息管道用于接收收集到的系统信息</li>
+<li>开启协程，从消息管道中取出消息，发送到Kafka</li>
 </ul>
 </li>
-<li><code>dp[amount]</code>为最终答案</li>
+<li>初始化系统信息收集系统，开启线程用于采集数据，每隔1秒收集一次</li>
 </ul>
-<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">change</span><span class="params">(amount <span class="keyword">int</span>, coins []<span class="keyword">int</span>)</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    dp := <span class="built_in">make</span>([]<span class="keyword">int</span>, amount+<span class="number">1</span>)     <span class="comment">// dp[i]表示组成金额i的组合数</span></span><br><span class="line">    dp[<span class="number">0</span>] = <span class="number">1</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> _, coin := <span class="keyword">range</span> coins &#123;</span><br><span class="line">        <span class="keyword">for</span> i := coin; i &lt;= amount; i++ &#123;</span><br><span class="line">            dp[i] += dp[i-coin]</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> dp[amount]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/#more" rel="contents">
+              <a class="btn" href="/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -422,7 +542,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -436,7 +556,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/" class="post-title-link" itemprop="url">MySQL高级 (10) 锁</a>
+            <a href="/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/" class="post-title-link" itemprop="url">GO语言杂谈 (8) 操作influxDB</a>
         </h2>
 
         <div class="post-meta">
@@ -446,14 +566,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-24 10:59:26" itemprop="dateCreated datePublished" datetime="2022-02-24T10:59:26+08:00">2022-02-24</time>
+              <time title="创建时间：2022-03-13 10:04:13" itemprop="dateCreated datePublished" datetime="2022-03-13T10:04:13+08:00">2022-03-13</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -461,7 +581,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
                 </span>
             </span>
 
@@ -476,19 +596,68 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>MySQL中利用<strong>锁</strong>来保证事务的<strong>隔离性</strong>，对并发操作进行控制。同时，锁冲突也是影响数据库<strong>并发访问性能</strong>的重要因素。</p>
-<h1 id="并发问题的解决"><a href="#并发问题的解决" class="headerlink" title="并发问题的解决"></a>并发问题的解决</h1><h2 id="脏写"><a href="#脏写" class="headerlink" title="脏写"></a>脏写</h2><p>对于<strong>两个事务都进行写数据（写-写情况）</strong>的操作，可能会产生<strong>脏写</strong>问题，这是任何一种隔离级别都不允许这种问题的发生的。</p>
-<p>所以在多个未提交事务相继对一条记录做改动时，需要让它们<strong>排队执行</strong>（通过锁实现）。</p>
-<h2 id="脏读-不可重复读-幻读"><a href="#脏读-不可重复读-幻读" class="headerlink" title="脏读 不可重复读 幻读"></a>脏读 不可重复读 幻读</h2><p>对于<strong>一个事务进行读取操作</strong>，<strong>一个事务进行写数据的操作（读-写情况）</strong>，可能会产生<strong>脏读、不可重复读和幻读</strong>的问题。对于这些问题，有两种解决方案。</p>
-<h3 id="方案一：读操作利用多版本并发控制MVCC，写操作进行加锁"><a href="#方案一：读操作利用多版本并发控制MVCC，写操作进行加锁" class="headerlink" title="方案一：读操作利用多版本并发控制MVCC，写操作进行加锁"></a>方案一：读操作利用多版本并发控制MVCC，写操作进行加锁</h3><p>所谓MVCC，就是生成一个<strong>ReadView</strong>，通过ReadView找到符合条件的记录版本。查询语句只能<strong>读</strong>到生成ReadView之前<strong>已提交事务所做的更改</strong>。而<strong>写操作</strong>肯定针对的是<strong>最新的版本信息</strong>，<strong>读</strong>记录的历史版本和<strong>改动</strong>记录的最新版本并<strong>不冲突</strong>，也就是采用MVCC时，<strong>读-写并不冲突</strong>。</p>
-<p>普通的SELECT语句在<code>READ COMMITTED</code>和<code>REPEATABLE READ</code>隔离级别下会使用到MVCC读取记录：</p>
+          <h1 id="influxDB"><a href="#influxDB" class="headerlink" title="influxDB"></a>influxDB</h1><p>influxDB是<strong>时间序列数据库</strong>，主键是时间戳。</p>
+<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><table>
+<thead>
+<tr>
+<th align="center">influxDB名词</th>
+<th align="center">传统数据库概念</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">database</td>
+<td align="center">数据库</td>
+</tr>
+<tr>
+<td align="center">measurement</td>
+<td align="center">数据表</td>
+</tr>
+<tr>
+<td align="center">point</td>
+<td align="center">数据行</td>
+</tr>
+</tbody></table>
+<h3 id="数据格式"><a href="#数据格式" class="headerlink" title="数据格式"></a>数据格式</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">measurement [,tag_key1=tag_value1...] field_key=field_value[,field_key2=field_value2] [timestamp]</span><br></pre></td></tr></table></figure>
+
 <ul>
-<li>在<code>READ COMMITTED</code>隔离级别下，一个事务在执行过程中<strong>每次执行SELECT操作</strong>时都会<strong>生成一个ReadView</strong>，ReadView的存在本身就保证了事务不可以读取到未提交的事务所做的更改，也就是避免了<strong>脏读</strong>现象。</li>
-<li>在<code>REPEATABLE READ</code>隔离级别下，一个事务在执行过程中只有<strong>第一次执行SELECT操作才会生成一个ReadView</strong>，之后的SELECT操作都<strong>复用</strong>这个ReadView，这样也就避免了<strong>不可重复读</strong>和<strong>幻读</strong>的问题。</li>
+<li><strong>measurement：</strong>类似于<strong>数据表</strong>的概念</li>
+<li><strong>field-key，field-value：</strong>用来存储数据支持各种类型，数据存储时<strong>不会进行索引</strong>。每条数据必须拥有一个field-key，如果使用field-key作为过滤条件则需要遍历所有的数据</li>
+<li><strong>tag-key，tag-value：</strong>与field类似，不过<strong>会进行索引</strong>，方便查询时用于过滤条件</li>
 </ul>
+<p>measurements, tag keys, field keys，tag values 全局存一份；field values 和 timestamps 每条数据存一份</p>
+<h3 id="Point"><a href="#Point" class="headerlink" title="Point"></a>Point</h3><p>influxDB中的point相当于传统数据库里的<strong>一行数据</strong>，由时间戳（time）、数据（field）、标签（tag）组成。</p>
+<table>
+<thead>
+<tr>
+<th align="center">Point属性</th>
+<th align="center">传统数据库概念</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">time</td>
+<td align="center">每个数据记录时间，是数据库中的主索引</td>
+</tr>
+<tr>
+<td align="center">field</td>
+<td align="center">各种记录值（没有索引的属性），例如温度、湿度</td>
+</tr>
+<tr>
+<td align="center">tags</td>
+<td align="center">各种有索引的属性，例如地区、海拔</td>
+</tr>
+</tbody></table>
+<h3 id="Series"><a href="#Series" class="headerlink" title="Series"></a>Series</h3><p><strong>measurement、tag set、retention policy相同</strong>的数据集合，称为一个series。同一个series的数据，在物理上会按照时间顺序排列存储在一起。</p>
+<p>series的key为<code>measurement + 所有tags的序列化字符串</code></p>
+<h3 id="Retention-Policy"><a href="#Retention-Policy" class="headerlink" title="Retention Policy"></a>Retention Policy</h3><p><strong>保留策略RP</strong>，包括数据<strong>保存的时间</strong>以及在集群中的<strong>副本个数</strong>。</p>
+<p>默认的保留策略为，保存时间无限制、副本个数为1</p>
+<h3 id="Shard"><a href="#Shard" class="headerlink" title="Shard"></a>Shard</h3><p>shard与RP相关联，每一个存储策略下会存在许多shard，每一个shard存储一个指定时间段内的数据，并且不会重复。</p>
+<p>shard保存数据的始阶段计算函数如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">shardGroupDuration</span><span class="params">(d time.Duration)</span> <span class="title">time</span>.<span class="title">Duration</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> d &gt;= <span class="number">180</span>*<span class="number">24</span>*time.Hour || d == <span class="number">0</span> &#123; <span class="comment">// 6 months or 0</span></span><br><span class="line">        <span class="keyword">return</span> <span class="number">7</span> * <span class="number">24</span> * time.Hour</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> d &gt;= <span class="number">2</span>*<span class="number">24</span>*time.Hour &#123; <span class="comment">// 2 days</span></span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span> * <span class="number">24</span> * time.Hour</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span> * time.Hour</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>每一个shard都对应底层的一个TSM存储引擎，这样做的目的就是为了可以<strong>通过时间来快速定位</strong>到要查询数据的相关资源，加速查询的过程，并且也让之后的批量删除数据的操作变得非常简单且高效。</p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/#more" rel="contents">
+              <a class="btn" href="/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -512,7 +681,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/24/Redis%E5%AD%A6%E4%B9%A0-5-%E6%8C%81%E4%B9%85%E5%8C%96/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -526,7 +695,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/24/Redis%E5%AD%A6%E4%B9%A0-5-%E6%8C%81%E4%B9%85%E5%8C%96/" class="post-title-link" itemprop="url">Redis学习 (5) 持久化</a>
+            <a href="/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/" class="post-title-link" itemprop="url">从零开始的日志收集项目 (2) 通过etcd管理日志配置</a>
         </h2>
 
         <div class="post-meta">
@@ -536,7 +705,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-24 10:55:42" itemprop="dateCreated datePublished" datetime="2022-02-24T10:55:42+08:00">2022-02-24</time>
+              <time title="创建时间：2022-03-12 11:24:46" itemprop="dateCreated datePublished" datetime="2022-03-12T11:24:46+08:00">2022-03-12</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -551,7 +720,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
                 </span>
             </span>
 
@@ -566,24 +735,22 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Redis提供了两种不同形式的持久化方式：</p>
+          <h1 id="上一版本的问题"><a href="#上一版本的问题" class="headerlink" title="上一版本的问题"></a>上一版本的问题</h1><p>首先来看上一版本的配置文件：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[collect]</span></span><br><span class="line"><span class="comment"># 日志文件存放路径</span></span><br><span class="line"><span class="attr">logfile_path</span> = F:\gopath\src\logagent\logs\<span class="number">1</span>.log</span><br></pre></td></tr></table></figure>
+
+<p>通过配置文件指定需要收集的日志时，主要有两个问题：</p>
 <ul>
-<li>RDB（Redis Database）</li>
-<li>AOF（Append Only File）</li>
+<li>日志文件的存放路径只能有一条，也就是说不能同时启动多个<code>tail.Tail</code>对象，来收集多个日志</li>
+<li>无法实现对配置文件的实时监控，根据配置文件的更改来做出及时的变化</li>
 </ul>
-<h1 id="RDB（Redis-Database）"><a href="#RDB（Redis-Database）" class="headerlink" title="RDB（Redis Database）"></a>RDB（Redis Database）</h1><p>RDB持久化指在指定的<strong>时间间隔</strong>内将内存中的数据集<strong>快照</strong>写入磁盘。它也是<strong>默认</strong>的持久化方式，这种方式是就是将内存中数据以快照的方式写入到二进制文件中，默认的文件名为<code>dump.rdb</code></p>
-<p>对于RDB来说，提供了<strong>三种</strong>机制：</p>
-<ul>
-<li>save</li>
-<li>bgsave</li>
-<li>自动化</li>
-</ul>
-<h2 id="save"><a href="#save" class="headerlink" title="save"></a>save</h2><p>save会<strong>阻塞</strong>当前Redis服务器，执行save命令期间，Redis<strong>不能处理其他命令</strong>，直到RDB过程完成为止。</p>
-<h2 id="bgsave"><a href="#bgsave" class="headerlink" title="bgsave"></a>bgsave</h2><p>Redis会<strong>fork一个子进程来进行持久化</strong>，会先将数据写入到一个<strong>临时文件</strong>中，待持久化过程都结束了，再用这个临时文件<strong>替换</strong>上次持久化好的文件。阻塞只发生在fork阶段，一般时间很短。</p>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-5-%E6%8C%81%E4%B9%85%E5%8C%96/023b5bb5c9ea15cefb035bc8431132f53b87b21e.jpeg" alt="bgsave"></p>
+<h1 id="通过etcd管理日志配置"><a href="#通过etcd管理日志配置" class="headerlink" title="通过etcd管理日志配置"></a>通过etcd管理日志配置</h1><p>上述问题的原因在于ini配置文件无法同时定义多个日志文件路径。解决的方法就是通过etcd管理日志收集配置，在etcd中以json的格式存储日志收集配置信息，如下方：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;path&quot;</span>:<span class="string">&quot;F:/gopath/src/logagent/logs/web.log&quot;</span>,</span><br><span class="line">        <span class="attr">&quot;topic&quot;</span>:<span class="string">&quot;web_log&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;path&quot;</span>:<span class="string">&quot;F:/gopath/src/logagent/logs/blog.log&quot;</span>,</span><br><span class="line">        <span class="attr">&quot;topic&quot;</span>:<span class="string">&quot;blog_log&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<p>相应的，需要修改<code>config.ini</code>配置文件，配置etcd的相关设置：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[etcd]</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">2379</span></span><br><span class="line"><span class="comment"># 保存日志收集配置文件的key</span></span><br><span class="line"><span class="attr">collect_conf_key</span> = collect_conf</span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/02/24/Redis%E5%AD%A6%E4%B9%A0-5-%E6%8C%81%E4%B9%85%E5%8C%96/#more" rel="contents">
+              <a class="btn" href="/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -607,7 +774,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/23/MySQL%E9%AB%98%E7%BA%A7-9-%E4%BA%8B%E5%8A%A1%E6%97%A5%E5%BF%97/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -621,7 +788,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/23/MySQL%E9%AB%98%E7%BA%A7-9-%E4%BA%8B%E5%8A%A1%E6%97%A5%E5%BF%97/" class="post-title-link" itemprop="url">MySQL高级 (9) 事务日志</a>
+            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/" class="post-title-link" itemprop="url">GO语言杂谈 (7) 操作etcd</a>
         </h2>
 
         <div class="post-meta">
@@ -631,7 +798,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-23 17:10:05" itemprop="dateCreated datePublished" datetime="2022-02-23T17:10:05+08:00">2022-02-23</time>
+              <time title="创建时间：2022-03-11 17:50:11" itemprop="dateCreated datePublished" datetime="2022-03-11T17:50:11+08:00">2022-03-11</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -646,7 +813,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
                 </span>
             </span>
 
@@ -661,30 +828,46 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>事务的<strong>隔离性</strong>由<strong>锁</strong>机制实现。</p>
-<p>而事务的<strong>原子性、一致性和持久性</strong>由事物的<strong>redo日志</strong>和<strong>undo日志</strong>来保证。</p>
+          <h1 id="etcd"><a href="#etcd" class="headerlink" title="etcd"></a>etcd</h1><p>etcd是使用Go语言开发的一个开源的、高可用的<strong>分布式key-value存储系统</strong>，可以用于<strong>配置共享</strong>和<strong>服务的注册和发现</strong>。</p>
+<p>etcd具有以下<strong>特点</strong>：</p>
 <ul>
-<li><strong>redo日志（重做日志）：</strong>提供再写入操作，恢复提交事务修改的页操作，用来保证事务的持久性（如在内存中修改还没来得及写入磁盘中，此时系统宕机，就需要redo日志来保证修改写入到磁盘中）</li>
-<li><strong>undo日志（回滚日志）：</strong>回滚行记录到某个特定版本，用来保证事务的原子性、一致性</li>
+<li><strong>完全复制：</strong>集群中的每个节点都可以使用完整的存档</li>
+<li><strong>高可用性：</strong>Etcd可用于避免硬件的单点故障或网络问题</li>
+<li><strong>一致性</strong>：每次读取都会返回跨多主机的最新写入</li>
+<li><strong>简单：</strong>包括一个定义良好、面向用户的API（gRPC）</li>
+<li><strong>安全：</strong>实现了带有可选的客户端证书身份验证的自动化TLS</li>
+<li><strong>快速：</strong>每秒10000次写入的基准速度</li>
+<li><strong>可靠：</strong>使用Raft算法实现了强一致、高可用的服务存储目录</li>
 </ul>
-<p>undo日志不是redo日志的逆过程，redo和undo都可以是看作是<strong>恢复操作</strong>：</p>
+<h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><h3 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h3><p>在一个分布式集群中，如何找到提供某项服务的主机并与之建立连接，这就是服务发现所完成的功能：</p>
+<ol>
+<li>服务提供者首先在注册中心注册服务</li>
+<li>服务请求者根据所需要的服务在注册中心请求服务提供者的地址信息</li>
+<li>服务请求者与服务提供者建立连接，完成服务</li>
+</ol>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/etcd_01.png" alt="服务发现"></p>
+<h3 id="配置中心"><a href="#配置中心" class="headerlink" title="配置中心"></a>配置中心</h3><p>将一些配置信息放到 etcd 上进行集中管理。</p>
+<p>这类场景的使用方式通常是这样：应用在启动的时候主动从 etcd 获取一次配置信息，同时，在 etcd 节点上<strong>注册一个 Watcher 并等待</strong>，以后每次配置有更新的时候，<strong>etcd 都会实时通知订阅者</strong>，以此达到获取最新配置信息的目的。</p>
+<h3 id="分布式锁"><a href="#分布式锁" class="headerlink" title="分布式锁"></a>分布式锁</h3><p>因为 etcd 使用 Raft 算法保持了数据的强一致性，某次操作存储到集群中的值必然是全局一致的，所以很容易实现分布式锁。锁服务有两种使用方式，一是保持独占，二是控制时序。</p>
 <ul>
-<li>redo日志：是存储引擎层生成的日志，记录的是<strong>物理级别</strong>上的页修改操作，主要为了保证数据的<strong>可靠性</strong></li>
-<li>undo日志：是存储引擎层生成的日志，记录的是<strong>逻辑操作</strong>日志，如对某个表进行了INSERT操作，那么undo日志就记录一条与之相反的DELETE操作。主要用于<strong>回滚</strong>和<strong>一致性非锁定读</strong></li>
+<li><strong>保持独占即所有获取锁的用户最终只有一个可以得到</strong>。etcd 为此提供了一套实现分布式锁原子操作 CAS（<code>CompareAndSwap</code>）的 API。通过设置<code>prevExist</code>值，可以保证在多个节点同时去创建某个目录时，只有一个成功。而创建成功的用户就可以认为是获得了锁。</li>
+<li><strong>控制时序</strong>，即所有想要获得锁的用户都会被安排执行，但是<strong>获得锁的顺序也是全局唯一的，同时决定了执行顺序</strong>。etcd 为此也提供了一套 API（自动创建有序键），对一个目录建值时指定为<code>POST</code>动作，这样 etcd 会自动在目录下生成一个当前最大的值为键，存储这个新的值（客户端编号）。同时还可以使用 API 按顺序列出所有当前目录下的键值。此时这些键的值就是客户端的时序，而这些键中存储的值可以是代表客户端的编号。</li>
 </ul>
-<h1 id="redo日志"><a href="#redo日志" class="headerlink" title="redo日志"></a>redo日志</h1><p>InnoDB是以<strong>页</strong>为单位来管理存储空间的。在访问页面时，需要先把磁盘上的页缓存到内存中的<strong>缓冲池</strong>中，所有的修改必须<strong>先更新缓冲池中的数据</strong>，然后缓冲区中的<strong>脏页（写入缓冲池但还没有写回磁盘的页）</strong>以一定频率被刷新到磁盘中。</p>
-<h2 id="为什么需要redo日志"><a href="#为什么需要redo日志" class="headerlink" title="为什么需要redo日志"></a>为什么需要redo日志</h2><p>若有这样一种场景，当事务提交后，刚写完缓冲池还没来得及将修改写回磁盘，数据库宕机了，那么这段数据就丢失了。</p>
-<p>但是，事务包含了<strong>持久性</strong>的特点，对于一个已经提交的事务，在事务提交后即使系统发生了崩溃，这个事务对数据库中所做的更改也不能丢失。</p>
-<p>所以，这就引入了redo日志：只需要把<strong>修改</strong>了哪些东西<strong>记录一下</strong>就好。InnoDB的事务采用了<strong>WAL（Write-Ahead Logging）</strong>技术，这种技术的思想就是<strong>先写日志（redo日志），再写磁盘，只有日志成功写入，事务才算提交成功</strong>。当服务器宕机还未刷新磁盘时，可以通过redo日志恢复，以保证事务的<strong>持久性</strong>。</p>
-<p><img src="/../images/MySQL%E9%AB%98%E7%BA%A7-9-%E4%BA%8B%E5%8A%A1%E6%97%A5%E5%BF%97/1645609805101.png" alt="redo日志的作用"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/02/23/MySQL%E9%AB%98%E7%BA%A7-9-%E4%BA%8B%E5%8A%A1%E6%97%A5%E5%BF%97/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
+<h2 id="etcd架构"><a href="#etcd架构" class="headerlink" title="etcd架构"></a>etcd架构</h2><p>etcd主要分为四个部分：</p>
+<ul>
+<li><strong>HTTP Server：</strong>用于处理用户发送的API请求以及其他etcd节点的同步与心跳信息请求。</li>
+<li><strong>Store：</strong>用于处理etcd支持的各类功能的事务，包括数据索引、节点状态变更、监控与反馈、事件的处理与执行等等，是etcd对用户提供的大多数API的具体实现。</li>
+<li><strong>Raft：</strong>强一致性算法</li>
+<li><strong>WAL：</strong>Write Ahead Log（预写式日志），etcd通过WAL对数据进行持久化存储。WAL中，所有的数据提交前都会实现记录日志。Snapshot（快照）是为了方式数据过多而进行的状态快照；Entry表示存储的日志内容。</li>
+</ul>
+<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/1646993179943.png" alt="etcd架构"></p>
+<h2 id="etcd集群"><a href="#etcd集群" class="headerlink" title="etcd集群"></a>etcd集群</h2><p>etcd一般部署集群推荐奇数个节点，推荐的数量为 3、5 或者 7 个节点构成一个集群。</p>
+<h1 id="GO语言操作etcd"><a href="#GO语言操作etcd" class="headerlink" title="GO语言操作etcd"></a>GO语言操作etcd</h1><h2 id="put和get"><a href="#put和get" class="headerlink" title="put和get"></a>put和get</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;context&quot;</span></span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	clientv3 <span class="string">&quot;go.etcd.io/etcd/client/v3&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cli, err := clientv3.New(clientv3.Config&#123;</span><br><span class="line">		Endpoints:   []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2379&quot;</span>&#125;,</span><br><span class="line">		DialTimeout: <span class="number">5</span> * time.Second,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// handle error!</span></span><br><span class="line">		fmt.Printf(<span class="string">&quot;connect to etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;connect to etcd success&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">defer</span> cli.Close()</span><br><span class="line">	<span class="comment">// put</span></span><br><span class="line">	<span class="comment">// ctx用于控制超时</span></span><br><span class="line">	ctx, cancel := context.WithTimeout(context.Background(), time.Second)</span><br><span class="line">	_, err = cli.Put(ctx, <span class="string">&quot;dawn&quot;</span>, <span class="string">&quot;zh&quot;</span>)</span><br><span class="line">	cancel()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Printf(<span class="string">&quot;put to etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// get</span></span><br><span class="line">	ctx, cancel = context.WithTimeout(context.Background(), time.Second)</span><br><span class="line">	resp, err := cli.Get(ctx, <span class="string">&quot;dawn&quot;</span>)</span><br><span class="line">	cancel()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Printf(<span class="string">&quot;get from etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 遍历取到结果</span></span><br><span class="line">	<span class="keyword">for</span> _, ev := <span class="keyword">range</span> resp.Kvs &#123;</span><br><span class="line">		fmt.Printf(<span class="string">&quot;%s:%s\n&quot;</span>, ev.Key, ev.Value)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h2 id="watch"><a href="#watch" class="headerlink" title="watch"></a>watch</h2><p>用于<strong>监控</strong>etcd中的key的变化（创建/更改/删除）</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cli, err := clientv3.New(clientv3.Config&#123;</span><br><span class="line">		Endpoints:   []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2379&quot;</span>&#125;,</span><br><span class="line">		DialTimeout: <span class="number">5</span> * time.Second,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// handle error!</span></span><br><span class="line">		fmt.Printf(<span class="string">&quot;connect to etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;connect to etcd success&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// watch，返回一个通道</span></span><br><span class="line">	wChan := cli.Watch(context.Background(), <span class="string">&quot;key&quot;</span>)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 遍历通道，一旦有事件发生，watch会向通道中发送数据</span></span><br><span class="line">	<span class="keyword">for</span> wresp := <span class="keyword">range</span> wChan &#123;</span><br><span class="line">		<span class="keyword">for</span> _, evt := <span class="keyword">range</span> wresp.Events &#123;</span><br><span class="line">			fmt.Printf(<span class="string">&quot;type:%s key:%s value:%s\n&quot;</span>, evt.Type, evt.Kv.Key, evt.Kv.Value)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="lease租约"><a href="#lease租约" class="headerlink" title="lease租约"></a>lease租约</h2><h2 id="keepAlive"><a href="#keepAlive" class="headerlink" title="keepAlive"></a>keepAlive</h2><h2 id="基于etcd实现分布式锁"><a href="#基于etcd实现分布式锁" class="headerlink" title="基于etcd实现分布式锁"></a>基于etcd实现分布式锁</h2>
       
     </div>
 
@@ -703,7 +886,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -717,7 +900,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">Redis学习 (4) 事务</a>
+            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/" class="post-title-link" itemprop="url">GO语言杂谈 (6) go-ini的使用</a>
         </h2>
 
         <div class="post-meta">
@@ -727,7 +910,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-23 12:11:39" itemprop="dateCreated datePublished" datetime="2022-02-23T12:11:39+08:00">2022-02-23</time>
+              <time title="创建时间：2022-03-11 11:55:00" itemprop="dateCreated datePublished" datetime="2022-03-11T11:55:00+08:00">2022-03-11</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -742,7 +925,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
                 </span>
             </span>
 
@@ -757,117 +940,45 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="事务概述"><a href="#事务概述" class="headerlink" title="事务概述"></a>事务概述</h1><h2 id="事务定义"><a href="#事务定义" class="headerlink" title="事务定义"></a>事务定义</h2><p>Redis事务是一个<strong>单独的隔离操作</strong>：事务中的所有命令都会<strong>序列化、按顺序</strong>地执行。事务在执行的过程中，不会被其他客户端发送来的命令请求所打断。</p>
-<p>Redis事务的主要作用就是<strong>串联多个命令</strong>防止别的命令插队。</p>
-<h2 id="multi-exec-discard命令"><a href="#multi-exec-discard命令" class="headerlink" title="multi exec discard命令"></a>multi exec discard命令</h2><p>从输入<code>multi</code>命令开始，输入的命令都会<strong>依次进入命令队列</strong>中，但不会执行，直到输入<code>exec</code>后，Redis会将之前的命令队列中的命令<strong>依次执行</strong>。</p>
-<p>组队的过程中可以通过<code>discard</code>来<strong>放弃组队</strong>。</p>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/1645589712817.png" alt="Multi Exec discard"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-4-%E4%BA%8B%E5%8A%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-3-%E6%96%B0%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-3-%E6%96%B0%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/" class="post-title-link" itemprop="url">Redis学习 (3) 新数据类型</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-02-23 11:17:58" itemprop="dateCreated datePublished" datetime="2022-02-23T11:17:58+08:00">2022-02-23</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Bitmaps"><a href="#Bitmaps" class="headerlink" title="Bitmaps"></a>Bitmaps</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>Bitmaps数据类型提供了对比特<strong>位的操作</strong>：</p>
+          <h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><p><a target="_blank" rel="noopener" href="https://ini.unknwon.io/">go-ini官方网站</a></p>
+<h2 id="ini文件"><a href="#ini文件" class="headerlink" title="ini文件"></a>ini文件</h2><p>ini格式的文件是配置文件中常用的格式。</p>
 <ul>
-<li>Bitmaps其实不是一种新的数据类型，本质上它就是<strong>字符串</strong>，但是它可以对字符串的位进行操作</li>
+<li>在ini文件中，每个<strong>键值对</strong>占用一行，中间使用<code>=</code>隔开</li>
+<li>以<code>#</code>开头的为<strong>注释</strong></li>
+<li>ini文件是以<strong>分区</strong>为组织的，分区以<code>[name]</code>作为标志</li>
 </ul>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-3-%E6%96%B0%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/1645586477962.png" alt="Bitmaps"></p>
-<h2 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h2><ul>
-<li><p><code>setbit &lt;key&gt; &lt;offset&gt; &lt;value&gt;</code>：设置Bitmaps中某个偏移量的值</p>
-</li>
-<li><p><code>getbit &lt;key&gt; &lt;offset&gt;</code>：获取Bitmaps中某个偏移量的值</p>
-</li>
-<li><p><code>bitcount &lt;key&gt; [start end]</code>：统计字符串从start字节到end字节比特值为1的数量</p>
-</li>
-<li><p><code>bitop and(or/not/xor) &lt;destkey&gt; [key…]</code>：对多个Bitmaps进行与、或、非、异或运算</p>
-</li>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[mysql]</span></span><br><span class="line"><span class="attr">ip</span> = <span class="number">127.0</span>.<span class="number">0.1</span></span><br><span class="line"><span class="attr">port</span> = <span class="number">3306</span></span><br><span class="line"><span class="attr">user</span> = root</span><br><span class="line"><span class="attr">password</span> = <span class="number">123456</span></span><br><span class="line"><span class="attr">database</span> = test</span><br><span class="line"></span><br><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="go-ini"><a href="#go-ini" class="headerlink" title="go-ini"></a>go-ini</h2><p>go-ini为GO语言提供了读写ini文件的功能。如使用go-ini读取上面的配置文件：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/go-ini/ini&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 加载配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Load config file failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 获取配置文件信息</span></span><br><span class="line">    </span><br><span class="line">	<span class="comment">// [mysql]分区</span></span><br><span class="line">	mysqlSection := cfg.Section(<span class="string">&quot;mysql&quot;</span>)</span><br><span class="line">	mysqlIP := mysqlSection.Key(<span class="string">&quot;ip&quot;</span>).String()</span><br><span class="line">	fmt.Println(<span class="string">&quot;mysql ip =&quot;</span>, mysqlIP)</span><br><span class="line">	mysqlPort, err := mysqlSection.Key(<span class="string">&quot;port&quot;</span>).Int()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;mysql port parse failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;mysql port =&quot;</span>, mysqlPort)</span><br><span class="line">    </span><br><span class="line">	<span class="comment">// [kafka]分区</span></span><br><span class="line">	kafkaAddress := cfg.Section(<span class="string">&quot;kafka&quot;</span>).Key(<span class="string">&quot;address&quot;</span>).String()</span><br><span class="line">	fmt.Println(<span class="string">&quot;kafka address=&quot;</span>, kafkaAddress)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用go-ini读取配置文件的步骤如下：</p>
+<ul>
+<li>调用<code>ini.Load</code>加载<strong>配置文件</strong>，得到配置对象<code>cfg</code></li>
+<li>调用<code>cfg.Section</code>获取<strong>分区对象</strong>，使用<code>Key</code>方法得到对应配置项的对象</li>
+<li><code>Key</code>对象需根据类型调用对应的方法<strong>返回具体类型</strong>，可以使用<code>String</code>、<code>Int</code>、<code>Float64</code>等方法。</li>
 </ul>
-<h1 id="HyperLogLog"><a href="#HyperLogLog" class="headerlink" title="HyperLogLog"></a>HyperLogLog</h1><h2 id="介绍-1"><a href="#介绍-1" class="headerlink" title="介绍"></a>介绍</h2><p>HyperLogLog用于做<strong>基数</strong>（基数就是集合中不同元素的个数）统计，在输入元素的数量或者体积非常非常大时，计算基数所需的空间总是<strong>固定</strong>的、并且是很<strong>小</strong>的。</p>
-<p>但是，HyperLogLog只会根据输入元素来计算基数，而<strong>不会储存输入元素本身</strong>，所以HyperLogLog不能像集合那样，返回输入的各个元素。</p>
-<h2 id="常用命令-1"><a href="#常用命令-1" class="headerlink" title="常用命令"></a>常用命令</h2><ul>
-<li><p><code>pfadd &lt;key&gt; &lt; element&gt; [element ...]</code>：添加指定元素到HyperLogLog中</p>
-</li>
-<li><p><code>pfcount &lt;key&gt; [key ...]</code>：计算多个HyperLogLog中的近似基数</p>
-</li>
-<li><p><code>pfmerge &lt;destkey&gt; &lt;sourcekey&gt; [sourcekey ...]</code>：将一个或多个HyperLogLog合并后存储在另一个HyperLogLog中</p>
-</li>
+<p>配置文件中存储的都是字符串，所以类型为字符串的配置项不会出现类型转换失败的，故<code>String</code>方法只返回一个值。但是<code>Int</code>和<code>Uint</code>等方法可能会转换失败，返回一个值和一个错误。</p>
+<p>如果每次取值都需要进行错误判断，那么代码写起来会非常繁琐。go-ini为此提供了对应的<code>MustType</code>方法（Type为<code>Int/Uint/Float64</code>等），这个方法<strong>只返回一个值</strong>。同时它接收可变参数，如果类型无法转换，取参数中第一个值返回，并且该参数设置为这个配置的值，下次调用返回这个值。</p>
+<h1 id="go-ini使用"><a href="#go-ini使用" class="headerlink" title="go-ini使用"></a>go-ini使用</h1><h2 id="分区操作"><a href="#分区操作" class="headerlink" title="分区操作"></a>分区操作</h2><h3 id="获取信息"><a href="#获取信息" class="headerlink" title="获取信息"></a>获取信息</h3><p>在加载配置之后</p>
+<ul>
+<li>通过<code>Sections</code>方法获取所有分区</li>
+<li><code>SectionStrings()</code>方法获取所有的分区名</li>
+<li><code>Section(name)</code>获取名为name的分区，如果该分区不存在，则自动创建一个分区并返回</li>
+<li><code>NewSection(name)</code>手动创建一个新分区，如果分区已存在，则返回错误</li>
 </ul>
-<h1 id="Geospatial"><a href="#Geospatial" class="headerlink" title="Geospatial"></a>Geospatial</h1><p>Geospatial类型用于记录<strong>地理位置</strong>信息，即经纬度坐标。</p>
+<h3 id="父子分区"><a href="#父子分区" class="headerlink" title="父子分区"></a>父子分区</h3><p>可以在分区名中使用<code>.</code>表示两个或多个分区之间的父子关系。</p>
+<p>例如<code>package.sub</code>的父分区为<code>package</code>，<code>package</code>的父分区为默认分区。如果某个键在子分区中不存在，则会在它的父分区中再次查找，直到没有父分区为止。</p>
+<h2 id="保存配置"><a href="#保存配置" class="headerlink" title="保存配置"></a>保存配置</h2><p>可以将生成的配置对象写入到文件中，保存有两种类型的接口，一种直接保存到文件，另一种写入到<code>io.Writer</code>中：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">err = cfg.SaveTo(<span class="string">&quot;my.ini&quot;</span>)</span><br><span class="line">err = cfg.SaveToIndent(<span class="string">&quot;my.ini&quot;</span>, <span class="string">&quot;\t&quot;</span>)	<span class="comment">// 有缩进</span></span><br><span class="line"></span><br><span class="line">cfg.WriteTo(writer)</span><br><span class="line">cfg.WriteToIndent(writer, <span class="string">&quot;\t&quot;</span>)		<span class="comment">// 有缩进</span></span><br></pre></td></tr></table></figure>
+
+<p><code>*Indent</code>方法会对分区下的键进行缩进。</p>
+<h2 id="分区与结构体字段映射"><a href="#分区与结构体字段映射" class="headerlink" title="分区与结构体字段映射"></a>分区与结构体字段映射</h2><p>定义结构变量，加载完配置文件后，调用<code>MapTo</code>将配置项赋值到结构变量的对应字段中。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	MySQL MySQLConfig <span class="string">`ini:&quot;mysql&quot;`</span></span><br><span class="line">	Kafka KafkaConfig <span class="string">`ini:&quot;kafka&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MySQLConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	IP       <span class="keyword">string</span> <span class="string">`ini:&quot;ip&quot;`</span></span><br><span class="line">	Port     <span class="keyword">int</span>    <span class="string">`ini:&quot;port&quot;`</span></span><br><span class="line">	User     <span class="keyword">string</span> <span class="string">`ini:&quot;user&quot;`</span></span><br><span class="line">	Password <span class="keyword">string</span> <span class="string">`ini:&quot;password&quot;`</span></span><br><span class="line">	Database <span class="keyword">string</span> <span class="string">`ini:&quot;database&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Load config file failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 映射整个配置文件</span></span><br><span class="line">	c := &amp;Config&#123;&#125;</span><br><span class="line">	cfg.MapTo(c)</span><br><span class="line">	fmt.Println(c)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 只映射mysql分区</span></span><br><span class="line">	mysql := &amp;MySQLConfig&#123;&#125;</span><br><span class="line">	cfg.Section(<span class="string">&quot;mysql&quot;</span>).MapTo(mysql)</span><br><span class="line">	fmt.Println(mysql)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也可以通过结构体生成配置：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewIni</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cfg := ini.Empty()</span><br><span class="line">	<span class="comment">// 构造配置信息</span></span><br><span class="line">	c := Config&#123;</span><br><span class="line">		MySQL: MySQLConfig&#123;</span><br><span class="line">			IP:       <span class="string">&quot;192.168.1.2&quot;</span>,</span><br><span class="line">			Port:     <span class="number">3306</span>,</span><br><span class="line">			User:     <span class="string">&quot;Dawn&quot;</span>,</span><br><span class="line">			Password: <span class="string">&quot;123456&quot;</span>,</span><br><span class="line">			Database: <span class="string">&quot;dbname&quot;</span>,</span><br><span class="line">		&#125;,</span><br><span class="line">		Kafka: KafkaConfig&#123;</span><br><span class="line">			Address: <span class="string">&quot;127.0.0.1:9092&quot;</span>,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 通过结构体生成配置</span></span><br><span class="line">	err := ini.ReflectFrom(cfg, &amp;c)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;ReflectFrom failed: &quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 保存到文件</span></span><br><span class="line">	err = cfg.SaveTo(<span class="string">&quot;new-conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;SaveTo failed: &quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>
@@ -887,7 +998,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-2-%E5%8F%91%E5%B8%83%E8%AE%A2%E9%98%85/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -901,7 +1012,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-2-%E5%8F%91%E5%B8%83%E8%AE%A2%E9%98%85/" class="post-title-link" itemprop="url">Redis学习 (2) 发布订阅</a>
+            <a href="/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/" class="post-title-link" itemprop="url">从零开始的日志收集项目 (1) 解析配置文件进行日志收集</a>
         </h2>
 
         <div class="post-meta">
@@ -911,7 +1022,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-23 10:58:32" itemprop="dateCreated datePublished" datetime="2022-02-23T10:58:32+08:00">2022-02-23</time>
+              <time title="创建时间：2022-03-11 11:34:14" itemprop="dateCreated datePublished" datetime="2022-03-11T11:34:14+08:00">2022-03-11</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -926,7 +1037,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
+                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
                 </span>
             </span>
 
@@ -941,18 +1052,36 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="Redis的发布订阅"><a href="#Redis的发布订阅" class="headerlink" title="Redis的发布订阅"></a>Redis的发布订阅</h1><p>Redis提供了发布订阅功能，可以用于<strong>消息传输</strong>。</p>
-<h2 id="发布订阅架构"><a href="#发布订阅架构" class="headerlink" title="发布订阅架构"></a>发布订阅架构</h2><p>发布订阅机制包括三个部分：发布者、订阅者和channel：</p>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-2-%E5%8F%91%E5%B8%83%E8%AE%A2%E9%98%85/20170415153941123" alt="Redis发布订阅"></p>
-<p>发布者和订阅者都是Redis客户端，Channel则为Redis服务器端，发布者将消息发送到某个的频道，订阅了这个频道的订阅者就能接收到这条消息。一个订阅者可以订阅多个chanel。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/02/23/Redis%E5%AD%A6%E4%B9%A0-2-%E5%8F%91%E5%B8%83%E8%AE%A2%E9%98%85/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
+          <h1 id="项目介绍"><a href="#项目介绍" class="headerlink" title="项目介绍"></a>项目介绍</h1><h1 id="解析配置文件，进行日志收集"><a href="#解析配置文件，进行日志收集" class="headerlink" title="解析配置文件，进行日志收集"></a>解析配置文件，进行日志收集</h1><p>首先，初步编写一个<code>logagent</code>：</p>
+<ol>
+<li>从配置文件中读取信息。</li>
+<li>根据从配置文件中得到的Kafka地址，初始化Kafka生产者：<ul>
+<li>生产者配置</li>
+<li>连接Kafka</li>
+<li>初始化消息管道，并且起一个协程，用于从消息管道中读取数据并向Kafka推送消息</li>
+</ul>
+</li>
+<li>根据从配置文件中得到的日志路径，初始化一个<code>tail.Tail</code>对象<code>TailObj</code>。</li>
+<li><code>TailObj</code>从日志中读取数据，封装成msg送入消息管道。协程从消息管道中取出数据并发送给Kafka</li>
+</ol>
+<h2 id="读取配置文件"><a href="#读取配置文件" class="headerlink" title="读取配置文件"></a>读取配置文件</h2><p>配置文件<code>conf/config.ini</code>：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[collect]</span></span><br><span class="line"><span class="comment"># 日志文件存放路径</span></span><br><span class="line"><span class="attr">logfile_path</span> = F:\gopath\src\logagent\logs\<span class="number">1</span>.log</span><br></pre></td></tr></table></figure>
+
+<p>读取配置文件：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 读配置文件</span></span><br><span class="line">cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">err = cfg.MapTo(configObj)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化Kafka生产者"><a href="#初始化Kafka生产者" class="headerlink" title="初始化Kafka生产者"></a>初始化Kafka生产者</h2><p><code>kafka/kafka.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> kafka</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// kafka相关操作</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	Client  sarama.SyncProducer</span><br><span class="line">	MsgChan <span class="keyword">chan</span> *sarama.ProducerMessage</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(address []<span class="keyword">string</span>, chanSize <span class="keyword">int</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 生产者配置</span></span><br><span class="line">	config := sarama.NewConfig()</span><br><span class="line">	config.Producer.RequiredAcks = sarama.WaitForAll          <span class="comment">// 等待leader和follow都确认</span></span><br><span class="line">	config.Producer.Partitioner = sarama.NewRandomPartitioner <span class="comment">// 分区</span></span><br><span class="line">	config.Producer.Return.Successes = <span class="literal">true</span>                   <span class="comment">// 确认</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 连接kafka</span></span><br><span class="line">	Client, err = sarama.NewSyncProducer(address, config)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;kafka: producer closed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 初始化消息管道</span></span><br><span class="line">	MsgChan = <span class="built_in">make</span>(<span class="keyword">chan</span> *sarama.ProducerMessage, chanSize)</span><br><span class="line">	<span class="comment">// 起一个协程向kafka发送数据</span></span><br><span class="line">	<span class="keyword">go</span> sendMsg()</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 从MsgChan中读取msg，发送给kafka</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sendMsg</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> msg := &lt;-MsgChan:</span><br><span class="line">			pid, offser, err := Client.SendMessage(msg)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Warn(<span class="string">&quot;send msg failed, err:&quot;</span>, err)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			logrus.Infof(<span class="string">&quot;send msg to kafka success. pid=%v offset=%v&quot;</span>, pid, offser)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化tail-Tail对象"><a href="#初始化tail-Tail对象" class="headerlink" title="初始化tail.Tail对象"></a>初始化tail.Tail对象</h2><p><code>tailfile.tailfile.go</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> tailfile</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/hpcloud/tail&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">	<span class="string">&quot;os&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	TailObj *tail.Tail</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(fileName <span class="keyword">string</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	TailObj, err = tail.TailFile(fileName, tail.Config&#123;</span><br><span class="line">		Location: &amp;tail.SeekInfo&#123; <span class="comment">// 从文件的哪个地方开始读取</span></span><br><span class="line">			Offset: <span class="number">0</span>,</span><br><span class="line">			Whence: os.SEEK_END,</span><br><span class="line">		&#125;,</span><br><span class="line">		ReOpen:    <span class="literal">true</span>,  <span class="comment">// 重新打开文件</span></span><br><span class="line">		MustExist: <span class="literal">false</span>, <span class="comment">// 文件不存在不报错</span></span><br><span class="line">		Follow:    <span class="literal">true</span>,  <span class="comment">// 进行跟随</span></span><br><span class="line">		Poll:      <span class="literal">true</span>,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Errorf(<span class="string">&quot;tailfile: create tailObj for path %s failed, err: %v\n&quot;</span>, fileName, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="TailObj从日志中读取数据，送入消息管道"><a href="#TailObj从日志中读取数据，送入消息管道" class="headerlink" title="TailObj从日志中读取数据，送入消息管道"></a>TailObj从日志中读取数据，送入消息管道</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		line, ok := &lt;-tailfile.TailObj.Lines</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, tailfile.TailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		fmt.Println(line.Text)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.MsgChan &lt;- msg</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="总结："><a href="#总结：" class="headerlink" title="总结："></a>总结：</h2><p>所以<code>main.go</code>中的流程为：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/go-ini/ini&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">	<span class="string">&quot;logagent/kafka&quot;</span></span><br><span class="line">	<span class="string">&quot;logagent/tailfile&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 日志收集的客户端</span></span><br><span class="line"><span class="comment">// 收集指定目录下的日志文件，发送到kafka中</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	KafkaConfig   <span class="string">`ini:&quot;kafka&quot;`</span></span><br><span class="line">	CollectConfig <span class="string">`ini:&quot;collect&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address  <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">	Topic    <span class="keyword">string</span> <span class="string">`ini:&quot;topic&quot;`</span></span><br><span class="line">	ChanSize <span class="keyword">int</span>    <span class="string">`int:&quot;chan_size&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">type</span> CollectConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	LogFilePath <span class="keyword">string</span> <span class="string">`ini:&quot;logfile_path&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 真正业务逻辑</span></span><br><span class="line"><span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		line, ok := &lt;-tailfile.TailObj.Lines</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, tailfile.TailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		fmt.Println(line.Text)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.MsgChan &lt;- msg</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 读配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">	err = cfg.MapTo(configObj)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(configObj)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Kafka</span></span><br><span class="line">	err = kafka.Init([]<span class="keyword">string</span>&#123;configObj.KafkaConfig.Address&#125;, configObj.KafkaConfig.ChanSize)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init kafka failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init kafka success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 根据配置文件中的日志路径使用tail收集日志，初始化tail</span></span><br><span class="line">	err = tailfile.Init(configObj.CollectConfig.LogFilePath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init tail failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init tail success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 把日志发往kafka</span></span><br><span class="line">	<span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line">	run()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
       
     </div>
 
@@ -971,7 +1100,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/22/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-21/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -985,7 +1114,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/02/22/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-21/" class="post-title-link" itemprop="url">算法刷题笔记 (21) 最长重复子数组 用队列实现栈 乘积最大子数组  买卖股票的最佳时机II</a>
+            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/" class="post-title-link" itemprop="url">GO语言杂谈 (5) tail包的使用</a>
         </h2>
 
         <div class="post-meta">
@@ -995,7 +1124,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-02-22 20:25:07" itemprop="dateCreated datePublished" datetime="2022-02-22T20:25:07+08:00">2022-02-22</time>
+              <time title="创建时间：2022-03-11 10:43:42" itemprop="dateCreated datePublished" datetime="2022-03-11T10:43:42+08:00">2022-03-11</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -1010,7 +1139,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
                 </span>
             </span>
 
@@ -1025,19 +1154,17 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="最长重复子数组"><a href="#最长重复子数组" class="headerlink" title="最长重复子数组"></a>最长重复子数组</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/maximum-length-of-repeated-subarray">最长重复子数组</a></p>
-<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>利用<strong>动态规划</strong>的思想，<code>dp[i][j]</code>表示以<code>nums1[i]</code>和<code>nums2[j]</code><strong>为结尾的最长公共后缀的长度</strong>。</p>
-<ul>
-<li>初始化为：<ul>
-<li>若<code>nums1[i] == nums2[0]</code>，则<code>dp[i][0] = 1</code>，否则为0</li>
-<li>若<code>nums1[0] == nums2[j]</code>，则<code>dp[0][j] = 1</code>，否则为0</li>
-</ul>
-</li>
-<li>状态转移方程：若<code>nums1[i] == nums2[j]</code>，<code>dp[i][j] = dp[i-1][j-1]+1</code>，否则为0</li>
-</ul>
+          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>tail包用于输出文件的最后几行。<strong>假设该档案有更新，tail会自己主动刷新，确保你看到最新的档案内容</strong> ，在日志收集中可以实时的监测日志的变化。</p>
+<h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TailFile</span><span class="params">(filename <span class="keyword">string</span>, config Config)</span> <span class="params">(*Tail, error)</span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>tail2.TailFile()</code>函数的参数是<strong>文件路径</strong>和<strong>配置文件</strong>，会生成一个<code>Tail</code>结构体。在<code>Tail</code>结构体中，最重要的属性是文件名<code>Filename</code>和用于存储文件一行<code>Line</code>的通道<code>Lines</code>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Tail <span class="keyword">struct</span> &#123;</span><br><span class="line">	Filename <span class="keyword">string</span></span><br><span class="line">	Lines    <span class="keyword">chan</span> *Line</span><br><span class="line">	Config</span><br><span class="line"></span><br><span class="line">	file   *os.File</span><br><span class="line">	reader *bufio.Reader</span><br><span class="line"></span><br><span class="line">	watcher watch.FileWatcher</span><br><span class="line">	changes *watch.FileChanges</span><br><span class="line"></span><br><span class="line">	tomb.Tomb <span class="comment">// provides: Done, Kill, Dying</span></span><br><span class="line"></span><br><span class="line">	lk sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中表示文件中一行的结构体为<code>Line</code>，这个结构体用于存储读取的一行信息：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Line <span class="keyword">struct</span> &#123;</span><br><span class="line">	Text <span class="keyword">string</span></span><br><span class="line">	Time time.Time</span><br><span class="line">	Err  error <span class="comment">// Error from tail</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/02/22/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-21/#more" rel="contents">
+              <a class="btn" href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1060,7 +1187,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/30/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/30/">30</a><span class="page-number current">31</span><a class="page-number" href="/page/32/">32</a><span class="space">&hellip;</span><a class="page-number" href="/page/37/">37</a><a class="extend next" rel="next" href="/page/32/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/30/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/30/">30</a><span class="page-number current">31</span><a class="page-number" href="/page/32/">32</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/32/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1126,20 +1253,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">369</span>
+          <span class="site-state-item-count">388</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">50</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">47</span>
+        <span class="site-state-item-count">48</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
