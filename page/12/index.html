@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/10/03/Kubernetes%E5%AD%A6%E4%B9%A0-9-%E4%BA%86%E8%A7%A3Kubernetes%E6%9C%BA%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/" class="post-title-link" itemprop="url">凤凰架构笔记 (5) 安全之认证和凭证</a>
+            <a href="/2023/10/03/Kubernetes%E5%AD%A6%E4%B9%A0-9-%E4%BA%86%E8%A7%A3Kubernetes%E6%9C%BA%E7%90%86/" class="post-title-link" itemprop="url">Kubernetes学习 (9) 了解Kubernetes机理</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-08 21:09:35" itemprop="dateCreated datePublished" datetime="2023-06-08T21:09:35+08:00">2023-06-08</time>
+              <time title="创建时间：2023-10-03 12:15:16" itemprop="dateCreated datePublished" datetime="2023-10-03T12:15:16+08:00">2023-10-03</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
                 </span>
             </span>
 
@@ -212,235 +212,64 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h1><p>认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。</p>
-<h2 id="HTTP-认证"><a href="#HTTP-认证" class="headerlink" title="HTTP 认证"></a>HTTP 认证</h2><p>HTTP 认证<strong>通过 Authication Header 实现</strong>，服务器告知客户端应该采用哪种认证方式：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">WWW-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br><span class="line"><span class="attribute">Proxy-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br></pre></td></tr></table></figure>
-
-<p>客户端进行响应：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br><span class="line"><span class="attribute">Proxy-Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br></pre></td></tr></table></figure>
-
-<p>认证方案如下：</p>
+          <h1 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h1><p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-9-%E4%BA%86%E8%A7%A3Kubernetes%E6%9C%BA%E7%90%86/components-of-kubernetes.svg" alt="Components of Kubernetes"></p>
 <ul>
-<li><strong>Basic：</strong>让用户输入用户名和密码，经过 Base64 编码后作为凭证内容。</li>
-<li><strong>Digest：</strong>HTTP 摘要认证，Digest 认证把用户名和密码加盐（Nonce）后通过哈希后发送出去。</li>
-<li><strong>Bearer：</strong>基于 OAuth 2 规范来完成认证。</li>
+<li><p><strong>控制平面（Control Plane）组件：</strong>控制平面组件会为集群做出全局决策，比如资源的调度、 以及检测和响应集群事件。</p>
+<ul>
+<li><p><strong>kube-apiserver：</strong>API 服务器，相当于控制平面的前端负责接受请求，可以水平扩容。</p>
+</li>
+<li><p><strong>etcd：</strong>所有集群数据的后台数据库。</p>
+</li>
+<li><p><strong>kube-scheduler：</strong>负责 Pod 的调度决策工作。</p>
+</li>
+<li><p><strong>kube-controller-manager：</strong>负责运行控制器进程（控制器通过 API 服务器监控集群的公共状态，并致力于将当前的状态转换为期望的状态）。从逻辑上讲， 每个控制器都是一个单独的进程， 但是为了降低复杂性，它们都被编译到同一个可执行文件，并在同一个进程中运行。控制器包括但不限于：</p>
+<ul>
+<li>节点控制器：负责在节点出现故障时进行通知和响应。</li>
+<li>任务控制器：监测代表一次性任务的 Job 对象，然后创建 Pods 来运行这些任务直至完成。</li>
+<li>端点分片控制器：填充端点分片（EndpointSlice）对象（以提供 Service 和 Pod 之间的链接）。</li>
+<li>服务账号控制器：为新的命名空间创建默认的服务账号（ServiceAccount）。</li>
 </ul>
-<h2 id="Web-认证"><a href="#Web-认证" class="headerlink" title="Web 认证"></a>Web 认证</h2><p>Web 认证就是通过 Web 表单让用户去填写用户名密码等信息。</p>
-<blockquote>
-<p>这种认证方法<strong>没有固定的标准</strong>，没有一个统一的标准去规定用户名、密码、验证码是否需要加密，并且用何种方法进行加密。这不是缺点，<strong>反而是一大优点</strong>，因为足够的<strong>自主性</strong>，可以设计出符合需求的各种认证方式。</p>
-</blockquote>
-<p>请注意，Web 认证是可以基于 HTTP 认证实现的，也就是说可以使用 HTTP Authentication Header 记录认证信息。</p>
-<h3 id="WebAuthn"><a href="#WebAuthn" class="headerlink" title="WebAuthn"></a>WebAuthn</h3><p>2019 年 W3C 起草了<strong>第一份 Web 内容认证标准 WebAuthn</strong>，WebAuthn 彻底抛弃了传统的密码登录方式，改为直接采用<strong>生物识别</strong>（指纹、人脸、虹膜、声纹）或者<strong>实体密钥</strong>（以 USB、蓝牙、NFC 连接的物理密钥容器）来作为身份凭证。所以，这个规范不关注界面该是什么样子、要不要验证码、是否要前端校验这些问题。</p>
-<p>WebAuthn包含注册和登录两大流程。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/" class="post-title-link" itemprop="url">凤凰架构笔记 (4) 透明多级分流系统之传输链路</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-06-07 22:07:51" itemprop="dateCreated datePublished" datetime="2023-06-07T22:07:51+08:00">2023-06-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="传输链路"><a href="#传输链路" class="headerlink" title="传输链路"></a>传输链路</h1><p>数据通过 HTTP 协议进行通信，所以这里的传输链路指的是 HTTP 在传输链路上的优化。</p>
-<h2 id="连接数优化"><a href="#连接数优化" class="headerlink" title="连接数优化"></a>连接数优化</h2><p>HTTP over TCP，需要三次握手才能进行传输，并且 TCP 还有慢启动的特性，所以减少连接数可以优化传输时延。</p>
-<h3 id="HTTP-1-x"><a href="#HTTP-1-x" class="headerlink" title="HTTP 1.x"></a>HTTP 1.x</h3><p>在 HTTP 1.0 版本就已经支持<strong>连接复用</strong>技术（在 HTTP 1.0 默认关闭，在 HTTP 1.1 默认开启），即与服务器维护一个或者多个持久连接。客户端维护一个 FIFO 队列，每一次得到完整的响应后发出下一个请求。这种方法的问题在于队头阻塞，如果第一个请求的响应非常慢那么会直接阻塞后续请求的发出。</p>
-<p>后续又<strong>提出 HTTP 管道复用</strong>技术，令 HTTP 服务器也维护一个 FIFO 队列，客户端一次性把所有的请求都发送给服务器，由服务端来安排返回顺序。由于 HTTP 管道需要多方共同支持，协调起来相当复杂，推广得并不算成功。</p>
-<h3 id="HTTP-2-0"><a href="#HTTP-2-0" class="headerlink" title="HTTP 2.0"></a>HTTP 2.0</h3><p>HTTP 2.0 中，<strong>帧（Frame）是传输的最小单位</strong>，每一个帧都<strong>附带一个 ID 用于标识这个帧属于哪个流</strong>，从而可以通过不同流重组出 HTTP 请求和响应，被<strong>称为 HTTP 2 多路复用技术</strong>。HTTP 与同一个服务器只维护<strong>一个连接</strong>。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/" class="post-title-link" itemprop="url">凤凰架构笔记 (3) 透明多级分流系统之缓存</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-06-07 15:58:30" itemprop="dateCreated datePublished" datetime="2023-06-07T15:58:30+08:00">2023-06-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="客户端缓存"><a href="#客户端缓存" class="headerlink" title="客户端缓存"></a>客户端缓存</h1><p>客户端缓存依赖于 HTTP 缓存机制，通过 HTTP Header 控制。</p>
-<h2 id="强制缓存"><a href="#强制缓存" class="headerlink" title="强制缓存"></a>强制缓存</h2><p>HTTP 强制缓存<strong>规定了一个过期时间</strong>，在这个时间点之前客户端可以不发出请求，直接使用本地缓存。</p>
-<p>根据约定，强制缓存在浏览器的地址输入、页面链接跳转、新开窗口、前进和后退中均可生效，但在用户主动<strong>刷新</strong>页面时应当自动<strong>失效</strong>。</p>
-<p>两类 HTTP Header 保证了强制缓存：</p>
-<ul>
-<li><strong>Expires：</strong>Expires 是 HTTP 1.0 提供的 Header，后面跟随一个截止时间用于定于缓存的有效时间。</li>
-</ul>
-<blockquote>
-<p>Expires 有设计缺陷：</p>
-<ul>
-<li>受限于客户端的本地时间。</li>
-<li>无法处理涉及客户端身份的私有资源。</li>
-<li>无法描述不缓存。</li>
-</ul>
-</blockquote>
-<ul>
-<li><strong>Cache-Control：</strong>Cache-Control 是 HTTP 1.1 种定义的 Header，如果 Cache-Control 和 Expires 同时存在，并且语义存在冲突，规定必须以 Cache-Control 为准。它有一系列参数：<ul>
-<li><strong>max-age 和 s-maxage：</strong>max-age 后面跟随一个以秒为单位的数字，表明相对于请求时间多少秒以内缓存是有效的。s-maxage 中的 s 为 Share，即允许被 CDN、代理等持有的缓存有效时间。</li>
-<li><strong>public 和 private：</strong>指明是否涉及到用户身份的私有资源，如果是 public，则可以被代理、CDN 等缓存，如果是 private，则只能由用户的客户端进行私有缓存。</li>
-<li><strong>no-cache 和 no-store：</strong>no-cache 指明该资源不应该被缓存，如果一个页面中引用了两张相同的图片，则会请求两次。no-store 指不能保存在本地，但是用一个页面中引用了两张相同的图片，只会请求一次。</li>
-<li><strong>no-transform：</strong>禁止资源被任何形式地修改。某些 CDN、透明代理支持自动 GZip 压缩图片或文本，以提升网络性能，而 no-transform 就禁止了这样的行为。</li>
-<li><strong>min-fresh 和 only-if-cached：</strong>这两个参数是仅用于客户端的请求 Header。min-fresh 后续跟随一个以秒为单位的数字，用于建议服务器能返回一个不少于该时间的缓存资源。only-if-cached 表示客户端要求不必给它发送资源的具体内容，此时客户端就仅能使用事先缓存的资源来进行响应，若缓存不能命中，就直接返回 503/Service Unavailable 错误。</li>
+</li>
+<li><p><strong>cloud-controller-manager：</strong>仅运行特定于云平台的控制器。</p>
+</li>
 </ul>
 </li>
 </ul>
-<h2 id="协商缓存"><a href="#协商缓存" class="headerlink" title="协商缓存"></a>协商缓存</h2><p><strong>强制缓存</strong>有一个缓存过期时间，<strong>没有一个检测变化的机制</strong>，如果缓存还没有过期即使内容发生变化，客户端也不会向服务器请求而是使用本地缓存。</p>
-<p><strong>协商缓存</strong>在一致性上有更好的表现，但是<strong>性能</strong>上会<strong>差一些</strong>，因为需要<strong>一次检测变化的开销</strong>。</p>
-<blockquote>
-<p>强制缓存和协商缓存是完全<strong>并行工作</strong>的，当强制缓存存在时，直接从强制缓存中返回资源，无须进行变动检查；而当强制缓存超过时效，或者被禁止（no-cache）时，协商缓存依然可以工作。</p>
-</blockquote>
-<p>协商缓存有两种变化检测机制，分别是根据资源的<strong>修改时间</strong>、以及根据资源<strong>唯一标识符</strong>进行检查。</p>
 <ul>
-<li><strong>Last-Modified 和 If-Modified-Since：</strong>服务器通过 Last-Modified 告诉客户端资源最后修改时间，客户端通过 If-Modified-Since 将这个时间回送给服务器。</li>
-<li><strong>Etag 和 If-None-Match：</strong>服务器通过 Etag 告诉客户端这个资源的唯一标识符，客户端通过 If-None-Match 将这个唯一标识符回送给服务器。</li>
+<li><p><strong>Node 组件：</strong>节点组件会在每个节点上运行，负责维护运行的 Pod 并提供 Kubernetes 运行环境。</p>
+<ul>
+<li><p><strong>kubelet：</strong>在每一个节点上运行，用于管理运行在这个节点上的 Pod。</p>
+</li>
+<li><p><strong>kube-proxy：</strong>是每一个节点上的网络代理，维护节点上的一些网络规则， 这些网络规则会允许从集群内部或外部的网络会话与 Pod 进行网络通信。</p>
+</li>
+<li><p><strong>容器运行时（Container Runtime）：</strong>负责运行容器的软件。</p>
+</li>
 </ul>
-<p>如果此时服务端发现资源<strong>没有变动</strong>（通过最后修改时间或者唯一标识符），就只要<strong>返回一个 304/Not Modified 的响应</strong>即可，无须附带消息体。如果发现<strong>有变动</strong>，则<strong>返回 200 并携带完整内容</strong>。</p>
+</li>
+</ul>
+<h2 id="组件间的分布式特性"><a href="#组件间的分布式特性" class="headerlink" title="组件间的分布式特性"></a>组件间的分布式特性</h2><p><strong>组件之间的通信：</strong>在 Kubernetes 组件之间，只能<strong>通过 API 服务器进行通信</strong>，组件之间<strong>不会</strong>直接通信。</p>
+<p><strong>多实例保证可用性：</strong>为了保证高可用性，控制平面上的组件都是可以<strong>多实例运行</strong>的。其中，etcd 和 API 服务器都是可以<strong>多实例并行工作</strong>的。但是，同类型的调度器和控制器管理器<strong>只有一个实例起作用</strong>，其他实例均在待命。</p>
+<p><strong>组件运行方式：</strong>控制平面组件和 kube-proxy 都是直接在系统上运行或者<strong>作为 Pod 运行</strong>。kubelet 直接在系统上运行，把其他组件作为 Pod 运行。为了使得控制平面组件作为 Pod 运行，kubelet 也被部署在 master 上。</p>
 <blockquote>
-<p>Last-Modified 只能精确到秒级，如果一秒之内发生了多次变化，则不能准确标注修改时间。</p>
+<p>控制平面上的所有组件作为 Pod，在 master 节点上运行（master 节点上部署了 kubelet）。</p>
 </blockquote>
-<p>HTTP Vary Header 在响应中，用于<strong>指定其他 HTTP 头部作为客户端缓存命中的依据</strong>，如下表示根据 MIME 类型和浏览器类型来缓存资源。</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Vary</span><span class="punctuation">: </span>Accept, User-Agent</span><br></pre></td></tr></table></figure>
+<h2 id="Kubernetes-如何使用-Etcd"><a href="#Kubernetes-如何使用-Etcd" class="headerlink" title="Kubernetes 如何使用 Etcd"></a>Kubernetes 如何使用 Etcd</h2><p>Etcd 是一个分布式、高可用的 kv 存储，唯一与 etcd 通信的就是 API 服务器，其他组件通过 API 服务器读写数据到 etcd 中，使用<strong>乐观锁</strong>机制进行<strong>并发</strong>写入控制。</p>
+<blockquote>
+<p><strong>Kubernetes API 服务器实现了乐观锁机制</strong>，所有资源都有一个 meta.resourceVersion 字段，当更新对象时，客户端返回这个值到 API 服务器，如果版本值与 etcd 不一致，则会拒绝更新。</p>
+</blockquote>
+<p>Kubernetes 将资源的完整 Json 形式都存储在 etcd 中，etcd 是层级存储结构，kubernetes 的所有资源数据都在 etcd 的 /registry 下。</p>
+<h2 id="了解-API-服务器"><a href="#了解-API-服务器" class="headerlink" title="了解 API 服务器"></a>了解 API 服务器</h2><p>API 服务器提供了 Restful API，用于对 Kubernetes 集群中的资源进行 CRUD 操作，并且将资源状态持久化到 etcd 中。</p>
+<h3 id="更改资源时-API-服务器做了什么"><a href="#更改资源时-API-服务器做了什么" class="headerlink" title="更改资源时 API 服务器做了什么"></a>更改资源时 API 服务器做了什么</h3><p>在 API 服务器收到一个 POST HTTP 请求后：</p>
+<ul>
+<li><strong>利用认证插件认证客户端。</strong>API 服务器轮询认证插件，直到有一个插件能够<strong>认证客户端身份</strong>，包括客户端的用户名、用户 ID、用户组。</li>
+<li><strong>通过授权插件授权客户端。</strong>授权插件根据用户名、用户 ID、用户组来决定是否<strong>授权</strong>客户端的操作，授权插件也有多个。</li>
+<li><strong>通过准入控制插件修改资源请求。</strong>如果尝试修改、新建、删除资源，需要经过准入控制插件的验证。准入控制插件会初始化资源定义中漏配的字段为默认值，甚至修改不在请求中的相关资源，同时也会因为某些原因拒绝一个请求。</li>
+<li><strong>持久化。</strong>之后会将资源状态的改变持久化到 etcd 中，然后给客户端一个响应。</li>
+</ul>
+<p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-9-%E4%BA%86%E8%A7%A3Kubernetes%E6%9C%BA%E7%90%86/image-20231003171103084.png" alt="image-20231003171103084"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/#more" rel="contents">
+              <a class="btn" href="/2023/10/03/Kubernetes%E5%AD%A6%E4%B9%A0-9-%E4%BA%86%E8%A7%A3Kubernetes%E6%9C%BA%E7%90%86/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -464,7 +293,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/26/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -478,7 +307,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/" class="post-title-link" itemprop="url">凤凰架构笔记 (2) 事务处理</a>
+            <a href="/2023/09/26/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/" class="post-title-link" itemprop="url">Istio学习笔记 (3) 可观测性</a>
         </h2>
 
         <div class="post-meta">
@@ -488,14 +317,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-06-05 21:14:28" itemprop="dateCreated datePublished" datetime="2023-06-05T21:14:28+08:00">2023-06-05</time>
+              <time title="创建时间：2023-09-26 20:14:05" itemprop="dateCreated datePublished" datetime="2023-09-26T20:14:05+08:00">2023-09-26</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -503,7 +332,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Istio学习笔记</span></a>
                 </span>
             </span>
 
@@ -518,64 +347,111 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><blockquote>
-<p>以下都是基本原理，请不要与 MySQL 挂钩！MySQL 的基本思想肯定是这样，但肯定不是完全照搬。</p>
+          <p><strong>可观测性：</strong>为服务网格内的所有通信生成详细的<strong>遥测数据</strong>。这种遥测技术提供了服务行为的可观测性，使开发者能够排除故障、维护和优化其应用。 更好的是，它对于服务来说是<strong>透明</strong>的，不会为开发带来负担。</p>
+<blockquote>
+<p>Istio 的遥测技术包括详细的<strong>指标</strong>、<strong>分布式跟踪</strong>和完整的访问<strong>日志</strong>。</p>
 </blockquote>
-<h2 id="原子性和持久性"><a href="#原子性和持久性" class="headerlink" title="原子性和持久性"></a>原子性和持久性</h2><p>按照事务提交时点为界，划分为 FORCE 和 STEAL 两类情况：</p>
+<h1 id="指标"><a href="#指标" class="headerlink" title="指标"></a>指标</h1><p>指标提供了一种以<strong>聚合</strong>的方式监控和理解行为的方法。</p>
+<p>为了<strong>监控服务行为</strong>，Istio 为服务网格中所有出入网格， 以及网格内部的服务流量都生成了指标。除了监控网格中服务的行为外，<strong>监控网格本身的行为也很重要</strong>。 Istio 组件可以导出自身内部行为的指标， 以提供对网格控制平面的功能和健康情况的洞察能力。</p>
+<h3 id="代理级别的指标"><a href="#代理级别的指标" class="headerlink" title="代理级别的指标"></a>代理级别的指标</h3><p>Istio 代理级别的指标从边车代理开始，每个代理为通过它的所有流量（入站和出站）生成一组丰富的指标。</p>
+<p>Istio 此级别的指标，<strong>就是 Envoy 生成的</strong>统计信息指标。</p>
+<h3 id="服务级别的指标"><a href="#服务级别的指标" class="headerlink" title="服务级别的指标"></a>服务级别的指标</h3><p>Istio 还提供了一组<strong>面向服务</strong>的指标。 这些指标涵盖了四个基本的服务监控需求：延迟、流量、错误和饱和情况。</p>
+<p>默认情况下，标准 Istio 指标会导出到 Promethus 中，使用 Grafana 作为仪表盘。 </p>
+<h3 id="控制平面指标"><a href="#控制平面指标" class="headerlink" title="控制平面指标"></a>控制平面指标</h3><p>Istio 控制平面还提供了一组自我监控指标，这些指标容许监控 Istio 自己的行为。</p>
+<h1 id="分布式追踪"><a href="#分布式追踪" class="headerlink" title="分布式追踪"></a>分布式追踪</h1><p>分布式追踪通过<strong>监控流经网格的单个请求</strong>，提供了一种监控和理解行为的方法。 追踪使网格的运维人员能够理解服务的<strong>依赖关系</strong>以及在服务网格中的<strong>延迟源</strong>。</p>
+<p>Istio 支持通过 Envoy 代理进行分布式追踪，支持多种追踪系统，包括 Zipkin、Jaeger、Datadog、LigitStep。</p>
+<p>运维人员控制生成追踪的采样率，这允许运维人员控制网格生成追踪数据的数量和速率。</p>
+<h1 id="访问日志"><a href="#访问日志" class="headerlink" title="访问日志"></a>访问日志</h1><p>访问日志提供了一种<strong>从单个工作负载实例的角度</strong>监控和理解行为的方法。</p>
+<p>Istio 以一组<strong>可配置</strong>的格式，生成访问日志。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/26/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E6%B5%81%E9%87%8F%E7%AE%A1%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/09/26/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E6%B5%81%E9%87%8F%E7%AE%A1%E7%90%86/" class="post-title-link" itemprop="url">Istio学习笔记 (2) 流量管理</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-26 15:37:25" itemprop="dateCreated datePublished" datetime="2023-09-26T15:37:25+08:00">2023-09-26</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Istio学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Istio 的流量管理提供了以下功能：</p>
 <ul>
-<li><strong>FORCE：</strong>指的是事务的实际写入发生在<strong>提交之后</strong>。当事务提交后，要求数据必须<strong>同时完成写入则称为 FORCE</strong>，如果<strong>不强制</strong>数据必须<strong>同时完成写入则称为 NO-FORCE</strong>。现实中绝大多数数据库采用的都是 NO-FORCE 策略，因为只要有了日志，变动数据随时可以持久化，从优化磁盘 I/O 性能考虑，没有必要强制数据写入立即进行。</li>
-<li><strong>STEAL：</strong>在事务提交前，允许数据<strong>提前写入则称为 STEAL</strong>，<strong>不允许则称为 NO-STEAL</strong>。从优化磁盘 I/O 性能考虑，允许数据提前写入，有利于利用空闲 I/O 资源，也有利于节省数据库缓存区的内存。</li>
+<li><strong>路由规则：</strong>Istio 提供流量路由规则，可以控制服务之间的流量和 API 调用。</li>
+<li><strong>简化服务级别属性的配置：</strong>提供熔断器、超时、重试机制，透明的为服务增加<strong>弹性</strong>。</li>
+<li><strong>可设置重要任务：</strong>可以进行 A/B 测试、canary 部署和基于百分比流量分割的分阶段部署。</li>
+<li><strong>开箱即用的故障恢复</strong>：使得应用更<strong>健壮</strong>地应对网络或者服务故障。</li>
 </ul>
-<p>在数据库中，因为写入磁盘这个操作不是原子操作，所以可能出现<strong>崩溃</strong>的情况。为了保证事务的原子性和持久性，通常通过<strong>日志</strong>（顺序追加，这是最高效的写入方式）的方式，分为两种方法：</p>
-<ul>
-<li><strong>Commit Logging：</strong>允许 NO-FORCE，但是不允许 STEAL。</li>
-<li><strong>Write-Ahead Logging：</strong>允许 NO-FORCE，也允许 STEAL。</li>
-</ul>
+<h1 id="虚拟服务和目标规则"><a href="#虚拟服务和目标规则" class="headerlink" title="虚拟服务和目标规则"></a>虚拟服务和目标规则</h1><p>虚拟服务（Virtual Service）和目标规则（Destination Rule）是 Istio 流量路由功能的<strong>核心构建模块</strong>。</p>
+<h2 id="虚拟服务"><a href="#虚拟服务" class="headerlink" title="虚拟服务"></a>虚拟服务</h2><p>VirtualService 旨在<strong>解耦</strong>客户端请求的地址与响应请求的目标工作负载。使用虚拟服务，可以为一个或者多个<strong>主机名（host）制定流量行为</strong>，可以使用<strong>路由规则</strong>，配置路由目标地址。</p>
 <blockquote>
-<p>通过日志实现事务的原子性和持久性是当今的主流方案，但并不是唯一的选择。除了日志外，还有一种称之为 Shadow Paging（影子分页）来实现，SqLite v3 就是这种机制。</p>
-<p>Shadow Paging 在数据写入磁盘时，不会直接修改原来的数据，而是将原来的数据复制一份副本，保留原数据只修改副本。事务成功提交后，最后一步是去修改数据的引用指针，将引用从原数据改为新复制出来修改后的副本（这个修改指针被认为是原子操作）。但是 Shadow Paging 并发能力不强，所以应用不多。</p>
-</blockquote>
-<h3 id="Commit-Logging"><a href="#Commit-Logging" class="headerlink" title="Commit Logging"></a>Commit Logging</h3><p><strong>Commit Logging 中只有一种日志，就是 redo 日志</strong>。对数据的操作都会记录在 redo 日志中，事务的<strong>提交</strong>就是在日志中<strong>写入</strong>代表提交成功的<strong>提交记录（Commit Record）</strong>。在数据库看到提交记录（Commit Record）后，才根据日志内容对数据进行真正的修改，<strong>修改完成</strong>后向日志中加入一条<strong>结束记录（End Record）</strong>表示事务已经成功完成持久化。</p>
-<p>一旦写入了 Commit Record，即使在写入磁盘之前崩溃了，重启后也能根据日志恢复，保证了持久性。如果在日志没有 Commit Record 时就发生了崩溃，则整个任务就是失败的，因为没有真正写入磁盘，所以就好像发生了回滚一样，保证了原子性。</p>
-<p>Commit Logging 的原理非常清晰，如 OceanBase 就是采用了这种方法。但是 Commit Logging 的一个<strong>缺陷</strong>就是：所有对数据的真实修改<strong>必须发生在提交之后</strong>，在提交之前即使磁盘 I/O 是空闲的也不允许写入数据，并且占用了大量的内存缓冲区。</p>
-<blockquote>
-<p>因为 Commit Logging 只有 redo log，所以不允许 STEAL，否则无法回滚（回滚需要 undo log）。</p>
-</blockquote>
-<h3 id="Write-Ahead-Logging"><a href="#Write-Ahead-Logging" class="headerlink" title="Write-Ahead Logging"></a>Write-Ahead Logging</h3><p>Write-Ahead Logging 是改进的方案，所谓 Write-Ahead（提前写入）指的就是在提交之前写入数据。<strong>Write-Ahead Logging 在 redo log 的基础上，引入了 undo log 用于回滚</strong>。当变动数据写入磁盘前，必须先记录 Undo Log，注明修改了哪个位置的数据、从什么值改成什么值等等。以便在事务回滚或者崩溃恢复时根据 undo log 对提前写入的数据变动进行擦除。</p>
-<p>在崩溃恢复时，根据 redo log 对没有写入磁盘但是已经提交的数据进行持久化，根据 undo log 对没有提交但是已经写入磁盘的数据进行回滚。</p>
-<blockquote>
-<p><strong>redo log 保证事务的持久性，而 undo log 保证事务的原子性。</strong></p>
-</blockquote>
-<h2 id="隔离性"><a href="#隔离性" class="headerlink" title="隔离性"></a>隔离性</h2><h3 id="锁"><a href="#锁" class="headerlink" title="锁"></a>锁</h3><p>实现隔离性最直观的方式，就是加锁。现代数据库均提供以下三种锁：</p>
-<ul>
-<li><strong>写锁：</strong>对一行数据加写锁，写锁与其他锁都互斥。</li>
-<li><strong>读锁：</strong>对一行数据加读锁，读锁与读锁不互斥，与写锁互斥。</li>
-<li><strong>范围锁：</strong>对一个范围加锁。</li>
-</ul>
-<blockquote>
-<p>注意，范围锁<strong>不等于</strong>对多行数据加锁，因为数据与数据之间有间隙（这就是为什么 MySQL 中有间隙锁）。</p>
-</blockquote>
-<p>隔离性用隔离级别来体现，有以下几种隔离级别（这几种隔离级别都解决了脏读问题）：</p>
-<ul>
-<li><strong>可串行化（Serializable）：</strong>可串行化是最高的隔离级别，也是并发程度最低的隔离级别。可串行化中相当于<strong>全局加锁</strong>，不存在幻读、不可重复读、脏读问题。</li>
-<li><strong>可重复读（Repeatable Read）：</strong>可重复读中，对于事务中<strong>涉及到的数据</strong>会加上<strong>读锁和写锁</strong>，但<strong>不会加范围锁</strong>。不加范围锁导致的问题，就是会出现<strong>幻读</strong>问题。</li>
-<li><strong>读已提交（Read Commited）：</strong>在读已提交中，<strong>写锁会持续到事务结束</strong>，<strong>读锁</strong>在查询完成后会<strong>马上释放</strong>。读锁在查询结束后马上释放的带来的问题，就是会导致<strong>不可重复读</strong>。</li>
-<li><strong>读未提交（Read Uncommitted）：</strong>读未提交中，<strong>写锁会持续到事务结束</strong>，但是完全<strong>不会加读锁</strong>。不加读锁带来的问题就是<strong>脏读</strong>，可能会读取到其他事务还未提交的数据。</li>
-</ul>
-<blockquote>
-<p>在 MySQL 中的默认隔离级别未可重复读，但它在<strong>只读</strong>事务中可以<strong>完全避免幻读问题</strong>。</p>
-</blockquote>
-<h3 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h3><p>MVCC 多版本并发控制是一种<strong>读优化</strong>策略，MVCC 的基本思路是对数据库的任何修改都不会直接覆盖之前的数据，而是产生一个新版副本与老版本共存，以此达到读取时可以完全不加锁的目的。</p>
-<ul>
-<li>如果隔离级别是<strong>可重复读</strong>：读取小于等于当前事务 ID 的最大版本。</li>
-<li>如果隔离级别是<strong>读已提交</strong>：读取最新版本。</li>
-</ul>
-<blockquote>
-<p>读未提交直接修改原始数据即可，不需要版本。</p>
+<p>如何理解客户的请求地址与实际响应的目标工作负载的<strong>解耦</strong>？</p>
+<p> 客户端将虚拟服务视为一个<strong>单一实体</strong>，将请求发送至虚拟服务（这个过程中，客户的并不知道具体如何进行路由，<strong>它只知道一个虚拟服务的地址</strong>）， 然后 Envoy 根据虚拟服务规则把流量路由到不同的版本。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/#more" rel="contents">
+              <a class="btn" href="/2023/09/26/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E6%B5%81%E9%87%8F%E7%AE%A1%E7%90%86/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -599,7 +475,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -613,7 +489,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/" class="post-title-link" itemprop="url">Kubernetes学习 (8) 卷 配置</a>
+            <a href="/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/" class="post-title-link" itemprop="url">Istio学习笔记 (1) 理解Istio</a>
         </h2>
 
         <div class="post-meta">
@@ -623,14 +499,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-30 21:53:55" itemprop="dateCreated datePublished" datetime="2023-05-30T21:53:55+08:00">2023-05-30</time>
+              <time title="创建时间：2023-09-25 19:53:06" itemprop="dateCreated datePublished" datetime="2023-09-25T19:53:06+08:00">2023-09-25</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -638,7 +514,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                  <a href="/categories/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Istio学习笔记</span></a>
                 </span>
             </span>
 
@@ -653,117 +529,59 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="卷"><a href="#卷" class="headerlink" title="卷"></a>卷</h1><p>Kubernetes 中卷是 Pod 的组成部分，因此卷可以在 Pod 中定义。Kubernetes 卷不是单独的对象，也不能单独创建或者删除。</p>
-<p>卷有很多类型可以选择，包括 emptyDir（临时卷，生命周期与 Pod 相同）、hostPath（指向节点文件系统上的文件或者目录）、持久卷等。</p>
-<h2 id="Pod-与底层存储技术解耦"><a href="#Pod-与底层存储技术解耦" class="headerlink" title="Pod 与底层存储技术解耦"></a>Pod 与底层存储技术解耦</h2><p><strong>但是！！</strong>在 Kubernetes 上部署应用的开发人员<strong>不需要知道</strong>底层使用的是哪种存储技术，同理他们也<strong>不需要了解</strong>应该使用哪些类型的物理服务器来运行 Pod。所以，需要令具体的类型的存储卷与开发人员<strong>解耦</strong>，当开发入员需要一定数量的持久化存储来进行应用时，可以向 Kubernetes 请求然后 Kubernetes 再进行分配。</p>
-<p>因此，Kubernetes 引入了两种新的资源，<strong>持久卷（Persistent Volume，PV）</strong>和<strong>持久卷声明（Persistent Volume Claim）</strong>。开发人员无需向 Pod 中添加特定技术的卷，而是由集群管理员设置底层存储，<strong>创建持久卷并注册</strong>。开发人员<strong>创建持久卷声明</strong>，指定需要的容量和访问模式，Kubernetes 会<strong>自动</strong>的<strong>匹配到持久卷并绑定到 PVC 中</strong>。</p>
+          <h1 id="Istio-介绍"><a href="#Istio-介绍" class="headerlink" title="Istio 介绍"></a>Istio 介绍</h1><h2 id="服务网格"><a href="#服务网格" class="headerlink" title="服务网格"></a>服务网格</h2><p>服务网格（Service mesh），作为<strong>服务间通信的基础设施层</strong>。与应用部署一起，但对应用<strong>透明</strong>。应用作为服务的发起方，只需要用最简单的方式将请求<strong>发送给本地的服务网格代理</strong>，然后网格代理会进行后续的操作，如服务发现，负载均衡，最后将请求转发给目标服务。</p>
+<p><strong>服务网格目的是解决系统架构微服务化后的服务间通信和治理问题。</strong>服务网格由 Sidecar 节点组成，实现了数据面和控制面的解耦。服务网格的功能旨在实现以下方面：</p>
+<ul>
+<li><strong>流量控制：</strong>包括两个方面：<ul>
+<li>流量管理：服务发现、服务注册、负载均衡、路由等。</li>
+<li>弹性：超时、重试、熔断等。</li>
+</ul>
+</li>
+<li><strong>可观测性：</strong>指标、分布式追踪、日志。</li>
+<li><strong>安全性：</strong>服务间访问控制、加密通信。</li>
+</ul>
+<h2 id="Istio-是什么"><a href="#Istio-是什么" class="headerlink" title="Istio 是什么"></a>Istio 是什么</h2><p>Istio 是由谷歌、IBM 和 Lyft 创建的服务网格开源实现，以透明的方式向服务架构中添加流量控制、可观测性、安全性。Istio 由一个控制平面和基于 Envoy 的数据平面组成。</p>
 <blockquote>
-<p>可以声明访问模式、回收策略等。</p>
+<p><strong>服务网格与 SOA 中企业服务总线（ESB）之间的关系：</strong></p>
+<p>相同点：在架构中，不论是服务网格还是 ESB，对于应用来说都是透明的，应用程序不应该感知到。并且，ESB 与服务网格之间功能重合，如都提供重试、超时、熔断、服务发现、负载均衡。</p>
+<p>不同点：</p>
+<ul>
+<li>ESB 非常集中化的部署，而服务网格是分布式的部署，sidecar 与应用程序一起被分布式的部署在集群中。</li>
+<li>ESB 非常复杂，提供了业务转换、服务编排等不属于服务网格的职责，也就是 ESB 基于复杂的专有供应商软件。</li>
+</ul>
+<p><strong>服务网格和 API 网关之间的关系：</strong></p>
+<p>相同点：都具有服务发现、可见性、安全、流量管理等特性（二者之间的用途有重叠）。</p>
+<p>不同点：</p>
+<ul>
+<li>API Gateway 主要的作用是暴露 API 给外部，API 通过调用下游的组合或者单个微服务的方式，来提供业务逻辑。</li>
+<li>而服务网格仅仅是服务之间的基础设施，不了解应用中的业务逻辑。</li>
+</ul>
+<p><strong>所以，可以将 API Gateway 和 Service Mesh 一起部署</strong>。API Gateway 负责应用逻辑，Service Mesh 负责服务发现、可见性等服务基础设施（可能会影响性能，多了本地连接的时间，但是可以通过水平扩展来弥补）。</p>
 </blockquote>
-<h2 id="动态声明持久卷"><a href="#动态声明持久卷" class="headerlink" title="动态声明持久卷"></a>动态声明持久卷</h2><p>通过 PV 和 PVC 的配合，开发人员已经无需关心底层的存储是怎样实现的，但是还需要管理员来配置和创建持久卷。</p>
-<p>Kubernetes 可以<strong>通过 StorageClass 来动态的执行此过程</strong>，管理员只需要定义 StorageClass 对象，系统在每次通过持久卷声明请求时创建一个新的持久卷。用户也可以再 PVC 中引用 StorageClass，并且可以指定大小和访问模式，StorageClass 对象会根据 PVC 中的要求动态的创建持久化卷并与相应的 Pod 绑定。</p>
-<h1 id="配置"><a href="#配置" class="headerlink" title="配置"></a>配置</h1><p>Kubernetes 中的应用程序需要读取配置信息，ConfigMap 用于读取一般配置，而 Secret 用于读取密码等敏感信息。</p>
-<h2 id="ConfigMap"><a href="#ConfigMap" class="headerlink" title="ConfigMap"></a>ConfigMap</h2><p>ConfigMap 实际上就是<strong>键值对</strong>，<strong>值</strong>的内容可以是<strong>字面量</strong>，也可以是完整的<strong>配置文件</strong>。应用程序无法直接读取 ConfigMap，甚至不知道其是否存在，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
+<p><strong>数据平面</strong>通过<strong>代理（Envoy）</strong>拦截微服务架构集群中的所有网络流量，<strong>与每个服务一起部署</strong>，提供流量管理、可观测性等功能。</p>
+<p><strong>控制平面</strong>提供 API 供运维人员配置数据平面，<strong>动态</strong>的对数据平面进行配置。</p>
+<h2 id="基本特性"><a href="#基本特性" class="headerlink" title="基本特性"></a>基本特性</h2><p>Istio 透明的为微服务之间提供了三个特性，流量管理、可观测性、安全性。</p>
+<h3 id="流量管理"><a href="#流量管理" class="headerlink" title="流量管理"></a>流量管理</h3><ul>
+<li><strong>流量管理：</strong><ul>
+<li><strong>路由规则：</strong>Istio 提供流量路由规则，可以控制服务之间的流量和 API 调用。</li>
+<li><strong>简化服务级别属性的配置：</strong>提供熔断器、超时、重试机制，透明的为服务增加<strong>弹性</strong>。</li>
+<li><strong>可设置重要任务：</strong>可以进行 A/B 测试、canary 部署和基于百分比流量分割的分阶段部署。</li>
+<li><strong>开箱即用的故障恢复</strong>：使得应用更<strong>健壮</strong>地应对网络或者服务故障。</li>
+</ul>
+</li>
+</ul>
+<h3 id="可观测性"><a href="#可观测性" class="headerlink" title="可观测性"></a>可观测性</h3><ul>
+<li><strong>可观测性：</strong>为服务网格内的所有通信生成详细的<strong>遥测数据</strong>。这种遥测技术提供了服务行为的可观测性，使开发者能够排除故障、维护和优化其应用。 更好的是，它对于服务来说是<strong>透明</strong>的，不会为开发带来负担。</li>
+</ul>
 <blockquote>
-<p>如果 Pod 引用了不存在的 ConifgMap，则会无法启动。</p>
+<p>Istio 的遥测技术包括详细的<strong>指标</strong>、<strong>分布式跟踪</strong>和完整的访问<strong>日志</strong>。</p>
 </blockquote>
-<p>ConfigMap 相比于直接在镜像中打入环境变量更加灵活，因为 ConfigMap 可以随时更新配置信息。</p>
-<h2 id="Secret"><a href="#Secret" class="headerlink" title="Secret"></a>Secret</h2><p>Secret 也是键值对，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
-<blockquote>
-<p>Secret 只会存储在节点的内存中，永远不会写入物理内存。</p>
-</blockquote>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/" class="post-title-link" itemprop="url">Kubernetes学习 (7) 服务 通信</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-05-30 16:16:15" itemprop="dateCreated datePublished" datetime="2023-05-30T16:16:15+08:00">2023-05-30</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="服务"><a href="#服务" class="headerlink" title="服务"></a>服务</h1><p>Kubernetes 中<strong>服务</strong>是一种为<strong>一组功能相同</strong>的 Pod 提供<strong>单一不变的入口点</strong>的资源。当服务存在时，入口地址不会改变。 客户端通过 服务的入口地址建立连接，<strong>这些连接会被路由到提供该服务的任意一个 pod 上</strong>。 通过这种方式， 客户端不需要知道每个单独的提供服务的 pod 的地址， 这样这些 pod 就可以在集群中随时被创建或移除。</p>
-<h2 id="创建服务"><a href="#创建服务" class="headerlink" title="创建服务"></a>创建服务</h2><p>服务使用<strong>标签</strong>来选择哪些 Pod 属于服务，哪些标签不属于服务。spec. ports.port 声明服务对外暴露的端口，而 spec.ports.targetPort 声明的是将消息转发给 Pod 的端口。</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">kubia</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">ports:</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">https</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">443</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8443</span></span><br><span class="line">	<span class="attr">selector:</span></span><br><span class="line">		<span class="attr">app:</span> <span class="string">kubia</span></span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>如果希望<strong>特定客户端</strong>产生的所有请求每次都<strong>指向同一个 Pod</strong>，则可以设置服务的 spec.sessionAffinity 属性为 ClientIP。sessionAffinity 属性仅支持两个值，none（默认）和 ClientIP。</p>
-</blockquote>
-<h2 id="DNS-服务发现"><a href="#DNS-服务发现" class="headerlink" title="DNS 服务发现"></a>DNS 服务发现</h2><p>在集群内部的客户端如何知道访问服务的地址，这就需要<strong>服务发现</strong>了。在 Kubernetes 中<strong>提供了 DNS 服务器</strong>，Pod 可以使用内部的 DNS 服务器作为服务发现。客户端可以通过<strong>全限定域名（FQDN）</strong>来访问。</p>
-<p>在创建一个服务时，Kubernetes 会<strong>创建一个相应的 DNS 条目</strong>，条目的内容为 <code>&lt;服务名称&gt;.&lt;名字空间名称&gt;.svc.cluster.local</code>，其中 svc.cluster.local 是在所有<strong>集群本地服务</strong>名称中使用的<strong>可配置</strong>集群域后缀。</p>
-<p>如果客户端 Pod 和目标 Pod 在同一个命名空间下，则可以省略 svc.cluster.local 后缀，甚至是命名空间名字。</p>
-<h1 id="Endpoint"><a href="#Endpoint" class="headerlink" title="Endpoint"></a>Endpoint</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>服务 和 Pod 不是直接相连的，而是通过 Endpoint 资源进行连接。Endpoint 就是一个记录 IP 和 端口的列表，用于指示服务的转发地址。</p>
-<p>尽管在 服务中定义了 Pod 选择器，但在重定向传入连接时不会直接使用它。<strong>选择器用于构建 Pod 的 IP 端口列表</strong>，然后存储在 Endpoint 资源中。当客户端连接服务时，会<strong>从 Endpoint 资源中选择一个地址</strong>，将客户端的请求重定向到这个地址上。</p>
-<h2 id="手动配置-Endpoint"><a href="#手动配置-Endpoint" class="headerlink" title="手动配置 Endpoint"></a>手动配置 Endpoint</h2><p>当服务和 Endpoint 解耦后，可以<strong>分别手动配置</strong>它们。如果创建了不包含 Pod 选择器的服务，那么 Kubernetes 就不会创建 Endpoint 资源。所以在<strong>创建服务时不指定 Pod 选择器</strong>，然后手动的<strong>创建 Endpoint 资源</strong>，实现服务的<strong>任意重定向</strong>。</p>
-<blockquote>
-<p>Endpoints 资源与服务需要具有相同的名称，这样才能使二者进行绑定。</p>
-</blockquote>
+<h3 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h3><ul>
+<li><strong>安全性：</strong>包括全面的安全解决方案，Istio 提供了强大的身份、强大的策略、透明的 TLS 加密，以及验证、授权和审计（AAA）工具来保护服务和数据。</li>
+</ul>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/#more" rel="contents">
+              <a class="btn" href="/2023/09/25/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E7%90%86%E8%A7%A3Istio/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -787,7 +605,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/21/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -801,7 +619,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/" class="post-title-link" itemprop="url">凤凰架构笔记 (1) 架构的演进</a>
+            <a href="/2023/09/21/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (4) Envoy</a>
         </h2>
 
         <div class="post-meta">
@@ -811,7 +629,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-30 10:33:44" itemprop="dateCreated datePublished" datetime="2023-05-30T10:33:44+08:00">2023-05-30</time>
+              <time title="创建时间：2023-09-21 21:25:00" itemprop="dateCreated datePublished" datetime="2023-09-21T21:25:00+08:00">2023-09-21</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -826,7 +644,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
                 </span>
             </span>
 
@@ -841,53 +659,133 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="单体系统"><a href="#单体系统" class="headerlink" title="单体系统"></a>单体系统</h1><blockquote>
-<p>需要摆正这样一个观念，<strong>单体系统并不是反派角色</strong>。</p>
-</blockquote>
-<p>单体系统适用于小型系统，有自己的优缺点，并不是一无是处。</p>
-<p><strong>优点：</strong></p>
+          <h1 id="Envoy-介绍"><a href="#Envoy-介绍" class="headerlink" title="Envoy 介绍"></a>Envoy 介绍</h1><p>Envoy 是由 C++ 实现的，为面向大型现代服务架构而<strong>设计的 L7 代理和通信总线</strong>。Envoy 是一个<strong>独立的进程</strong>，伴随每个应用服务运行（<strong>service mesh</strong>），所有的 Envoy 形成了一个透明的网络，每一个应用与 localhost 收发消息，而对网络拓扑结构无感知。这样做的好处：</p>
 <ul>
-<li>对<strong>小型系统</strong>而言，单体系统不仅易于开发、易于测试、易于部署，且由于系统中各个功能、模块、方法的调用过程都是进程内调用，不会发生进程间通信。</li>
+<li>适用于任何编程语言。Envoy 可以在 Java、Go、Python 等应用程序之间形成一个网络，Envoy 弥合了它们之间的差异。</li>
+<li>Envoy 可以透明地在整个基础架构上快速部署和升级。</li>
 </ul>
-<p><strong>缺点：主要是缺乏隔离性</strong>，全部的代码全部在一个进程内运行，这样带来的坏处有两个。</p>
+<p>Envoy 在云原生中可以扮演<strong>边车</strong>的角色，所有到服务的流量都通过 Envoy 代理。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200503110532.png" alt="img"></p>
+<h2 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h2><p>Envoy 有以下功能/特点：</p>
 <ul>
-<li><strong>无法隔离错误</strong>，如果某个模块出现了错误，遇到了如内存泄漏等 Bug，那么整个程序都会受到影响。</li>
-<li><strong>无法做到模块级别的单独停止、升级</strong>，因为不可能停止一部分的进程、重启一部分的经常。</li>
+<li><strong>L3/L4/L7 架构：</strong>传统的网络代理要么在 HTTP 层工作，要么在 TCP 层工作。在 HTTP 层会读取整个 HTTP 请求数据，对请求解析并查看 HTTP 头部和 URL 以决定做什么；同时也需要读取后段的整个响应数据，并将其发送给客户端。这种方法非常复杂和缓慢，解决方法就是下沉到 TCP 中去操作。在 TCP 层只读取和写入字节，并使用 IP + 端口号来决定如何处理，但是无法根据不同的 URL 代理到不同的后端。Envoy 同时支持在 3/4 和 7 层工作，以此应对各自层级的限制。</li>
+<li><strong>顶级 HTTP/2 支持：</strong>Envoy 将 HTTP/2 视为一等公民，支持 HTTP2 和 HTTP/1.1 之间的转换。</li>
+<li><strong>服务发现和动态配置：</strong>Envoy 可以通过 API 来实现其控制平面（典型的，Istio 就是 Envoy 的一个控制面），控制平面可以实现服务发现并通过 API 接口动态更新 Envoy（数据面）的配置。不仅如此，控制平面还可以通过 API 将配置进行分层，然后逐层更新。</li>
+<li><strong>gRPC 支持：</strong>Envoy 支持 HTTP/2，同时也支持 gRPC。</li>
+<li><strong>特殊协议支持：</strong>Envoy 支持对特殊协议在 L7 进行嗅探，包括 MongoDB、DynamoDB 等。</li>
+<li><strong>可观测性：</strong>Envoy 使网络透明，可以生成许多流量方面的统计数据，这是其它代理软件很难取代的地方，可以集成 Promethus 等监控方案、分布式追踪系统。</li>
 </ul>
+<h1 id="Envoy-架构"><a href="#Envoy-架构" class="headerlink" title="Envoy 架构"></a>Envoy 架构</h1><p>Envoy 使用<strong>单进程-多线程</strong>架构。一个主线处理与协调任务，多个 worker 线程负责监听、过滤、转发。 当一个连接被监听器接受，连接的剩余生命周期将<strong>绑定</strong>在当前 worker 线程，这<strong>使得 Envoy 近似于非阻塞</strong>。这使得 Envoy 大部分连接近似单线程运行（高度并行）， 只有少量的复杂代码用于实现 worker 线程之间的协调。</p>
 <blockquote>
-<p>单体系统架构潜在的要求整个系统都是可靠的，但是我们在软件架构的演进中应该有这样的观念：<strong>从尽量追求不出错，到正视出错是必然</strong>。</p>
-<p>架构如凤凰一样不死，反复涅槃重生，这就是软件架构所追求的目标。</p>
+<p>所以，<strong>worker 线程数量应该配置为物理机的线程数量</strong>。</p>
+<p>Envoy 同 Nginx 一样，也采用了多进程 + 非阻塞 + 异步 IO。</p>
 </blockquote>
-<h1 id="SOA-时代"><a href="#SOA-时代" class="headerlink" title="SOA 时代"></a>SOA 时代</h1><p>SOA（Service Oriented Architecture）面向服务的架构，就是将一个大型的单机系统进行拆分，拆分成独立的子系统。看起来 SOA 与微服务的概念差不多，实际上有很大的差异。</p>
-<blockquote>
-<p><strong>微服务架构 vs SOA</strong></p>
-<p>SOA（Service Oriented Architecture）指的是面向服务的架构，SOA 也是进行了服务划分，它与微服务架构看似相同，但是深入研究就会发现二者的巨大差异。</p>
+<p>默认情况下，worker 线程之间没有协调。这表示所有 worker 线程都独立的尝试从每一个监听器接受连接， 然后依赖内核在线程之间执行适当的均衡。对于大多数工作负载，内核都可以很好的均衡传入的连接。但是， 对于某些工作负载，特别是那些只有少量但非常长寿命的连接的工作负载（例如 gRPC 流）， 则可能希望让 Envoy 强制平衡工作线程之间的连接。为了支持这种行为， Envoy 允许为每个监听器配置不同类型的连接均衡。</p>
+<p>下图为 Envoy 的架构图：</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200504160047.png" alt="img"></p>
+<p>Envoy 有四个关键组件</p>
 <ul>
-<li><strong>服务间的通信：</strong>SOA 常吃采用重量级的技术，如 ESB（Enterprise Service Bus）、SOAP 和 WebService。而微服务架构倾向于使用轻量级的技术，如 REST 或者 gRPC 这类轻量级的协议。</li>
-<li><strong>数据管理：</strong>SOA 一般有一个全局的数据库。而微服务与之相反，每一个服务都有一个自己的私有数据模型。</li>
-<li><strong>服务规模：</strong>SOA 应用通常包含若干个大型的服务。而微服务架构则常常由属实个甚至上百个更小的服务组成。</li>
+<li><strong>监听器（Listener）：</strong> 监听器定义了 Envoy 如何<strong>处理连接请求</strong>，一旦建立连接之后，就会将该请求传递给一组过滤器（filter）进行处理。</li>
+<li><strong>过滤器（Filter）：</strong> 过滤器是<strong>处理入站和出站流量</strong>的链式结构的一部分。在过滤器链上可以集成很多特定功能的过滤器，例如，通过集成 GZip 过滤器可以在数据发送到客户端之前压缩数据。</li>
+<li><strong>路由（Router）：</strong> 路由用来将流量转发到具体的目标实例，目标实例在 Envoy 中被定义为集群。</li>
+<li><strong>集群（Cluster）：</strong> 集群定义了流量的<strong>目标端点</strong>，同时还包括一些其他可选配置，如负载均衡策略等。</li>
 </ul>
+<h2 id="Filter"><a href="#Filter" class="headerlink" title="Filter"></a>Filter</h2><p>Envoy 运行着一系列 Listener，Listener 的核心就是过滤器链（FilterChain）。过滤器链中的过滤器分为两个类别：</p>
+<ul>
+<li><strong>网络过滤器（L3/L4 层）：</strong>是 Envoy 网络连接处理的核心，处理的是原始字节，分为 Read、Write 和 Read/Write 三类。</li>
+<li><strong>L7 过滤器：</strong>在 L3/L4 之上的过滤器，主要支持 HTTP 和 Thrift 协议。<ul>
+<li><strong>HTTP 过滤器：</strong>由 HTTP connection manager 管理，专门处理 HTTP1/HTTP2/gRPC 协议，将原始字节转换成 HTTP 格式，从而对 HTTP 协议进行精准控制。</li>
+<li><strong>Thrift Proxy：</strong>用于支持 Thrift 协议。</li>
+</ul>
+</li>
+</ul>
+<p>除了过滤器链之外，还有一种过滤器叫<strong>监听器过滤器</strong>（Listener Filters），它会在过滤器链之前执行，用于操纵连接的<strong>元数据</strong>。这样做的目的是，无需更改 Envoy 的核心代码就可以方便地集成更多功能。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-4-Envoy/20200504224710.png" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-3-OCI%E4%B8%8EBuildpack/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-3-OCI%E4%B8%8EBuildpack/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (3) OCI与Buildpack</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-20 20:28:20" itemprop="dateCreated datePublished" datetime="2023-09-20T20:28:20+08:00">2023-09-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本文内容不谈 dubbo-kubernetes，因为 dubbo-kubernetes 在构建镜像时可以使用 Buildpack 来构建 OCI 镜像，所以本文来谈一谈 Buildpack。</p>
+<blockquote>
+<p>dubboctl 在 build 镜像时可以选择 buildpack 或者 dockerfile 的方式。</p>
 </blockquote>
-<h1 id="微服务时代"><a href="#微服务时代" class="headerlink" title="微服务时代"></a>微服务时代</h1><p><strong>微服务</strong>是一种通过<strong>多个小型服务组合</strong>来构建单个应用的架构风格，这些服务<strong>围绕业务能力</strong>而非特定的技术标准来构建。各个服务可以采用<strong>不同的编程语言</strong>，<strong>不同的数据存储技术</strong>，运行在<strong>不同的进程</strong>之中。服务采取<strong>轻量级的通信机制</strong>和<strong>自动化的部署机制</strong>实现通信与运维。</p>
-<p>微服务的九个核心特征如下：</p>
-<ul>
-<li><strong>围绕业务能力构建。</strong>因为<strong>团队之间的沟通成本是巨大</strong>的，一个微服务应该是一个可以自治的单体，所以<strong>一种业务就应该被限定在一种服务内部</strong>。这就是为什么微服务中的服务划分非常重要，而微服务的划分通常与 DDD 一致。即使刚开始的架构并不是按照业务能力划分的，随着时间的发展，最终的架构也会向着这种形式演化。</li>
-<li><strong>分散治理。</strong>一个微服务应该是一个<strong>可以自治的单体</strong>，而不会依赖于其他服务。也就是说，服务之间可以是<strong>异构的</strong>、可以是<strong>跨语言的</strong>。</li>
-<li><strong>通过服务来实现独立自治的组件。</strong>通过服务，而不是通过类库（Library）来构建组件。因为<strong>服务是进程外组件</strong>，通过<strong>远程调用</strong>来提供功能，尽管进程外调用比进程内调用复杂且效率低，但是这是微服务的必然代价。</li>
-<li><strong>产品化思维。</strong>服务看作是一种产品，开发人员<strong>负责整个生命周期</strong>（开发、测试、运维、部署等等）。</li>
-<li><strong>数据去中心化。</strong>每一种服务独立的<strong>维护自己的数据库</strong>，而不是一个中心化的数据库。中心化的数据库的好处就是数据的一致性可以保证，缺点则是可能会让多个服务使用同一个数据表（服务无法独立的修改数据表 schema），使得服务之间丧失独立性。微服务去中心化的存储选择了维护独立性，而数据之间的一致性可以通过分布式事务保证。</li>
-<li><strong>强终端弱管道。</strong>管道指进程间通信机制，<strong>通信机制采用最基本的即可</strong>，特殊的能力需求由服务（终端）完成。</li>
-<li><strong>容错性设计</strong>。微服务设计中，<strong>必须有容错性设计</strong>，在必要的时候进行隔离。所以熔断器在实际生产环境中是必不可少的组件，如果没有这种容错性设计，则系统很容易就因为一两个服务的崩溃所带来的雪崩效应淹没。</li>
-<li><strong>演进式设计。</strong>演进式设计<strong>允许服务被升级、淘汰</strong>。如果系统中出现了无法升级、淘汰的服务，这是一种设计上的脆弱表现。</li>
-<li><strong>基础设施自动化。</strong>微服务下运维的对象比起单体架构要有数量级的增长，基础设施自动化减少了构建、发布、运维工作的复杂性。</li>
-</ul>
+<h1 id="OCI"><a href="#OCI" class="headerlink" title="OCI"></a>OCI</h1><p>随着 Kubernetes 成为了重启编排的事实标准，为了确保所有的容器运行时都都运行任何构建工具生成的镜像（而不仅仅是 Docker），OCI（Open Container Initiative）开放容器协议被提出，OCI 制定了围绕<strong>容器镜像格式（image-spec）</strong>和运行时（runtime-spec）的行业标准。<strong>给定一个 OCI 镜像</strong>，任何实现 OCI 运行时标准的容器运行时都可以<strong>使用</strong>该镜像运行容器。</p>
 <blockquote>
-<p>与 SOA 这种强约束和规定的架构风格不同，微服务是一种<strong>自由</strong>的风格。</p>
-<p>微服务中存在服务发现、进程间调用、负载均衡、事务处理等等问题，但是不会约束具体用什么方式去实现，微服务倡导以<strong>实践标准</strong>代替规范标准。</p>
+<p><strong>Docker 镜像和 OCI 镜像有什么区别？</strong></p>
+<p>答案是：几乎没有区别。有一部分旧的 Docker 镜像在 OCI 规范之前就已经存在了，它们被成为 Docker v1 规范，与 Docker v2 规范是不兼容的。而 Docker v2 规范捐给了 OCI，构成了 OCI 规范的基础。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/#more" rel="contents">
+              <a class="btn" href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-3-OCI%E4%B8%8EBuildpack/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -911,7 +809,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -925,7 +823,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/" class="post-title-link" itemprop="url">微服务架构设计模式 (9) 安全性 可配置性 可观测性</a>
+            <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (2) dubboctl客户端Client与Repository Runtime Template</a>
         </h2>
 
         <div class="post-meta">
@@ -935,7 +833,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-25 10:51:20" itemprop="dateCreated datePublished" datetime="2023-05-25T10:51:20+08:00">2023-05-25</time>
+              <time title="创建时间：2023-09-20 17:25:34" itemprop="dateCreated datePublished" datetime="2023-09-20T17:25:34+08:00">2023-09-20</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -950,7 +848,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
                 </span>
             </span>
 
@@ -965,29 +863,146 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h1><p>在安全性中，主要讨论用户身份认证的问题。目前有两种方法实现身份认证，Session 和 JWT。</p>
-<h2 id="Session-的缺陷"><a href="#Session-的缺陷" class="headerlink" title="Session 的缺陷"></a>Session 的缺陷</h2><p>在单体应用程序中，可以使用 Cookie+Session 来进行身份认证，Session 信息是由<strong>服务器维护</strong>的。但是在微服务架构中，由于会水平扩展所以由服务本地维护 Session 信息是不现实的，有两种解决方法：</p>
+          <h1 id="Client"><a href="#Client" class="headerlink" title="Client"></a>Client</h1><p>dubbo-kubernetes 的命令行工具 dubboctl 用于构建项目、打包成镜像、推送至 registry、部署 kubernetes 等。</p>
+<p>而 dubboctl 的<strong>核心在于 Client，表示 dubboctl 客户端，执行 dubboctl 的各种操作</strong>。Client 定义在 app/dubboctl/internal/dubbo/client.go 文件中，其结构如下。其中，Client 包含了 builder、pusher、deployer 等组件，用于打包镜像、推送、部署工作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Client <span class="keyword">struct</span> &#123;</span><br><span class="line">    repositoriesPath <span class="keyword">string</span>          <span class="comment">// path to repositories</span></span><br><span class="line">    repositoriesURI  <span class="keyword">string</span>          <span class="comment">// repo URI (overrides repositories path)</span></span><br><span class="line">    templates        *Templates      <span class="comment">// Templates management</span></span><br><span class="line">    repositories     *Repositories   <span class="comment">// Repositories management</span></span><br><span class="line">    builder          Builder         <span class="comment">// Builds a runnable image source</span></span><br><span class="line">    pusher           Pusher          <span class="comment">// Pushes function image to a remote</span></span><br><span class="line">    deployer         Deployer        <span class="comment">// Deploys or Updates a function&#125;</span></span><br><span class="line">    KubeCtl          *kube.CtlClient <span class="comment">// Kube Client</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="初始化函数"><a href="#初始化函数" class="headerlink" title="初始化函数"></a>初始化函数</h2><p>New 用于初始化一个 Client，该函数根据配置 options 配置 Client，并且初始化 repository 和 template 管理器。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// New client for function management.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">(options ...Option)</span> *<span class="title">Client</span></span> &#123;</span><br><span class="line">    <span class="comment">// Instantiate client with static defaults.</span></span><br><span class="line">    c := &amp;Client&#123;&#125;</span><br><span class="line">    <span class="keyword">for</span> _, o := <span class="keyword">range</span> options &#123;</span><br><span class="line">       o(c)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Initialize sub-managers using now-fully-initialized client.</span></span><br><span class="line">    c.repositories = newRepositories(c)</span><br><span class="line">    c.templates = newTemplates(c)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> c</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="dubboctl-使用的默认初始化函数"><a href="#dubboctl-使用的默认初始化函数" class="headerlink" title="dubboctl 使用的默认初始化函数"></a>dubboctl 使用的默认初始化函数</h2><p>在 dubboctl 使用 Client 时，又封装了一<strong>个默认的初始化函数 NewClient，用于提供完整功能的 Client</strong>，包括配置：</p>
 <ul>
-<li>将 Session 信息放在<strong>数据库</strong>中，这样 Session 信息在多个实例中就是共享的。</li>
-<li>使用特定的<strong>负载均衡算法</strong>，如对客户端地址进行哈希，使得同一个客户端发出的请求到达同一个实例。</li>
+<li>默认的本地 repository 地址，dubbo.WithRepositoriesPath。</li>
+<li>Builder 镜像构造器，dubbo.WithBuilder。</li>
+<li>Pusher 用于将镜像推送至 registry，dubbo.WithPusher。</li>
+<li>Deployer 用于部署应用至 kubernetes，dubbo.WithDeployer。</li>
 </ul>
-<h2 id="JWT"><a href="#JWT" class="headerlink" title="JWT"></a>JWT</h2><p>如果由服务器端来维护用户身份信息会带来种种设计上的问题，那么可以由<strong>客户端自己维护</strong>用户身份信息。JWT 就是这样一种思想，JWT 包含一个 Json 对象，其中有用户信息以及其他元信息（如到期时间）。JWT 包含的 Json 对象是被加密过的（token），并且签名可以保证第三方无法伪造。</p>
-<p>因为 JWT 是客户端<strong>自包含</strong>的，所以请求不论被路由到哪一个服务实例上，服务实例都可以根据 JWT 去验证用户信息。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewClient</span><span class="params">(options ...dubbo.Option)</span> <span class="params">(*dubbo.Client, <span class="keyword">func</span>()</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">var</span> (</span><br><span class="line">       t = newTransport(<span class="literal">false</span>)</span><br><span class="line">       c = newCredentialsProvider(config.Dir(), t)</span><br><span class="line">       d = newDubboDeployer()</span><br><span class="line">       o = []dubbo.Option&#123;</span><br><span class="line">          dubbo.WithRepositoriesPath(config.RepositoriesPath()),</span><br><span class="line">          dubbo.WithBuilder(pack.NewBuilder()),</span><br><span class="line">          dubbo.WithPusher(docker.NewPusher(</span><br><span class="line">             docker.WithCredentialsProvider(c),</span><br><span class="line">             docker.WithTransport(t))),</span><br><span class="line">          dubbo.WithDeployer(d),</span><br><span class="line">       &#125;</span><br><span class="line">    )</span><br><span class="line">    <span class="comment">// Client is constructed with standard options plus any additional options</span></span><br><span class="line">    <span class="comment">// which either augment or override the defaults.</span></span><br><span class="line">    client := dubbo.New(<span class="built_in">append</span>(o, options...)...)</span><br><span class="line"></span><br><span class="line">    cleanup := <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;&#125;</span><br><span class="line">    <span class="keyword">return</span> client, cleanup</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="三层结构"><a href="#三层结构" class="headerlink" title="三层结构"></a>三层结构</h1><p>在 dubboctl 创建应用时，支持<strong>自定义应用模版</strong>。而在 dubboctl 中有<strong>三层</strong>结构的概念，分别是 repository，runtime，template。</p>
+<p>其中，repository 指的是一个仓库（可以是本地的或是远程的 git 仓库），而 runtime 指的是使用的编程语言，template 为创建应用的具体模版。</p>
+<p>如默认仓库 default 的结构如下，有两种 runtime 分别是 go 和 java，而每一种 runtime 中又指定了一个名为 common 的模版。</p>
+<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-2-dubboctl%E5%AE%A2%E6%88%B7%E7%AB%AFClient%E4%B8%8ERepository-Runtime-Template/image-20230920175155155.png" alt="image-20230920175155155"></p>
 <blockquote>
-<p>JWT 的<strong>缺点</strong>在于无法验证被恶意第三方偷取的 JWT token，只要恶意第三方获取到了 token 就等于获取了这个用户的登录信息。一种缓解的方法是使用<strong>较短的到期时间</strong>，但是随之而来的问题就是客户端需要频繁的请求 JWT 认证重新获取 token。</p>
+<p>Repository Runtime Template 之间都是一对多的关系，一个 Repository 下有多个 Runtime，一个 Runtime 下有多个 Template。</p>
 </blockquote>
-<h1 id="可配置性"><a href="#可配置性" class="headerlink" title="可配置性"></a>可配置性</h1><p>在微服务架构中，最常使用的是<strong>外部化配置</strong>，即从服务外部而不是源代码中获取配置信息。</p>
+<h2 id="Repository"><a href="#Repository" class="headerlink" title="Repository"></a>Repository</h2><p>Repository 被定义为存放 template 的仓库，这个仓库可以是本地的，也可以是远程的。<strong>至于 repository 是本地的还是远程的，取决于 uri</strong>，根据 uri 构造不同类型的文件系统，如上一篇文章所述，dubbo-kubernetes 抽象出了多种不同的文件系统。</p>
 <blockquote>
-<p>在源代码中直接定义配置文件有两个<strong>缺点</strong>：</p>
+<p>若 uri 以 file:// 为协议头，则表示这是一个本地仓库。</p>
+<p>若 uri 为 git 远程地址，则表示这是一个远程 git repository。</p>
+</blockquote>
+<p>在 repository 的根目录下可以保存一个 manifes.yaml，用于保存 repository 的配置信息 repositoryConfig，包括名字、版本号（这个目前没有用到）、template 存放地址（默认在仓库的根目录下）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Repository represents a collection of runtimes, each containing templates.</span></span><br><span class="line"><span class="keyword">type</span> Repository <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// Name of the repository</span></span><br><span class="line">    <span class="comment">// This can be for instance:</span></span><br><span class="line">    <span class="comment">// directory name on FS or last part of git URL or arbitrary value defined by the Template author.</span></span><br><span class="line">    Name <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Runtimes containing Templates loaded from the repo</span></span><br><span class="line">    Runtimes []Runtime</span><br><span class="line">    fs       filesystem.Filesystem</span><br><span class="line">    uri      <span class="keyword">string</span> <span class="comment">// URI which was used when initially creating</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> repositoryConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// DefaultName is the name indicated by the repository author.</span></span><br><span class="line">    <span class="comment">// Stored in the yaml attribute &quot;name&quot;, it is only consulted during initial</span></span><br><span class="line">    <span class="comment">// addition of the repo as the default option.</span></span><br><span class="line">    DefaultName <span class="keyword">string</span> <span class="string">`yaml:&quot;name,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Version of the repository.</span></span><br><span class="line">    Version <span class="keyword">string</span> <span class="string">`yaml:&quot;version,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// TemplatesPath defines an optional path within the repository at which</span></span><br><span class="line">    <span class="comment">// templates are stored.  By default this is the repository root.</span></span><br><span class="line">    TemplatesPath <span class="keyword">string</span> <span class="string">`yaml:&quot;templates,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Client 不直接操作 Repository，而是通过 Repository 管理器 Repositories 操作仓库。</p>
+</blockquote>
+<h2 id="Runtime"><a href="#Runtime" class="headerlink" title="Runtime"></a>Runtime</h2><p>Runtime 表示不同的语言，在 Repository 中维护了 Runtime 切片，在 Runtime 中维护了 Template 切片。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Runtime is a division of templates within a repository of templates for a</span></span><br><span class="line"><span class="comment">// given runtime (source language plus environmentally available services</span></span><br><span class="line"><span class="comment">// and libraries)</span></span><br><span class="line"><span class="keyword">type</span> Runtime <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// Name of the runtime</span></span><br><span class="line">    Name <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Templates defined for the runtime</span></span><br><span class="line">    Templates []Template</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 Repository 中，读取 repositoryConfig.TempatesPath（默认为 Repository 根目录）下的所有子文件夹，每一个子文件夹的名称就是一个 Runtime：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// repositoryRuntimes returns runtimes defined in this repository&#x27;s filesystem.</span></span><br><span class="line"><span class="comment">// The views are denormalized, using the parent repository&#x27;s values</span></span><br><span class="line"><span class="comment">// for inherited fields BuildConfig and HealthEndpoints as the default values</span></span><br><span class="line"><span class="comment">// for the runtimes and templates.  The runtimes and templates themselves can</span></span><br><span class="line"><span class="comment">// override these values by specifying new values in thir config files.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">repositoryRuntimes</span><span class="params">(fs filesystem.Filesystem, repoName <span class="keyword">string</span>, repoConfig repositoryConfig)</span> <span class="params">(runtimes []Runtime, err error)</span></span> &#123;</span><br><span class="line">    runtimes = []Runtime&#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Load runtimes</span></span><br><span class="line">    fis, err := fs.ReadDir(repoConfig.TemplatesPath)</span><br><span class="line">    <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">       <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span> _, fi := <span class="keyword">range</span> fis &#123;</span><br><span class="line">       <span class="comment">// ignore files and hidden dirs</span></span><br><span class="line">       <span class="keyword">if</span> !fi.IsDir() || strings.HasPrefix(fi.Name(), <span class="string">&quot;.&quot;</span>) &#123;</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line">       <span class="comment">// Runtime, defaulted to values inherited from the repository</span></span><br><span class="line">       runtime := Runtime&#123;</span><br><span class="line">          Name: fi.Name(),</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// Runtime Templates</span></span><br><span class="line">       <span class="comment">// Load from repo filesystem for runtime. Will inherit values from the</span></span><br><span class="line">       <span class="comment">// runtime such as BuildConfig, HealthEndpoints etc.</span></span><br><span class="line">       runtime.Templates, err = runtimeTemplates(fs, repoConfig.TemplatesPath, repoName, runtime.Name)</span><br><span class="line">       <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">       &#125;</span><br><span class="line">       runtimes = <span class="built_in">append</span>(runtimes, runtime)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<h2 id="Template"><a href="#Template" class="headerlink" title="Template"></a>Template</h2><p>Template 表示某个应用模版，在创建应用时，最终的操作就是<strong>将模版复制到指定的文件夹下</strong>。template 维护了一个 filesystem.Filesystem，表示以当前模版为根目录的文件系统。</p>
+<blockquote>
+<p>在创建模版时，遍历 repositoryConfig.TemplatesPath/RuntimeName 下的每一个文件夹，文件夹的名字作为模版名字，<strong>使用 subFS 作为模版文件系统的实现</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Template, defaulted to values inherited from the runtime</span></span><br><span class="line">t := template&#123;</span><br><span class="line">    name:       fi.Name(),</span><br><span class="line">    repository: repoName,</span><br><span class="line">    runtime:    runtimeName,</span><br><span class="line">    fs:         filesystem.NewSubFS(path.Join(runtimePath, fi.Name()), fs),</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Template is a function project template.</span></span><br><span class="line"><span class="comment">// It can be used to instantiate new function project.</span></span><br><span class="line"><span class="keyword">type</span> Template <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// Name of this template.</span></span><br><span class="line">    Name() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Runtime for which this template applies.</span></span><br><span class="line">    Runtime() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Repository within which this template is contained.  Value is set to the</span></span><br><span class="line">    <span class="comment">// currently effective name of the repository, which may vary. It is user-</span></span><br><span class="line">    <span class="comment">// defined when the repository is added, and can be set to &quot;default&quot; when</span></span><br><span class="line">    <span class="comment">// the client is loaded in single repo mode. I.e. not canonical.</span></span><br><span class="line">    Repository() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Fullname is a calculated field of [repo]/[name] used</span></span><br><span class="line">    <span class="comment">// to uniquely reference a template which may share a name</span></span><br><span class="line">    <span class="comment">// with one in another repository.</span></span><br><span class="line">    Fullname() <span class="keyword">string</span></span><br><span class="line">    <span class="comment">// Write updates fields of function f and writes project files to path pointed by f.Root.</span></span><br><span class="line">    Write(ctx context.Context, f *Dubbo) error</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// template default implementation</span></span><br><span class="line"><span class="keyword">type</span> template <span class="keyword">struct</span> &#123;</span><br><span class="line">    name       <span class="keyword">string</span></span><br><span class="line">    runtime    <span class="keyword">string</span></span><br><span class="line">    repository <span class="keyword">string</span></span><br><span class="line">    fs         filesystem.Filesystem</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="写入"><a href="#写入" class="headerlink" title="写入"></a>写入</h3><p>在写入时，使用了 maskingFS，用于<strong>屏蔽</strong>当前模版下的 manifest 文件（虽然现在 manifest 没有什么用，并没有起到配置 template 的作用）。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t template)</span> <span class="title">Write</span><span class="params">(ctx context.Context, f *Dubbo)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    mask := <span class="function"><span class="keyword">func</span><span class="params">(p <span class="keyword">string</span>)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">       _, f := path.Split(p)</span><br><span class="line">       <span class="keyword">return</span> f == templateManifest</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> filesystem.CopyFromFS(<span class="string">&quot;.&quot;</span>, f.Root, filesystem.NewMaskingFS(mask, t.fs)) <span class="comment">// copy everything but manifest.yaml</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (1) 抽象文件系统</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-20 11:12:46" itemprop="dateCreated datePublished" datetime="2023-09-20T11:12:46+08:00">2023-09-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="文件系统抽象"><a href="#文件系统抽象" class="headerlink" title="文件系统抽象"></a>文件系统抽象</h1><p>在 dubbo-kubernetes 中，利用 golang 提供的 fs 抽象接口，实现了多种不同文件系统。各种文件系统的实现在 <code>app/dubboctl/internal/filesystem</code> 文件夹下，首先定义了一个 Filesystem 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Filesystem <span class="keyword">interface</span> &#123;</span><br><span class="line">	fs.ReadDirFS</span><br><span class="line">	fs.StatFS</span><br><span class="line">	Readlink(link <span class="keyword">string</span>) (<span class="keyword">string</span>, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Filesystem 接口将访问 template 文件（至于什么是模版，可以不知道）的各种实现差异，封装到这个接口中。Filesystem 接口的实现包括以下：</p>
 <ul>
-<li>密码等敏感信息是直接存在于源代码中的，这可能会造成一些<strong>安全性</strong>问题。</li>
-<li><strong>不够灵活</strong>，如果需要修改配置信息就必须修改源代码文件。</li>
+<li><strong>zipFS：</strong>用于<strong>对 zip 压缩文件</strong>的读写，将 zip 压缩文件作为一个文件系统，压缩文件中的一个个被压缩的文件或者文件夹就是文件系统中的文件。</li>
+<li><strong>billyFS：</strong>表示 git repo 中的文件系统，用于访问在<strong>远程 git 仓库</strong>中的 template。</li>
+<li><strong>osFilesystem：</strong>由操作系统支持的文件系统，用于访问 template。</li>
+<li><strong>subFS：</strong>表示 Filesystem 中的<strong>子目录</strong>，单独作为一个文件系统。</li>
+<li><strong>maskingFS：</strong>基于 Filesystem，用于<strong>屏蔽</strong>某些文件的文件系统。</li>
 </ul>
+<blockquote>
+<p>Golang 提供了 io.Reader 和 io.Writer 接口，抽象出对文件、字节流、socket 的读写。至于问什么提出这样的接口，将对象看作是文件一样读写，可以在 Linux 中找到启发：<strong>Linux 中，一切皆是文件</strong>。</p>
+<p>在 1.6 中提供了 fs.FS 抽象文件系统抽象，既然很多对象可以被看作是对象，那么这些抽象的文件聚集起来，就可以抽象出文件系统。</p>
 </blockquote>
-<p>外部化配置主要有两种方式实现，推送模型和拉取模型。</p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/#more" rel="contents">
+              <a class="btn" href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1011,7 +1026,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1025,7 +1040,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">微服务架构设计模式 (8) 外部API模式</a>
+            <a href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/" class="post-title-link" itemprop="url">用户增长-实时归因</a>
         </h2>
 
         <div class="post-meta">
@@ -1035,14 +1050,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-24 22:23:25" itemprop="dateCreated datePublished" datetime="2023-05-24T22:23:25+08:00">2023-05-24</time>
+              <time title="创建时间：2023-09-18 10:26:36" itemprop="dateCreated datePublished" datetime="2023-09-18T10:26:36+08:00">2023-09-18</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+                <time title="修改时间：2024-03-14 15:01:48" itemprop="dateModified" datetime="2024-03-14T15:01:48+08:00">2024-03-14</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -1050,7 +1065,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
                 </span>
             </span>
 
@@ -1065,26 +1080,10 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>客户端直接访问服务会导致很多问题：</p>
-<ul>
-<li><strong>多次客户端请求导致用户体验不佳：</strong>因为客户端到服务之间是互联网（带宽低，时延高），而服务之间是局域网（带宽高，时延低）。多次客户端直接到服务的请求均通过互联网传输，传输时延高。</li>
-<li><strong>客户端与服务耦合度高：</strong>因为客户端与服务是直接请求的，所以做出的任何更改都会影响到彼此。</li>
-<li><strong>服务可能选用对客户端不友好的进程间通信机制：</strong>一般而言，客户端使用的通信协议通常是 HTTP 或者 WebSockets 等协议，而服务选用的通信协议可能是 gRPC，RPC 通信对客户端是不友好的，甚至无法穿透防火墙。</li>
-</ul>
-<p>所以可以采用 API Gateway 或者后端前置的方式。</p>
-<h1 id="API-Gateway"><a href="#API-Gateway" class="headerlink" title="API Gateway"></a>API Gateway</h1><p>把 API Gateway 作为外部客户端请求的<strong>唯一入口点</strong>，它为客户端提供 API，也可以进行<strong>身份认证</strong>、<strong>充当 API 组合器</strong>、<strong>传输协议转换</strong>等职责。</p>
-<blockquote>
-<p>可以把 API Gateway 看作是面向设计中的<strong>外观模式</strong>，它封装了内部架构，并为客户端提供API。</p>
-</blockquote>
-<h2 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h2><p>下面说明 API Gateway 的典型作用。</p>
-<h3 id="请求路由"><a href="#请求路由" class="headerlink" title="请求路由"></a>请求路由</h3><p>将客户端的请求路由到相应的服务中，来实现一些 API 操作，这与反向代理的功能类似。</p>
-<h3 id="API-组合"><a href="#API-组合" class="headerlink" title="API 组合"></a>API 组合</h3><p>API Gateway 也可以作为 API 组合器，它通过对内通过对多个服务的查询、并且将查询结果聚合，来实现对外提供粗粒度的 API。</p>
-<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/image-20230525100940886.png" alt="image-20230525100940886"></p>
-<h3 id="协议转换"><a href="#协议转换" class="headerlink" title="协议转换"></a>协议转换</h3><p>API Gateway 可以实现协议转换，它可以对外提供 HTTP RESTful API，内部使用 gRPC 进行通信。</p>
-<h3 id="实现边缘功能"><a href="#实现边缘功能" class="headerlink" title="实现边缘功能"></a>实现边缘功能</h3><p>边缘功能包括：身份认证、访问授权、速率限制、缓存、请求日志等。</p>
+          这是一篇加密文章，需要密码才能继续阅读
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/#more" rel="contents">
+              <a class="btn" href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1108,7 +1107,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1122,7 +1121,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/" class="post-title-link" itemprop="url">微服务架构设计模式 (7) 微服务中的查询</a>
+            <a href="/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/" class="post-title-link" itemprop="url">用户增长-增长平台业务梳理</a>
         </h2>
 
         <div class="post-meta">
@@ -1132,7 +1131,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-22 23:15:14" itemprop="dateCreated datePublished" datetime="2023-05-22T23:15:14+08:00">2023-05-22</time>
+              <time title="创建时间：2023-09-14 20:29:42" itemprop="dateCreated datePublished" datetime="2023-09-14T20:29:42+08:00">2023-09-14</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -1147,7 +1146,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
                 </span>
             </span>
 
@@ -1162,20 +1161,10 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>在微服务中，查询通常是复杂的，因为所需要的数据通常分散在多个服务之中。微服务的查询通常分为两种不同的模式：</p>
-<ul>
-<li><strong>API 组合模式：</strong>最简单的方法，应该首先考虑和使用。让一个统一的服务或者应用网关调用多个服务，然后将查询到的结果进行组合并返回。</li>
-<li><strong>命令查询职责隔离（CQRS，Command-Query Responsibility Segregation）模式：</strong>比 API 组合模式更加复杂，也更强大。维护一个或者多个数据视图，目的仅仅是查询。</li>
-</ul>
-<h1 id="API-组合模式"><a href="#API-组合模式" class="headerlink" title="API 组合模式"></a>API 组合模式</h1><p>API 组合模式就是<strong>访问多个服务</strong>进行查询，将多个服务的查询结果<strong>组合</strong>起来并返回给用户。这种模式有两种参与者：</p>
-<ul>
-<li>API组合器：用于查询多个服务的数据，并负责将结果组合起来。</li>
-<li>数据提供方服务：拥有部分数据的服务提供者。</li>
-</ul>
-<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/image-20230524205406597.png" alt="image-20230524205406597"></p>
+          这是一篇加密文章，需要密码才能继续阅读
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/#more" rel="contents">
+              <a class="btn" href="/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1198,7 +1187,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/11/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/11/">11</a><span class="page-number current">12</span><a class="page-number" href="/page/13/">13</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/13/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/11/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/11/">11</a><span class="page-number current">12</span><a class="page-number" href="/page/13/">13</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/13/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1264,20 +1253,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

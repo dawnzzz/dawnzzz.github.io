@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="缓存Spring 框架提供了透明添加缓存到应用程序的支持。 只要通过使用 @EnableCaching 注解启用缓存支持，Spring Boot就会自动配置缓存基础设施。 Spring CacheSpring Boot 提供的缓存包括：JCache、Redis、Simple 等。通过 spring.cache.type 配置参数来指定缓存类型，当该值为 None 时为完全禁用缓存。 在方法上使用">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring Boot学习 (4) 缓存 定时任务">
+<meta property="og:url" content="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="缓存Spring 框架提供了透明添加缓存到应用程序的支持。 只要通过使用 @EnableCaching 注解启用缓存支持，Spring Boot就会自动配置缓存基础设施。 Spring CacheSpring Boot 提供的缓存包括：JCache、Redis、Simple 等。通过 spring.cache.type 配置参数来指定缓存类型，当该值为 None 时为完全禁用缓存。 在方法上使用">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-05-06T13:58:02.000Z">
+<meta property="article:modified_time" content="2024-05-06T15:13:08.414Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="Spring Boot - Java">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Spring Boot学习 (4) 缓存 定时任务 | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Spring Boot学习 (4) 缓存 定时任务
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-06 21:58:02 / 修改时间：23:13:08" itemprop="dateCreated datePublished" datetime="2024-05-06T21:58:02+08:00">2024-05-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h1><p>Spring 框架提供了透明添加缓存到应用程序的支持。 只要通过使用 @EnableCaching 注解启用缓存支持，Spring Boot就会自动配置缓存基础设施。</p>
+<h2 id="Spring-Cache"><a href="#Spring-Cache" class="headerlink" title="Spring Cache"></a>Spring Cache</h2><p>Spring Boot 提供的缓存包括：JCache、Redis、Simple 等。通过 spring.cache.type 配置参数来指定缓存类型，当该值为 None 时为完全禁用缓存。</p>
+<p>在方法上使用 @Cachable、@CacheEvict、@CachePut 表示缓存的行为。</p>
+<h3 id="Simple"><a href="#Simple" class="headerlink" title="Simple"></a>Simple</h3><p>Simple 作为<strong>默认</strong>的缓存实现，使用 ConcurrentHashMap 作为缓存存储。</p>
+<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>如果已经引入了 spring-boot-starter-redis，缓存的配置信息可以通过 <code>spring.cache.redis.*</code> 来设置。</p>
+<p>如果需要对配置信息进行更多的控制，可以考虑注册一个 <code>RedisCacheManagerBuilderCustomizer</code> bean。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> java.time.Duration;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;</span><br><span class="line"><span class="keyword">import</span> org.springframework.context.annotation.Bean;</span><br><span class="line"><span class="keyword">import</span> org.springframework.context.annotation.Configuration;</span><br><span class="line"><span class="keyword">import</span> org.springframework.data.redis.cache.RedisCacheConfiguration;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Configuration(proxyBeanMethods = false)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyRedisCacheManagerConfiguration</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> RedisCacheManagerBuilderCustomizer <span class="title">myRedisCacheManagerBuilderCustomizer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> (builder) -&gt; builder</span><br><span class="line">                .withCacheConfiguration(<span class="string">&quot;cache1&quot;</span>, RedisCacheConfiguration</span><br><span class="line">                        .defaultCacheConfig().entryTtl(Duration.ofSeconds(<span class="number">10</span>)))</span><br><span class="line">                .withCacheConfiguration(<span class="string">&quot;cache2&quot;</span>, RedisCacheConfiguration</span><br><span class="line">                        .defaultCacheConfig().entryTtl(Duration.ofMinutes(<span class="number">1</span>)));</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>@Configuration 注解：</p>
+<ul>
+<li>@Configuration 是 Spring 框架提供的一个元注解，用于表示一个类是一个配置类。</li>
+<li>配置类通常包含 @Bean 注解，定义了创建和配置 Bean 的方法。</li>
+<li>Spring 会扫描 @Configuration 类，并将其中的 @Bean 方法注册为 Spring 容器中的 Bean（name 默认为方法名）。</li>
+</ul>
+<p>@Configuration 注解的 proxyBeanMethods 属性：用于控制@Bean方法的<strong>代理</strong>行为，默认为 true。</p>
+<ul>
+<li><strong>当 proxyBeanMethods 属性设置为 true 时</strong>，Spring 会对 @Configuration 类<strong>进行 CGLIB 代理</strong>。调用 @Bean 方法时，Spring 会<strong>检查是否已经存在该 Bean</strong>，如果存在，则直接返回已存在的 Bean，否则调用方法创建新的 Bean 并<strong>缓存</strong>起来。</li>
+<li><strong>当 proxyBeanMethods 属性设置为 false 时</strong>，会<strong>禁用 CGLIB 代理</strong>。这种情况下，<strong>每一次调用 @Bean 都会执行一次方法体</strong>，不会缓存 Bean 对象，适用于那些<strong>需要每次返回新实例的场景</strong>。</li>
+</ul>
+</blockquote>
+<h2 id="JetCache"><a href="#JetCache" class="headerlink" title="JetCache"></a>JetCache</h2><p>JetCache 是一个基于 Java 的缓存系统封装，提供统一的 API 和注解来简化缓存的使用。 JetCache 提供了比 SpringCache 更加强大的注解，可以原生的支持 TTL、两级缓存、分布式自动刷新，还提供了 <code>Cache</code> 接口用于手工缓存操作，支持 Spring Boot、支持统计信息。 目前有四个实现：</p>
+<ul>
+<li>远程缓存：<ul>
+<li>redis</li>
+<li>tair</li>
+</ul>
+</li>
+<li>本地缓存：<ul>
+<li>caffeine</li>
+<li>linked hash map</li>
+</ul>
+</li>
+</ul>
+<p>@EnableMethodCache、@EnableCreateCacheAnnotation 这两个注解分别激活 @Cached 和 @CreateCache 注解。也就是说，可以直接使用 @Cached 实现方法缓存，或者使用创建一个 Cache 实例两种方式，来使用 JetCache。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> com.company.mypackage;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.alicp.jetcache.anno.config.EnableCreateCacheAnnotation;</span><br><span class="line"><span class="keyword">import</span> com.alicp.jetcache.anno.config.EnableMethodCache;</span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.SpringApplication;</span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.autoconfigure.SpringBootApplication;</span><br><span class="line"></span><br><span class="line"><span class="meta">@SpringBootApplication</span></span><br><span class="line"><span class="meta">@EnableMethodCache(basePackages = &quot;com.company.mypackage&quot;)</span></span><br><span class="line"><span class="meta">@EnableCreateCacheAnnotation</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySpringBootApp</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>&#123;</span><br><span class="line">        SpringApplication.run(MySpringBootApp.class);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>配置信息参见：<a target="_blank" rel="noopener" href="https://github.com/alibaba/jetcache/blob/master/docs/CN/Config.md">https://github.com/alibaba/jetcache/blob/master/docs/CN/Config.md</a></p>
+<h3 id="创建-Cache-实例"><a href="#创建-Cache-实例" class="headerlink" title="创建 Cache 实例"></a>创建 Cache 实例</h3><p>有两种方法创建 Cache 实例，分别是 CacheManager 和 @CacheCreate 注解（在jetcache 2.7 版本CreateCache注解已经废弃）。</p>
+<ul>
+<li>使用 CacheManager 可以创建 Cache 实例，area 和 name 相同的情况下，它和 Cached 注解使用同一个 Cache 实例。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> CacheManager cacheManager;</span><br><span class="line"><span class="keyword">private</span> Cache&lt;String, UserDO&gt; userCache;</span><br><span class="line"></span><br><span class="line"><span class="meta">@PostConstruct</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    QuickConfig qc = QuickConfig.newBuilder(<span class="string">&quot;userCache&quot;</span>)</span><br><span class="line">        .expire(Duration.ofSeconds(<span class="number">100</span>))</span><br><span class="line">        .cacheType(CacheType.BOTH) <span class="comment">// two level cache</span></span><br><span class="line">        .syncLocal(<span class="keyword">true</span>) <span class="comment">// invalidate local cache in all jvm process after update</span></span><br><span class="line">        .build();</span><br><span class="line">    userCache = cacheManager.getOrCreateCache(qc);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用 @CreateCache 注解创建一个Cache实例，在jetcache 2.7 版本CreateCache注解已经废弃</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@CreateCache(expire = 100)</span></span><br><span class="line"><span class="keyword">private</span> Cache&lt;Long, UserDO&gt; userCache;</span><br></pre></td></tr></table></figure>
+
+<h3 id="方法缓存"><a href="#方法缓存" class="headerlink" title="方法缓存"></a>方法缓存</h3><p>在 spring 环境下，使用 @Cached 注解可以为一个方法添加缓存，@CacheUpdate 用于更新缓存，@CacheInvalidate 用于移除缓存元素。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">UserService</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Cached(name=&quot;userCache.&quot;, key=&quot;#userId&quot;, expire = 3600)</span></span><br><span class="line">    <span class="function">User <span class="title">getUserById</span><span class="params">(<span class="keyword">long</span> userId)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@CacheUpdate(name=&quot;userCache.&quot;, key=&quot;#user.userId&quot;, value=&quot;#user&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">updateUser</span><span class="params">(User user)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@CacheInvalidate(name=&quot;userCache.&quot;, key=&quot;#userId&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">deleteUser</span><span class="params">(<span class="keyword">long</span> userId)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="定时任务"><a href="#定时任务" class="headerlink" title="定时任务"></a>定时任务</h1><h2 id="Quartz"><a href="#Quartz" class="headerlink" title="Quartz"></a>Quartz</h2><p>Spring Boot 提供了 Quartz 的 starter，spring-boot-starter-quartz。如果 Quartz 可用，就会自动配置一个 Scheduler。以下类型的 Bean 会被自动装配并与 Scheduler 关联：</p>
+<ul>
+<li><code>JobDetail</code>：定义了一个特定的 Job。 <code>JobDetail</code> 实例可以通过 <code>JobBuilder</code> API建立。</li>
+<li><code>Calendar</code>。</li>
+<li><code>Trigger</code>：定义了一个特定的 Job 何时被触发。</li>
+</ul>
+<h3 id="定义任务"><a href="#定义任务" class="headerlink" title="定义任务"></a>定义任务</h3><p>通过继承 QuartzJobBean 来定义自己的任务，重写 executeInternal 方法，并且可以通过 setter 注入属性。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> org.quartz.JobExecutionContext;</span><br><span class="line"><span class="keyword">import</span> org.quartz.JobExecutionException;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.scheduling.quartz.QuartzJobBean;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySampleJob</span> <span class="keyword">extends</span> <span class="title">QuartzJobBean</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> MyService myService;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Inject &quot;MyService&quot; bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setMyService</span><span class="params">(MyService myService)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.myService = myService;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Inject the &quot;name&quot; job data property</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setName</span><span class="params">(String name)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.name = name;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">executeInternal</span><span class="params">(JobExecutionContext context)</span> <span class="keyword">throws</span> JobExecutionException </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.myService.someMethod(context.getFireTime(), <span class="keyword">this</span>.name);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="持久化任务"><a href="#持久化任务" class="headerlink" title="持久化任务"></a>持久化任务</h3><p>默认情况下，使用内存中的 <code>JobStore</code>。 然而，如果你的应用程序中有一个 <code>DataSource</code> Bean，并且相应地配置了 <code>spring.quartz.job-store-type</code> 属性，也可以配置一个基于 JDBC 的 store。</p>
+<p>要让 Quartz 使用应用程序主 <code>DataSource</code> 以外的 <code>DataSource</code>，可以声明一个 <code>DataSource</code> bean，用 <code>@QuartzDataSource</code> 注释其 <code>@Bean</code> 方法。这样做可以确保Quartz特定的数据源被 <code>SchedulerFactoryBean</code> 和schema初始化所使用。</p>
+<p>同样地，为了让 Quartz 使用应用程序的主 <code>TransactionManager</code> 以外的 <code>TransactionManager</code>，需要声明一个 <code>TransactionManager</code> Bean，用 <code>@QuartzTransactionManager</code> 注释其 <code>@Bean</code> 方法。</p>
+<p>默认情况下，通过配置创建的Job不会覆盖已经从持久性 JobStore 中读取的已注册Job。 要启用覆盖现有作业定义，需要设置 <code>spring.quartz.overwrite-existing-jobs</code> 属性。</p>
+<h2 id="Spring-Task"><a href="#Spring-Task" class="headerlink" title="Spring Task"></a>Spring Task</h2><p>Spring 原生的支持定时任务功能，使用 @EnableScheduling 注解开启定时任务功能，使用 @Scheduled 注解指定定时任务。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyBean</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Scheduled(cron = &quot;1 * * * * ?&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">myTask</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Spring-Boot-Java/" rel="tag"># Spring Boot - Java</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-3-Redis-MongoDB-ES/" rel="prev" title="Spring Boot学习 (3) Redis MongoDB ES">
+      <i class="fa fa-chevron-left"></i> Spring Boot学习 (3) Redis MongoDB ES
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/05/07/Spring-Boot%E5%AD%A6%E4%B9%A0-5-%E8%87%AA%E5%8A%A8%E9%85%8D%E7%BD%AE%E5%8E%9F%E7%90%86/" rel="next" title="Spring Boot学习 (5) 自动配置原理">
+      Spring Boot学习 (5) 自动配置原理 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BC%93%E5%AD%98"><span class="nav-number">1.</span> <span class="nav-text">缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Spring-Cache"><span class="nav-number">1.1.</span> <span class="nav-text">Spring Cache</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Simple"><span class="nav-number">1.1.1.</span> <span class="nav-text">Simple</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Redis"><span class="nav-number">1.1.2.</span> <span class="nav-text">Redis</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#JetCache"><span class="nav-number">1.2.</span> <span class="nav-text">JetCache</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA-Cache-%E5%AE%9E%E4%BE%8B"><span class="nav-number">1.2.1.</span> <span class="nav-text">创建 Cache 实例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%96%B9%E6%B3%95%E7%BC%93%E5%AD%98"><span class="nav-number">1.2.2.</span> <span class="nav-text">方法缓存</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1"><span class="nav-number">2.</span> <span class="nav-text">定时任务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Quartz"><span class="nav-number">2.1.</span> <span class="nav-text">Quartz</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%9A%E4%B9%89%E4%BB%BB%E5%8A%A1"><span class="nav-number">2.1.1.</span> <span class="nav-text">定义任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8C%81%E4%B9%85%E5%8C%96%E4%BB%BB%E5%8A%A1"><span class="nav-number">2.1.2.</span> <span class="nav-text">持久化任务</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Spring-Task"><span class="nav-number">2.2.</span> <span class="nav-text">Spring Task</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">53</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">51</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

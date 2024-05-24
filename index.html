@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/15/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-7-%E8%BF%94%E5%88%A9%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E8%BF%94%E5%88%A9%E8%A1%8C%E4%B8%BA/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/04/15/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/" class="post-title-link" itemprop="url">Java面试之JVM (3) 垃圾回收</a>
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-7-%E8%BF%94%E5%88%A9%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E8%BF%94%E5%88%A9%E8%A1%8C%E4%B8%BA/" class="post-title-link" itemprop="url">大营销平台项目 (7) 返利领域之数据库设计 返利行为</a>
         </h2>
 
         <div class="post-meta">
@@ -183,7 +183,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-04-15 10:36:12 / 修改时间：15:48:13" itemprop="dateCreated datePublished" datetime="2024-04-15T10:36:12+08:00">2024-04-15</time>
+              <time title="创建时间：2024-05-23 15:32:22 / 修改时间：21:34:35" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:22+08:00">2024-05-23</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -191,7 +191,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
                 </span>
             </span>
 
@@ -206,140 +206,21 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>在 Java 7 以及之前，堆分为三个区域新生代（Eden、S0、S1）、老生代（Tenured）、永久代；但是从 Java 8 开始，永久代已经被元空间所代替，元空间使用的是直接内存。</p>
-<h1 id="垃圾回收"><a href="#垃圾回收" class="headerlink" title="垃圾回收"></a>垃圾回收</h1><h2 id="空间回收原则"><a href="#空间回收原则" class="headerlink" title="空间回收原则"></a>空间回收原则</h2><p>针对 HotSpot VM 的实现，它里面的 GC 其实准确分类只有两大种：</p>
-<ul>
-<li><p><strong>部分收集 (Partial GC)：</strong></p>
-<ul>
-<li><strong>新生代收集（Minor GC / Young GC）：</strong>只对新生代进行垃圾收集；</li>
-<li><strong>老年代收集（Major GC / Old GC）：</strong>只对老年代进行垃圾收集。需要注意的是 Major GC 在有的语境中也用于指代整堆收集；</li>
-<li><strong>混合收集（Mixed GC）：</strong>对整个新生代和<strong>部分</strong>老年代进行垃圾收集。</li>
-</ul>
-</li>
-<li><p><strong>整堆收集 (Full GC)：</strong>收集整个 Java 堆和方法区。</p>
-</li>
-</ul>
-<p>JVM 内存分配与空间回收有以下几个原则：</p>
-<ul>
-<li>对象优先在 Eden 区分配。</li>
-<li>大对象直接进入老年代。</li>
-<li>长期存活的对象进入老年代。</li>
-<li>空间分配担保。</li>
-</ul>
-<h3 id="对象优先在-Eden-分配"><a href="#对象优先在-Eden-分配" class="headerlink" title="对象优先在 Eden 分配"></a>对象优先在 Eden 分配</h3><p>大多数情况下，对象在新生代中 Eden 区分配。<strong>当 Eden 区没有足够空间进行分配时，虚拟机将发起一次 Minor GC</strong>，然后在 Eden 区分配。</p>
-<h3 id="大对象直接进入老年代"><a href="#大对象直接进入老年代" class="headerlink" title="大对象直接进入老年代"></a>大对象直接进入老年代</h3><p>大对象直接进入老年代的行为是由虚拟机动态决定的，它与具体使用的垃圾回收器和相关参数有关。大对象直接进入老年代是一种优化策略，旨在<strong>避免将大对象放入新生代，从而减少新生代的垃圾回收频率和成本</strong>。</p>
-<ul>
-<li>G1 垃圾回收器根据 <code>-XX:G1HeapRegionSize</code> 参数设置的堆区域大小和 <code>-XX:G1MixedGCLiveThresholdPercent</code> 参数设置的阈值，来决定哪些对象会直接进入老年代。</li>
-<li>Parallel Scavenge 垃圾回收器中，默认情况下，并没有一个固定的阈值来决定何时直接在老年代分配大对象。而是由虚拟机根据当前的堆内存情况和历史数据动态决定。</li>
-</ul>
-<h3 id="长期存活的对象进入老年代"><a href="#长期存活的对象进入老年代" class="headerlink" title="长期存活的对象进入老年代"></a>长期存活的对象进入老年代</h3><p>虚拟机给每一个对象一个年龄计数器，作为对象存活的年龄。大部分情况，对象都会首先在 Eden 区域分配。如果对象在 Eden 出生并<strong>经过第一次 Minor GC 后仍然存活</strong>，并且能被 Survivor 容纳的话，将被移动到 Survivor 空间（s0 或者 s1）中，<strong>并将对象年龄设为 1</strong>。</p>
-<p>对象在 Survivor 中每熬过一次 MinorGC,年龄就增加 1 岁，当它的年龄增加到一定程度（默认为 15 岁），就会被晋升到老年代中。对象晋升到老年代的年龄阈值，可以通过参数 <code>-XX:MaxTenuringThreshold</code> 来设置。</p>
-<blockquote>
-<p>Hotspot 遍历所有对象时，按照年龄从小到大对其所占用的大小进行累加，当累加到某个年龄时，<strong>所累加的大小超过了 Survivor 区的一半</strong>，则取这个年龄和 <code>MaxTenuringThreshold</code> 中更小的一个值，作为新的晋升年龄阈值。</p>
-</blockquote>
-<h3 id="空间分配担保"><a href="#空间分配担保" class="headerlink" title="空间分配担保"></a>空间分配担保</h3><p>空间分配担保是为了确保<strong>在 Minor GC 之前老年代本身还有容纳新生代所有对象的剩余空间</strong>。</p>
-<p>只要老年代的连续空间大于<strong>新生代对象总大小</strong>或者<strong>历次晋升的平均大小</strong>，就会进行 Minor GC，否则将进行 Full GC。</p>
-<h2 id="死亡对象判别"><a href="#死亡对象判别" class="headerlink" title="死亡对象判别"></a>死亡对象判别</h2><p>死亡对象判别常用方法有：应用计数法和可达性分析。</p>
-<blockquote>
-<p><strong>如何判断废弃常量？</strong></p>
-<p>如果没有任何一个 String 对象引用一个字符串常量，那么这个字符串常量就是废弃的。</p>
-<p><strong>如何判断无用的类？</strong></p>
-<p>判断无用的类，需要满足三个条件（虚拟机可以对满足上述 3 个条件的无用类进行回收，仅仅是可以，不是一定）：</p>
+          <h1 id="数据库表设计"><a href="#数据库表设计" class="headerlink" title="数据库表设计"></a>数据库表设计</h1><p><strong>日常行为返利配置表 daily_behavior_rebate：</strong>用户行为返利配置，可以为签到、支付等配置返利，返利类型支持多种（在返利消息消费者处使用策略模式，进行不同返利类型的返利结算）。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `daily_behavior_rebate` (</span><br><span class="line">    `id` <span class="type">int</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `behavior_type` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;行为类型（sign 签到、openai_pay 支付）&#x27;</span>,</span><br><span class="line">    `rebate_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;返利描述&#x27;</span>,</span><br><span class="line">    `rebate_type` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;返利类型（sku 活动库存充值商品、integral 用户活动积分）&#x27;</span>,</span><br><span class="line">    `rebate_config` <span class="type">varchar</span>(<span class="number">32</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;返利配置&#x27;</span>,</span><br><span class="line">    `state` <span class="type">varchar</span>(<span class="number">12</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;状态（open 开启、close 关闭）&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    KEY `idx_behavior_type` (`behavior_type`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">3</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;日常行为返利活动配置&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>用户返利行为订单表 user_behavior_rebate_order（分库分表）：</strong>记录用户返利行为的订单。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `user_behavior_rebate_order_000` (</span><br><span class="line">    `id` <span class="type">int</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `user_id` <span class="type">varchar</span>(<span class="number">32</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;用户ID&#x27;</span>,</span><br><span class="line">    `order_id` <span class="type">varchar</span>(<span class="number">12</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;订单ID&#x27;</span>,</span><br><span class="line">    `behavior_type` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;行为类型（sign 签到、openai_pay 支付）&#x27;</span>,</span><br><span class="line">    `rebate_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;返利描述&#x27;</span>,</span><br><span class="line">    `rebate_type` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;返利类型（sku 活动库存充值商品、integral 用户活动积分）&#x27;</span>,</span><br><span class="line">    `rebate_config` <span class="type">varchar</span>(<span class="number">32</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;返利配置【sku值，积分值】&#x27;</span>,</span><br><span class="line">    `out_business_no` <span class="type">varchar</span>(<span class="number">64</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;业务防重ID - 外部透传，方便查询使用&#x27;</span>,</span><br><span class="line">    `biz_id` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;业务ID - 拼接的唯一值。拼接 out_business_no + 自身枚举&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY `uq_order_id` (`order_id`),</span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY `uq_biz_id` (`biz_id`),</span><br><span class="line">	KEY `idx_user_id` (`user_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">3</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;用户行为返利流水订单表&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="返利行为"><a href="#返利行为" class="headerlink" title="返利行为"></a>返利行为</h1><p>用户返利行为的流程如下：</p>
 <ol>
-<li>该类的所有实例被回收。</li>
-<li>加载该类的 ClassLoader 被回收。</li>
-<li>该类对应的 <code>java.lang.Class</code> 对象没有在任何地方被引用，无法在任何地方通过反射访问该类的方法。</li>
+<li>首先根据用户行为类型查询返利配置，<strong>一个行为可能对应多个返利配置</strong>（如一次签到可能下发多张优惠券，每一个优惠券都是一个返利配置）。</li>
+<li>根据所有返利配置创建（一个或）多个返利订单，在一个<strong>事务</strong>中<strong>写入所有返利订单、写入发送 MQ 返利消息表 task</strong>。</li>
+<li>使用线程池，每一个线程都<strong>发送 MQ 消息、并更新 task 任务状态</strong>。</li>
+<li>使用定时任务进行<strong>消息的补偿发送</strong>。查询 task 表中失败或者 create 超时的任务，并重写发送 MQ 消息、更新 task 任务状态。</li>
+<li>返利 MQ 消息<strong>消费者</strong>，可以调用创建 sku 订单、增加积分等服务，进行<strong>返利结算</strong>并返回 ACK。</li>
 </ol>
-</blockquote>
-<h3 id="引用计数法"><a href="#引用计数法" class="headerlink" title="引用计数法"></a>引用计数法</h3><p><strong>引用计数法：</strong>每一个对象有一个引用计数器，<strong>这个方法实现简单，效率高，但是没有办法解决循环引用问题。</strong></p>
-<h3 id="可达性分析"><a href="#可达性分析" class="headerlink" title="可达性分析"></a>可达性分析</h3><p><strong>可达性分析：</strong>从 <strong>GC ROOT</strong> 出发，找到所有可达对象；不可达对象就是需要被回收的。</p>
-<p><strong>哪些对象可以作为 GC Roots 呢？</strong></p>
-<ul>
-<li>虚拟机栈（栈帧中的局部变量表）中引用的对象</li>
-<li>本地方法栈（Native 方法）中引用的对象</li>
-<li>方法区中类静态属性引用的对象</li>
-<li>方法区中常量引用的对象</li>
-<li>所有被同步锁持有的对象</li>
-<li>JNI（Java Native Interface）引用的对象</li>
-</ul>
-<h3 id="引用类型"><a href="#引用类型" class="headerlink" title="引用类型"></a>引用类型</h3><p>JDK1.2 之前，Java 中引用的定义很传统：如果 reference 类型的数据存储的数值代表的是另一块内存的起始地址，就称这块内存代表一个引用。</p>
-<p>JDK1.2 以后，Java 对引用的概念进行了扩充，将引用分为强引用、软引用、弱引用、虚引用四种（引用强度逐渐减弱）。</p>
-<ol>
-<li><strong>强引用（StrongReference）：</strong>类似于<strong>必不可少的生活用品</strong>，平时的引用就是强引用。当内存空间不足，Java 虚拟机宁愿抛出 OutOfMemoryError 错误，使程序异常终止，也不会回收具有强引用的对象来解决内存不足问题。</li>
-<li><strong>软引用（SoftReference）：</strong>类似于<strong>可有可无的生活用品</strong>。如果内存空间足够，垃圾回收器就不会回收它，<strong>如果内存空间不足了，就会回收这些对象的内存</strong>。只要垃圾回收器没有回收它，该对象就可以被程序使用。软引用可以和一个引用队列（ReferenceQueue）联合使用，如果软引用所引用的对象被垃圾回收，JAVA 虚拟机就会把这个软引用加入到与之关联的引用队列中。</li>
-<li><strong>弱引用（WeekReference）：</strong>类似于<strong>可有可无的生活用品</strong>。弱引用与软引用的区别在于：只具有弱引用的对象拥有更短暂的生命周期。在垃圾回收器线程扫描它所管辖的内存区域的过程中，<strong>一旦发现了只具有弱引用的对象，不管当前内存空间足够与否，都会回收它的内存</strong>。弱引用可以和一个引用队列（ReferenceQueue）联合使用，如果弱引用所引用的对象被垃圾回收，Java 虚拟机就会把这个弱引用加入到与之关联的引用队列中。</li>
-<li><strong>虚引用（PhantomReference）：</strong>虚引用并不会决定对象的生命周期。如果一个对象仅持有虚引用，那么它就和没有任何引用一样，在任何时候都可能被垃圾回收。</li>
-</ol>
-<blockquote>
-<p><strong>虚引用主要用来跟踪对象被垃圾回收的活动</strong>。</p>
-<p><strong>虚引用与软引用和弱引用的一个区别在于：</strong> 虚引用<strong>必须</strong>和引用队列（ReferenceQueue）联合使用。当垃圾回收器准备回收一个对象时，如果发现它还有虚引用，就会在回收对象的内存之前，把这个虚引用加入到与之关联的引用队列中。程序可以通过判断引用队列中是否已经加入了虚引用，来了解被引用的对象是否将要被垃圾回收。程序如果发现某个虚引用已经被加入到引用队列，那么就可以在所引用的对象的内存被回收之前采取必要的行动。</p>
-<p>在程序设计中一般很少使用弱引用与虚引用，使用软引用的情况较多，这是因为<strong>软引用可以加速 JVM 对垃圾内存的回收速度，可以维护系统的运行安全，防止内存溢出（OutOfMemory）等问题的产生</strong>。</p>
-</blockquote>
-<h2 id="垃圾清扫算法"><a href="#垃圾清扫算法" class="headerlink" title="垃圾清扫算法"></a>垃圾清扫算法</h2><h3 id="标记-清除"><a href="#标记-清除" class="headerlink" title="标记-清除"></a>标记-清除</h3><p>标记-清除（Mark-and-Sweep）算法分为“标记（Mark）”和“清除（Sweep）”阶段：首先标记出所有不需要回收的对象，在标记完成后统一回收掉所有没有被标记的对象。</p>
-<p>这种垃圾收集算法会带来两个明显的问题：</p>
-<ol>
-<li><strong>效率问题</strong>：标记和清除两个过程效率都不高。</li>
-<li><strong>空间问题</strong>：标记清除后会产生大量不连续的<strong>内存碎片</strong>。</li>
-</ol>
-<h3 id="复制"><a href="#复制" class="headerlink" title="复制"></a>复制</h3><p>它可以将内存分为大小相同的两块，每次使用其中的一块。当这一块的内存使用完后，就<strong>将还存活的对象复制到另一块</strong>去，然后再<strong>把使用的空间一次清理掉</strong>。这样就使每次的内存回收都是对内存区间的一半进行回收。虽然改进了标记-清除算法，但依然存在下面这些问题：</p>
-<ul>
-<li><strong>可用内存变小</strong>：可用内存缩小为原来的一半。</li>
-<li><strong>不适合老年代</strong>：如果存活对象数量比较大，复制性能会变得很差。</li>
-</ul>
-<h3 id="标记-整理（标记-压缩）"><a href="#标记-整理（标记-压缩）" class="headerlink" title="标记-整理（标记-压缩）"></a>标记-整理（标记-压缩）</h3><p>标记-整理（压缩）算法是根据<strong>老年代</strong>的特点提出的一种算法，在回收时，<strong>让所有存活的对象向一端移动</strong>。</p>
-<p>由于多了整理这一步，因此效率也不高，适合老年代这种垃圾回收频率不是很高的场景。</p>
-<h3 id="分代收集"><a href="#分代收集" class="headerlink" title="分代收集"></a>分代收集</h3><p>当前虚拟机的垃圾收集都采用分代收集算法，根据对象存活周期的不同将内存分为几块，<strong>不同代采用不同的算法</strong>。一般将 Java 堆分为新生代和老年代，这样就可以根据各个年代的特点选择合适的垃圾收集算法。</p>
-<p>比如在<strong>新生代</strong>中，<strong>每次收集都会有大量对象死去</strong>，所以可以选择”<strong>标记-复制</strong>“算法，只需要付出少量对象的复制成本就可以完成每次垃圾收集。而<strong>老年代</strong>的对象<strong>存活几率比较高</strong>，而且没有额外的空间对它进行分配担保，所以必须<strong>选择“标记-清除”或“标记-整理”算法</strong>进行垃圾收集。</p>
-<h2 id="垃圾收集器"><a href="#垃圾收集器" class="headerlink" title="垃圾收集器"></a>垃圾收集器</h2><p>JDK 默认垃圾收集器（使用 <code>java -XX:+PrintCommandLineFlags -version</code> 命令查看）：</p>
-<ul>
-<li>JDK 8：Parallel Scavenge（新生代）+ Parallel Old（老年代）</li>
-<li>JDK 9 ~ JDK20: G1</li>
-</ul>
-<h3 id="Serial-Serial-Old-收集器"><a href="#Serial-Serial-Old-收集器" class="headerlink" title="Serial/Serial Old 收集器"></a>Serial/Serial Old 收集器</h3><p>Serial 负责新生代，Serial Old 负责老年代。二者都是<strong>单线程</strong>收集器，在垃圾回收的过程中需要 STW，直到垃圾收集结束。<strong>新生代采用标记-复制算法，老年代采用标记-整理算法。</strong></p>
-<p>优点：它<strong>简单而高效（与其他收集器的单线程相比）</strong>。Serial 收集器由于没有线程交互的开销，自然可以获得很高的单线程收集效率。Serial 收集器对于运行在 Client 模式下的虚拟机来说是个不错的选择。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/serial-garbage-collector.png" alt="Serial 收集器"></p>
-<h3 id="ParNew-收集器"><a href="#ParNew-收集器" class="headerlink" title="ParNew 收集器"></a>ParNew 收集器</h3><p>ParNew 是 Serial 收集器的<strong>多线程</strong>版本。<strong>新生代采用标记-复制算法，老年代采用标记-整理算法。</strong></p>
-<p>它是许多运行在 Server 模式下的虚拟机的首要选择，除了 Serial 收集器外，只有它能与 CMS 收集器配合工作。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parnew-garbage-collector.png" alt="ParNew 收集器 "></p>
-<h3 id="Parallel-Scavenge-Parallel-Old-收集器"><a href="#Parallel-Scavenge-Parallel-Old-收集器" class="headerlink" title="Parallel Scavenge/Parallel Old 收集器"></a>Parallel Scavenge/Parallel Old 收集器</h3><p><strong>Parallel Scavenge 收集器是负责年轻代的垃圾回收</strong>，也是使用<strong>标记-复制</strong>算法的多线程收集器。Parallel Scavenge 收集器关注点是吞吐量，CMS 等垃圾收集器的关注点更多的是用户线程的停顿时间（提高用户体验）。Parallel Scavenge 收集器提供了很多参数供用户找到最合适的停顿时间或最大吞吐量，如果对于收集器运作不太了解，手工优化存在困难的时候，使用 Parallel Scavenge 收集器配合自适应调节策略，把内存管理优化交给虚拟机去完成也是一个不错的选择。</p>
-<p><strong>Parallel Old 是 Parallel Scavenge 收集器的老年代版本</strong>。使用多线程和<strong>标记-整理</strong>算法。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parallel-scavenge-garbage-collector.png" alt="Parallel Old收集器运行示意图"></p>
-<h3 id="CMS-收集器"><a href="#CMS-收集器" class="headerlink" title="CMS 收集器"></a>CMS 收集器</h3><p><strong>CMS（Concurrent Mark Sweep）收集器是一种以获取最短回收停顿时间为目标的收集器。它非常符合在注重用户体验的应用上使用。</strong></p>
-<p><strong>CMS（Concurrent Mark Sweep）收集器是 HotSpot 虚拟机第一款真正意义上的并发收集器，它第一次实现了让垃圾收集线程与用户线程（基本上）同时工作。</strong></p>
-<p>CMS 收集器是一种<strong>标记-清除算法</strong>实现的，它的运作过程相比于前面几种垃圾收集器来说更加复杂一些。整个过程分为四个步骤：</p>
-<ul>
-<li><strong>初始标记：</strong> 暂停所有的其他线程，并记录下直接与 root 相连的对象，速度很快 ；</li>
-<li><strong>并发标记：</strong> 同时开启 GC 和用户线程，用一个闭包结构去记录可达对象。但在这个阶段结束，这个闭包结构并不能保证包含当前所有的可达对象。因为用户线程可能会不断的更新引用域，所以 GC 线程无法保证可达性分析的实时性。所以这个算法里会跟踪记录这些发生引用更新的地方。</li>
-<li><strong>重新标记：</strong> 重新标记阶段就是为了修正并发标记期间因为用户程序继续运行而导致标记产生变动的那一部分对象的标记记录，这个阶段的停顿时间一般会比初始标记阶段的时间稍长，远远比并发标记阶段时间短。</li>
-<li><strong>并发清除：</strong> 开启用户线程，同时 GC 线程开始对未标记的区域做清扫。</li>
-</ul>
-<p>主要优点：<strong>并发收集、低停顿</strong>。但是它有下面三个明显的缺点：</p>
-<ul>
-<li><strong>对 CPU 资源敏感；</strong></li>
-<li><strong>无法处理浮动垃圾；</strong></li>
-<li><strong>它使用的回收算法-“标记-清除”算法会导致收集结束时会有大量空间碎片产生。</strong></li>
-</ul>
-<p><strong>从 JDK9 开始，CMS 收集器已被弃用。</strong></p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/cms-garbage-collector.png" alt="CMS 收集器"></p>
-<h3 id="G1-收集器"><a href="#G1-收集器" class="headerlink" title="G1 收集器"></a>G1 收集器</h3><p><strong>G1 (Garbage-First) 是一款面向服务器的垃圾收集器，主要针对配备多颗处理器及大容量内存的机器。以极高概率满足 GC 停顿时间要求的同时，还具备高吞吐量性能特征。</strong></p>
-<p>它具备以下特点：</p>
-<ul>
-<li><strong>并行与并发</strong>：G1 能充分利用 CPU、多核环境下的硬件优势，使用多个 CPU（CPU 或者 CPU 核心）来缩短 Stop-The-World 停顿时间。部分其他收集器原本需要停顿 Java 线程执行的 GC 动作，G1 收集器仍然可以通过并发的方式让 java 程序继续执行。</li>
-<li><strong>分代收集</strong>：虽然 G1 可以不需要其他收集器配合就能独立管理整个 GC 堆，但是还是保留了分代的概念。</li>
-<li><strong>空间整合</strong>：与 CMS 的“标记-清除”算法不同，G1 从整体来看是基于“标记-整理”算法实现的收集器；从局部上来看是基于“标记-复制”算法实现的。</li>
-<li><strong>可预测的停顿</strong>：这是 G1 相对于 CMS 的另一个大优势，降低停顿时间是 G1 和 CMS 共同的关注点，但 G1 除了追求低停顿外，还能建立可预测的停顿时间模型，能让使用者明确指定在一个长度为 M 毫秒的时间片段内，消耗在垃圾收集上的时间不得超过 N 毫秒。</li>
-</ul>
-<p>G1 收集器的运作大致分为以下几个步骤：</p>
-<ul>
-<li><strong>初始标记</strong></li>
-<li><strong>并发标记</strong></li>
-<li><strong>最终标记</strong></li>
-<li><strong>筛选回收</strong></li>
-</ul>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/g1-garbage-collector.png" alt="G1 收集器"></p>
-<p><strong>G1 收集器在后台维护了一个优先列表，每次根据允许的收集时间，优先选择回收价值最大的 Region（这也就是它的名字 Garbage-First 的由来）</strong>。这种使用 Region 划分内存空间以及有优先级的区域回收方式，保证了 G1 收集器在有限时间内可以尽可能高的收集效率。</p>
-<p><strong>从 JDK9 开始，G1 垃圾收集器成为了默认的垃圾收集器。</strong></p>
-<h3 id="ZGC-收集器"><a href="#ZGC-收集器" class="headerlink" title="ZGC 收集器"></a>ZGC 收集器</h3><p>ZGC 在 Java 11 引入，处于实验阶段；在 Java15 已经可以正式使用了；在 Java 21 中引入分代 ZGC。</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-7-%E8%BF%94%E5%88%A9%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E8%BF%94%E5%88%A9%E8%A1%8C%E4%B8%BA/image-20240523210435509.png" alt="image-20240523210435509"></p>
 
       
     </div>
@@ -359,7 +240,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -373,7 +254,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/" class="post-title-link" itemprop="url">Java面试之JVM (2) HotSpot对象</a>
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/" class="post-title-link" itemprop="url">大营销平台项目 (5) 活动领域之创建sku订单 创建抽奖订单</a>
         </h2>
 
         <div class="post-meta">
@@ -384,7 +265,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-04-14 17:14:08 / 修改时间：17:30:44" itemprop="dateCreated datePublished" datetime="2024-04-14T17:14:08+08:00">2024-04-14</time>
+              <time title="创建时间：2024-05-23 15:32:17 / 修改时间：20:33:12" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:17+08:00">2024-05-23</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -392,7 +273,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
                 </span>
             </span>
 
@@ -407,18 +288,280 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>下面解释一下 HotSpot 虚拟机对象的一些面试问题。</p>
-<h1 id="对象的创建"><a href="#对象的创建" class="headerlink" title="对象的创建"></a>对象的创建</h1><p>对象的创建分为五步：</p>
+          <h1 id="创建-sku-订单"><a href="#创建-sku-订单" class="headerlink" title="创建 sku 订单"></a>创建 sku 订单</h1><p>在创建 sku 订单时，分为两个步骤：</p>
 <ol>
-<li>类加载检查。</li>
-<li>内存分配。</li>
-<li>初始化零值。</li>
-<li>设置对象头。</li>
-<li>执行 init 方法。</li>
+<li><strong>活动责任链校验：</strong><ol>
+<li><strong>活动基础信息校验</strong>，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。</li>
+<li><strong>sku 库存校验</strong>，与之前的奖品库存校验方法基本一致。</li>
 </ol>
+</li>
+<li><strong>以数据库事务的方式，进行sku 订单入库、更新活动账户信息：</strong><ol>
+<li>sku 订单入库，以外部业务 ID 作为唯一索引，保证 sku 订单不重复创建。</li>
+<li>更新活动账户总表、日表、月表，增加可用抽奖和总抽奖次数。</li>
+</ol>
+</li>
+</ol>
+<h2 id="活动责任链校验"><a href="#活动责任链校验" class="headerlink" title="活动责任链校验"></a>活动责任链校验</h2><p><strong>活动责任链校验：</strong></p>
+<ol>
+<li><strong>活动基础信息校验</strong>，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存（如果获取到的库存小于等于 0，则说明 sku 库存一定不足）。</li>
+<li><strong>sku 库存校验</strong>，与之前的奖品库存校验方法基本一致。<ul>
+<li><strong>采用 decr+setnx 保证不超卖</strong>，使用<strong>延迟队列</strong>扣减数据库中的库存，<strong>定时任务</strong>保证数据库和缓存最终一致性。</li>
+<li>不同的是，当库存等于 0 时，<strong>发送 MQ 消息直接通知数据库更新库存为 0，并且清空延迟队列</strong>。这一步主要是为了减少额外的性能开销，如果库存已经到 0 了，后续定时任务也不需要执行了直接更新数据库库存为 0 即可。也不需要添加到 task 任务表，这里消息丢失对业务没有影响。</li>
+</ul>
+</li>
+</ol>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523202515316.png" alt="image-20240523202515316"></p>
+<h2 id="sku-订单入库"><a href="#sku-订单入库" class="headerlink" title="sku 订单入库"></a>sku 订单入库</h2><p>以事务的方式，进行sku 订单入库、更新活动账户信息。包括：</p>
+<ol>
+<li>sku 订单入库，以外部业务 ID 作为唯一索引，保证 sku 订单不重复创建。如一个用户在一天之内的签到，业务 ID 都是相同的；每一笔订单产生的业务 ID 也是相同的。</li>
+<li>更新活动账户总表、日表、月表，增加可用抽奖和总抽奖次数。<ul>
+<li>在更新活动账户总表时，如果用户记录不存在，则在活动账户总表中创建记录。</li>
+<li>在更新活动账户日/月表时，如果用户记录不存在则不会创建。因为这是在用户实际抽奖时才进行创建的。</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p><strong>以 user_id 作为分库键</strong>，可以保证事务的发生都在一个数据库中，<strong>不会出现分布式事务</strong>。</p>
+</blockquote>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523201909941.png" alt="image-20240523201909941"></p>
+<h1 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h1><p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523203028364.png" alt="image-20240523203028364"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-6-%E5%A5%96%E5%93%81%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E5%86%99%E5%85%A5%E4%B8%AD%E5%A5%96%E8%AE%B0%E5%BD%95/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-6-%E5%A5%96%E5%93%81%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E5%86%99%E5%85%A5%E4%B8%AD%E5%A5%96%E8%AE%B0%E5%BD%95/" class="post-title-link" itemprop="url">大营销平台项目 (6) 奖品领域之数据库表设计 写入中奖记录</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-23 15:32:06 / 修改时间：21:34:09" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:06+08:00">2024-05-23</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="数据库表设计"><a href="#数据库表设计" class="headerlink" title="数据库表设计"></a>数据库表设计</h1><p><strong>用户中奖记录表 user_award_record（分库分表）：</strong>用户中奖的记录。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `user_award_record_000` ( </span><br><span class="line">    `id` <span class="type">int</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>, </span><br><span class="line">    `user_id` <span class="type">varchar</span>(<span class="number">32</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;用户ID&#x27;</span>, </span><br><span class="line">    `activity_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;活动ID&#x27;</span>, </span><br><span class="line">    `strategy_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>, </span><br><span class="line">    `order_id` <span class="type">varchar</span>(<span class="number">12</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖订单ID【作为幂等使用】&#x27;</span>, </span><br><span class="line">    `award_id` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;奖品ID&#x27;</span>, </span><br><span class="line">    `award_title` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;奖品标题（名称）&#x27;</span>, </span><br><span class="line">    `award_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;中奖时间&#x27;</span>, </span><br><span class="line">    `award_state` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;create&#x27;</span> COMMENT <span class="string">&#x27;奖品状态；create-创建、completed-发奖完成&#x27;</span>, </span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>, </span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY `uq_order_id` (`order_id`),</span><br><span class="line">    KEY `idx_user_id` (`user_id`),</span><br><span class="line">    KEY `idx_activity_id` (`activity_id`),</span><br><span class="line">    KEY `idx_award_id` (`strategy_id`) </span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;用户中奖记录表&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<h1 id="写入中奖记录"><a href="#写入中奖记录" class="headerlink" title="写入中奖记录"></a>写入中奖记录</h1><p>写入中奖记录的流程</p>
+<ol>
+<li>在一个<strong>事务</strong>中，保存中奖记录、修改抽奖订单状态为已使用、保存 Task 发送消息任务。</li>
+<li><strong>发送 MQ 消息</strong>，通知奖品发货（可以优化为异步发送 MQ 消息），消息发送成功后，修改 Task 任务状态为已完成。</li>
+<li>开启一个<strong>定时任务</strong>，定时查询 task 表中发送失败的消息，<strong>进行发奖消息的补偿重发</strong>。</li>
+<li>奖品发货消息消费者监听 MQ 消息，进行奖品发货，利用 MQ 消息的不丢机制，保证奖品一定发货。</li>
+</ol>
+<blockquote>
+<p>在抽奖与写入中奖信息之间，使用<strong>消息队列</strong>连接，<strong>保证用户抽到奖品后中奖信息一定能够入库</strong>。</p>
+</blockquote>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-6-%E5%A5%96%E5%93%81%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%A1%A8%E8%AE%BE%E8%AE%A1-%E5%86%99%E5%85%A5%E4%B8%AD%E5%A5%96%E8%AE%B0%E5%BD%95/image-20240523203527221.png" alt="image-20240523203527221"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-4-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%20%E6%B4%BB%E5%8A%A8%E8%A3%85%E9%85%8D/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-4-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%20%E6%B4%BB%E5%8A%A8%E8%A3%85%E9%85%8D/" class="post-title-link" itemprop="url">大营销平台项目 (4) 活动领域之数据库设计 活动装配</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-23 15:26:47 / 修改时间：21:33:38" itemprop="dateCreated datePublished" datetime="2024-05-23T15:26:47+08:00">2024-05-23</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="数据库设计"><a href="#数据库设计" class="headerlink" title="数据库设计"></a>数据库设计</h1><p>数据库表的设计可以通过两个维度去考虑：创建 sku 订单（领取抽奖机会）和创建抽奖订单（抽奖）。</p>
+<h2 id="创建-sku-订单"><a href="#创建-sku-订单" class="headerlink" title="创建 sku 订单"></a>创建 sku 订单</h2><ul>
+<li><strong>抽奖活动表 raffle_activity：</strong>活动名称、开始结束时间、抽奖策略等基本活动信息。</li>
+<li><strong>参与次数表 raffle_activity_count：</strong>与 sku 绑定，即用户下单 sku 后，用户活动账户增加的次数。</li>
+<li><strong>活动 sku 表 raffle_activity_sku：</strong>将活动作为一种<strong>商品</strong>。可以实现比如签到给一次抽奖机会、下单给两次抽奖机会这样的场景，一种场景对应于一条 sku 记录。</li>
+<li><strong>活动下单记录 raffle_activity_order（分库分表）：</strong>当用户领取活动抽奖机会时，会<strong>产生一条 sku 下单记录</strong>，并增加活动账户表（总、月、日）中的抽奖次数、剩余抽奖次数（在一个事务中）。</li>
+<li>![image-20240523192710849](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523192710849.png)</li>
+</ul>
+<h2 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h2><p><strong>用户活动账户总表 raffle_activity_account（分库不分表）：</strong>记录用户总的抽奖次数、当前月/日抽奖次数。</p>
+<p><strong>用户活动账户月表 raffle_activity_account_month（分库不分表）：</strong>记录用户每月的抽奖次数和剩余抽奖次数，相当于用户每月抽奖次数的流水记录，运营需要。</p>
+<p><strong>用户活动账户日表 raffle_activity_account_day（分库不分表）：</strong>记录用户每日的抽奖参与次数和剩余抽奖次数，相当于用户每日抽奖次数的流水记录，运营需要。</p>
+<p><strong>用户抽奖订单表 user_raffle_order（分库分表）：</strong>每一次用户抽奖都会生成一个用户抽奖订单，每次抽奖前都会查看用户是否有未消费的订单。保证用户在抽奖时，只会消耗一次抽奖机会。</p>
+<p><strong>任务表 task（分库不分表）：</strong>用于发送MQ消息。通过任务扫描发送，发送补偿消息，是一种兜底策略。</p>
+<p>![image-20240523192255781](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523192255781.png)</p>
+<h1 id="活动装配"><a href="#活动装配" class="headerlink" title="活动装配"></a>活动装配</h1><h2 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h2><p>首先查询活动下配置的所有 sku，并把 sku 库存和活动库存加载到缓存中。</p>
+<p>其次查询活动配置信息，将活动加载到缓存中。</p>
+<p>![image-20240523184348917](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523184348917.png)</p>
+<h2 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">assembleActivitySkuByActivityId</span><span class="params">(Long activityId)</span> </span>&#123;</span><br><span class="line">    List&lt;ActivitySkuEntity&gt; activitySkuEntityList = activityRepository.queryActivitySkuListByActivityId(activityId);</span><br><span class="line">    <span class="keyword">for</span> (ActivitySkuEntity activitySkuEntity : activitySkuEntityList) &#123;</span><br><span class="line">        Long sku = activitySkuEntity.getSku();</span><br><span class="line">        cacheActivitySkuStockCount(sku, activitySkuEntity.getStockCountSurplus());</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 预热活动次数【查询时预热到缓存】</span></span><br><span class="line">        activityRepository.queryActivityCountByActivityCountId(activitySkuEntity.getActivityCountId());</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 预热活动【查询时预热到缓存】</span></span><br><span class="line">    activityRepository.queryActivityByActivityId(activityId);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-3-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E8%B4%A3%E4%BB%BB%E9%93%BE-%E8%A7%84%E5%88%99%E6%A0%91/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-3-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E8%B4%A3%E4%BB%BB%E9%93%BE-%E8%A7%84%E5%88%99%E6%A0%91/" class="post-title-link" itemprop="url">大营销平台项目 (3) 抽奖策略领域之责任链 规则树</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-23 15:18:39 / 修改时间：18:42:38" itemprop="dateCreated datePublished" datetime="2024-05-23T15:18:39+08:00">2024-05-23</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>抽奖流程如下：</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-3-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E8%B4%A3%E4%BB%BB%E9%93%BE-%E8%A7%84%E5%88%99%E6%A0%91/FnjGpdxV5WZ88pMCciqIsTbbdL6h" alt="img"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/#more" rel="contents">
+              <a class="btn" href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-3-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E8%B4%A3%E4%BB%BB%E9%93%BE-%E8%A7%84%E5%88%99%E6%A0%91/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -442,7 +585,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-2-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E7%AD%96%E7%95%A5%E8%A3%85%E9%85%8D/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -456,7 +599,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/" class="post-title-link" itemprop="url">Java面试之JVM (1) 内存模型</a>
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-2-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E7%AD%96%E7%95%A5%E8%A3%85%E9%85%8D/" class="post-title-link" itemprop="url">大营销平台项目 (2) 抽奖策略领域之数据库设计 策略装配</a>
         </h2>
 
         <div class="post-meta">
@@ -467,7 +610,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-04-14 16:05:54 / 修改时间：17:14:17" itemprop="dateCreated datePublished" datetime="2024-04-14T16:05:54+08:00">2024-04-14</time>
+              <time title="创建时间：2024-05-23 15:14:12 / 修改时间：21:26:14" itemprop="dateCreated datePublished" datetime="2024-05-23T15:14:12+08:00">2024-05-23</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -475,7 +618,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
                 </span>
             </span>
 
@@ -490,297 +633,51 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="内存区域"><a href="#内存区域" class="headerlink" title="内存区域"></a>内存区域</h1><p>JDK 1.8 和之前的 JVM 内存区域有所不同。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/java-runtime-data-areas-jdk1.7.png" alt="Java 运行时数据区域（JDK1.7）"></p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/java-runtime-data-areas-jdk1.8.png" alt="Java 运行时数据区域（JDK1.8 ）"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
+          <h1 id="数据库设计"><a href="#数据库设计" class="headerlink" title="数据库设计"></a>数据库设计</h1><p><strong>抽奖策略配置表 strategy：</strong>配置抽奖策略的基本信息。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy` (</span><br><span class="line">`id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">`strategy_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">`strategy_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略描述&#x27;</span>,</span><br><span class="line">`rule_models` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;规则模型，rule配置的模型同步到此表，便于使用&#x27;</span>,</span><br><span class="line">`create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">`update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line"><span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">KEY `idx_strategy_id` (`strategy_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">7</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略&#x27;</span></span><br></pre></td></tr></table></figure>
 
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
+<p><strong>抽奖策略奖品配置表 strategy_award：</strong>配置奖品的中奖概率，以及奖品的库存。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy_award` (</span><br><span class="line">    `id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `strategy_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">    `award_id` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品ID - 内部流转使用&#x27;</span>,</span><br><span class="line">    `award_title` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品标题&#x27;</span>,</span><br><span class="line">    `award_subtitle` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品副标题&#x27;</span>,</span><br><span class="line">    `award_count` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;奖品库存总量&#x27;</span>,</span><br><span class="line">    `award_count_surplus` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;奖品库存剩余&#x27;</span>,</span><br><span class="line">    `award_rate` <span class="type">decimal</span>(<span class="number">6</span>,<span class="number">4</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;奖品中奖概率&#x27;</span>,</span><br><span class="line">    `rule_models` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;规则模型，rule配置的模型同步到此表，便于使用&#x27;</span>,</span><br><span class="line">    `sort` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;排序&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;修改时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    KEY `idx_strategy_id_award_id` (`strategy_id`,`award_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">30</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略奖品概率&#x27;</span></span><br></pre></td></tr></table></figure>
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/">
+<p><strong>抽奖策略规则表 strategy_rule：</strong>配置策略级别的规则（抽奖前规则，包括黑名单  black_list 和权重抽奖 rule_weight）。award_id 和 rule_type 字段废弃，奖品级别的规则迁移至决策树中配置。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy_rule` (</span><br><span class="line">    `id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `strategy_id` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">    `award_id` <span class="type">int</span> <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品ID【规则类型为策略，则不需要奖品ID】&#x27;</span>,</span><br><span class="line">    `rule_type` tinyint(<span class="number">1</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;抽象规则类型；1-策略规则、2-奖品规则&#x27;</span>,</span><br><span class="line">    `rule_model` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖规则类型【black_list rule_weight】&#x27;</span>,</span><br><span class="line">    `rule_value` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖规则比值&#x27;</span>,</span><br><span class="line">    `rule_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖规则描述&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY `uq_strategy_id_rule_model` (`strategy_id`,`rule_model`),</span><br><span class="line">    KEY `idx_strategy_id_award_id` (`strategy_id`,`award_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">17</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略规则&#x27;</span></span><br></pre></td></tr></table></figure>
 
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/" class="post-title-link" itemprop="url">Java面试之IO (3) IO模型</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-14 14:34:25 / 修改时间：16:06:34" itemprop="dateCreated datePublished" datetime="2024-04-14T14:34:25+08:00">2024-04-14</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>当应用程序发起 IO 系统调用后，会经历两个阶段：</p>
-<ul>
-<li>内核等待 I/O 设备准备好数据。</li>
-<li>内核将数据从内核空间拷贝到用户空间。</li>
-</ul>
-<h1 id="BIO"><a href="#BIO" class="headerlink" title="BIO"></a>BIO</h1><p>BIO（Blocking IO）属于同步阻塞 IO，<strong>应用程序发起 read 调用后，会一直阻塞</strong>，直到内核把数据拷贝到用户空间。BIO 因为应用程序一直阻塞，直到系统调用返回，所以效率不高。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/6a9e704af49b4380bb686f0c96d33b81~tplv-k3u1fbpfcp-watermark.png" alt="图源：《深入拆解Tomcat &amp; Jetty》"></p>
-<h1 id="NIO"><a href="#NIO" class="headerlink" title="NIO"></a>NIO</h1><p>NIO（Non-blocking/New IO），可以看作是多路复用 IO，Java 在 1.4 中引入 <code>java.nio</code> 包，提供了 <code>Channel</code> , <code>Selector</code>，<code>Buffer</code> 等抽象。</p>
-<p>IO 多路复用模型中，线程首先发起 select 调用，询问内核数据是否准备就绪，等内核把数据准备好了，用户线程再发起 read 调用。read 调用的过程（数据从内核空间 -&gt; 用户空间）还是阻塞的。<strong>IO 多路复用模型，通过减少无效的系统调用，减少了对 CPU 资源的消耗。</strong></p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/88ff862764024c3b8567367df11df6ab~tplv-k3u1fbpfcp-watermark.png" alt="img"></p>
-<p>Java 中的 NIO ，有一个非常重要的<strong>选择器 ( Selector )</strong> 的概念，也可以被称为 <strong>多路复用器</strong>。通过它，只需要一个线程便可以管理多个客户端连接。当客户端数据到了之后，才会为其服务。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/channel-buffer-selector.png" alt="Buffer、Channel和Selector三者之间的关系"></p>
-<h1 id="AIO"><a href="#AIO" class="headerlink" title="AIO"></a>AIO</h1><p>AIO（Asynchronous IO）异步 IO，Java 7 中引入。异步 IO 是基于<strong>事件</strong>和<strong>回调机制</strong>实现的，也就是应用操作之后会直接返回，不会堵塞在那里，当后台处理完成，操作系统会通知相应的线程进行后续的操作。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/3077e72a1af049559e81d18205b56fd7~tplv-k3u1fbpfcp-watermark.png" alt="img"></p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-2-IO%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-2-IO%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Java面试之IO (2) IO设计模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-14 14:34:15 / 修改时间：16:12:18" itemprop="dateCreated datePublished" datetime="2024-04-14T14:34:15+08:00">2024-04-14</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="IO-设计模式"><a href="#IO-设计模式" class="headerlink" title="IO 设计模式"></a>IO 设计模式</h1><p>在 Java IO 中，所用到的设计模式总结。</p>
-<h2 id="装饰器模式"><a href="#装饰器模式" class="headerlink" title="装饰器模式"></a>装饰器模式</h2><p><strong>装饰器（Decorator）模式</strong> 可以在<strong>不改变原有对象</strong>的情况下<strong>拓展</strong>其功能。</p>
-<p>对于字节流，FilterInputStream 和 FilterOutputStream 是装饰器模式的核心，用于增强 InputStream 和 OutputStream 子类对象的功能。</p>
-<p>对于装饰器类而言，构造器的输入为被装饰类，同时可以嵌套多个装饰器。所以，装<strong>饰器类需要跟原始类继承相同的抽象类或者实现相同的接口</strong>。</p>
+<h1 id="策略装配"><a href="#策略装配" class="headerlink" title="策略装配"></a>策略装配</h1><p>策略装配的流程：</p>
+<ol>
+<li>从数据库中查询策略奖品配置（优先从 redis 缓存中获取），得到该策略下的所有策略奖品信息（包括奖品信息、库存、每个奖品的概率）。</li>
+<li>缓存奖品库存，为后续用户抽奖时扣减库存 decr 做准备。</li>
+<li>装配中奖概率到 redis，装配<strong>概率表</strong>（redis hash 存储，value 为奖品 ID）和<strong>概率范围</strong>（用于在抽奖时获取随机范围）<ol>
+<li>装配<strong>默认中奖概率</strong>，即该策略下的全量中奖概率。首先获取概率表，然后进行乱序，转为 map 后存入 redis。</li>
+<li>装配<strong>权重策略中奖概率</strong>。</li>
+</ol>
+</li>
+</ol>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-2-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1-%E7%AD%96%E7%95%A5%E8%A3%85%E9%85%8D/image-20240523161309017.png" alt="image-20240523161309017"></p>
+<h2 id="概率装配"><a href="#概率装配" class="headerlink" title="概率装配"></a>概率装配</h2><p>在装配中奖概率时，需要获取最小概率和获取概率总和，概率范围=概率总和/最小概率。</p>
 <blockquote>
-<p>举例，BufferedInputStream 为 InputStream 提供了缓冲功能，ZipOutputStream 为 OutputStream 提供了 zip 压缩功能，他们的构造函数都是输出一个 InputStream 或者 OutputStream。</p>
+<p><strong>为什么概率范围=概率总和/最小概率，每个策略的概率总和不一定是 1 吗？</strong></p>
+<p>是的，比如在<strong>权重规则</strong>中，因为到达一定权重后，得到的奖品范围缩小了，所以概率总和<strong>小于 1</strong>。总之，这是一种<strong>健壮性</strong>的体现，概率不为 1 时也不会出错。</p>
 </blockquote>
-<h2 id="适配器模式"><a href="#适配器模式" class="headerlink" title="适配器模式"></a>适配器模式</h2><p><strong>适配器（Adapter Pattern）模式</strong> 主要用于接口互不兼容的类的协调工作，适配器模式中存在被适配的对象或者类称为<strong>适配者(Adaptee)</strong> ，作用于适配者的对象或者类称为<strong>适配器(Adapter)</strong> 。适配器分为对象适配器和类适配器。类适配器使用继承关系来实现，对象适配器使用组合关系来实现。</p>
-<p>IO 流中的字符流和字节流的接口不同，它们之间可以协调工作就是基于适配器模式来做的，更准确点来说是对象适配器。<strong>通过适配器</strong>，可以<strong>将字节流对象适配成一个字符流对象</strong>，可以直接通过字节流对象来读取或者写入字符数据。</p>
-<h3 id="InputStreamReader-OutputStreamWriter"><a href="#InputStreamReader-OutputStreamWriter" class="headerlink" title="InputStreamReader OutputStreamWriter"></a>InputStreamReader OutputStreamWriter</h3><p>之前提到的 <strong>InputStreamReader</strong> 和 <strong>OutputStreamWriter</strong> 就是两个适配器，是<strong>字节流和字符流之间的桥梁</strong>。</p>
-<ul>
-<li>InputStreamReader 使用 StreamDecoder（流解码器）对字节进行解码，<strong>实现字节流到字符流的转换</strong>。</li>
-<li>OutputStreamWriter 使用 StreamEncoder（流编码器）对字节进行编码，实现字符流到字节流的转换。</li>
-</ul>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">InputStreamReader</span> <span class="keyword">extends</span> <span class="title">Reader</span> </span>&#123;</span><br><span class="line"> <span class="comment">//用于解码的对象</span></span><br><span class="line"> <span class="keyword">private</span> <span class="keyword">final</span> StreamDecoder sd;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">InputStreamReader</span><span class="params">(InputStream in)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>(in);</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// 获取 StreamDecoder 对象</span></span><br><span class="line">            sd = StreamDecoder.forInputStreamReader(in, <span class="keyword">this</span>, (String)<span class="keyword">null</span>);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (UnsupportedEncodingException e) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> Error(e);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 使用 StreamDecoder 对象做具体的读取工作</span></span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">read</span><span class="params">()</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> sd.read();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="工厂模式"><a href="#工厂模式" class="headerlink" title="工厂模式"></a>工厂模式</h2><p>工厂模式用于创建对象，NIO 中大量用到了工厂模式，比如 <code>Files</code> 类的 <code>newInputStream</code> 方法用于创建 <code>InputStream</code> 对象（静态工厂）、 <code>Paths</code> 类的 <code>get</code> 方法创建 <code>Path</code> 对象（静态工厂）、<code>ZipFileSystem</code> 类（<code>sun.nio</code>包下的类，属于 <code>java.nio</code> 相关的一些内部实现）的 <code>getPath</code> 的方法创建 <code>Path</code> 对象（简单工厂）。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">InputStream is = Files.newInputStream(Paths.get(generatorLogoPath))</span><br></pre></td></tr></table></figure>
-
-<h2 id="观察者模式"><a href="#观察者模式" class="headerlink" title="观察者模式"></a>观察者模式</h2><p>NIO 中的文件目录监听服务使用到了观察者模式。NIO 中的文件目录监听服务基于 <code>WatchService</code> 接口和 <code>Watchable</code> 接口。<code>WatchService</code> 属于观察者，<code>Watchable</code> 属于被观察者。使用方法如下：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建 WatchService 对象</span></span><br><span class="line">WatchService watchService = FileSystems.getDefault().newWatchService();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化一个被监控文件夹的 Path 类:</span></span><br><span class="line">Path path = Paths.get(<span class="string">&quot;workingDirectory&quot;</span>);</span><br><span class="line"><span class="comment">// 将这个 path 对象注册到 WatchService（监控服务） 中去</span></span><br><span class="line">WatchKey watchKey = path.register(watchService, StandardWatchEventKinds...);</span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> ((key = watchService.take()) != <span class="keyword">null</span>) &#123;</span><br><span class="line">    <span class="keyword">for</span> (WatchEvent&lt;?&gt; event : key.pollEvents()) &#123;</span><br><span class="line">      <span class="comment">// 可以调用 WatchEvent 对象的方法做一些事情比如输出事件的具体上下文信息</span></span><br><span class="line">    &#125;</span><br><span class="line">    key.reset();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="Watchable"><a href="#Watchable" class="headerlink" title="Watchable"></a>Watchable</h3><p>Path 实现了 Watchable 接口，说明 Path 是被观察者。Watchable 接口中，watcher 指定了观察者，events 指定了被观察的事件（监听事件）。常用的监听事件：<code>StandardWatchEventKinds.ENTRY_CREATE</code>：文件创建；<code>StandardWatchEventKinds.ENTRY_DELETE</code> : 文件删除；<code>StandardWatchEventKinds.ENTRY_MODIFY</code> : 文件修改。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Path</span></span></span><br><span class="line"><span class="class">    <span class="keyword">extends</span> <span class="title">Comparable</span>&lt;<span class="title">Path</span>&gt;, <span class="title">Iterable</span>&lt;<span class="title">Path</span>&gt;, <span class="title">Watchable</span></span>&#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Watchable</span> </span>&#123;</span><br><span class="line">    <span class="function">WatchKey <span class="title">register</span><span class="params">(WatchService watcher,</span></span></span><br><span class="line"><span class="params"><span class="function">                      WatchEvent.Kind&lt;?&gt;[] events,</span></span></span><br><span class="line"><span class="params"><span class="function">                      WatchEvent.Modifier... modifiers)</span></span></span><br><span class="line"><span class="function">        <span class="keyword">throws</span> IOException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="WatchService"><a href="#WatchService" class="headerlink" title="WatchService"></a>WatchService</h3><p>WatchService 内部<strong>通过一个 daemon thread（守护线程）采用定期轮询的方式来检测文件的变化</strong>，伪代码如下：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PollingWatchService</span></span></span><br><span class="line"><span class="class">    <span class="keyword">extends</span> <span class="title">AbstractWatchService</span></span></span><br><span class="line"><span class="class"></span>&#123;</span><br><span class="line">    <span class="comment">// 定义一个 daemon thread（守护线程）轮询检测文件变化</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ScheduledExecutorService scheduledExecutor;</span><br><span class="line"></span><br><span class="line">    PollingWatchService() &#123;</span><br><span class="line">        scheduledExecutor = Executors</span><br><span class="line">            .newSingleThreadScheduledExecutor(<span class="keyword">new</span> ThreadFactory() &#123;</span><br><span class="line">                 <span class="meta">@Override</span></span><br><span class="line">                 <span class="function"><span class="keyword">public</span> Thread <span class="title">newThread</span><span class="params">(Runnable r)</span> </span>&#123;</span><br><span class="line">                     Thread t = <span class="keyword">new</span> Thread(r);</span><br><span class="line">                     t.setDaemon(<span class="keyword">true</span>);</span><br><span class="line">                     <span class="keyword">return</span> t;</span><br><span class="line">                 &#125;&#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">enable</span><span class="params">(Set&lt;? extends WatchEvent.Kind&lt;?&gt;&gt; events, <span class="keyword">long</span> period)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">      <span class="comment">// 更新监听事件</span></span><br><span class="line">      <span class="keyword">this</span>.events = events;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 开启定期轮询</span></span><br><span class="line">      Runnable thunk = <span class="keyword">new</span> Runnable() &#123; <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123; poll(); &#125;&#125;;</span><br><span class="line">      <span class="keyword">this</span>.poller = scheduledExecutor</span><br><span class="line">        .scheduleAtFixedRate(thunk, period, period, TimeUnit.SECONDS);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/" class="post-title-link" itemprop="url">Java面试之IO (1) IO流</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-14 13:49:47 / 修改时间：14:34:34" itemprop="dateCreated datePublished" datetime="2024-04-14T13:49:47+08:00">2024-04-14</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>IO 流在 Java 中分为输入流和输出流，按照传输单位（数据处理方式）又分为字节流和字符流。Java 有四个 IO 流抽象类基类：</p>
-<ul>
-<li> InputStream/OutputStream：字节输入流，字节输出流。</li>
-<li>Reader/Writer：字符输入流，字符输出流。</li>
-</ul>
-<h1 id="字节流"><a href="#字节流" class="headerlink" title="字节流"></a>字节流</h1><h2 id="InputStream"><a href="#InputStream" class="headerlink" title="InputStream"></a>InputStream</h2><p>InputStream 用于从源头（如文件）读取字节数据到内存中，InputStream 的常用用法：</p>
-<ul>
-<li><code>read()</code>：返回输入流中下一个字节的数据。返回的值介于 0 到 255 之间。如果未读取任何字节，则代码返回 <code>-1</code> ，表示文件结束。</li>
-<li><code>read(byte b[ ])</code> : 从输入流中读取一些字节存储到数组 <code>b</code> 中。如果数组 <code>b</code> 的长度为零，则不读取。如果没有可用字节读取，返回 <code>-1</code>。如果有可用字节读取，则最多读取的字节数最多等于 <code>b.length</code> ， 返回读取的字节数。这个方法等价于 <code>read(b, 0, b.length)</code>。</li>
-<li><code>read(byte b[], int off, int len)</code>：在 <code>read(byte b[ ])</code> 方法的基础上增加了 <code>off</code> 参数（偏移量）和 <code>len</code> 参数（要读取的最大字节数）。</li>
-<li><code>skip(long n)</code>：忽略输入流中的 n 个字节 ,返回实际忽略的字节数。</li>
-<li><code>available()</code>：返回输入流中可以读取的字节数。</li>
-<li><code>close()</code>：关闭输入流释放相关的系统资源。</li>
-</ul>
-<p>从 Java 9 开始，InputStream 新增加了多个实用的方法：</p>
-<ul>
-<li><code>readAllBytes()</code>：读取输入流中的所有字节，返回字节数组。</li>
-<li><code>readNBytes(byte[] b, int off, int len)</code>：阻塞直到读取 <code>len</code> 个字节。</li>
-<li><code>transferTo(OutputStream out)</code>：将所有字节从一个输入流传递到一个输出流。</li>
-</ul>
-<h3 id="常见-InputStream"><a href="#常见-InputStream" class="headerlink" title="常见 InputStream"></a>常见 InputStream</h3><p>常用的 InputStream 如下：</p>
-<ul>
-<li>FileInputStream：用于读取文件。</li>
-<li>BufferInputStream：带缓冲区的 InputStream，缓冲区缓冲数据，有助于减少 IO。</li>
-<li>DataInputStream：用于读取指定类型数据，如 readBoolean、readInt、readUTF 等。</li>
-<li>ObjectInputStream：用于从输入流中读取 Java 对象（反序列化）。</li>
-</ul>
+<h3 id="中奖概率表计算方法改进"><a href="#中奖概率表计算方法改进" class="headerlink" title="中奖概率表计算方法改进"></a>中奖概率表计算方法改进</h3><h4 id="以前的问题"><a href="#以前的问题" class="headerlink" title="以前的问题"></a>以前的问题</h4><p><strong>概率范围=概率总和/最小概率，并向上取整，这是存在问题的。</strong></p>
+<p>如考虑两个概率 0.00011 和 0.99989，最小概率为 1 / 0.00011 = 9090.9090，向上取整后得到概率范围为 9091。</p>
+<p>实际在计算时，9091 * 0.99989 =9 089.999，取成 9090，在概率表中占 9090 个位置。9091* 0.00011 = 1.00001，取成 2，在概率表中占 2 个位置。所以概率表的实际长度是 9092 而非 9091，所以记录的概率范围（9091）是错误的。</p>
 <blockquote>
-<p>OnjectInputStream 用于序列化和反序列化的类必须实现 <code>Serializable</code> 接口，对象中如果有属性不想被序列化，使用 <code>transient</code> 修饰。</p>
+<p>如果全部<strong>向下取整呢</strong>？</p>
+<p>最小概率为 1 / 0.00011 = 9090.9090，向下取整后得到概率范围为 9090。</p>
+<p>9090 * 0.99989 =9 089.0001，取成 9089，在概率表中占 9089 个位置。9090 * 0.00011 = 0.999，取 0，在概率表中占 0 个位置。这种情况该列表的实际长度小于概率范围，并且概率小的奖品占位为零，根本取不到。</p>
 </blockquote>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
+<h4 id="改进后的方法"><a href="#改进后的方法" class="headerlink" title="改进后的方法"></a>改进后的方法</h4><p>在改进后的方法，不直接计算概率范围。而是根据最小概率值，<strong>计算出百分比、千分比的整数值</strong>，然后之间填充概率表，以概率表的实际长度作为概率范围。</p>
+<ol>
+<li>找到范围内最小的概率值，比如 0.1、0.02、0.003，需要找到的值是 0.003。</li>
+<li>基于上一步找到的最小值，0.003 就可以<strong>计算出百分比、千分比的整数值</strong>。这里就是1000。</li>
+<li>那么「概率 * 1000」分别占比100个、20个、3个，总计是123个。</li>
+<li>后续的抽奖就用 123 作为随机数的范围值，在概率表中 100 个为概率为 0.1 的奖品，20 个为概率为 0.02 的奖品，3 个为 概率为 0.003 的奖品。</li>
+<li>概率范围取概率表的<strong>实际长度</strong>。</li>
+</ol>
+<h3 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h3><p>代码实现如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">assembleLotteryStrategy</span><span class="params">(String key, List&lt;StrategyAwardEntity&gt; strategyAwardEntities)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 1. 获取最小概率值</span></span><br><span class="line">    BigDecimal minAwardRate = strategyAwardEntities.stream()</span><br><span class="line">            .map(StrategyAwardEntity::getAwardRate)</span><br><span class="line">            .min(BigDecimal::compareTo)</span><br><span class="line">            .orElse(BigDecimal.ZERO);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 循环计算找到概率范围值</span></span><br><span class="line">    BigDecimal rateRange = BigDecimal.valueOf(convert(minAwardRate.doubleValue()));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. 生成策略奖品概率查找表「这里指需要在list集合中，存放上对应的奖品占位即可，占位越多等于概率越高」</span></span><br><span class="line">    List&lt;Integer&gt; strategyAwardSearchRateTables = <span class="keyword">new</span> ArrayList&lt;&gt;(rateRange.intValue());</span><br><span class="line">    <span class="keyword">for</span> (StrategyAwardEntity strategyAward : strategyAwardEntities) &#123;</span><br><span class="line">        Integer awardId = strategyAward.getAwardId();</span><br><span class="line">        BigDecimal awardRate = strategyAward.getAwardRate();</span><br><span class="line">        <span class="comment">// 计算出每个概率值需要存放到查找表的数量，循环填充</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; rateRange.multiply(awardRate).intValue(); i++) &#123;</span><br><span class="line">            strategyAwardSearchRateTables.add(awardId);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. 对存储的奖品进行乱序操作</span></span><br><span class="line">    Collections.shuffle(strategyAwardSearchRateTables);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 5. 生成出Map集合，key值，对应的就是后续的概率值。通过概率来获得对应的奖品ID</span></span><br><span class="line">    Map&lt;Integer, Integer&gt; shuffleStrategyAwardSearchRateTable = <span class="keyword">new</span> LinkedHashMap&lt;&gt;();</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; strategyAwardSearchRateTables.size(); i++) &#123;</span><br><span class="line">        shuffleStrategyAwardSearchRateTable.put(i, strategyAwardSearchRateTables.get(i));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 6. 存放到 Redis</span></span><br><span class="line">    repository.storeStrategyAwardSearchRateTable(key, shuffleStrategyAwardSearchRateTable.size(), shuffleStrategyAwardSearchRateTable);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
       
     </div>
 
@@ -799,7 +696,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/11/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -813,7 +710,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/04/11/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/" class="post-title-link" itemprop="url">Java面试之集合 (3) Map</a>
+            <a href="/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">大营销平台项目 (1) DDD领域驱动设计</a>
         </h2>
 
         <div class="post-meta">
@@ -824,7 +721,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-04-11 09:48:46 / 修改时间：10:59:08" itemprop="dateCreated datePublished" datetime="2024-04-11T09:48:46+08:00">2024-04-11</time>
+              <time title="创建时间：2024-05-23 12:23:00 / 修改时间：15:36:33" itemprop="dateCreated datePublished" datetime="2024-05-23T12:23:00+08:00">2024-05-23</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -832,7 +729,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                  <a href="/categories/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">大营销平台项目</span></a>
                 </span>
             </span>
 
@@ -847,43 +744,357 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h1><h2 id="HashMap"><a href="#HashMap" class="headerlink" title="HashMap"></a>HashMap</h2><h3 id="HashMap-和-Hashtable-的区别"><a href="#HashMap-和-Hashtable-的区别" class="headerlink" title="HashMap 和 Hashtable 的区别"></a>HashMap 和 Hashtable 的区别</h3><p>HashMap 和 Hashtable 的区别如下：</p>
+          <h1 id="DDD"><a href="#DDD" class="headerlink" title="DDD"></a>DDD</h1><p>DDD（Domain-Driven Design 领域驱动设计），目的是对软件所涉及到的领域进行建模，以应对系统规模过大时引起的软件复杂性的问题。整个过程大概是这样的，开发团队和领域专家一起通过通<strong>用语言</strong>(Ubiquitous Language)去理解和消化<strong>领域知识</strong>，从领域知识中提取和划分为一个一个的<strong>子领域</strong>（核心子域，通用子域，支撑子域），并在子领域上建立<strong>模型</strong>，再重复以上步骤，这样周而复始，构建出一套符合当前领域的模型。</p>
+<h2 id="架构分层"><a href="#架构分层" class="headerlink" title="架构分层"></a>架构分层</h2><p>DDD 有多种分层结构，以下是其中一种：</p>
 <ul>
-<li><strong>线程安全：</strong>HashMap 不是线程安全的，Hashtable 是线程安全的（函数都由 synchronized 修饰，但是锁的粒度很大，并发度为一），</li>
-<li><strong>效率：</strong>HashMap 效率更高，因为 Hashtable 线程安全，效率更低（Hashtable 已被淘汰，不要使用）。</li>
-<li><strong>对 Null 的支持：</strong>HashMap 支持 Null 的 Key 和 Value，而 Hashtable 不支持。</li>
-<li><strong>初始容量和扩容大小：</strong><ul>
-<li>Hashtable：如果不指定初始容量，默认初始容量为 11，每一次扩容 2n+1。</li>
-<li>HashMap：如果不知道初始容量，默认初始容量为 16，每一次扩容 2n；指定初始容量时，容量扩充为 2 的幂次方大小。</li>
+<li><strong>接口定义 api 层：</strong>因为微服务中引用的 RPC 需要<strong>对外提供接口的描述信息（DTO 的定义也在这里）</strong>，也就是调用方在使用的时候，需要引入 Jar 包，让调用方好能依赖接口的定义做代理。</li>
+<li><strong>应用封装 app 层：</strong>应用<strong>启动和配置</strong>的一层，如一些 aop 切面或者 config 配置，可以把它理解为专门为了启动服务而存在的。</li>
+<li><strong>领域封装 domain 层：</strong>领域模型服务，在一层中会有一个个细分的<strong>领域服务</strong>，在每个服务包中会有【模型、仓库、服务】三个部分。</li>
+<li><strong>基础设施 infrastructure 层：</strong>基础层依赖于 domain 领域层，因为在 domain 层定义了仓储接口需要<strong>在基础层实现</strong>。这是依赖倒置的一种设计方式。包括：<ul>
+<li>数据库操作。</li>
+<li>缓存操作。</li>
+<li>消息队列操作。</li>
 </ul>
 </li>
-<li><strong>底层数据结构：</strong>HashMap 在 JDK 1.8 之前，采用数组+链表的方式，之后采用数组+链表/红黑树的方式（当链表长度大于16，会将链表转为红黑树。但是如果数组长度小于 64，会优先扩容数组）</li>
+<li><strong>触发器 trigger 层：</strong>触发器层，一般也被叫做 adapter 适配器层。用于提供接口实现、消息接收、任务执行等。包括：<ul>
+<li>HTTP 接口实现（Controller），实现 api 层。</li>
+<li>RPC 实现，实现 api 层。</li>
+<li>MQ Listener，MQ 消费者。</li>
+<li>Job 任务执行。</li>
 </ul>
+</li>
+<li><strong>类型定义 types 层：</strong>通用类型定义层，包括基本的 Response、常量 Constants 和通用的枚举。会被其他的层进行引用。</li>
+<li><strong>领域编排 case 层：</strong>领域编排层，一般对于较大且复杂的的项目，为了更好的防腐和提供通用的服务，一般会添加 case/application 层，用于对 domain 领域的逻辑进行封装组合处理。</li>
+</ul>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/road-map-230624-03.png" alt="img"></p>
+<h2 id="领域分层"><a href="#领域分层" class="headerlink" title="领域分层"></a>领域分层</h2><p>DDD 领域驱动设计的中心，<strong>主要在于领域模型的设计</strong>，以领域所需，驱动功能实现和数据建模。一个领域服务下面会有多个领域模型，<strong>每个领域模型都是一个充血结构</strong>。领域模型由以下三个部分组成：</p>
+<ul>
+<li><strong>model 模型对象：</strong><ul>
+<li>实体对象 entity：表示具有唯一标识的业务实体，例如订单、商品、用户等。</li>
+<li>值对象 valobj：表示没有唯一标识的业务实体，例如商品的名称、描述、价格等。</li>
+<li>聚合对象 aggregate：由实体对象和值对象聚合而成，通常一个聚合对象内完成一个事务，保证对象之间的一致性和完整性。</li>
+</ul>
+</li>
+<li><strong>repository ：</strong>仓储服务。传递的对象可以是聚合对象、实体对象，返回的结果可以是实体对象、值对象。仅仅定义仓储服务接口，由基础层 infrastructure 实现，是一种<strong>依赖倒置</strong>的结构。可以天然的隔离 PO 数据库持久化对象被引用。</li>
+<li><strong>service：服务</strong>设计。</li>
+</ul>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-01.png" alt="img"></p>
+<h1 id="如何大营销平台的领域模型（战略设计）"><a href="#如何大营销平台的领域模型（战略设计）" class="headerlink" title="如何大营销平台的领域模型（战略设计）"></a>如何大营销平台的领域模型（战略设计）</h1><p>业务流程图如下：</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-stc-04.png" alt="img"></p>
+<h2 id="用例图"><a href="#用例图" class="headerlink" title="用例图"></a>用例图</h2><p>首先根据业务需求画系统用例图，用例图是用户与系统交互的最简表示形式，展现了用户和与他相关的用例之间的关系。通过用例图，人们可以获知系统不同种类的用户和用例。用例图，也可以等同于是用户故事。</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-stc-07.png" alt="img"></p>
+<h2 id="事件风暴定义"><a href="#事件风暴定义" class="headerlink" title="事件风暴定义"></a>事件风暴定义</h2><p>首先定义事件风暴，这样才能让产品、研发、测试、运营等了解业务的伙伴，都能在同一个语言下完成系统建模。</p>
+<ul>
+<li>蓝色 - 决策命令（系统操作），是用户发起的行为动作，如；开始签到、开始抽奖、查看额度等。</li>
+<li>黄色 - 领域事件，过去时态描述。如；签到完成、抽奖完成、奖品发放完成。它所阐述的都是这个领域要完成的终态。</li>
+<li>粉色 - 外部系统，如系统需要调用外部的接口完成流程。</li>
+<li>红色 - 业务流程，用于串联决策命令到领域事件，所实现的业务流程。一些简单的场景则直接有决策命令到领域事件就可以了。</li>
+<li>绿色 - 只读模型，做一些读取数据的动作，没有写库的操作。</li>
+<li>棕色 - 领域对象，每个决策命令的发起，都是含有一个对应的领域对象。</li>
+</ul>
+<h2 id="寻找领域事件"><a href="#寻找领域事件" class="headerlink" title="寻找领域事件"></a>寻找领域事件</h2><p><strong>挖掘领域事件</strong>的过程，就是一堆人头脑风暴的过程。根据产品 PRD 文档，一起开会梳理有哪些领域事件。其实大多数领域事件一个人都可以想到，只是有些部分小的场景和将来可能产生的事件不一定覆盖全。所以要通过产品、测试、以及团队的架构师，一起讨论。</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-stc-09.png" alt="img"></p>
+<h2 id="识别领域角色和对象"><a href="#识别领域角色和对象" class="headerlink" title="识别领域角色和对象"></a>识别领域角色和对象</h2><p>在确定了领域事件以后，接下来要做的就是<strong>通过决策命令串联领域事件</strong>，并填充上所需要的<strong>领域对象</strong>。</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-stc-10.png" alt="img"></p>
+<h2 id="划出领域边界"><a href="#划出领域边界" class="headerlink" title="划出领域边界"></a>划出领域边界</h2><p>有了识别出来的领域角色的流程，就可以非常容易的划分出领域边界了。先在事件风暴图上圈出领域边界，之后在单独提供领域划分。</p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-stc-11.png" alt="img"></p>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-1-DDD%E9%A2%86%E5%9F%9F%E9%A9%B1%E5%8A%A8%E8%AE%BE%E8%AE%A1/roadmap-ddd-stc-12.png" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/07/Spring-Boot%E5%AD%A6%E4%B9%A0-5-%E8%87%AA%E5%8A%A8%E9%85%8D%E7%BD%AE%E5%8E%9F%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/07/Spring-Boot%E5%AD%A6%E4%B9%A0-5-%E8%87%AA%E5%8A%A8%E9%85%8D%E7%BD%AE%E5%8E%9F%E7%90%86/" class="post-title-link" itemprop="url">Spring Boot学习 (5) 自动配置原理</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-05-07 22:58:09" itemprop="dateCreated datePublished" datetime="2024-05-07T22:58:09+08:00">2024-05-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-08 20:34:10" itemprop="dateModified" datetime="2024-05-08T20:34:10+08:00">2024-05-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Bean-的加载"><a href="#Bean-的加载" class="headerlink" title="Bean 的加载"></a>Bean 的加载</h1><h2 id="Bean-的加载方式"><a href="#Bean-的加载方式" class="headerlink" title="Bean 的加载方式"></a>Bean 的加载方式</h2><p>Bean 的加载方式包括：</p>
+<ul>
+<li><p>XML 配置文件方式导入。</p>
+<ul>
+<li>使用 bean 标签导入。</li>
+<li>使用 @ImportResource 导入配置文件。</li>
+</ul>
+</li>
+<li><p>@Component 注解和 @Bean 注解。</p>
+<ul>
+<li>@Component 注解。</li>
+<li>@Configuration + @Bean 注解。</li>
+<li>类实现 FactoryBean 接口，并使用 @Bean 修饰方法返回实现 FactoryBean 的实现类。</li>
+</ul>
+</li>
+<li><p>@Import 导入。</p>
+<ul>
+<li>@Import 直接导入 Bean 类、配置类。</li>
+<li>@Import 导入 ImportSelector 接口。</li>
+<li>@Import 导入 ImportBeanDefinitionRegistrar 接口。</li>
+<li>@Import 导入 BeanDefinitionRegistryPostProcessor 接口。</li>
+</ul>
+</li>
+<li><p>在 IOC 容器初始化完成后再注册 Bean，即 AnnotationConfigApplicationContext 调用 register 方法注册 bean。</p>
+</li>
+</ul>
+<p>下面说明 ImportSelector 接口、ImportBeanDefinitionRegitrar 接口、BeanDefinitionRegistryPostProcessor 接口。</p>
+<p>ImportSelector 接口可以根据注解元数据 AnnotationMetadata 进行一系列判断，返回的是需要被导入的全路径名。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> MyImportSelector implements ImportSelector &#123;</span><br><span class="line">    <span class="keyword">public</span> String[] selectImports(AnnotationMetadata metadata) &#123;</span><br><span class="line">        <span class="comment">// 。。。</span></span><br><span class="line">        <span class="comment">// 可以根据 AnnotationMetadata 做出一系列判断，如：</span></span><br><span class="line">        <span class="keyword">boolean</span> flag = metadata.hasAnnotation(<span class="string">&quot;org.springframework.context.annotation.Import&quot;</span>);</span><br><span class="line">        <span class="keyword">if</span> flag &#123;</span><br><span class="line">            <span class="keyword">return</span> []String&#123;<span class="comment">/* ... */</span>&#125;;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">return</span> []String&#123;<span class="comment">/* ... */</span>&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ImportBeanDefinitionRegistrar 接口，不仅可以通过元数据 AnnotationMetadata 进行判断，而且可以通过 BeanDefinition 注册器来手动注册 Bean，控制 Bean 的注册过程。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> MyImportBeanDefinitionRegistrar implements InportBeanDefinitionRegistrar &#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">registerBeanDefinitions</span><span class="params">(AnnotationMetadata metadata, BeanDefinitionRegistry registry)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 。。。</span></span><br><span class="line">        <span class="comment">// 使用 AnnotationMetadata 做出判断</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 注册 bean</span></span><br><span class="line">        BeanDefinition beanDefinition = BeanDefinitionBuilder.rootBeanDefinition(xxx.class).getBeanDefinition();</span><br><span class="line">        registry.registerBeanDefinition(<span class="string">&quot;beanName&quot;</span>, beanDefinition);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>BeanDefinitionRegistryPostProcessor 接口，通过 BeanDefinition 注册器注册 bean，实现对 bean 的最终裁定（可以覆盖前面 bean 的注册）。</p>
+<h2 id="Bean-的加载控制"><a href="#Bean-的加载控制" class="headerlink" title="Bean 的加载控制"></a>Bean 的加载控制</h2><p>Bean 的加载控制就是<strong>根据特定情况进行选择性的加载</strong>，控制 Bean 的加载过程。可以分为两种方式，编程式和注解式。</p>
+<ul>
+<li>编程式：<ul>
+<li>@Import 导入 ImportSelector 接口。</li>
+<li>@Import 导入 ImportBeanDefinitionRegistrar 接口。</li>
+<li>@Import 导入 BeanDefinitionRegistryPostProcessor 接口。</li>
+<li>AnnotationConfigApplicationContext 调用 register 方法注册 bean。</li>
+</ul>
+</li>
+<li>注解式：<ul>
+<li>使用 @Conditional 注解及其衍生注解 @ConditionalOnXxx 设置 Bean 的加载条件。</li>
+</ul>
+</li>
+</ul>
+<h1 id="自动配置"><a href="#自动配置" class="headerlink" title="自动配置"></a>自动配置</h1><p>SpringBoot 在启动时会扫描外部引用 jar 包中的 META-INF/spring.factories 文件，将文件中配置的类型信息加载到 Spring 容器，并执行类中定义的各种操作。对于外部 jar 来说，只需要按照 SpringBoot 定义的标准，就能将自己的功能装置进 SpringBoot。</p>
+<p>从 SpringBoot 3.0 开始，自动配置包的路径从 META-INF/spring.factories 改为 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports。</p>
+<p>引入 starter 之后，可以通过少量注解和一些简单的配置就能使用第三方组件提供的功能了，<strong>通过注解或者一些简单的配置就能在 Spring Boot 的帮助下实现某块功能。</strong></p>
+<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>SpringBoot 的核心注解 @SpringBootApplication ，主要包含三个注解 @SpringBootConfiguration、@ComponentScan、@EnableAutoConfiguration。</p>
+<ul>
+<li>@SpringBootConfiguration：可以看作是 @Configuration，允许在上下文中注册额外的 bean 或导入其他配置类。</li>
+<li>@ComponentScan：扫描被 @Component 注解的 Bean，注解默认会扫描启动类所在的包下所有的类 ，可以自定义不扫描某些 bean。同时，容器中将排除 <code>TypeExcludeFilter </code>和 <code>AutoConfigurationExcludeFilter</code>。</li>
+<li>@EnableAutoConfiguration：开启自动配置，是自动配置的关键注解。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(&#123;ElementType.TYPE&#125;)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.RUNTIME)</span></span><br><span class="line"><span class="meta">@Documented</span></span><br><span class="line"><span class="meta">@Inherited</span></span><br><span class="line"><span class="meta">@SpringBootConfiguration</span></span><br><span class="line"><span class="meta">@ComponentScan</span></span><br><span class="line"><span class="meta">@EnableAutoConfiguration</span></span><br><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> SpringBootApplication &#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="EnableAutoConfiguration"><a href="#EnableAutoConfiguration" class="headerlink" title="@EnableAutoConfiguration"></a>@EnableAutoConfiguration</h3><p>@EnableAutoConfiguration 其中包含了两个主要注解：</p>
+<ul>
+<li>@AutoConfigurationPackage：将 @SpringBootApplication 路径下的所有 Bean 注册到容器中。</li>
+<li>@Import({AutoConfigurationImportSelector.class})：加载自动装配类。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(&#123;ElementType.TYPE&#125;)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.RUNTIME)</span></span><br><span class="line"><span class="meta">@Documented</span></span><br><span class="line"><span class="meta">@Inherited</span></span><br><span class="line"><span class="meta">@AutoConfigurationPackage</span> <span class="comment">//作用：将main包下的所有组件注册到容器中</span></span><br><span class="line"><span class="meta">@Import(&#123;AutoConfigurationImportSelector.class&#125;)</span> <span class="comment">//加载自动装配类 xxxAutoconfiguration</span></span><br><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> EnableAutoConfiguration &#123;</span><br><span class="line">    String ENABLED_OVERRIDE_PROPERTY = <span class="string">&quot;spring.boot.enableautoconfiguration&quot;</span>;</span><br><span class="line"></span><br><span class="line">    Class&lt;?&gt;[] exclude() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line"></span><br><span class="line">    String[] excludeName() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="AutoConfigurationImportSelector-加载自动装配类"><a href="#AutoConfigurationImportSelector-加载自动装配类" class="headerlink" title="AutoConfigurationImportSelector 加载自动装配类"></a>AutoConfigurationImportSelector 加载自动装配类</h3><p>AutoConfigurationImportSelector 的声明如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AutoConfigurationImportSelector</span> <span class="keyword">implements</span> <span class="title">DeferredImportSelector</span>, <span class="title">BeanClassLoaderAware</span>, <span class="title">ResourceLoaderAware</span>, <span class="title">BeanFactoryAware</span>, <span class="title">EnvironmentAware</span>, <span class="title">Ordered</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DeferredImportSelector</span> <span class="keyword">extends</span> <span class="title">ImportSelector</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">ImportSelector</span> </span>&#123;</span><br><span class="line">    String[] selectImports(AnnotationMetadata var1);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>AutoConfigurationImportSelector 实现了 ImportSelector 类，作用是<strong>获取所有符合条件的类的全限定类名，这些类需要被加载到 IoC 容器中</strong>。通过 getAutoConfigurationEntry 方法来实现获取所有需要自动配置的全限定类名。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String[] NO_IMPORTS = <span class="keyword">new</span> String[<span class="number">0</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> String[] selectImports(AnnotationMetadata annotationMetadata) &#123;</span><br><span class="line">    <span class="comment">// &lt;1&gt;.判断自动装配开关是否打开</span></span><br><span class="line">    <span class="keyword">if</span> (!<span class="keyword">this</span>.isEnabled(annotationMetadata)) &#123;</span><br><span class="line">        <span class="keyword">return</span> NO_IMPORTS;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    	<span class="comment">//&lt;2&gt;.获取所有需要装配的bean</span></span><br><span class="line">        AutoConfigurationMetadata autoConfigurationMetadata = AutoConfigurationMetadataLoader.loadMetadata(<span class="keyword">this</span>.beanClassLoader);</span><br><span class="line">        AutoConfigurationImportSelector.AutoConfigurationEntry autoConfigurationEntry = <span class="keyword">this</span>.getAutoConfigurationEntry(autoConfigurationMetadata, annotationMetadata);</span><br><span class="line">        <span class="keyword">return</span> StringUtils.toStringArray(autoConfigurationEntry.getConfigurations());</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="getAutoConfigurationEntry-方法"><a href="#getAutoConfigurationEntry-方法" class="headerlink" title="getAutoConfigurationEntry 方法"></a>getAutoConfigurationEntry 方法</h3><p>getAutoConfigurationEntry 方法如下，主要有流程：</p>
+<ol>
+<li>判断自动装配开关是否打开，默认为 true。</li>
+<li>获取 @EnableAutoConfiguration 注解中的 exclude 和 excludeName 属性。</li>
+<li>获取所有自动装配的配置类，读取所有引入 jar 包下的 META-INF/spring.factories 文件。</li>
+<li>自动配装配的配置类通过 @ConditionalOnXxx 进行选择性的加载控制，在 getAutoConfigurationEntry 中剔除不需要被加载的配置。</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> AutoConfigurationEntry EMPTY_ENTRY = <span class="keyword">new</span> AutoConfigurationEntry();</span><br><span class="line"></span><br><span class="line"><span class="function">AutoConfigurationEntry <span class="title">getAutoConfigurationEntry</span><span class="params">(AutoConfigurationMetadata autoConfigurationMetadata, AnnotationMetadata annotationMetadata)</span> </span>&#123;</span><br><span class="line">        <span class="comment">//&lt;1&gt;.</span></span><br><span class="line">        <span class="keyword">if</span> (!<span class="keyword">this</span>.isEnabled(annotationMetadata)) &#123;</span><br><span class="line">            <span class="keyword">return</span> EMPTY_ENTRY;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">//&lt;2&gt;.</span></span><br><span class="line">            AnnotationAttributes attributes = <span class="keyword">this</span>.getAttributes(annotationMetadata);</span><br><span class="line">            <span class="comment">//&lt;3&gt;.</span></span><br><span class="line">            List&lt;String&gt; configurations = <span class="keyword">this</span>.getCandidateConfigurations(annotationMetadata, attributes);</span><br><span class="line">            <span class="comment">//&lt;4&gt;.</span></span><br><span class="line">            configurations = <span class="keyword">this</span>.removeDuplicates(configurations);</span><br><span class="line">            Set&lt;String&gt; exclusions = <span class="keyword">this</span>.getExclusions(annotationMetadata, attributes);</span><br><span class="line">            <span class="keyword">this</span>.checkExcludedClasses(configurations, exclusions);</span><br><span class="line">            configurations.removeAll(exclusions);</span><br><span class="line">            configurations = <span class="keyword">this</span>.filter(configurations, autoConfigurationMetadata);</span><br><span class="line">            <span class="keyword">this</span>.fireAutoConfigurationImportEvents(configurations, exclusions);</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> AutoConfigurationImportSelector.AutoConfigurationEntry(configurations, exclusions);</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="自实现-starter"><a href="#自实现-starter" class="headerlink" title="自实现 starter"></a>自实现 starter</h2><p>了解了自动配置的原理后，自实现 starter 的流程如下：</p>
+<ol>
+<li>引入 spring boot 相关依赖</li>
+<li>创建自动配置类，用 @ConditionalOnXxx 修饰</li>
+<li>将自动配置类填写到 META-INF/spring.factories 文件下</li>
+<li>新建工程引入 xxx-spring-boot-starter</li>
+</ol>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/" class="post-title-link" itemprop="url">Spring Boot学习 (4) 缓存 定时任务</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-06 21:58:02 / 修改时间：23:13:08" itemprop="dateCreated datePublished" datetime="2024-05-06T21:58:02+08:00">2024-05-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h1><p>Spring 框架提供了透明添加缓存到应用程序的支持。 只要通过使用 @EnableCaching 注解启用缓存支持，Spring Boot就会自动配置缓存基础设施。</p>
+<h2 id="Spring-Cache"><a href="#Spring-Cache" class="headerlink" title="Spring Cache"></a>Spring Cache</h2><p>Spring Boot 提供的缓存包括：JCache、Redis、Simple 等。通过 spring.cache.type 配置参数来指定缓存类型，当该值为 None 时为完全禁用缓存。</p>
+<p>在方法上使用 @Cachable、@CacheEvict、@CachePut 表示缓存的行为。</p>
+<h3 id="Simple"><a href="#Simple" class="headerlink" title="Simple"></a>Simple</h3><p>Simple 作为<strong>默认</strong>的缓存实现，使用 ConcurrentHashMap 作为缓存存储。</p>
+<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>如果已经引入了 spring-boot-starter-redis，缓存的配置信息可以通过 <code>spring.cache.redis.*</code> 来设置。</p>
+<p>如果需要对配置信息进行更多的控制，可以考虑注册一个 <code>RedisCacheManagerBuilderCustomizer</code> bean。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> java.time.Duration;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;</span><br><span class="line"><span class="keyword">import</span> org.springframework.context.annotation.Bean;</span><br><span class="line"><span class="keyword">import</span> org.springframework.context.annotation.Configuration;</span><br><span class="line"><span class="keyword">import</span> org.springframework.data.redis.cache.RedisCacheConfiguration;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Configuration(proxyBeanMethods = false)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyRedisCacheManagerConfiguration</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> RedisCacheManagerBuilderCustomizer <span class="title">myRedisCacheManagerBuilderCustomizer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> (builder) -&gt; builder</span><br><span class="line">                .withCacheConfiguration(<span class="string">&quot;cache1&quot;</span>, RedisCacheConfiguration</span><br><span class="line">                        .defaultCacheConfig().entryTtl(Duration.ofSeconds(<span class="number">10</span>)))</span><br><span class="line">                .withCacheConfiguration(<span class="string">&quot;cache2&quot;</span>, RedisCacheConfiguration</span><br><span class="line">                        .defaultCacheConfig().entryTtl(Duration.ofMinutes(<span class="number">1</span>)));</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 <blockquote>
-<p><strong>为什么 HashMap 的容量是 2 的幂次方？</strong></p>
-<p>因为在通过对哈希取模选则数组下标时，2 的幂次方可以<strong>快速计算</strong>：<code>(n-1) &amp; hash = hash % 数组长度</code></p>
+<p>@Configuration 注解：</p>
+<ul>
+<li>@Configuration 是 Spring 框架提供的一个元注解，用于表示一个类是一个配置类。</li>
+<li>配置类通常包含 @Bean 注解，定义了创建和配置 Bean 的方法。</li>
+<li>Spring 会扫描 @Configuration 类，并将其中的 @Bean 方法注册为 Spring 容器中的 Bean（name 默认为方法名）。</li>
+</ul>
+<p>@Configuration 注解的 proxyBeanMethods 属性：用于控制@Bean方法的<strong>代理</strong>行为，默认为 true。</p>
+<ul>
+<li><strong>当 proxyBeanMethods 属性设置为 true 时</strong>，Spring 会对 @Configuration 类<strong>进行 CGLIB 代理</strong>。调用 @Bean 方法时，Spring 会<strong>检查是否已经存在该 Bean</strong>，如果存在，则直接返回已存在的 Bean，否则调用方法创建新的 Bean 并<strong>缓存</strong>起来。</li>
+<li><strong>当 proxyBeanMethods 属性设置为 false 时</strong>，会<strong>禁用 CGLIB 代理</strong>。这种情况下，<strong>每一次调用 @Bean 都会执行一次方法体</strong>，不会缓存 Bean 对象，适用于那些<strong>需要每次返回新实例的场景</strong>。</li>
+</ul>
 </blockquote>
-<h3 id="HashMap-和-TreeMap-的区别"><a href="#HashMap-和-TreeMap-的区别" class="headerlink" title="HashMap 和 TreeMap 的区别"></a>HashMap 和 TreeMap 的区别</h3><p>HashMap 和 TreeMap 都继承自 AbstractMap，<strong>但是 TreeMap 还实现了 NavigableMap 接口和 SortedMap 接口</strong>。实现 NavigableMap 接口让 TreeMap 有了对集合内元素的<strong>搜索</strong>能力；实现 SortedMap 接口让 TreeMap 有了对集合中元素根据 key 的<strong>排序</strong>能力。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/treemap_hierarchy.png" alt="TreeMap 继承关系图"></p>
-<h3 id="HashMap-多线程死循环问题"><a href="#HashMap-多线程死循环问题" class="headerlink" title="HashMap 多线程死循环问题"></a>HashMap 多线程死循环问题</h3><p><strong>JDK1.7 及之前版本的 HashMap 在多线程环境下扩容操作可能存在死循环问题</strong>，这是由于当一个桶位中有多个元素需要进行扩容时，多个线程同时对链表进行操作，<strong>头插法</strong>可能会导致链表中的节点指向错误的位置，从而形成一个<strong>环形链表</strong>，进而使得查询元素的操作陷入死循环无法结束。</p>
-<p>为了解决这个问题，JDK1.8 版本的 HashMap 采用了<strong>尾插法</strong>而不是头插法来避免链表倒置，使得插入的节点永远都是放在链表的末尾，避免了链表中的环形结构。</p>
-<h2 id="ConcurrentHashMap"><a href="#ConcurrentHashMap" class="headerlink" title="ConcurrentHashMap"></a>ConcurrentHashMap</h2><h3 id="ConcurrentHashMap-和-Hashtable-的区别"><a href="#ConcurrentHashMap-和-Hashtable-的区别" class="headerlink" title="ConcurrentHashMap 和 Hashtable 的区别"></a>ConcurrentHashMap 和 Hashtable 的区别</h3><p>ConcurrentHashMap 和 Hashtable 的区别主要体现在实现线程安全的方式不同：</p>
+<h2 id="JetCache"><a href="#JetCache" class="headerlink" title="JetCache"></a>JetCache</h2><p>JetCache 是一个基于 Java 的缓存系统封装，提供统一的 API 和注解来简化缓存的使用。 JetCache 提供了比 SpringCache 更加强大的注解，可以原生的支持 TTL、两级缓存、分布式自动刷新，还提供了 <code>Cache</code> 接口用于手工缓存操作，支持 Spring Boot、支持统计信息。 目前有四个实现：</p>
 <ul>
-<li><strong>底层数据结构：</strong>Hashtable 采用数组+链表的方式。ConcurrentHashMap 在 JDK 1.7 采用分段锁+链表，JDK 1.8 采用数组+链表/红黑树的方式。</li>
-<li><strong>实现线程安全的方式：</strong><ul>
-<li>ConcurrentHashMap：在 JDK 1.7 时，使用<strong>分段锁</strong>的方式保证线程安全；在 JDK 1.8 时，摒弃了分段锁而是直接使用 Node 数组+链表/红黑树的方式，<strong>并发控制使用 synchronized 和 CAS 操作</strong>。</li>
-<li>Hashtable：使用 synchronized（同一把锁）保证线程安全，并发程度为 1。</li>
+<li>远程缓存：<ul>
+<li>redis</li>
+<li>tair</li>
+</ul>
+</li>
+<li>本地缓存：<ul>
+<li>caffeine</li>
+<li>linked hash map</li>
 </ul>
 </li>
 </ul>
-<h3 id="ConcurrentHashMap-并发实现机制"><a href="#ConcurrentHashMap-并发实现机制" class="headerlink" title="ConcurrentHashMap 并发实现机制"></a>ConcurrentHashMap 并发实现机制</h3><p>ConcurrentHashMap 在 JDK 1.7 和 1.8 中实现并发的机制不同：</p>
+<p>@EnableMethodCache、@EnableCreateCacheAnnotation 这两个注解分别激活 @Cached 和 @CreateCache 注解。也就是说，可以直接使用 @Cached 实现方法缓存，或者使用创建一个 Cache 实例两种方式，来使用 JetCache。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> com.company.mypackage;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.alicp.jetcache.anno.config.EnableCreateCacheAnnotation;</span><br><span class="line"><span class="keyword">import</span> com.alicp.jetcache.anno.config.EnableMethodCache;</span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.SpringApplication;</span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.autoconfigure.SpringBootApplication;</span><br><span class="line"></span><br><span class="line"><span class="meta">@SpringBootApplication</span></span><br><span class="line"><span class="meta">@EnableMethodCache(basePackages = &quot;com.company.mypackage&quot;)</span></span><br><span class="line"><span class="meta">@EnableCreateCacheAnnotation</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySpringBootApp</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>&#123;</span><br><span class="line">        SpringApplication.run(MySpringBootApp.class);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>配置信息参见：<a target="_blank" rel="noopener" href="https://github.com/alibaba/jetcache/blob/master/docs/CN/Config.md">https://github.com/alibaba/jetcache/blob/master/docs/CN/Config.md</a></p>
+<h3 id="创建-Cache-实例"><a href="#创建-Cache-实例" class="headerlink" title="创建 Cache 实例"></a>创建 Cache 实例</h3><p>有两种方法创建 Cache 实例，分别是 CacheManager 和 @CacheCreate 注解（在jetcache 2.7 版本CreateCache注解已经废弃）。</p>
 <ul>
-<li>JDK 1.7：<strong>分段锁</strong>的方式实现并发，默认 16 个段，也就是说最多支持 16 个线程并发访问。段的个数一旦初始化之后不能改变。</li>
-<li>JDK 1.8：摈弃了分段锁的概念，<strong>采用 Node 数组+synchronized+CAS 保证并发安全</strong>。锁粒度更细，<strong>synchronized 只锁定当前链表或红黑二叉树的首节点</strong>，这样只要 hash 不冲突，就不会产生并发，就不会影响其他 Node 的读写，效率大幅提升。</li>
+<li>使用 CacheManager 可以创建 Cache 实例，area 和 name 相同的情况下，它和 Cached 注解使用同一个 Cache 实例。</li>
 </ul>
-<h3 id="ConcurrentHashMap-为什么-key-和-value-不支持-null"><a href="#ConcurrentHashMap-为什么-key-和-value-不支持-null" class="headerlink" title="ConcurrentHashMap 为什么 key 和 value 不支持 null"></a>ConcurrentHashMap 为什么 key 和 value 不支持 null</h3><p><strong>多线程环境下</strong>，存在一个线程操作该 ConcurrentHashMap 时，其他的线程将该 ConcurrentHashMap 修改的情况，所以<strong>无法通过 containsKey(key) 来判断否存在这个键值对</strong>，也就没办法解决二义性问题了。</p>
-<p>与此形成对比的是，HashMap 可以存储 null 的 key 和 value，但 null 作为键只能有一个，null 作为值可以有多个。如果传入 null 作为参数，就会返回 hash 值为 0 的位置的值。<strong>单线程环境下</strong>，不存在一个线程操作该 HashMap 时，其他的线程将该 HashMap 修改的情况，所以<strong>可以通过 contains(key)来做判断是否存在这个键值对</strong>，从而做相应的处理，也就不存在二义性问题。</p>
-<p><strong>也就是说，多线程下无法正确判定键值对是否存在（存在其他线程修改的情况），单线程是可以的（不存在其他线程修改的情况）。</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> CacheManager cacheManager;</span><br><span class="line"><span class="keyword">private</span> Cache&lt;String, UserDO&gt; userCache;</span><br><span class="line"></span><br><span class="line"><span class="meta">@PostConstruct</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    QuickConfig qc = QuickConfig.newBuilder(<span class="string">&quot;userCache&quot;</span>)</span><br><span class="line">        .expire(Duration.ofSeconds(<span class="number">100</span>))</span><br><span class="line">        .cacheType(CacheType.BOTH) <span class="comment">// two level cache</span></span><br><span class="line">        .syncLocal(<span class="keyword">true</span>) <span class="comment">// invalidate local cache in all jvm process after update</span></span><br><span class="line">        .build();</span><br><span class="line">    userCache = cacheManager.getOrCreateCache(qc);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用 @CreateCache 注解创建一个Cache实例，在jetcache 2.7 版本CreateCache注解已经废弃</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@CreateCache(expire = 100)</span></span><br><span class="line"><span class="keyword">private</span> Cache&lt;Long, UserDO&gt; userCache;</span><br></pre></td></tr></table></figure>
+
+<h3 id="方法缓存"><a href="#方法缓存" class="headerlink" title="方法缓存"></a>方法缓存</h3><p>在 spring 环境下，使用 @Cached 注解可以为一个方法添加缓存，@CacheUpdate 用于更新缓存，@CacheInvalidate 用于移除缓存元素。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">UserService</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Cached(name=&quot;userCache.&quot;, key=&quot;#userId&quot;, expire = 3600)</span></span><br><span class="line">    <span class="function">User <span class="title">getUserById</span><span class="params">(<span class="keyword">long</span> userId)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@CacheUpdate(name=&quot;userCache.&quot;, key=&quot;#user.userId&quot;, value=&quot;#user&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">updateUser</span><span class="params">(User user)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@CacheInvalidate(name=&quot;userCache.&quot;, key=&quot;#userId&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">deleteUser</span><span class="params">(<span class="keyword">long</span> userId)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="定时任务"><a href="#定时任务" class="headerlink" title="定时任务"></a>定时任务</h1><h2 id="Quartz"><a href="#Quartz" class="headerlink" title="Quartz"></a>Quartz</h2><p>Spring Boot 提供了 Quartz 的 starter，spring-boot-starter-quartz。如果 Quartz 可用，就会自动配置一个 Scheduler。以下类型的 Bean 会被自动装配并与 Scheduler 关联：</p>
+<ul>
+<li><code>JobDetail</code>：定义了一个特定的 Job。 <code>JobDetail</code> 实例可以通过 <code>JobBuilder</code> API建立。</li>
+<li><code>Calendar</code>。</li>
+<li><code>Trigger</code>：定义了一个特定的 Job 何时被触发。</li>
+</ul>
+<h3 id="定义任务"><a href="#定义任务" class="headerlink" title="定义任务"></a>定义任务</h3><p>通过继承 QuartzJobBean 来定义自己的任务，重写 executeInternal 方法，并且可以通过 setter 注入属性。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> org.quartz.JobExecutionContext;</span><br><span class="line"><span class="keyword">import</span> org.quartz.JobExecutionException;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.scheduling.quartz.QuartzJobBean;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySampleJob</span> <span class="keyword">extends</span> <span class="title">QuartzJobBean</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> MyService myService;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Inject &quot;MyService&quot; bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setMyService</span><span class="params">(MyService myService)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.myService = myService;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Inject the &quot;name&quot; job data property</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setName</span><span class="params">(String name)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.name = name;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">executeInternal</span><span class="params">(JobExecutionContext context)</span> <span class="keyword">throws</span> JobExecutionException </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.myService.someMethod(context.getFireTime(), <span class="keyword">this</span>.name);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="持久化任务"><a href="#持久化任务" class="headerlink" title="持久化任务"></a>持久化任务</h3><p>默认情况下，使用内存中的 <code>JobStore</code>。 然而，如果你的应用程序中有一个 <code>DataSource</code> Bean，并且相应地配置了 <code>spring.quartz.job-store-type</code> 属性，也可以配置一个基于 JDBC 的 store。</p>
+<p>要让 Quartz 使用应用程序主 <code>DataSource</code> 以外的 <code>DataSource</code>，可以声明一个 <code>DataSource</code> bean，用 <code>@QuartzDataSource</code> 注释其 <code>@Bean</code> 方法。这样做可以确保Quartz特定的数据源被 <code>SchedulerFactoryBean</code> 和schema初始化所使用。</p>
+<p>同样地，为了让 Quartz 使用应用程序的主 <code>TransactionManager</code> 以外的 <code>TransactionManager</code>，需要声明一个 <code>TransactionManager</code> Bean，用 <code>@QuartzTransactionManager</code> 注释其 <code>@Bean</code> 方法。</p>
+<p>默认情况下，通过配置创建的Job不会覆盖已经从持久性 JobStore 中读取的已注册Job。 要启用覆盖现有作业定义，需要设置 <code>spring.quartz.overwrite-existing-jobs</code> 属性。</p>
+<h2 id="Spring-Task"><a href="#Spring-Task" class="headerlink" title="Spring Task"></a>Spring Task</h2><p>Spring 原生的支持定时任务功能，使用 @EnableScheduling 注解开启定时任务功能，使用 @Scheduled 注解指定定时任务。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyBean</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Scheduled(cron = &quot;1 * * * * ?&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">myTask</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>
@@ -903,7 +1114,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-3-Redis-MongoDB-ES/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -917,7 +1128,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/" class="post-title-link" itemprop="url">Java面试之集合 (2) List Set Queue</a>
+            <a href="/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-3-Redis-MongoDB-ES/" class="post-title-link" itemprop="url">Spring Boot学习 (3) Redis MongoDB ES</a>
         </h2>
 
         <div class="post-meta">
@@ -928,7 +1139,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-04-10 10:09:40 / 修改时间：12:17:10" itemprop="dateCreated datePublished" datetime="2024-04-10T10:09:40+08:00">2024-04-10</time>
+              <time title="创建时间：2024-05-06 16:23:33 / 修改时间：17:24:15" itemprop="dateCreated datePublished" datetime="2024-05-06T16:23:33+08:00">2024-05-06</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -936,7 +1147,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
                 </span>
             </span>
 
@@ -951,237 +1162,24 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>ArrayList、LinkedList、Vector 实现了 List 接口。其中 Vector 是 ArrayList 的古老实现类，最重要的还是 ArrayList 和 LinkedList。<strong>那么 ArrayList 和 LinkedList 的区别有什么？</strong></p>
+          <h1 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h1><p>通过引入 spring-boot-start-data-redis，就可以在 Spring Boot 中集成 Redis；同时也可以引入 spring-boot-starter-data-redis-reactive，支持与 Redis 的响应式异步交互。</p>
+<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>通过引入 starter，就可以注入一个自动配置的 RedisConnectionFactory、StringRedisTemplate、RedisTemplate。通过 StringRedisTemplate 就可以与 Redis 进行交互。</p>
+<h2 id="客户端"><a href="#客户端" class="headerlink" title="客户端"></a>客户端</h2><p>Spring Boot 支持两种 Redis 客户端，分别是 lettuce 和 jedis，lettuce 是默认的 Redis 客户端。</p>
+<h3 id="区别"><a href="#区别" class="headerlink" title="区别"></a>区别</h3><p>lettuce 与 jedis 区别：</p>
 <ul>
-<li><strong>是否线程安全：</strong>二者都是线程不安全的，不保证并发访问。</li>
-<li><strong>底层数据结构：</strong>ArrayList 底层采用数组，而 LinkedList 底层采用双向链表。</li>
-<li><strong>插入和删除：</strong>ArrayList 除了在尾部插入和删除的时间复杂度为 <code>O(1)</code>，其余时间复杂度均为 <code>O(n)</code>。LinkedList 在头尾插入和删除的时间复杂度为 <code>O(1)</code>，其余位置因为需要先定位元素再删除，时间复杂度为 <code>O(n)</code>。</li>
-<li><strong>是否支持随机访问：</strong>ArrayList 支持快速的随机访问，而 LinkedList 不支持。</li>
-<li><strong>内存占用：</strong>ArrayList 的空间浪费体现在容量大于长度的情况，LinkedList 的空间浪费体现在每一个元素都要记录前驱和后继。</li>
+<li>jedis 连接 Redis 服务器是直连模式，当多线程模式下使用 jedis 会存在<strong>线程安全问题</strong>，解决方案可以通过配置连接池使每个连接专用，但是会产生性能问题。</li>
+<li>lettcus 基于 Netty 框架进行与 Redis 服务器连接，底层设计中采用 StatefulRedisConnection。StatefulRedisConnection 自身是线程安全的，可以<strong>保障并发访问安全问题</strong>，一个连接可以<strong>被多线程复用</strong>。</li>
 </ul>
-<blockquote>
-<p>一般都会使用 ArrayList，需要用到 LinkedList 的场景几乎可以用 ArrayList 代替。</p>
-</blockquote>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Java面试之集合 (1) 概述</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-10 10:09:28 / 修改时间：10:33:12" itemprop="dateCreated datePublished" datetime="2024-04-10T10:09:28+08:00">2024-04-10</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="集合概述"><a href="#集合概述" class="headerlink" title="集合概述"></a>集合概述</h1><p>Java 集合（容器）由两大接口派生而来：Collection 接口，用于存放单一的元素；Map 接口，用于存放键值对。对于 Collection 接口，派生出了几个子接口：List、Set、Queue。</p>
-<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/java-collection-hierarchy.png" alt="Java 集合框架概览"></p>
-<h2 id="区别"><a href="#区别" class="headerlink" title="区别"></a>区别</h2><p>几个接口的区别如下：</p>
+<h1 id="MongoDB"><a href="#MongoDB" class="headerlink" title="MongoDB"></a>MongoDB</h1><p>通过引入 spring-boot-start-data-mongodb，就可以在 Spring Boot 中集成 MongoDB；同时也可以引入 spring-boot-starter-data-mongodb-reactive，支持与 MongoDB 的响应式异步交互。</p>
+<p>可以注入 MongoTemplate 类来操作 MongoDB。</p>
+<h1 id="ElasticSearch"><a href="#ElasticSearch" class="headerlink" title="ElasticSearch"></a>ElasticSearch</h1><p>通过引入 spring-boot-start-data-elasticsearch，就可以在 Spring Boot 中集成 ES；同时也可以引入 spring-boot-starter-data-elasticsearch-reactive，支持与 ES 的响应式异步交互。</p>
+<p>Spring Boot支持多个客户端。</p>
 <ul>
-<li>List：顺序存储元素。</li>
-<li>Set：存储的元素是不可重复的。</li>
-<li>Queue：队列，按照某种规则进行排队。</li>
-<li>Map：键值对。</li>
+<li>官方低级别的 REST 客户端（low-level REST client）</li>
+<li>官方的 Java API 客户端</li>
+<li>Spring Data Elasticsearch 提供的  <code>ReactiveElasticsearchClient</code>。</li>
 </ul>
-<h2 id="底层数据结构"><a href="#底层数据结构" class="headerlink" title="底层数据结构"></a>底层数据结构</h2><h3 id="Collection"><a href="#Collection" class="headerlink" title="Collection"></a>Collection</h3><p>Collection 接口下集合的数据结构：</p>
-<ul>
-<li>List：<ul>
-<li><strong>ArrayList：</strong>Object 数组。</li>
-<li><strong>Vector：</strong>Object 数组，并发安全，是 ArrayList 的古老实现类。</li>
-<li><strong>LinkedList：</strong>双向链表。</li>
-</ul>
-</li>
-<li>Set：<ul>
-<li><strong>HashSet：</strong>基于 HashMap 实现，底层使用 HashMap 存储元素。</li>
-<li><strong>LinkedHashSet：</strong>是 HashSet 的子类，内部是通过 LinkedHashMap 实现的。</li>
-<li><strong>TreeSet：</strong>红黑树。</li>
-</ul>
-</li>
-<li>Queue：<ul>
-<li><strong>PriorityQueue：</strong>Object 数组实现的小顶堆。</li>
-<li><strong>DelayQueue：</strong>延迟队列，基于 PriorityQueue 实现的。</li>
-<li><strong>ArrayDeque：</strong>可以动态扩容的双向数组。</li>
-</ul>
-</li>
-</ul>
-<h3 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h3><p>Map 接口下集合的数据结构：</p>
-<ul>
-<li><strong>HashMap：</strong>JDK 1.8 之前由<strong>数组+链表</strong>组成，使用拉链法解决哈希冲突。JDK 1.8 之后在解决哈希冲突时有了较大变化，当链表长度大于阈值（默认为 8）（将链表转换成红黑树前会判断，如果当前数组的长度小于 64，那么会选择先进行数组扩容，而不是转换为红黑树）时，将链表转化为<strong>红黑树</strong>，以减少搜索时间。</li>
-<li><strong>LinkedHashMap：</strong>继承自 HashMap，底层依然是数组+链表/红黑树的结构。另外，LinkedHashMap 在HashMap 的基础上，增加了一条<strong>双向链表</strong>，使得上面的结构可以<strong>保持键值对的插入顺序</strong>。同时通过对链表进行相应的操作，实现了顺序访问相关逻辑。</li>
-<li><strong>Hashtable：</strong>数组+链表组成，使用拉链法解决哈希冲突。</li>
-<li><strong>TreeMap：</strong>红黑树。</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/09/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/09/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">GaiaDB 架构简介</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-09 20:58:08 / 修改时间：21:16:05" itemprop="dateCreated datePublished" datetime="2024-04-09T20:58:08+08:00">2024-04-09</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/gaiadb/" itemprop="url" rel="index"><span itemprop="name">gaiadb</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>GaiaDB 是百度自研的<strong>云原生数据库</strong>，GaiaDB 采用计算与存储分离的架构，不仅在性能、扩展性和高可用方面有大幅提升，而且架构的解耦使得计算层和存储层都获得了很大的优化空间。</p>
-<h1 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h1><p>GaiaDB 在运行形态上是一个<strong>多节点集群</strong>，集群中有一个<strong>主节点</strong>和多个<strong>从节点</strong>，<strong>日志服务（LogService）</strong>用于持久化主节点生成的日志，所有节点共享底层的<strong>分布式存储</strong>（PageServer），各模块分布到不同的K8S容器内。</p>
-<p>架构上采用合-分-合的架构，在扩展性和使用便捷性之间保持了平衡，使得对于上层应用程序来说，就像使用一个单点的MySQL数据库一样简单。</p>
-<ul>
-<li>【合】最上层是接入代理，作为统一的入口。</li>
-<li>【分】中间数据库引擎作为计算层，扩展为一个主节点合多个从节点，提高扩展性。</li>
-<li>【合】底层采用一套分布式存储，节省成本。</li>
-</ul>
-<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763097015_6751dd8.png" alt="img"></p>
-<h2 id="GaiaDB-代理层"><a href="#GaiaDB-代理层" class="headerlink" title="GaiaDB 代理层"></a>GaiaDB 代理层</h2><p>GaiaDB 通过内部的代理层（Proxy）对外提供服务，也就是说所有的应用程序都先经过这层代理，然后才访问到具体的数据库节点。这样的好处：</p>
-<ul>
-<li>Proxy 提供<strong>安全</strong>认证和保护。</li>
-<li><strong>Proxy 解析 SQL</strong>，把写操作（比如事务、Update、Insert、Delete、DDL 等）发送到主节点，把读操作（比如 Select）均衡地分发到多个读节点，这个也叫<strong>读写分离</strong>。</li>
-<li>通过 Proxy 把<strong>不同的业务用不同的连接地址，使用不同的数据节点</strong>。这样就可以避免相互影响，不会影响在线业务。</li>
-</ul>
-<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763335982_9d10ab8.png" alt="img"></p>
-<h2 id="GaiaDB-计算层"><a href="#GaiaDB-计算层" class="headerlink" title="GaiaDB 计算层"></a>GaiaDB 计算层</h2><p>计算层由一个主节点合最多十五个从节点组成。计算层百分百支持 MySQL 语法，相对于 MySQL 的主从节点来说，GaiaDB 的计算节点是无状态的。</p>
-<ul>
-<li>主节点：处理读写请求，处理事务。相比于 MySQL 的主节点，GaiaDB 的主节点仅需要将日志（RedoLog）发送至日志服务（LogService）持久化，不需要写数据。数据是由数据存储节点<strong>（PageServer）</strong>从 LogService 拉取日志并回放。</li>
-<li>从节点：处理只读负载。从 <strong>PageServer</strong> 拉取最新的数据。</li>
-</ul>
-<p>这样的设计具有以下<strong>优势</strong>：</p>
-<ul>
-<li><strong>计算节点无状态，弹性快速扩容</strong>。计算层节点无持久化数据，本地文件不复存在，包括日志文件，所以<strong>支持快速扩容</strong>，大概在 30 秒内就能快速创建从节点并提供服务。</li>
-<li><strong>只有单机事务</strong>，没有分布式事务问题。集群所有的事务都请求到主节点，<strong>主节点自身保障事务的 ACID 特性</strong>。</li>
-<li><strong>单机故障不影响集群一致性</strong>，底层存储层利用 Raft 一致性算法保障数据的一致性。事务产生的 Redo 日志均实时写入 LogService，从节点利用 <strong>PageServer</strong> 上的数据文件和 LogService 中的 Redo 日志，在内存中恢复最新的数据对外提供服务。每一次主备故障切换，从节点均可以获取最新的事务 Redo 日志，因此不会出现数据丢失。</li>
-</ul>
-<h2 id="GaiaDB-存储层"><a href="#GaiaDB-存储层" class="headerlink" title="GaiaDB 存储层"></a>GaiaDB 存储层</h2><p>存储层是由多组数据存储节点（PageServer）和一组日志服务节点（LogService）组成。包括两个组件，LogService 和 Page Server。</p>
-<ul>
-<li><p>LogService 用于<strong>持久化数据库日志</strong>（RedoLog），采用 Raft 一致性协议保障日志的高可用和一致性。<strong>缓存近期产生的日志</strong>，供从节点和 PageServer 快速拉取。</p>
-</li>
-<li><p>PageServer 用于<strong>缓存和持久化数据页</strong>，每组包含三个 PageServer 节点，一组 PageServer 管理 32GB 的数据（这 32GB 的数据称为一个 Segment）。</p>
-</li>
-</ul>
-<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763429701_7c175ad.png" alt="img"></p>
-<p>这样的设计有以下<strong>优势</strong>：</p>
-<ul>
-<li>数据的<strong>一致性和数据存储分离</strong>，LogService 专注一致性保障，PageServer 专注持久化数据。</li>
-<li>PageServer 和 LogService 都采用<strong>多副本</strong>的方式保障高可用。</li>
-<li>PageServer 之间<strong>逻辑独立</strong>。独立从 LogService 拉取数据，LogService 保障数据的一致性。</li>
-<li>存储节点的扩容只需要增加 PageServer 的个数，<strong>扩容操作对用户无感</strong>。</li>
-</ul>
+<p>通过 ElasticsearchTemplate 来操作 ES。</p>
 
       
     </div>
@@ -1200,7 +1198,7 @@
 
   
   <nav class="pagination">
-    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1266,20 +1264,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

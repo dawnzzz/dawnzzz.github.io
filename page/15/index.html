@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-6-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E9%80%83%E9%80%B8%E5%88%86%E6%9E%90/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-6-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E9%80%83%E9%80%B8%E5%88%86%E6%9E%90/" class="post-title-link" itemprop="url">Go语言高性能编程 (6) 编译优化——逃逸分析</a>
+            <a href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/" class="post-title-link" itemprop="url">凤凰架构笔记 (2) 事务处理</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-27 21:06:09" itemprop="dateCreated datePublished" datetime="2023-03-27T21:06:09+08:00">2023-03-27</time>
+              <time title="创建时间：2023-06-05 21:14:28" itemprop="dateCreated datePublished" datetime="2023-06-05T21:14:28+08:00">2023-06-05</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
                 </span>
             </span>
 
@@ -212,23 +212,64 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="栈和堆"><a href="#栈和堆" class="headerlink" title="栈和堆"></a>栈和堆</h1><p>Golang 程序会在两个地方分配内存：<strong>每一个 goroutine 的栈和全局堆</strong>。但是垃圾回收机制在栈和堆上的性能差异非常大：</p>
+          <h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><blockquote>
+<p>以下都是基本原理，请不要与 MySQL 挂钩！MySQL 的基本思想肯定是这样，但肯定不是完全照搬。</p>
+</blockquote>
+<h2 id="原子性和持久性"><a href="#原子性和持久性" class="headerlink" title="原子性和持久性"></a>原子性和持久性</h2><p>按照事务提交时点为界，划分为 FORCE 和 STEAL 两类情况：</p>
 <ul>
-<li><strong>在栈上分配时</strong>，函数执行<strong>结束时自动回收</strong>。在栈上分配和回收内存的<strong>开销很低</strong>，只需要 2 个 CPU 指令：PUSH 和 POP。</li>
-<li><strong>在堆上分配时</strong>，在某个时间点上<strong>利用垃圾回收机制</strong>进行回收。在堆上分配内存，一个很大的额外开销则是垃圾回收，<strong>需要经过垃圾回收算法的计算才能回收堆上的对象</strong>。</li>
+<li><strong>FORCE：</strong>指的是事务的实际写入发生在<strong>提交之后</strong>。当事务提交后，要求数据必须<strong>同时完成写入则称为 FORCE</strong>，如果<strong>不强制</strong>数据必须<strong>同时完成写入则称为 NO-FORCE</strong>。现实中绝大多数数据库采用的都是 NO-FORCE 策略，因为只要有了日志，变动数据随时可以持久化，从优化磁盘 I/O 性能考虑，没有必要强制数据写入立即进行。</li>
+<li><strong>STEAL：</strong>在事务提交前，允许数据<strong>提前写入则称为 STEAL</strong>，<strong>不允许则称为 NO-STEAL</strong>。从优化磁盘 I/O 性能考虑，允许数据提前写入，有利于利用空闲 I/O 资源，也有利于节省数据库缓存区的内存。</li>
 </ul>
-<h1 id="逃逸分析"><a href="#逃逸分析" class="headerlink" title="逃逸分析"></a>逃逸分析</h1><p>在函数内部声明变量时，需要知道这个变量分配在栈上还是堆上。</p>
-<p>编译器决定内存分配位置的方式，就称之为<strong>逃逸分析</strong>。逃逸分析由编译器完成，作用于编译阶段。</p>
-<h2 id="发生场景"><a href="#发生场景" class="headerlink" title="发生场景"></a>发生场景</h2><p>发生逃逸分析的场景：</p>
+<p>在数据库中，因为写入磁盘这个操作不是原子操作，所以可能出现<strong>崩溃</strong>的情况。为了保证事务的原子性和持久性，通常通过<strong>日志</strong>（顺序追加，这是最高效的写入方式）的方式，分为两种方法：</p>
 <ul>
-<li>指针逃逸</li>
-<li>interface{} 动态类型逃逸</li>
-<li>栈空间不足</li>
-<li>闭包</li>
+<li><strong>Commit Logging：</strong>允许 NO-FORCE，但是不允许 STEAL。</li>
+<li><strong>Write-Ahead Logging：</strong>允许 NO-FORCE，也允许 STEAL。</li>
 </ul>
+<blockquote>
+<p>通过日志实现事务的原子性和持久性是当今的主流方案，但并不是唯一的选择。除了日志外，还有一种称之为 Shadow Paging（影子分页）来实现，SqLite v3 就是这种机制。</p>
+<p>Shadow Paging 在数据写入磁盘时，不会直接修改原来的数据，而是将原来的数据复制一份副本，保留原数据只修改副本。事务成功提交后，最后一步是去修改数据的引用指针，将引用从原数据改为新复制出来修改后的副本（这个修改指针被认为是原子操作）。但是 Shadow Paging 并发能力不强，所以应用不多。</p>
+</blockquote>
+<h3 id="Commit-Logging"><a href="#Commit-Logging" class="headerlink" title="Commit Logging"></a>Commit Logging</h3><p><strong>Commit Logging 中只有一种日志，就是 redo 日志</strong>。对数据的操作都会记录在 redo 日志中，事务的<strong>提交</strong>就是在日志中<strong>写入</strong>代表提交成功的<strong>提交记录（Commit Record）</strong>。在数据库看到提交记录（Commit Record）后，才根据日志内容对数据进行真正的修改，<strong>修改完成</strong>后向日志中加入一条<strong>结束记录（End Record）</strong>表示事务已经成功完成持久化。</p>
+<p>一旦写入了 Commit Record，即使在写入磁盘之前崩溃了，重启后也能根据日志恢复，保证了持久性。如果在日志没有 Commit Record 时就发生了崩溃，则整个任务就是失败的，因为没有真正写入磁盘，所以就好像发生了回滚一样，保证了原子性。</p>
+<p>Commit Logging 的原理非常清晰，如 OceanBase 就是采用了这种方法。但是 Commit Logging 的一个<strong>缺陷</strong>就是：所有对数据的真实修改<strong>必须发生在提交之后</strong>，在提交之前即使磁盘 I/O 是空闲的也不允许写入数据，并且占用了大量的内存缓冲区。</p>
+<blockquote>
+<p>因为 Commit Logging 只有 redo log，所以不允许 STEAL，否则无法回滚（回滚需要 undo log）。</p>
+</blockquote>
+<h3 id="Write-Ahead-Logging"><a href="#Write-Ahead-Logging" class="headerlink" title="Write-Ahead Logging"></a>Write-Ahead Logging</h3><p>Write-Ahead Logging 是改进的方案，所谓 Write-Ahead（提前写入）指的就是在提交之前写入数据。<strong>Write-Ahead Logging 在 redo log 的基础上，引入了 undo log 用于回滚</strong>。当变动数据写入磁盘前，必须先记录 Undo Log，注明修改了哪个位置的数据、从什么值改成什么值等等。以便在事务回滚或者崩溃恢复时根据 undo log 对提前写入的数据变动进行擦除。</p>
+<p>在崩溃恢复时，根据 redo log 对没有写入磁盘但是已经提交的数据进行持久化，根据 undo log 对没有提交但是已经写入磁盘的数据进行回滚。</p>
+<blockquote>
+<p><strong>redo log 保证事务的持久性，而 undo log 保证事务的原子性。</strong></p>
+</blockquote>
+<h2 id="隔离性"><a href="#隔离性" class="headerlink" title="隔离性"></a>隔离性</h2><h3 id="锁"><a href="#锁" class="headerlink" title="锁"></a>锁</h3><p>实现隔离性最直观的方式，就是加锁。现代数据库均提供以下三种锁：</p>
+<ul>
+<li><strong>写锁：</strong>对一行数据加写锁，写锁与其他锁都互斥。</li>
+<li><strong>读锁：</strong>对一行数据加读锁，读锁与读锁不互斥，与写锁互斥。</li>
+<li><strong>范围锁：</strong>对一个范围加锁。</li>
+</ul>
+<blockquote>
+<p>注意，范围锁<strong>不等于</strong>对多行数据加锁，因为数据与数据之间有间隙（这就是为什么 MySQL 中有间隙锁）。</p>
+</blockquote>
+<p>隔离性用隔离级别来体现，有以下几种隔离级别（这几种隔离级别都解决了脏读问题）：</p>
+<ul>
+<li><strong>可串行化（Serializable）：</strong>可串行化是最高的隔离级别，也是并发程度最低的隔离级别。可串行化中相当于<strong>全局加锁</strong>，不存在幻读、不可重复读、脏读问题。</li>
+<li><strong>可重复读（Repeatable Read）：</strong>可重复读中，对于事务中<strong>涉及到的数据</strong>会加上<strong>读锁和写锁</strong>，但<strong>不会加范围锁</strong>。不加范围锁导致的问题，就是会出现<strong>幻读</strong>问题。</li>
+<li><strong>读已提交（Read Commited）：</strong>在读已提交中，<strong>写锁会持续到事务结束</strong>，<strong>读锁</strong>在查询完成后会<strong>马上释放</strong>。读锁在查询结束后马上释放的带来的问题，就是会导致<strong>不可重复读</strong>。</li>
+<li><strong>读未提交（Read Uncommitted）：</strong>读未提交中，<strong>写锁会持续到事务结束</strong>，但是完全<strong>不会加读锁</strong>。不加读锁带来的问题就是<strong>脏读</strong>，可能会读取到其他事务还未提交的数据。</li>
+</ul>
+<blockquote>
+<p>在 MySQL 中的默认隔离级别未可重复读，但它在<strong>只读</strong>事务中可以<strong>完全避免幻读问题</strong>。</p>
+</blockquote>
+<h3 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h3><p>MVCC 多版本并发控制是一种<strong>读优化</strong>策略，MVCC 的基本思路是对数据库的任何修改都不会直接覆盖之前的数据，而是产生一个新版副本与老版本共存，以此达到读取时可以完全不加锁的目的。</p>
+<ul>
+<li>如果隔离级别是<strong>可重复读</strong>：读取小于等于当前事务 ID 的最大版本。</li>
+<li>如果隔离级别是<strong>读已提交</strong>：读取最新版本。</li>
+</ul>
+<blockquote>
+<p>读未提交直接修改原始数据即可，不需要版本。</p>
+</blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-6-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E9%80%83%E9%80%B8%E5%88%86%E6%9E%90/#more" rel="contents">
+              <a class="btn" href="/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -252,7 +293,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -266,7 +307,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/" class="post-title-link" itemprop="url">Go语言高性能编程 (5) 并发编程——Pool Once Cond</a>
+            <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-8-%E5%8D%B7-%E9%85%8D%E7%BD%AE/" class="post-title-link" itemprop="url">Kubernetes学习 (8) 卷 配置</a>
         </h2>
 
         <div class="post-meta">
@@ -276,7 +317,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-27 09:01:40" itemprop="dateCreated datePublished" datetime="2023-03-27T09:01:40+08:00">2023-03-27</time>
+              <time title="创建时间：2023-05-30 21:53:55" itemprop="dateCreated datePublished" datetime="2023-05-30T21:53:55+08:00">2023-05-30</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -291,7 +332,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
                 </span>
             </span>
 
@@ -306,37 +347,117 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="sync-Pool"><a href="#sync-Pool" class="headerlink" title="sync.Pool"></a>sync.Pool</h1><p>sync.Pool 用于复用对象，sync.Pool 是<strong>可伸缩</strong>的，同时也是<strong>并发安全</strong>的，其大小仅受限于内存的大小。从 sync.Pool 中取出的值<strong>不一定每一次都会经过内存分配</strong>，可以<strong>复用之前已经创建过已有但是已经使用结束的对象</strong>。</p>
+          <h1 id="卷"><a href="#卷" class="headerlink" title="卷"></a>卷</h1><p>Kubernetes 中卷是 Pod 的组成部分，因此卷可以在 Pod 中定义。Kubernetes 卷不是单独的对象，也不能单独创建或者删除。</p>
+<p>卷有很多类型可以选择，包括 emptyDir（临时卷，生命周期与 Pod 相同）、hostPath（指向节点文件系统上的文件或者目录）、持久卷等。</p>
+<h2 id="Pod-与底层存储技术解耦"><a href="#Pod-与底层存储技术解耦" class="headerlink" title="Pod 与底层存储技术解耦"></a>Pod 与底层存储技术解耦</h2><p><strong>但是！！</strong>在 Kubernetes 上部署应用的开发人员<strong>不需要知道</strong>底层使用的是哪种存储技术，同理他们也<strong>不需要了解</strong>应该使用哪些类型的物理服务器来运行 Pod。所以，需要令具体的类型的存储卷与开发人员<strong>解耦</strong>，当开发入员需要一定数量的持久化存储来进行应用时，可以向 Kubernetes 请求然后 Kubernetes 再进行分配。</p>
+<p>因此，Kubernetes 引入了两种新的资源，<strong>持久卷（Persistent Volume，PV）</strong>和<strong>持久卷声明（Persistent Volume Claim）</strong>。开发人员无需向 Pod 中添加特定技术的卷，而是由集群管理员设置底层存储，<strong>创建持久卷并注册</strong>。开发人员<strong>创建持久卷声明</strong>，指定需要的容量和访问模式，Kubernetes 会<strong>自动</strong>的<strong>匹配到持久卷并绑定到 PVC 中</strong>。</p>
 <blockquote>
-<p>简单来说，就是<strong>保存和复用临时对象，减少内存分配，降低 GC 压力</strong>。</p>
+<p>可以声明访问模式、回收策略等。</p>
 </blockquote>
-<p>sync.Pool 使用只需要知道三点即可：</p>
-<ul>
-<li>声明对象池时，需要<strong>指定 New 函数</strong>，对象池中没有对象时，将会调用 New 函数创建。</li>
-<li>Get 用于从对象池中<strong>获取</strong>一个对象，Put 用于向对象池内<strong>放回</strong>一个对象。</li>
-</ul>
-<p>如果在需要频繁创建对象的场景下，sync.Pool 有两个<strong>优点</strong>：</p>
-<ul>
-<li><strong>节省了对象初始化的时间</strong>，因为每一次都不一定是新的对象所以可以在一定程度上节省对象初始化时间，提升了效率。</li>
-<li><strong>节省内存分配</strong>，对象是可重用的，不必每一次都分配内存。</li>
-</ul>
-<h1 id="sync-Once"><a href="#sync-Once" class="headerlink" title="sync.Once"></a>sync.Once</h1><p>sync.Once 保证了<strong>只执行一次函数</strong>，常常用于<strong>单例模式</strong>，在前文中也可以用于关闭管道。sync.Once 仅提供了一个方法 Do，参数 f 是对象初始化函数：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o *Once)</span> <span class="title">Do</span><span class="params">(f <span class="keyword">func</span>()</span>)</span></span><br></pre></td></tr></table></figure>
+<h2 id="动态声明持久卷"><a href="#动态声明持久卷" class="headerlink" title="动态声明持久卷"></a>动态声明持久卷</h2><p>通过 PV 和 PVC 的配合，开发人员已经无需关心底层的存储是怎样实现的，但是还需要管理员来配置和创建持久卷。</p>
+<p>Kubernetes 可以<strong>通过 StorageClass 来动态的执行此过程</strong>，管理员只需要定义 StorageClass 对象，系统在每次通过持久卷声明请求时创建一个新的持久卷。用户也可以再 PVC 中引用 StorageClass，并且可以指定大小和访问模式，StorageClass 对象会根据 PVC 中的要求动态的创建持久化卷并与相应的 Pod 绑定。</p>
+<h1 id="配置"><a href="#配置" class="headerlink" title="配置"></a>配置</h1><p>Kubernetes 中的应用程序需要读取配置信息，ConfigMap 用于读取一般配置，而 Secret 用于读取密码等敏感信息。</p>
+<h2 id="ConfigMap"><a href="#ConfigMap" class="headerlink" title="ConfigMap"></a>ConfigMap</h2><p>ConfigMap 实际上就是<strong>键值对</strong>，<strong>值</strong>的内容可以是<strong>字面量</strong>，也可以是完整的<strong>配置文件</strong>。应用程序无法直接读取 ConfigMap，甚至不知道其是否存在，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
+<blockquote>
+<p>如果 Pod 引用了不存在的 ConifgMap，则会无法启动。</p>
+</blockquote>
+<p>ConfigMap 相比于直接在镜像中打入环境变量更加灵活，因为 ConfigMap 可以随时更新配置信息。</p>
+<h2 id="Secret"><a href="#Secret" class="headerlink" title="Secret"></a>Secret</h2><p>Secret 也是键值对，内容通过<strong>环境变量</strong>或者<strong>卷</strong>传递给容器。</p>
+<blockquote>
+<p>Secret 只会存储在节点的内存中，永远不会写入物理内存。</p>
+</blockquote>
 
-<h2 id="原理实现"><a href="#原理实现" class="headerlink" title="原理实现"></a>原理实现</h2><p>从 sync.Once 的功能可以想到，用于实现它需要两个部分：</p>
-<ul>
-<li><strong>一个标志判断是否已经执行了 Do</strong>，如果没有执行过 Do 则执行对象初始化函数。</li>
-<li>线程安全，并发的判断是否已经执行了，如果没有则执行 Do 中定义的函数，所以需要<strong>互斥锁</strong>来实现。</li>
-</ul>
-<p>以下是 sync.Once 的源码实现，其中 Once 结构体包含两个字段：</p>
-<ul>
-<li>done 字段用于标记是否已经执行过。</li>
-<li>m 字段为互斥锁。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Once <span class="keyword">struct</span> &#123;</span><br><span class="line">    done <span class="keyword">uint32</span></span><br><span class="line">    m    Mutex</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o *Once)</span> <span class="title">Do</span><span class="params">(f <span class="keyword">func</span>()</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> atomic.LoadUint32(&amp;o.done) == <span class="number">0</span> &#123;</span><br><span class="line">        o.doSlow(f)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(o *Once)</span> <span class="title">doSlow</span><span class="params">(f <span class="keyword">func</span>()</span>)</span> &#123;</span><br><span class="line">    o.m.Lock()</span><br><span class="line">    <span class="keyword">defer</span> o.m.Unlock()</span><br><span class="line">    <span class="keyword">if</span> o.done == <span class="number">0</span> &#123;</span><br><span class="line">        <span class="keyword">defer</span> atomic.StoreUint32(&amp;o.done, <span class="number">1</span>)</span><br><span class="line">        f()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/" class="post-title-link" itemprop="url">Kubernetes学习 (7) 服务 通信</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-30 16:16:15" itemprop="dateCreated datePublished" datetime="2023-05-30T16:16:15+08:00">2023-05-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="服务"><a href="#服务" class="headerlink" title="服务"></a>服务</h1><p>Kubernetes 中<strong>服务</strong>是一种为<strong>一组功能相同</strong>的 Pod 提供<strong>单一不变的入口点</strong>的资源。当服务存在时，入口地址不会改变。 客户端通过 服务的入口地址建立连接，<strong>这些连接会被路由到提供该服务的任意一个 pod 上</strong>。 通过这种方式， 客户端不需要知道每个单独的提供服务的 pod 的地址， 这样这些 pod 就可以在集群中随时被创建或移除。</p>
+<h2 id="创建服务"><a href="#创建服务" class="headerlink" title="创建服务"></a>创建服务</h2><p>服务使用<strong>标签</strong>来选择哪些 Pod 属于服务，哪些标签不属于服务。spec. ports.port 声明服务对外暴露的端口，而 spec.ports.targetPort 声明的是将消息转发给 Pod 的端口。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">	<span class="attr">name:</span> <span class="string">kubia</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">	<span class="attr">ports:</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">		<span class="bullet">-</span> <span class="attr">name:</span> <span class="string">https</span></span><br><span class="line">		  <span class="attr">port:</span> <span class="number">443</span></span><br><span class="line">		  <span class="attr">targetPort:</span> <span class="number">8443</span></span><br><span class="line">	<span class="attr">selector:</span></span><br><span class="line">		<span class="attr">app:</span> <span class="string">kubia</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>如果希望<strong>特定客户端</strong>产生的所有请求每次都<strong>指向同一个 Pod</strong>，则可以设置服务的 spec.sessionAffinity 属性为 ClientIP。sessionAffinity 属性仅支持两个值，none（默认）和 ClientIP。</p>
+</blockquote>
+<h2 id="DNS-服务发现"><a href="#DNS-服务发现" class="headerlink" title="DNS 服务发现"></a>DNS 服务发现</h2><p>在集群内部的客户端如何知道访问服务的地址，这就需要<strong>服务发现</strong>了。在 Kubernetes 中<strong>提供了 DNS 服务器</strong>，Pod 可以使用内部的 DNS 服务器作为服务发现。客户端可以通过<strong>全限定域名（FQDN）</strong>来访问。</p>
+<p>在创建一个服务时，Kubernetes 会<strong>创建一个相应的 DNS 条目</strong>，条目的内容为 <code>&lt;服务名称&gt;.&lt;名字空间名称&gt;.svc.cluster.local</code>，其中 svc.cluster.local 是在所有<strong>集群本地服务</strong>名称中使用的<strong>可配置</strong>集群域后缀。</p>
+<p>如果客户端 Pod 和目标 Pod 在同一个命名空间下，则可以省略 svc.cluster.local 后缀，甚至是命名空间名字。</p>
+<h1 id="Endpoint"><a href="#Endpoint" class="headerlink" title="Endpoint"></a>Endpoint</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>服务 和 Pod 不是直接相连的，而是通过 Endpoint 资源进行连接。Endpoint 就是一个记录 IP 和 端口的列表，用于指示服务的转发地址。</p>
+<p>尽管在 服务中定义了 Pod 选择器，但在重定向传入连接时不会直接使用它。<strong>选择器用于构建 Pod 的 IP 端口列表</strong>，然后存储在 Endpoint 资源中。当客户端连接服务时，会<strong>从 Endpoint 资源中选择一个地址</strong>，将客户端的请求重定向到这个地址上。</p>
+<h2 id="手动配置-Endpoint"><a href="#手动配置-Endpoint" class="headerlink" title="手动配置 Endpoint"></a>手动配置 Endpoint</h2><p>当服务和 Endpoint 解耦后，可以<strong>分别手动配置</strong>它们。如果创建了不包含 Pod 选择器的服务，那么 Kubernetes 就不会创建 Endpoint 资源。所以在<strong>创建服务时不指定 Pod 选择器</strong>，然后手动的<strong>创建 Endpoint 资源</strong>，实现服务的<strong>任意重定向</strong>。</p>
+<blockquote>
+<p>Endpoints 资源与服务需要具有相同的名称，这样才能使二者进行绑定。</p>
+</blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-5-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94Pool-Once-Cond/#more" rel="contents">
+              <a class="btn" href="/2023/05/30/Kubernetes%E5%AD%A6%E4%B9%A0-7-%E6%9C%8D%E5%8A%A1-%E9%80%9A%E4%BF%A1/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -360,7 +481,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -374,7 +495,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/" class="post-title-link" itemprop="url">Go语言高性能编程 (4) 并发编程——关闭通道</a>
+            <a href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/" class="post-title-link" itemprop="url">凤凰架构笔记 (1) 架构的演进</a>
         </h2>
 
         <div class="post-meta">
@@ -384,7 +505,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-26 22:00:21" itemprop="dateCreated datePublished" datetime="2023-03-26T22:00:21+08:00">2023-03-26</time>
+              <time title="创建时间：2023-05-30 10:33:44" itemprop="dateCreated datePublished" datetime="2023-05-30T10:33:44+08:00">2023-05-30</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -399,7 +520,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
                 </span>
             </span>
 
@@ -414,61 +535,53 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>channel 的三种状态和操作结果：</p>
-<table>
-<thead>
-<tr>
-<th align="left">操作</th>
-<th align="left">空值(nil)</th>
-<th align="left">非空已关闭</th>
-<th align="left">非空未关闭</th>
-</tr>
-</thead>
-<tbody><tr>
-<td align="left">关闭</td>
-<td align="left">panic</td>
-<td align="left">panic</td>
-<td align="left">成功关闭</td>
-</tr>
-<tr>
-<td align="left">发送数据</td>
-<td align="left">永久阻塞</td>
-<td align="left">panic</td>
-<td align="left">阻塞或成功发送</td>
-</tr>
-<tr>
-<td align="left">接收数据</td>
-<td align="left">永久阻塞</td>
-<td align="left">永不阻塞</td>
-<td align="left">阻塞或者成功接收</td>
-</tr>
-</tbody></table>
-<blockquote>
-<p>在 select 中，如果<strong>其中的全部通道都被关闭</strong>，则<strong>一定不</strong>会执行 defaul 而是随机选择其中一个被关闭的 case 去执行。</p>
+          <h1 id="单体系统"><a href="#单体系统" class="headerlink" title="单体系统"></a>单体系统</h1><blockquote>
+<p>需要摆正这样一个观念，<strong>单体系统并不是反派角色</strong>。</p>
 </blockquote>
-<h1 id="关闭通道"><a href="#关闭通道" class="headerlink" title="关闭通道"></a>关闭通道</h1><blockquote>
-<p><strong>通道关闭原则：</strong></p>
-<p>一个常用的使用 Go 通道的原则是<strong>不要在数据接收方或者在有多个发送者的情况下关闭通道</strong>。换句话说，我们<strong>只应该让一个通道唯一的发送者关闭此通道</strong>。</p>
-</blockquote>
-<p>关闭 channel 的方法有以下几种方法。</p>
-<h2 id="粗鲁的方法"><a href="#粗鲁的方法" class="headerlink" title="粗鲁的方法"></a>粗鲁的方法</h2><p>如果关闭已经关闭的通道，则会触发 panic，可以<strong>用 recover 使得程序回复正常</strong>。</p>
-<p>这种方法违反了通道关闭原则，因为这种方法使得多个协程都可以关闭通道。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">SafeClose</span><span class="params">(ch <span class="keyword">chan</span> T)</span> <span class="params">(justClosed <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="keyword">if</span> <span class="built_in">recover</span>() != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">// 一个函数的返回结果可以在defer调用中修改。</span></span><br><span class="line">			justClosed = <span class="literal">false</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 假设ch != nil。</span></span><br><span class="line">	<span class="built_in">close</span>(ch)   <span class="comment">// 如果 ch 已关闭，将 panic</span></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">true</span> <span class="comment">// &lt;=&gt; justClosed = true; return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="礼貌的方式"><a href="#礼貌的方式" class="headerlink" title="礼貌的方式"></a>礼貌的方式</h2><p><strong>使用 sync.Once 或者互斥锁</strong>来保证 channel 只被关闭一次。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyChannel <span class="keyword">struct</span> &#123;</span><br><span class="line">	C    <span class="keyword">chan</span> T</span><br><span class="line">	once sync.Once</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(mc *MyChannel)</span> <span class="title">SafeClose</span><span class="params">()</span></span> &#123;</span><br><span class="line">	mc.once.Do(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="built_in">close</span>(mc.C)</span><br><span class="line">	&#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>也可以使用 sync.Mutex 来关闭通道，维护一个布尔值来表示通道是否已经被关闭（需要用 sync.Mutex 保证互斥访问）：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyChannel <span class="keyword">struct</span> &#123;</span><br><span class="line">	C      <span class="keyword">chan</span> T</span><br><span class="line">	closed <span class="keyword">bool</span></span><br><span class="line">	mutex  sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="优雅的方式"><a href="#优雅的方式" class="headerlink" title="优雅的方式"></a>优雅的方式</h2><ul>
-<li>情形一：<strong>M 个接收者和一个发送者</strong>，发送者通过关闭用来传输数据的通道来传递发送结束信号。</li>
-<li>情形二：<strong>一个接收者和 N 个发送者</strong>，此唯一接收者通过关闭一个额外的信号通道来通知发送者不要再发送数据了。</li>
-<li>情形三：<strong>M 个接收者和 N 个发送者</strong>，它们中的任何协程都可以让一个中间调解协程帮忙发出停止数据传送的信号。</li>
+<p>单体系统适用于小型系统，有自己的优缺点，并不是一无是处。</p>
+<p><strong>优点：</strong></p>
+<ul>
+<li>对<strong>小型系统</strong>而言，单体系统不仅易于开发、易于测试、易于部署，且由于系统中各个功能、模块、方法的调用过程都是进程内调用，不会发生进程间通信。</li>
 </ul>
+<p><strong>缺点：主要是缺乏隔离性</strong>，全部的代码全部在一个进程内运行，这样带来的坏处有两个。</p>
+<ul>
+<li><strong>无法隔离错误</strong>，如果某个模块出现了错误，遇到了如内存泄漏等 Bug，那么整个程序都会受到影响。</li>
+<li><strong>无法做到模块级别的单独停止、升级</strong>，因为不可能停止一部分的进程、重启一部分的经常。</li>
+</ul>
+<blockquote>
+<p>单体系统架构潜在的要求整个系统都是可靠的，但是我们在软件架构的演进中应该有这样的观念：<strong>从尽量追求不出错，到正视出错是必然</strong>。</p>
+<p>架构如凤凰一样不死，反复涅槃重生，这就是软件架构所追求的目标。</p>
+</blockquote>
+<h1 id="SOA-时代"><a href="#SOA-时代" class="headerlink" title="SOA 时代"></a>SOA 时代</h1><p>SOA（Service Oriented Architecture）面向服务的架构，就是将一个大型的单机系统进行拆分，拆分成独立的子系统。看起来 SOA 与微服务的概念差不多，实际上有很大的差异。</p>
+<blockquote>
+<p><strong>微服务架构 vs SOA</strong></p>
+<p>SOA（Service Oriented Architecture）指的是面向服务的架构，SOA 也是进行了服务划分，它与微服务架构看似相同，但是深入研究就会发现二者的巨大差异。</p>
+<ul>
+<li><strong>服务间的通信：</strong>SOA 常吃采用重量级的技术，如 ESB（Enterprise Service Bus）、SOAP 和 WebService。而微服务架构倾向于使用轻量级的技术，如 REST 或者 gRPC 这类轻量级的协议。</li>
+<li><strong>数据管理：</strong>SOA 一般有一个全局的数据库。而微服务与之相反，每一个服务都有一个自己的私有数据模型。</li>
+<li><strong>服务规模：</strong>SOA 应用通常包含若干个大型的服务。而微服务架构则常常由属实个甚至上百个更小的服务组成。</li>
+</ul>
+</blockquote>
+<h1 id="微服务时代"><a href="#微服务时代" class="headerlink" title="微服务时代"></a>微服务时代</h1><p><strong>微服务</strong>是一种通过<strong>多个小型服务组合</strong>来构建单个应用的架构风格，这些服务<strong>围绕业务能力</strong>而非特定的技术标准来构建。各个服务可以采用<strong>不同的编程语言</strong>，<strong>不同的数据存储技术</strong>，运行在<strong>不同的进程</strong>之中。服务采取<strong>轻量级的通信机制</strong>和<strong>自动化的部署机制</strong>实现通信与运维。</p>
+<p>微服务的九个核心特征如下：</p>
+<ul>
+<li><strong>围绕业务能力构建。</strong>因为<strong>团队之间的沟通成本是巨大</strong>的，一个微服务应该是一个可以自治的单体，所以<strong>一种业务就应该被限定在一种服务内部</strong>。这就是为什么微服务中的服务划分非常重要，而微服务的划分通常与 DDD 一致。即使刚开始的架构并不是按照业务能力划分的，随着时间的发展，最终的架构也会向着这种形式演化。</li>
+<li><strong>分散治理。</strong>一个微服务应该是一个<strong>可以自治的单体</strong>，而不会依赖于其他服务。也就是说，服务之间可以是<strong>异构的</strong>、可以是<strong>跨语言的</strong>。</li>
+<li><strong>通过服务来实现独立自治的组件。</strong>通过服务，而不是通过类库（Library）来构建组件。因为<strong>服务是进程外组件</strong>，通过<strong>远程调用</strong>来提供功能，尽管进程外调用比进程内调用复杂且效率低，但是这是微服务的必然代价。</li>
+<li><strong>产品化思维。</strong>服务看作是一种产品，开发人员<strong>负责整个生命周期</strong>（开发、测试、运维、部署等等）。</li>
+<li><strong>数据去中心化。</strong>每一种服务独立的<strong>维护自己的数据库</strong>，而不是一个中心化的数据库。中心化的数据库的好处就是数据的一致性可以保证，缺点则是可能会让多个服务使用同一个数据表（服务无法独立的修改数据表 schema），使得服务之间丧失独立性。微服务去中心化的存储选择了维护独立性，而数据之间的一致性可以通过分布式事务保证。</li>
+<li><strong>强终端弱管道。</strong>管道指进程间通信机制，<strong>通信机制采用最基本的即可</strong>，特殊的能力需求由服务（终端）完成。</li>
+<li><strong>容错性设计</strong>。微服务设计中，<strong>必须有容错性设计</strong>，在必要的时候进行隔离。所以熔断器在实际生产环境中是必不可少的组件，如果没有这种容错性设计，则系统很容易就因为一两个服务的崩溃所带来的雪崩效应淹没。</li>
+<li><strong>演进式设计。</strong>演进式设计<strong>允许服务被升级、淘汰</strong>。如果系统中出现了无法升级、淘汰的服务，这是一种设计上的脆弱表现。</li>
+<li><strong>基础设施自动化。</strong>微服务下运维的对象比起单体架构要有数量级的增长，基础设施自动化减少了构建、发布、运维工作的复杂性。</li>
+</ul>
+<blockquote>
+<p>与 SOA 这种强约束和规定的架构风格不同，微服务是一种<strong>自由</strong>的风格。</p>
+<p>微服务中存在服务发现、进程间调用、负载均衡、事务处理等等问题，但是不会约束具体用什么方式去实现，微服务倡导以<strong>实践标准</strong>代替规范标准。</p>
+</blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/#more" rel="contents">
+              <a class="btn" href="/2023/05/30/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-1-%E6%9E%B6%E6%9E%84%E7%9A%84%E6%BC%94%E8%BF%9B/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -492,7 +605,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -506,7 +619,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/" class="post-title-link" itemprop="url">Go语言高性能编程 (3) 常用数据结构——空结构体和内存对齐</a>
+            <a href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/" class="post-title-link" itemprop="url">微服务架构设计模式 (9) 安全性 可配置性 可观测性</a>
         </h2>
 
         <div class="post-meta">
@@ -516,7 +629,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-23 11:46:05" itemprop="dateCreated datePublished" datetime="2023-03-23T11:46:05+08:00">2023-03-23</time>
+              <time title="创建时间：2023-05-25 10:51:20" itemprop="dateCreated datePublished" datetime="2023-05-25T10:51:20+08:00">2023-05-25</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -531,7 +644,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
                 </span>
             </span>
 
@@ -546,28 +659,29 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="空结构体"><a href="#空结构体" class="headerlink" title="空结构体"></a>空结构体</h1><p>在 Golang 中<strong>空结构体不占据内存空间</strong>。因此可以有以下使用方法：</p>
+          <h1 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h1><p>在安全性中，主要讨论用户身份认证的问题。目前有两种方法实现身份认证，Session 和 JWT。</p>
+<h2 id="Session-的缺陷"><a href="#Session-的缺陷" class="headerlink" title="Session 的缺陷"></a>Session 的缺陷</h2><p>在单体应用程序中，可以使用 Cookie+Session 来进行身份认证，Session 信息是由<strong>服务器维护</strong>的。但是在微服务架构中，由于会水平扩展所以由服务本地维护 Session 信息是不现实的，有两种解决方法：</p>
 <ul>
-<li><strong>实现集合：</strong>map[string]struct{} 可以实现集合。</li>
-<li><strong>用作通知 channel：</strong>当 channel 只用于进程同步（通知），不用做传递消息时，可以使用 chan struct{}。</li>
-<li><strong>仅包含方法的结构体：</strong>结构体只包含方法，不包含任何的字段时（使用 int 或者 bool 都会浪费额外的内存）。</li>
+<li>将 Session 信息放在<strong>数据库</strong>中，这样 Session 信息在多个实例中就是共享的。</li>
+<li>使用特定的<strong>负载均衡算法</strong>，如对客户端地址进行哈希，使得同一个客户端发出的请求到达同一个实例。</li>
 </ul>
-<h1 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h1><h2 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h2><p>CPU 访问内存时，并不是逐个字节访问，而是以字长（word size）为单位访问。<strong>内存对齐可以减少 CPU 的访存次数</strong>。</p>
-<p><img src="/../images/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/memory_alignment.png" alt="memory alignment"></p>
-<h2 id="Golang-中的对齐"><a href="#Golang-中的对齐" class="headerlink" title="Golang 中的对齐"></a>Golang 中的对齐</h2><p>在 Golang 中，<code>unsafe</code> 标准库提供了 <code>Alignof</code> 方法，可以返回一个类型的对齐值（对齐倍数或者对齐数）。</p>
-<p><strong>规定如下：</strong></p>
-<ul>
-<li>对于<strong>任意类型</strong>的变量 x，unsafe.Alignof(x) 至少为 1。</li>
-<li>对于<strong>结构体</strong>变量 x，计算每一个字段 f 的对齐值，unsafe.Alignof(x) 为其中<strong>每一个字段对齐值的最大值</strong>。</li>
-<li>对于<strong>数组型</strong>变量 x，unsafe.Alignof(x) 等于<strong>构成数组的元素类型的对齐值</strong>。</li>
-<li><strong>空结构体</strong>占据空间为 0。</li>
-</ul>
-<h3 id="字段顺序影响占用空间"><a href="#字段顺序影响占用空间" class="headerlink" title="字段顺序影响占用空间"></a>字段顺序影响占用空间</h3><blockquote>
-<p>在对内存特别敏感的结构体的设计上，可以<strong>通过调整字段的顺序，减少内存的占用</strong>。</p>
+<h2 id="JWT"><a href="#JWT" class="headerlink" title="JWT"></a>JWT</h2><p>如果由服务器端来维护用户身份信息会带来种种设计上的问题，那么可以由<strong>客户端自己维护</strong>用户身份信息。JWT 就是这样一种思想，JWT 包含一个 Json 对象，其中有用户信息以及其他元信息（如到期时间）。JWT 包含的 Json 对象是被加密过的（token），并且签名可以保证第三方无法伪造。</p>
+<p>因为 JWT 是客户端<strong>自包含</strong>的，所以请求不论被路由到哪一个服务实例上，服务实例都可以根据 JWT 去验证用户信息。</p>
+<blockquote>
+<p>JWT 的<strong>缺点</strong>在于无法验证被恶意第三方偷取的 JWT token，只要恶意第三方获取到了 token 就等于获取了这个用户的登录信息。一种缓解的方法是使用<strong>较短的到期时间</strong>，但是随之而来的问题就是客户端需要频繁的请求 JWT 认证重新获取 token。</p>
 </blockquote>
+<h1 id="可配置性"><a href="#可配置性" class="headerlink" title="可配置性"></a>可配置性</h1><p>在微服务架构中，最常使用的是<strong>外部化配置</strong>，即从服务外部而不是源代码中获取配置信息。</p>
+<blockquote>
+<p>在源代码中直接定义配置文件有两个<strong>缺点</strong>：</p>
+<ul>
+<li>密码等敏感信息是直接存在于源代码中的，这可能会造成一些<strong>安全性</strong>问题。</li>
+<li><strong>不够灵活</strong>，如果需要修改配置信息就必须修改源代码文件。</li>
+</ul>
+</blockquote>
+<p>外部化配置主要有两种方式实现，推送模型和拉取模型。</p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/#more" rel="contents">
+              <a class="btn" href="/2023/05/25/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-9-%E5%AE%89%E5%85%A8%E6%80%A7-%E5%8F%AF%E9%85%8D%E7%BD%AE%E6%80%A7-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -591,7 +705,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -605,7 +719,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/" class="post-title-link" itemprop="url">Go语言高性能编程 (2) 常用数据结构——for range的性能与反射的性能</a>
+            <a href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">微服务架构设计模式 (8) 外部API模式</a>
         </h2>
 
         <div class="post-meta">
@@ -615,7 +729,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-23 09:06:10" itemprop="dateCreated datePublished" datetime="2023-03-23T09:06:10+08:00">2023-03-23</time>
+              <time title="创建时间：2023-05-24 22:23:25" itemprop="dateCreated datePublished" datetime="2023-05-24T22:23:25+08:00">2023-05-24</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -630,7 +744,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
                 </span>
             </span>
 
@@ -645,35 +759,26 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="for-range-性能"><a href="#for-range-性能" class="headerlink" title="for range 性能"></a>for range 性能</h1><blockquote>
-<p><strong>range 会拷贝遍历对象。</strong></p>
-</blockquote>
-<h2 id="range-实现原理"><a href="#range-实现原理" class="headerlink" title="range 实现原理"></a>range 实现原理</h2><h3 id="slice"><a href="#slice" class="headerlink" title="slice"></a>slice</h3><p><strong>遍历 slice 前</strong>会先<strong>获取 slice 的长度 len_temp 作为循环次数。获取被遍历对象的拷贝，作为 for_temp</strong>。</p>
-<p>循环体中，每次循环会先获取元素值 value_temp，以及下标 index_temp 进行赋值。</p>
-<blockquote>
-<p>注意，在循环开始前就已经<strong>确定了循环次数</strong>、并且已经<strong>将遍历对象保存了下来</strong>。</p>
-</blockquote>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// The loop we generate:</span></span><br><span class="line"><span class="comment">//   for_temp := range</span></span><br><span class="line"><span class="comment">//   len_temp := len(for_temp)</span></span><br><span class="line"><span class="comment">//   for index_temp = 0; index_temp &lt; len_temp; index_temp++ &#123;</span></span><br><span class="line"><span class="comment">//           value_temp = for_temp[index_temp]</span></span><br><span class="line"><span class="comment">//           index = index_temp</span></span><br><span class="line"><span class="comment">//           value = value_temp</span></span><br><span class="line"><span class="comment">//           original body</span></span><br><span class="line"><span class="comment">//   &#125;</span></span><br></pre></td></tr></table></figure>
-
-<h3 id="map"><a href="#map" class="headerlink" title="map"></a>map</h3><p>遍历 map 时没有指定循环次数，只是<strong>移动遍历指针 hiter</strong>，当遍历指针的 key 为 nil 时则停止循环。</p>
-<blockquote>
-<p>map 底层使用 hash 表实现，<strong>插入数据位置是随机的</strong>，所以遍历过程中新插入的数据不能保证遍历到。</p>
-</blockquote>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// The loop we generate:</span></span><br><span class="line"><span class="comment">//   var hiter map_iteration_struct</span></span><br><span class="line"><span class="comment">//   for mapiterinit(type, range, &amp;hiter); hiter.key != nil; mapiternext(&amp;hiter) &#123;</span></span><br><span class="line"><span class="comment">//           index_temp = *hiter.key</span></span><br><span class="line"><span class="comment">//           value_temp = *hiter.val</span></span><br><span class="line"><span class="comment">//           index = index_temp</span></span><br><span class="line"><span class="comment">//           value = value_temp</span></span><br><span class="line"><span class="comment">//           original body</span></span><br><span class="line"><span class="comment">//   &#125;</span></span><br></pre></td></tr></table></figure>
-
-<h3 id="channel"><a href="#channel" class="headerlink" title="channel"></a>channel</h3><p>channe l遍历是依次从 channel 中读取数据，读取前是不知道里面有多少个元素的。</p>
-<p>如果 channel 中没有元素，则会阻塞等待，如果 channel 已被关闭，则会解除阻塞并退出循环。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// The loop we generate:</span></span><br><span class="line"><span class="comment">//   for &#123;</span></span><br><span class="line"><span class="comment">//           index_temp, ok_temp = &lt;-range</span></span><br><span class="line"><span class="comment">//           if !ok_temp &#123;</span></span><br><span class="line"><span class="comment">//                   break</span></span><br><span class="line"><span class="comment">//           &#125;</span></span><br><span class="line"><span class="comment">//           index = index_temp</span></span><br><span class="line"><span class="comment">//           original body</span></span><br><span class="line"><span class="comment">//   &#125;</span></span><br></pre></td></tr></table></figure>
-
-<h2 id="性能分析"><a href="#性能分析" class="headerlink" title="性能分析"></a>性能分析</h2><p>因为 range 会拷贝遍历对象，所以 for 和 range 的性能比较如下：</p>
+          <p>客户端直接访问服务会导致很多问题：</p>
 <ul>
-<li>每次迭代的元素的<strong>内存占用很低</strong>，<strong>那么 for 和 range 的性能几乎是一样</strong>。</li>
-<li>如果迭代的元素<strong>内存占用较高</strong>，<strong>那么 for 的性能将显著地高于 range</strong>，因为 range 会拷贝迭代对象。可以考虑<strong>只迭代下标</strong>，这样和 for 的性能是<strong>一样</strong>的。</li>
-<li>如果想使用 range 同时迭代<strong>下标和值</strong>，则可以将<strong>迭代元素修改为指针</strong>。</li>
+<li><strong>多次客户端请求导致用户体验不佳：</strong>因为客户端到服务之间是互联网（带宽低，时延高），而服务之间是局域网（带宽高，时延低）。多次客户端直接到服务的请求均通过互联网传输，传输时延高。</li>
+<li><strong>客户端与服务耦合度高：</strong>因为客户端与服务是直接请求的，所以做出的任何更改都会影响到彼此。</li>
+<li><strong>服务可能选用对客户端不友好的进程间通信机制：</strong>一般而言，客户端使用的通信协议通常是 HTTP 或者 WebSockets 等协议，而服务选用的通信协议可能是 gRPC，RPC 通信对客户端是不友好的，甚至无法穿透防火墙。</li>
 </ul>
+<p>所以可以采用 API Gateway 或者后端前置的方式。</p>
+<h1 id="API-Gateway"><a href="#API-Gateway" class="headerlink" title="API Gateway"></a>API Gateway</h1><p>把 API Gateway 作为外部客户端请求的<strong>唯一入口点</strong>，它为客户端提供 API，也可以进行<strong>身份认证</strong>、<strong>充当 API 组合器</strong>、<strong>传输协议转换</strong>等职责。</p>
+<blockquote>
+<p>可以把 API Gateway 看作是面向设计中的<strong>外观模式</strong>，它封装了内部架构，并为客户端提供API。</p>
+</blockquote>
+<h2 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h2><p>下面说明 API Gateway 的典型作用。</p>
+<h3 id="请求路由"><a href="#请求路由" class="headerlink" title="请求路由"></a>请求路由</h3><p>将客户端的请求路由到相应的服务中，来实现一些 API 操作，这与反向代理的功能类似。</p>
+<h3 id="API-组合"><a href="#API-组合" class="headerlink" title="API 组合"></a>API 组合</h3><p>API Gateway 也可以作为 API 组合器，它通过对内通过对多个服务的查询、并且将查询结果聚合，来实现对外提供粗粒度的 API。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/image-20230525100940886.png" alt="image-20230525100940886"></p>
+<h3 id="协议转换"><a href="#协议转换" class="headerlink" title="协议转换"></a>协议转换</h3><p>API Gateway 可以实现协议转换，它可以对外提供 HTTP RESTful API，内部使用 gRPC 进行通信。</p>
+<h3 id="实现边缘功能"><a href="#实现边缘功能" class="headerlink" title="实现边缘功能"></a>实现边缘功能</h3><p>边缘功能包括：身份认证、访问授权、速率限制、缓存、请求日志等。</p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-2-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94for-range%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8F%8D%E5%B0%84%E7%9A%84%E6%80%A7%E8%83%BD/#more" rel="contents">
+              <a class="btn" href="/2023/05/24/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-8-%E5%A4%96%E9%83%A8API%E6%A8%A1%E5%BC%8F/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -697,7 +802,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -711,7 +816,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/" class="post-title-link" itemprop="url">Go语言高性能编程 (1) 常用数据结构——字符串拼接和slice性能</a>
+            <a href="/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/" class="post-title-link" itemprop="url">微服务架构设计模式 (7) 微服务中的查询</a>
         </h2>
 
         <div class="post-meta">
@@ -721,7 +826,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-22 17:27:56" itemprop="dateCreated datePublished" datetime="2023-03-22T17:27:56+08:00">2023-03-22</time>
+              <time title="创建时间：2023-05-22 23:15:14" itemprop="dateCreated datePublished" datetime="2023-05-22T23:15:14+08:00">2023-05-22</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -736,7 +841,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
                 </span>
             </span>
 
@@ -751,26 +856,20 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="字符串拼接"><a href="#字符串拼接" class="headerlink" title="字符串拼接"></a>字符串拼接</h1><h2 id="常见拼接方式"><a href="#常见拼接方式" class="headerlink" title="常见拼接方式"></a>常见拼接方式</h2><p>在 Golang 中，字符串拼接有以下几种拼接方式：</p>
+          <p>在微服务中，查询通常是复杂的，因为所需要的数据通常分散在多个服务之中。微服务的查询通常分为两种不同的模式：</p>
 <ul>
-<li><strong>+：</strong>使用 + 直接对两个字符串进行拼接操作。</li>
-<li><strong>fmt.Sprintf：</strong>使用 <code>fmt.Sprintf(&quot;&quot;%v%v&quot;, s1, s2)</code> 进行字符串的拼接。</li>
-<li><strong>strings.Builder：</strong>使用 strings.Builder.WriteString  方法进行拼接。</li>
-<li><strong>bytes.Buffer：</strong>使用 bytes.Bufer.WriteString 方法进行拼接。</li>
-<li><strong>[]byte：</strong>使用 []byte，利用 append 函数进行拼接（可以预先分配空间）。</li>
+<li><strong>API 组合模式：</strong>最简单的方法，应该首先考虑和使用。让一个统一的服务或者应用网关调用多个服务，然后将查询到的结果进行组合并返回。</li>
+<li><strong>命令查询职责隔离（CQRS，Command-Query Responsibility Segregation）模式：</strong>比 API 组合模式更加复杂，也更强大。维护一个或者多个数据视图，目的仅仅是查询。</li>
 </ul>
-<h3 id="性能比较"><a href="#性能比较" class="headerlink" title="性能比较"></a>性能比较</h3><p>利用 benchmark 基准测试进行性能比较，结果如下：</p>
+<h1 id="API-组合模式"><a href="#API-组合模式" class="headerlink" title="API 组合模式"></a>API 组合模式</h1><p>API 组合模式就是<strong>访问多个服务</strong>进行查询，将多个服务的查询结果<strong>组合</strong>起来并返回给用户。这种模式有两种参与者：</p>
 <ul>
-<li><code>+</code> 和 <code>fmt.Sprintf</code> 的<strong>效率是最低</strong>的，和其余的方式相比，性能相差约 1000 倍，而且消耗了超过 1000 倍的内存。</li>
-<li><code>strings.Builder</code>、<code>bytes.Buffer</code> 和 <code>[]byte</code> 的性能<strong>差距不大</strong>，而且消耗的内存也十分接近，性能最好且消耗内存最小的是 <code>preByteConcat</code>，这种方式预分配了内存，在字符串拼接的过程中，不需要进行字符串的拷贝，也不需要分配新的内存，因此性能最好，且内存消耗最小。</li>
+<li>API组合器：用于查询多个服务的数据，并负责将结果组合起来。</li>
+<li>数据提供方服务：拥有部分数据的服务提供者。</li>
 </ul>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">BenchmarkPlusConcat-8         19      56 ms/op   530 MB/op   10026 allocs/op</span><br><span class="line">BenchmarkSprintfConcat-8      10     112 ms/op   835 MB/op   37435 allocs/op</span><br><span class="line">BenchmarkBuilderConcat-8    8901    0.13 ms/op   0.5 MB/op      23 allocs/op</span><br><span class="line">BenchmarkBufferConcat-8     8130    0.14 ms/op   0.4 MB/op      13 allocs/op</span><br><span class="line">BenchmarkByteConcat-8       8984    0.12 ms/op   0.6 MB/op      24 allocs/op</span><br><span class="line">BenchmarkPreByteConcat-8   17379    0.07 ms/op   0.2 MB/op       2 allocs/op</span><br></pre></td></tr></table></figure>
-
-<h3 id="使用建议"><a href="#使用建议" class="headerlink" title="使用建议"></a>使用建议</h3><p>在进行字符串拼接时，推荐使用 strings.Builder 进行拼接字符串，<strong>并且 strings.Builder 也提供了预分配内存的方法 Grow</strong>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">builderConcat</span><span class="params">(n <span class="keyword">int</span>, str <span class="keyword">string</span>)</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="keyword">var</span> builder strings.Builder</span><br><span class="line">	builder.Grow(n * <span class="built_in">len</span>(str))</span><br><span class="line">	<span class="keyword">for</span> i := <span class="number">0</span>; i &lt; n; i++ &#123;</span><br><span class="line">		builder.WriteString(str)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> builder.String()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/image-20230524205406597.png" alt="image-20230524205406597"></p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/22/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-1-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5%E5%92%8Cslice%E6%80%A7%E8%83%BD/#more" rel="contents">
+              <a class="btn" href="/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9A%84%E6%9F%A5%E8%AF%A2/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -794,7 +893,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/22/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E4%BA%8B%E4%BB%B6%E6%BA%AF%E6%BA%90/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -808,7 +907,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/22/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/" class="post-title-link" itemprop="url">关系抽取论文 A Unified Multi-Task Learning Framework for Joint Extraction of Entities and Relations</a>
+            <a href="/2023/05/22/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E4%BA%8B%E4%BB%B6%E6%BA%AF%E6%BA%90/" class="post-title-link" itemprop="url">微服务架构设计模式 (6) 事件溯源</a>
         </h2>
 
         <div class="post-meta">
@@ -818,7 +917,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-22 10:22:22" itemprop="dateCreated datePublished" datetime="2023-03-22T10:22:22+08:00">2023-03-22</time>
+              <time title="创建时间：2023-05-22 21:15:04" itemprop="dateCreated datePublished" datetime="2023-05-22T21:15:04+08:00">2023-05-22</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -833,7 +932,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87/" itemprop="url" rel="index"><span itemprop="name">关系抽取论文</span></a>
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
                 </span>
             </span>
 
@@ -848,48 +947,139 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <blockquote>
-<p><strong>A Unified Multi-Task Learning Framework for Joint Extraction of Entities and Relations</strong></p>
-<p>来源：AAAI 2021</p>
-<p>作者：Tianyang Zhao, Zhao Yan, Yunbo Cao, Zhoujun Li</p>
-<p>机构：State Key Lab of Software Development Environment, Beihang University, Beijing, China</p>
-</blockquote>
-<p>作者根据提取三元组的顺序将关系抽取模型分成了三类：</p>
+          <h1 id="事件溯源"><a href="#事件溯源" class="headerlink" title="事件溯源"></a>事件溯源</h1><p>事件溯源是一种以<strong>事件</strong>为中心的技术，用于实现业务逻辑和持久化。</p>
+<p>使用事件溯源的方式的<strong>好处</strong>是：</p>
 <ul>
-<li><strong>relation-last：</strong>可以被总结为先抽取出实体，然后对任意两个实体进行关系分类。这种方法的<strong>缺点</strong>就是需要枚举出所有的实体对进行关系判断，并且由非常多的负例影响了关系分类器。</li>
-<li><strong>relation-first：</strong>首先检测出句子中可能包含的关系，然后在句子中选择关系对应的 subject 和 object。这种方法首先通过预测关系，过滤掉了不相关的关系，减轻了无用关系造成的负面影响，大大避免了数据不平衡的问题。</li>
-<li><strong>relation-middle：</strong>首先提取出 subject，然后根据 subject 提取出 relation，最后提取出 object（典型的比如多轮次 QA，CasRel也属于这个方法）。在多轮次 QA 中，基于模板进行提问的，这样做的好处是：<ul>
-<li>查询问题明确地提供了关于类型信息的先验知识。</li>
-<li>基于 QA 结构，增强了查询与文本之间的交互作用。</li>
-<li>它提供了一种处理重叠实体和关系的自然方法。</li>
+<li>提供准确的事件审计信息，保留聚合的历史。</li>
+<li>与领域事件的发布是天然的契合的。</li>
 </ul>
-</li>
+<p><strong>弊端</strong>在于：</p>
+<ul>
+<li>更改了现有的业务实现逻辑，与传统的逻辑完全不同。</li>
+<li>事件的结构可能发生改变，那么如何兼容新版本和旧版本事件是需要解决的问题。</li>
+<li>删除是通过记录删除事件的形式进行的，这不是真正意义上的物理删除。</li>
 </ul>
+<h2 id="持久化"><a href="#持久化" class="headerlink" title="持久化"></a>持久化</h2><p>使用事件溯源进行<strong>持久化</strong>时，与传统的数据库表设计不同。传统的数据库表设计中，仅仅保存聚合的最终状态，一旦聚合的状态发生变化并进行了持久化，那么之前的状态我们是无从知晓的。但是在<strong>事件溯源</strong>中，存储的是聚合相关的<strong>事件</strong>，每一个条目都保存了<strong>事件类型</strong>（创建、修改、删除等），聚合的<strong>唯一标识符</strong>，以及<strong>序列化的事件</strong>（如 json 格式）。</p>
 <blockquote>
-<p>但是，基于 QA 的方法由以下<strong>问题</strong>：</p>
-<ul>
-<li>严重依赖于手工设计的模板，这使得模型难以迁移。</li>
-<li>目前主流的方法无法在非实体上识别出关系，严重依赖于 NER。</li>
-<li>现有的方法无法处理非预定义的关系。</li>
-</ul>
+<p>使用事件溯源的方式组织表结构，通过<strong>检索</strong>并<strong>重放</strong>对应聚合的所有事件来重建聚合。</p>
 </blockquote>
-<p>文章提出了一个实体关系联合抽取框架，将任务划分为了三个子任务：the type-attentional subject extraction，the subject-aware relation prediction（SRP），the QA-based object extraction。</p>
+<h2 id="实现业务逻辑"><a href="#实现业务逻辑" class="headerlink" title="实现业务逻辑"></a>实现业务逻辑</h2><p>使用事件溯源<strong>实现业务逻辑</strong>时，与传统的方法不同。在传统的方法中，会更新聚合的一个或者多个字段，更新之后再将聚合的最终状态存储在数据库当中。在事件溯源中，实现业务逻辑的结果就是<strong>产生一系列的事件</strong>，事件表示进行的状态更改操作，并将这些事件存储在数据库中。</p>
+<h2 id="使用快照优化"><a href="#使用快照优化" class="headerlink" title="使用快照优化"></a>使用快照优化</h2><p>使用时间溯源的方式存储数据库时，一个聚合可能会产生大量的事件，随着时间的推移，重放事件的成本会越来越高。</p>
+<p>优化的方法就是定期的存储聚合状态的<strong>快照</strong>，然后通过加载快照，以及重放快照之后的事件来达到快速重放事件。</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E4%BA%8B%E4%BB%B6%E6%BA%AF%E6%BA%90/image-20230522223919695.png" alt="image-20230522223919695"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">微服务架构设计模式 (5) 微服务架构中的业务逻辑设计</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-05-21 21:15:07" itemprop="dateCreated datePublished" datetime="2023-05-21T21:15:07+08:00">2023-05-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="事务脚本模式"><a href="#事务脚本模式" class="headerlink" title="事务脚本模式"></a>事务脚本模式</h1><p>对于<strong>简单</strong>的业务逻辑，可以使用<strong>事务脚本模式</strong>，事务脚本模式是<strong>面向过程</strong>而不是面向对象的。事务脚本模式就是，对于每一种系统操作，都有一个方法专门用于实现这个系统操作，使用数据库访问对象（Dao）访问数据库，而数据对象是纯数据几乎没有行为。</p>
+<blockquote>
+<p>事务脚本模式的重要特征就是实现行为的类于存储状态的类是分开的。</p>
+</blockquote>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521212736373.png" alt="image-20230521212736373"></p>
+<h1 id="领域模型模式"><a href="#领域模型模式" class="headerlink" title="领域模型模式"></a>领域模型模式</h1><p>对于复杂的业务，就需要使用<strong>领域模型模式</strong>了，领域模型模式是<strong>面向对象</strong>的。领域模型模式将业务逻辑组织为<strong>具有状态和行为的类</strong>构成的对象模型。这样的设计中，有些类只有状态或者行为，但是很多类同时包含状态和行为。</p>
+<p>这样设计的好处是：</p>
 <ul>
-<li>为了<strong>缓解模板依赖</strong>的问题，提出了 type-attention，为 subject 提取任务中提供明确的实体类型信息。</li>
-<li>论文引入了 subject-aware relation prediction 任务，利用全局和局部语义获得了给定主体的关系子集。</li>
-<li>论文提出了一种 question generation（QG）策略，以自动得到在 object 提取任务中的多种查询语句。这个子任务根据之前的类型信息和查询，在句子中选择文本跨度，而<strong>不依赖于 NER</strong>。此外，论文还提出了一种模糊问题回答方法，来<strong>解决非预定义的关系检测问题</strong>。</li>
+<li><strong>易于理解和维护</strong>。它不像事务脚本模式由一个完成所有事情的大类组成，而是由许多小类组成，每个小类都有少量的职责。</li>
+<li><strong>更容易测试</strong>。每一个对象都能够被独立的测试。</li>
+<li><strong>更容易扩展</strong>。通常而言，面向对象的设计可以使用设计模式，这样提供了易于扩展的可能性。</li>
 </ul>
-<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/image-20230322144531225.png" alt="image-20230322144531225"></p>
-<h2 id="模型方法"><a href="#模型方法" class="headerlink" title="模型方法"></a>模型方法</h2><p>为了整合任务之间的相互作用，采用多任务学习的方式来提高整体的性能。基于 relation-middle 的方式，模型由三个部分组成：</p>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230521213659409.png" alt="image-20230521213659409"></p>
+<h2 id="领域驱动设计"><a href="#领域驱动设计" class="headerlink" title="领域驱动设计"></a>领域驱动设计</h2><p>领域模型模式需要用<strong>领域驱动设计（DDD）</strong>来优化，DDD 是对面向对象设计的改进，是开发复杂业务逻辑的一种方法。在领域驱动设计中，由以下几种基本元素组成：</p>
 <ul>
-<li><strong>type-attentional subject extraction：</strong>显式的提供类型信息，来从句子中预测 subject。</li>
-<li><strong>subject-aware relation prediction：</strong>给定 subject，选择可能与 subject 相关关系的多分类问题。</li>
-<li><strong>QA-based object extraction：</strong>使用自动生成的问题从句子中选择 object。</li>
+<li><strong>Entity：</strong>具有<strong>状态</strong>的对象。</li>
+<li><strong>Value Object：</strong>不具有状态的对象，<strong>仅有值</strong>，具有相同的值对象可以互换使用。</li>
+<li><strong>Factory：</strong>复杂实现对象创建的方法或者对象。</li>
+<li><strong>Repository：</strong>用来<strong>访问持久化实体</strong>的对象，Repository 也封装了访问数据库的底层机制。</li>
+<li><strong>Service：</strong>实现<strong>业务逻辑</strong>的对象。</li>
 </ul>
-<p><img src="/../images/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/image-20230322144550841.png" alt="image-20230322144550841"></p>
+<h2 id="领域驱动设计聚合模式"><a href="#领域驱动设计聚合模式" class="headerlink" title="领域驱动设计聚合模式"></a>领域驱动设计聚合模式</h2><p>传统的领域模型<strong>缺少明确的边界</strong>，这会导致一些问题。所以使用领域驱动设计中的<strong>聚合</strong>模式，聚合具有明确的边界。</p>
+<p><strong>聚合</strong>是一个边界内领域对象的集群，可以将其视为<strong>一个单元</strong>。使用聚合有两个好处：</p>
+<ul>
+<li>消除了服务之间的对象引用。</li>
+<li>确保了本地事务 ACID 在每一个服务内部（对于服务之间的事务性保证，则通过 Saga 实现）。</li>
+</ul>
+<p><img src="/../images/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/image-20230522140855911.png" alt="image-20230522140855911"></p>
+<blockquote>
+<p>所有的操作都<strong>作用于整个聚合</strong>而不是部分聚合。</p>
+</blockquote>
+<h3 id="聚合的规则"><a href="#聚合的规则" class="headerlink" title="聚合的规则"></a>聚合的规则</h3><p>领域驱动设计要求聚合遵守一组规则：</p>
+<ul>
+<li><strong>只引用聚合根：</strong>聚合根（Aggregate Root）是聚合中唯一可以由外部类引用的部分，客户端只能调用聚合根上的方法来更新聚合。</li>
+<li><strong>聚合间的引用必须使用主键：</strong>聚合间的引用使用<strong>主键</strong>（如唯一 ID，可以看成是<strong>外键</strong>），而不是对象引用。它确保聚合之间的<strong>边界</strong>得到了良好的定义，不会出现跨服务的<strong>对象引用问题</strong>。</li>
+<li><strong>一个事务中，只能创建或者更新一个聚合：</strong>确保单个事务的范围不超过服务的边界，<strong>使用 Saga 可以解决</strong>创建或者更新<strong>多个</strong>聚合。</li>
+</ul>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/22/%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96%E8%AE%BA%E6%96%87-A-Unified-Multi-Task-Learning-Framework-for-Joint-Extraction-of-Entities-and-Relations/#more" rel="contents">
+              <a class="btn" href="/2023/05/21/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E4%B8%AD%E7%9A%84%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91%E8%AE%BE%E8%AE%A1/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -913,7 +1103,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/21/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -927,7 +1117,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/03/21/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/" class="post-title-link" itemprop="url">GO专家编程读书笔记 (6) 定时器之Timer和Ticker</a>
+            <a href="/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">微服务架构设计模式 (4) 使用Saga管理事务</a>
         </h2>
 
         <div class="post-meta">
@@ -937,7 +1127,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-03-21 21:49:42" itemprop="dateCreated datePublished" datetime="2023-03-21T21:49:42+08:00">2023-03-21</time>
+              <time title="创建时间：2023-05-18 16:58:39" itemprop="dateCreated datePublished" datetime="2023-05-18T16:58:39+08:00">2023-05-18</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -952,7 +1142,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go专家编程</span></a>
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
                 </span>
             </span>
 
@@ -967,259 +1157,25 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="Timer"><a href="#Timer" class="headerlink" title="Timer"></a>Timer</h1><p>Timer 指定一段时间后，通过本身提供的一个 channel 通知触发一个事件，Timer 只执行一次就结束。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="Timer-1"><a href="#Timer-1" class="headerlink" title="Timer"></a>Timer</h3><p>Timer 有两个成员：</p>
-<ul>
-<li><strong>C：</strong>一个 channel，用于<strong>通知</strong>时间已经到达。</li>
-<li><strong>r：</strong>runtime 定时器，该定时器即<strong>系统管理的定时器</strong>，对上层应用不可见。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Timer <span class="keyword">struct</span> &#123; <span class="comment">// Timer代表一次定时，时间到来后仅发生一个事件。</span></span><br><span class="line">    C &lt;-<span class="keyword">chan</span> Time</span><br><span class="line">    r runtimeTimer</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="runtimeTimer"><a href="#runtimeTimer" class="headerlink" title="runtimeTimer"></a>runtimeTimer</h3><p>创建一个 Timer 实质上是<strong>把一个定时任务交给专门的协程进行监控</strong>，这个任务的载体便是 runtimeTimer。<strong>创建一个 Timer 就是创建一个 runtimeTimer，把它交给系统进行监控</strong>，当 runtimeTimer 到期后像 Timer.C 管道中发送一个消息。</p>
-<p>runtimeTimer 的结构如下：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> runtimeTimer <span class="keyword">struct</span> &#123;</span><br><span class="line">    tb <span class="keyword">uintptr</span>                          <span class="comment">// 存储当前定时器的数组地址</span></span><br><span class="line">    i  <span class="keyword">int</span>                              <span class="comment">// 存储当前定时器的数组下标</span></span><br><span class="line"></span><br><span class="line">    when   <span class="keyword">int64</span>                        <span class="comment">// 当前定时器触发时间</span></span><br><span class="line">    period <span class="keyword">int64</span>                        <span class="comment">// 当前定时器周期触发间隔</span></span><br><span class="line">    f      <span class="function"><span class="keyword">func</span><span class="params">(<span class="keyword">interface</span>&#123;&#125;, <span class="keyword">uintptr</span>)</span>   // 定时器触发时执行的函数</span></span><br><span class="line">    arg    <span class="keyword">interface</span>&#123;&#125;                  <span class="comment">// 定时器触发时执行函数传递的参数一</span></span><br><span class="line">    seq    <span class="keyword">uintptr</span>                      <span class="comment">// 定时器触发时执行函数传递的参数二(该参数只在网络收发场景下使用)</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>所有 Timer 中的 runtimeTimer 由统一的底层协程进行管理，这个协程是系统协程。</p>
-<p><strong>系统协程把 runtimeTimer 存放在数组！！中</strong>，并按照 runtimeTimer.when 进行<strong>堆排序</strong>，定时器触发时<strong>执行预定义的函数 runtimeTimer.f</strong>，即完成了一次定时任务。</p>
-<h3 id="创建-Timer"><a href="#创建-Timer" class="headerlink" title="创建 Timer"></a>创建 Timer</h3><p>创建 Timer 的过程：</p>
-<ul>
-<li>首先会<strong>初始化一个管道 C</strong>，用于通知上层应用。</li>
-<li>接着会<strong>创建一个 runtimeTimer</strong>，并且调用 startTimer 启动定时器（由系统协程维护）。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewTimer</span><span class="params">(d Duration)</span> *<span class="title">Timer</span></span> &#123;</span><br><span class="line">    c := <span class="built_in">make</span>(<span class="keyword">chan</span> Time, <span class="number">1</span>)  <span class="comment">// 创建一个管道</span></span><br><span class="line">    t := &amp;Timer&#123; <span class="comment">// 构造Timer数据结构</span></span><br><span class="line">        C: c,               <span class="comment">// 新创建的管道</span></span><br><span class="line">        r: runtimeTimer&#123;</span><br><span class="line">            when: when(d),  <span class="comment">// 触发时间</span></span><br><span class="line">            f:    sendTime, <span class="comment">// 触发后执行函数sendTime</span></span><br><span class="line">            arg:  c,        <span class="comment">// 触发后执行函数sendTime时附带的参数</span></span><br><span class="line">        &#125;,</span><br><span class="line">    &#125;</span><br><span class="line">    startTimer(&amp;t.r) <span class="comment">// 此处启动定时器，只是把runtimeTimer放到系统协程的堆中，由系统协程维护</span></span><br><span class="line">    <span class="keyword">return</span> t</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>when 方法用于计算下一次定时器触发的绝对时间，即当前时间 + d。</p>
-<p>sendTime 方法用于定时器触发时，向管道 C 中发送当前时间：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sendTime</span><span class="params">(c <span class="keyword">interface</span>&#123;&#125;, seq <span class="keyword">uintptr</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">select</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> c.(<span class="keyword">chan</span> Time) &lt;- Now():</span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
+          <h1 id="Saga-分布式事务"><a href="#Saga-分布式事务" class="headerlink" title="Saga 分布式事务"></a>Saga 分布式事务</h1><p>Saga 是一种分布式事务实现方式，Saga 通过<strong>异步消息</strong>来协调<strong>一系列的本地事务</strong>，从而维护多个服务之间的数据一致性。</p>
 <blockquote>
-<p>因为 Timer 创建时，初始化了一个缓冲区长度为 1 的管道（<code>make(chan Time, 1)</code>），所以 Timer 触发时向管道写入时间永远不会阻塞，<strong>sendTime 写完即退出</strong>。</p>
-<p><strong>之所以 sendTime 使用 select 并搭配一个空的 default 分支，是因为 Ticker 也复用 sendTime</strong>。Ticker 触发时也会向管道中写入时间，但无法保证之前的数据已被取走，所以使用 select 并搭配一个空的 default 分支，<strong>确保 sendTime 不会阻塞</strong>。Ticker 触发时，<strong>如果管道中还有值，则本次不再向管道中写入时间</strong>，本次触发的事件直接丢弃。</p>
+<p>异步消息的一个重要好处就是<strong>确保 Saga 的所有步骤都被执行</strong>，即使一个或者多个 Saga 的参与方暂时不可用。</p>
 </blockquote>
-<p>startTimer 函数的主要作用就是<strong>将 runtimeTimer 写入到系统协程的数组中</strong>，并启动系统协程（如果系统协程还未开始运行的话）。</p>
-<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/m_9b30d59765c6121152602b693e73d48d_r.png" alt="img"></p>
+<p>Saga 缺少了 ACID 事务中的隔离性。此外，因为每个本地事务都提交了更改，必须使用<strong>补偿事务（只有修改操作有补偿事务）</strong>回滚 Saga。</p>
+<p>在 Saga 的一系列的步骤中，若前 N 个步骤后面跟着的步骤可能失败，称为<strong>可补偿性事务</strong>。第 N+1 个步骤后面全部都是不可能失败的步骤，称 N+1 步骤为<strong>关键性事务</strong>。关键性之后的步骤称之为<strong>可重复性事务</strong>。</p>
+<h2 id="Saga-的协调模式"><a href="#Saga-的协调模式" class="headerlink" title="Saga 的协调模式"></a>Saga 的协调模式</h2><p>Saga 由一些列本地事务组成，如何协调 Saga 中一系列的本地事务进行下一步操作还是执行补偿事务尤为关键，总共有两种方式：</p>
+<ul>
+<li><strong>协同式：</strong>把 Saga 的决策和执行顺序<strong>分布在 Saga 的每一个参与方中</strong>，它们通过交换事件的方式进行沟通。</li>
+<li><strong>编排式：</strong>将 Saga 的决策和执行顺序集中在一个<strong>集中的编排器</strong>中，编排器发送消息给各个Saga 参与方。</li>
+</ul>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/21/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B9%8BTimer%E5%92%8CTicker/#more" rel="contents">
+              <a class="btn" href="/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
           <!--/noindex-->
         
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/19/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-5-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BContext/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/03/19/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-5-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BContext/" class="post-title-link" itemprop="url">GO专家编程读书笔记 (5) 常见控制结构实现原理之Context</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-03-19 10:39:55" itemprop="dateCreated datePublished" datetime="2023-03-19T10:39:55+08:00">2023-03-19</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go专家编程</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Golang 中 Context 与 WaitGroup 最大的不同在于，<strong>Context 可以控制树形结构的 goroutine</strong>，每一个 goroutine 具有相同的上下文。</p>
-<blockquote>
-<p>由于 goroutine 派生出子 goroutine，而子 goroutine 又继续派生新的 goroutine。这种情况下使用 WaitGroup 就不太容易，因为<strong>子 goroutine 个数不容易确定</strong>，而使用 context 就可以很容易实现。</p>
-</blockquote>
-<h1 id="Context"><a href="#Context" class="headerlink" title="Context"></a>Context</h1><h2 id="Context-接口"><a href="#Context-接口" class="headerlink" title="Context 接口"></a>Context 接口</h2><p>Context 是一个接口，它定义了四个方法：</p>
-<ul>
-<li><strong>Deadline() (deadline time.Time, ok bool)：</strong>返回一个 deadline，和一个是否已经设置 deadline 的布尔值。</li>
-<li><strong>Done() &lt;-chan struct{}：</strong>当 Context 被关闭后，返回的是一个被关闭的 channel；而没有关闭时，返回的是 nil。</li>
-<li><strong>Err() error：</strong>当 Context 被关闭时，返回描述 Context 被关闭的原因；否则返回 nil。</li>
-<li><strong>Value(key interface{}) interface{}：</strong>根据 key 查询 key 对应的 value，用于实现 ValueContext。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Context <span class="keyword">interface</span> &#123;</span><br><span class="line">    Deadline() (deadline time.Time, ok <span class="keyword">bool</span>)</span><br><span class="line"></span><br><span class="line">    Done() &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">    Err() error</span><br><span class="line"></span><br><span class="line">    Value(key <span class="keyword">interface</span>&#123;&#125;) <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在 context 包中，定义了一个空的 Context 用于作为其他 Context 父节点或者全局的根节点。并且还实现了四种不同类型的 Context：</p>
-<ul>
-<li><strong>Cancel Context：</strong>通过 WithCancel 创建。</li>
-<li><strong>Deadline Context：</strong>通过 WithDeadline 创建。</li>
-<li><strong>Timeout Context：</strong>通过 WithTimeout 创建。</li>
-<li><strong>Value Context：</strong>通过 WithValue 创建。</li>
-</ul>
-<blockquote>
-<p>context 包中，有<strong>四</strong>个结构体实现了 Context 接口：<strong>emptyCtx、cancelCtx、timerCtx、valueCtx</strong>。关系如下：</p>
-<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-5-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BContext/m_f41adc85deafd7243fc1eb3e6c553ced_r.png" alt="img"></p>
-</blockquote>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/03/19/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-5-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BContext/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/19/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BWaitGroup/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/03/19/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BWaitGroup/" class="post-title-link" itemprop="url">GO专家编程读书笔记 (4) 常见控制结构实现原理之WaitGroup</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-03-19 10:22:09" itemprop="dateCreated datePublished" datetime="2023-03-19T10:22:09+08:00">2023-03-19</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go专家编程</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="WaitGroup"><a href="#WaitGroup" class="headerlink" title="WaitGroup"></a>WaitGroup</h1><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>WaitGroup 的数据结构如下，包含长度为 3 的 uint32 数组。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> WaitGroup <span class="keyword">struct</span> &#123;</span><br><span class="line">    state1 [<span class="number">3</span>]<span class="keyword">uint32</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其中，数组包含了<strong>一个 state（由两个计数器组成）和一个信号量</strong>：</p>
-<ul>
-<li><strong>counter：</strong> 当前还未执行结束的 goroutine 计数器。</li>
-<li><strong>waiter：</strong>等候者的数量。</li>
-<li><strong>semaphore：</strong>信号量。</li>
-</ul>
-<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E5%B8%B8%E8%A7%81%E6%8E%A7%E5%88%B6%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8BWaitGroup/m_b68f98a52c940a8c94a7c39f1f56a901_r.png" alt="img"></p>
-<blockquote>
-<p>也可以认为是 state 的类型为 uint64，而信号量的类型为 uint32。</p>
-</blockquote>
-<h2 id="Add-Wait-Done-实现"><a href="#Add-Wait-Done-实现" class="headerlink" title="Add Wait Done 实现"></a>Add Wait Done 实现</h2><p>WaitGroup 实现了三个方法：</p>
-<ul>
-<li><strong>Add(delta int)：</strong>把 delta 的值加到 counter 中。</li>
-<li><strong>Wait()：</strong>waiter 的值增加 1，并阻塞等待信号量。</li>
-<li><strong>Done()：</strong>counter 递减 1，当 counter 的值等于 0 时，按照 waiter 数值释放相应次数信号量。</li>
-</ul>
-<h3 id="Add"><a href="#Add" class="headerlink" title="Add"></a>Add</h3><p>Add 函数主要的流程如下：</p>
-<ul>
-<li>首先<strong>把 delta 加到 counter 中</strong>，因为 delta 可能是负值，所以 counter 可能小于 0，当 counter 小于 0 时发出 panic。</li>
-<li>接着<strong>如果 counter 等于 0，则释放 waiter 个信号量</strong>。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(wg *WaitGroup)</span> <span class="title">Add</span><span class="params">(delta <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">    statep, semap := wg.state() <span class="comment">//获取state和semaphore地址指针</span></span><br><span class="line"></span><br><span class="line">    state := atomic.AddUint64(statep, <span class="keyword">uint64</span>(delta)&lt;&lt;<span class="number">32</span>) <span class="comment">//把delta左移32位累加到state，即累加到counter中</span></span><br><span class="line">    v := <span class="keyword">int32</span>(state &gt;&gt; <span class="number">32</span>) <span class="comment">//获取counter值</span></span><br><span class="line">    w := <span class="keyword">uint32</span>(state)      <span class="comment">//获取waiter值</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> v &lt; <span class="number">0</span> &#123;              <span class="comment">//经过累加后counter值变为负值，panic</span></span><br><span class="line">        <span class="built_in">panic</span>(<span class="string">&quot;sync: negative WaitGroup counter&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//经过累加后，此时，counter &gt;= 0</span></span><br><span class="line">    <span class="comment">//如果counter为正，说明不需要释放信号量，直接退出</span></span><br><span class="line">    <span class="comment">//如果waiter为零，说明没有等待者，也不需要释放信号量，直接退出</span></span><br><span class="line">    <span class="keyword">if</span> v &gt; <span class="number">0</span> || w == <span class="number">0</span> &#123;</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//此时，counter一定等于0，而waiter一定大于0（内部维护waiter，不会出现小于0的情况），</span></span><br><span class="line">    <span class="comment">//先把counter置为0，再释放waiter个数的信号量</span></span><br><span class="line">    *statep = <span class="number">0</span></span><br><span class="line">    <span class="keyword">for</span> ; w != <span class="number">0</span>; w-- &#123;</span><br><span class="line">        runtime_Semrelease(semap, <span class="literal">false</span>) <span class="comment">//释放信号量，执行一次释放一个，唤醒一个等待者</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="Wait"><a href="#Wait" class="headerlink" title="Wait"></a>Wait</h3><p>Wait 函数主要的流程如下：</p>
-<ul>
-<li>首先，<strong>累加 waiter 的数量</strong>。</li>
-<li>接着，如果 counter 大于 0，则<strong>阻塞</strong>当前协程等待信号量。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(wg *WaitGroup)</span> <span class="title">Wait</span><span class="params">()</span></span> &#123;</span><br><span class="line">    statep, semap := wg.state() <span class="comment">//获取state和semaphore地址指针</span></span><br><span class="line">    <span class="keyword">for</span> &#123;</span><br><span class="line">        state := atomic.LoadUint64(statep) <span class="comment">//获取state值</span></span><br><span class="line">        v := <span class="keyword">int32</span>(state &gt;&gt; <span class="number">32</span>)            <span class="comment">//获取counter值</span></span><br><span class="line">        w := <span class="keyword">uint32</span>(state)                 <span class="comment">//获取waiter值</span></span><br><span class="line">        <span class="keyword">if</span> v == <span class="number">0</span> &#123;                        <span class="comment">//如果counter值为0，说明所有goroutine都退出了，不需要待待，直接返回</span></span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 使用CAS（比较交换算法）累加waiter，累加可能会失败，失败后通过for loop下次重试</span></span><br><span class="line">        <span class="keyword">if</span> atomic.CompareAndSwapUint64(statep, state, state+<span class="number">1</span>) &#123;</span><br><span class="line">            runtime_Semacquire(semap) <span class="comment">//累加成功后，等待信号量唤醒自己</span></span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>这里用到了 CAS 算法，保证有多个 goroutine 同时执行 Wait() 时，也能正确累加 waiter。</p>
-</blockquote>
-<h3 id="Done"><a href="#Done" class="headerlink" title="Done"></a>Done</h3><p>Done 只做了 counter 减一这一件事，这样当 counter 等于 0 时由 Add 函数唤醒等待的协程。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(wg *WaitGroup)</span> <span class="title">Done</span><span class="params">()</span></span> &#123;</span><br><span class="line">    wg.Add(<span class="number">-1</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
       
     </div>
 
@@ -1237,7 +1193,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/14/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/14/">14</a><span class="page-number current">15</span><a class="page-number" href="/page/16/">16</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/16/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/14/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/14/">14</a><span class="page-number current">15</span><a class="page-number" href="/page/16/">16</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/16/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1303,20 +1259,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

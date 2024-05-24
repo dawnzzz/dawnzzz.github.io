@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-1-%E4%BB%8B%E7%BB%8D%E4%B8%8E%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/" class="post-title-link" itemprop="url">Pulsar消息队列(4)延迟消息投递</a>
+            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-1-%E4%BB%8B%E7%BB%8D%E4%B8%8E%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/" class="post-title-link" itemprop="url">SSM学习之SpringMVC (1) 介绍与工作原理</a>
         </h2>
 
         <div class="post-meta">
@@ -181,23 +181,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-02-22 20:19:25" itemprop="dateCreated datePublished" datetime="2024-02-22T20:19:25+08:00">2024-02-22</time>
+              <time title="创建时间：2024-04-28 22:07:02 / 修改时间：22:18:22" itemprop="dateCreated datePublished" datetime="2024-04-28T22:07:02+08:00">2024-04-28</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
                 </span>
             </span>
 
@@ -212,20 +206,31 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="延迟消息投递"><a href="#延迟消息投递" class="headerlink" title="延迟消息投递"></a>延迟消息投递</h1><p>开源的 NSQ、RabbitMQ、ActiveMQ 和 Pulsar 也都内置了延迟消息的处理能力。虽然每个 MQ 项目的使用和实现方式不同，但核心实现思路都一样：<strong>Producer 将一个延迟消息发送到某个 Topic 中，Broker 将延迟消息放到临时存储进行暂存，延迟跟踪服务（Delayed Tracker Service）会检查消息是否到期，将到期的消息进行投递</strong>。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.png" alt="图片"></p>
-<p>延迟消息投递是要暂缓对当前消息的处理，在未来的某个时间点再触发投递，实际的应用场景非常多，比如异常检测重试、订单超时取消、预约提醒等。</p>
-<p>Pulsar 最早是在 2.4.0 引入了延迟消息投递的特性，在 Pulsar 中使用延迟消息，可以精确指定延迟投递的时间，有 deliverAfter 和 deliverAt 两种方式。其中 deliverAt 可以指定具体的时间戳；deliverAfter 可以指定在当前多长时间后执行。</p>
-<p>在 Pulsar 中，可以支持跨度很大的延时消息，比方说一个月、半年；同时在一个 Topic 里，既支持延时消息，也支持非延时消息。下图展示了 Pulsar 中延迟消息的具体过程：</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640-20240222202207636.png" alt="图片"></p>
-<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>Pulsar 实现延迟消息投递的方式比较简单，<strong>Delayed Message Tracker 在堆外内存维护着一个 delayed index 优先级队列</strong>，根据延迟时间进行堆排序，延迟时间最短的会放在头上，时间越长越靠后。</p>
-<p>Consumer 在消费时，会先去 Delayed Message Tracker 检查，是否有到期需要投递的消息，如果有到期的消息，则从 Tracker 中拿出对应的 index，找到对应的消息进行消费；如果没有到期的消息，则直接消费正常的消息。</p>
-<p>如果集群出现 Broker 宕机，Pulsar 会重建 delayed index 队列，来保证延迟投递的消息能够正常工作。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.jpeg" alt="图片"></p>
-<h2 id="风险"><a href="#风险" class="headerlink" title="风险"></a>风险</h2><p>从 Pulsar 的延迟消息投递实现原理可以看出，该方法简单高效，对 Pulsar 内核侵入性较小，可以支持到任意时间的延迟消息。但同时发现，Pulsar 的实现方案无法支持大规模使用延迟消息，主要有以下两个原因：</p>
-<p><strong>1. delayed index队列受到内存限制</strong></p>
-<p><strong>2. delayed index队列重建时间开销</strong></p>
-<h2 id="未来工作"><a href="#未来工作" class="headerlink" title="未来工作"></a>未来工作</h2><p>Pulsar 目前的延迟消息投递方案简单高效，但处理大规模延迟消息时仍然存在风险。关于延迟消息投递，社区和数据平台部 MQ 团队下一步将聚焦在支持大规模延迟消息。目前讨论的方案是在 delayed index 队列加入时间分区，Broker 只加载当前较近的时间片 delayed index 到内存，其余时间片分区持久化磁盘，</p>
+          <h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><p>SpringMVC 是一个轻量级的 MVC 框架，可以帮助我们进行更简洁的 Web 层的开发，并且它天生与 Spring 框架集成。</p>
+<ul>
+<li>M（Model）：数据层，也就是 dao 和 bean。</li>
+<li>V（View）：视图层，用于展示模型中的数据。</li>
+<li>C（Controller）：接受用户请求，并将请求发送至 Model，最后返回数据给请求方。</li>
+</ul>
+<h2 id="组件"><a href="#组件" class="headerlink" title="组件"></a>组件</h2><p>SpringMVC 的核心组件包括：</p>
+<ul>
+<li><strong>DispatcherServlet：</strong>中央处理器，负责接收请求、分发，并给予客户端响应。</li>
+<li><strong>HandlerMapping：</strong>Handler 映射器，根据 URL 去匹配查找能处理的 Handler，并会将请求涉及到的拦截器和 Handler 一起封装。</li>
+<li><strong>HandlerAdapter：</strong>Handler 适配器，根据 HandlerMapping 找到的 Handler，适配器负责 Handler 的执行。</li>
+<li><strong>Handler：</strong>实际处理请求的组件。</li>
+<li><strong>ViewResolver：</strong>视图解析器，解析并渲染真正的视图，并传递给 DispatcherServlet 用于响应。</li>
+</ul>
+<h1 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h1><p>SpringMVC 的<strong>工作流程</strong>如下：</p>
+<ol>
+<li>客户端（浏览器）发送请求， <strong>DispatcherServlet 拦截请求</strong>。</li>
+<li><strong>DispatcherServlet 根据请求信息调用 HandlerMapping</strong>。HandlerMapping 根据 URL 去匹配查找能处理的 Handler（也就是 Controller 控制器） ，并会将请求涉及到的拦截器和 Handler 一起封装。</li>
+<li><strong>DispatcherServlet 调用 HandlerAdapter 适配器执行 Handler</strong> 。</li>
+<li>Handler 完成对用户请求的处理后，会<strong>返回一个 ModelAndView 对象给 DispatcherServlet</strong>，包含了数据模型以及相应的视图的信息。Model 是返回的数据对象，View 是个逻辑上的 View。</li>
+<li>ViewResolver 会<strong>根据逻辑 View 查找实际的 View</strong>。</li>
+<li>DispaterServlet 把<strong>返回的 Model 传给 View</strong>（视图渲染）。</li>
+<li>把 View 返回给请求者（浏览器）。</li>
+</ol>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-1-%E4%BB%8B%E7%BB%8D%E4%B8%8E%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86/de6d2b213f112297298f3e223bf08f28.png" alt="img"></p>
 
       
     </div>
@@ -245,7 +250,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-5-%E7%94%A8%E5%88%B0%E7%9A%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -259,7 +264,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Pulsar消息队列(3)订阅模式</a>
+            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-5-%E7%94%A8%E5%88%B0%E7%9A%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">SSM学习之Spring (5) 用到的设计模式</a>
         </h2>
 
         <div class="post-meta">
@@ -268,23 +273,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-02-22 20:12:02" itemprop="dateCreated datePublished" datetime="2024-02-22T20:12:02+08:00">2024-02-22</time>
+              <time title="创建时间：2024-04-28 20:42:08 / 修改时间：21:47:28" itemprop="dateCreated datePublished" datetime="2024-04-28T20:42:08+08:00">2024-04-28</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
                 </span>
             </span>
 
@@ -299,23 +298,51 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Consumer 订阅 Topic 的时候，通过<strong>订阅模式</strong>来控制消息的使用模式，指定如何将消息投递给一个组一个的或多个的 Consumer。Pulsar 支持 4 种订阅模式:</p>
+          <p>本文总结 Spring 用到的一些设计模式。</p>
+<h1 id="工厂模式"><a href="#工厂模式" class="headerlink" title="工厂模式"></a>工厂模式</h1><p>Spring 可以通过 BeanFactory 或 ApplicationContext 创建 bean 对象，ApplicationContext 继承自 BeanFactory。</p>
 <ul>
-<li>exclusive（独占模式）</li>
-<li>failover（故障转移模式，也叫灾备模式）</li>
-<li>shared（共享模式）</li>
-<li>key-shared（基于key的共享模式）</li>
+<li>BeanFactory：延迟注入，所以占用更少的内存，程序启动速度更快。</li>
+<li>ApplicationContext：容器启动的时候，不管你用没用到，一次性创建所有 bean 。并且 ApplicationContext 继承自 BeanFactory，扩展了功能。</li>
 </ul>
-<h1 id="订阅模式"><a href="#订阅模式" class="headerlink" title="订阅模式"></a>订阅模式</h1><h2 id="exclusive"><a href="#exclusive" class="headerlink" title="exclusive"></a>exclusive</h2><p>独占模式，只能有一个 Consumer 绑定到订阅上。如果多于一个 Consumer 尝试以使用相同的订阅订阅 Topic，就会抛出异常且无法连接。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-exclusive-subscriptions.png" alt="pulsar-exclusive-subscriptions.png"></p>
-<h2 id="failover"><a href="#failover" class="headerlink" title="failover"></a>failover</h2><p>在灾备订阅模式中，多个 Consumer 可以绑定到同一个订阅上， Consumer 将会<strong>按字典顺序排序</strong>，<strong>第一个 Consumer 被初始化为唯一接受消息的消费者</strong>，被称为 Master Consumer。 当 Master Consumer 断开时，所有的未被确认和后续进入的消息将会被投递给下一个 Consumer。</p>
+<p>ApplicationContext 有但不限于以下实现类：</p>
+<ul>
+<li>ClassPathXmlApplicationContext：从 ClassPath 中加载 XML 配置文件，创建 ApplicationContext。</li>
+<li>FileSystemXmlApplicationContext：从文件系统中加载 XML 配置文件，创建 ApplicationContext。</li>
+<li>XmlWebApplicationContext：从 Web 系统中加载 XML 配置文件，创建 ApplicationContext。</li>
+<li>AnnotationConfigApplicationContext：通过注解配置类，创建 ApplicationContext。</li>
+</ul>
+<h1 id="单例模式"><a href="#单例模式" class="headerlink" title="单例模式"></a>单例模式</h1><p>bean 的作用域默认就是<strong>单例</strong>模式的，Spring 通过 ConcurrentHashMap 作为<strong>单例注册表</strong>来实现单例模式，key 为 bean name，value 为单例对象。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 通过 ConcurrentHashMap（线程安全） 实现单例注册表</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Object&gt; singletonObjects = <span class="keyword">new</span> ConcurrentHashMap&lt;String, Object&gt;(<span class="number">64</span>);</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> Object <span class="title">getSingleton</span><span class="params">(String beanName, ObjectFactory&lt;?&gt; singletonFactory)</span> </span>&#123;</span><br><span class="line">        Assert.notNull(beanName, <span class="string">&quot;&#x27;beanName&#x27; must not be null&quot;</span>);</span><br><span class="line">        <span class="keyword">synchronized</span> (<span class="keyword">this</span>.singletonObjects) &#123;</span><br><span class="line">            <span class="comment">// 检查缓存中是否存在实例</span></span><br><span class="line">            Object singletonObject = <span class="keyword">this</span>.singletonObjects.get(beanName);</span><br><span class="line">            <span class="keyword">if</span> (singletonObject == <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="comment">//...省略了很多代码</span></span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    singletonObject = singletonFactory.getObject();</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">//...省略了很多代码</span></span><br><span class="line">                <span class="comment">// 如果实例对象在不存在，我们注册到单例注册表中。</span></span><br><span class="line">                addSingleton(beanName, singletonObject);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">return</span> (singletonObject != NULL_OBJECT ? singletonObject : <span class="keyword">null</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//将对象添加到单例注册表</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">addSingleton</span><span class="params">(String beanName, Object singletonObject)</span> </span>&#123;</span><br><span class="line">            <span class="keyword">synchronized</span> (<span class="keyword">this</span>.singletonObjects) &#123;</span><br><span class="line">                <span class="keyword">this</span>.singletonObjects.put(beanName, (singletonObject != <span class="keyword">null</span> ? singletonObject : NULL_OBJECT));</span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="代理模式"><a href="#代理模式" class="headerlink" title="代理模式"></a>代理模式</h1><p><strong>Spring AOP 就是基于动态代理的</strong>，Spring AOP 根据被代理对象是否有实现接口，分别使用 JDK Proxy 和 CGLIB 实现动态代理。</p>
+<h1 id="模板方法"><a href="#模板方法" class="headerlink" title="模板方法"></a>模板方法</h1><p>TransactionTemplate.execute 使用到了模板方法，实现事务。Spring 使用 Callback 模式与模板方法模式配合，既达到了代码复用的效果，同时增加了灵活性。</p>
 <blockquote>
-<p>灾备模式提供了高可用性。</p>
+<p>以 Template 结尾的对数据库操作的类，都使用到了模板方法。</p>
 </blockquote>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-failover-subscriptions.png" alt="pulsar-failover-subscriptions.png"></p>
-<h2 id="shared"><a href="#shared" class="headerlink" title="shared"></a>shared</h2><p>在共享模式中，多个 Consumer 可以绑定到同一个订阅上。 <strong>消息通过 round robin 轮询机制分发给不同的消费者</strong>，并且每个消息仅会被分发给一个消费者。 当一个消费者断开连接时，所有已经投递给它但还没有被确认的消息将被重新投递，分发给其它存活的消费者。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-shared-subscriptions.png" alt="pulsar-shared-subscriptions.png"></p>
-<h2 id="key-shared"><a href="#key-shared" class="headerlink" title="key-shared"></a>key-shared</h2><p>key-shared 模式是共享模式的一种特例，它也允许多个 Consumer 可以绑定到同一个订阅上，与共享模式中的 round robin 轮询消费消息不同，key-shared 模式增加了一个辅助 key，<strong>确保具有相同 key 的消息被交付给相同的消费者</strong>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> TransactionTemplate transactionTemplate;</span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">testTransaction</span><span class="params">()</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">        transactionTemplate.execute(<span class="keyword">new</span> TransactionCallbackWithoutResult() &#123;</span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">doInTransactionWithoutResult</span><span class="params">(TransactionStatus transactionStatus)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line"></span><br><span class="line">                    <span class="comment">// ....  业务代码</span></span><br><span class="line">                &#125; <span class="keyword">catch</span> (Exception e)&#123;</span><br><span class="line">                    <span class="comment">//回滚</span></span><br><span class="line">                    transactionStatus.setRollbackOnly();</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="观察者模式"><a href="#观察者模式" class="headerlink" title="观察者模式"></a>观察者模式</h1><p>观察者模式是一种对象行为型模式。它表示的是一种对象与对象之间具有依赖关系，当一个对象发生改变的时候，依赖这个对象的所有对象也会做出反应。Spring 事件驱动模型就是观察者模式很经典的一个应用。Spring 事件驱动模型非常有用，在很多场景都可以解耦代码。比如我们每次添加商品的时候都需要重新更新商品索引，这个时候就可以利用观察者模式来解决这个问题。</p>
+<h2 id="Spring-事件驱动模型"><a href="#Spring-事件驱动模型" class="headerlink" title="Spring 事件驱动模型"></a>Spring 事件驱动模型</h2><p>Spring 事件驱动模型有三种角色：</p>
+<ul>
+<li><strong>事件：</strong>ApplicationEvent 是一个抽象类，继承自 java.util.EventObject 并实现了 java.io.Serializable 接口。</li>
+<li><strong>事件监听者：</strong>ApplicationListener 是一个接口，定义了 onApplicationEvent 方法来处理事件。只要实现了 ApplicationListener 接口，就可以完成对事件的监听。</li>
+<li><strong>事件发布者：</strong>ApplicationEventPublisher 作为事件的发布者，也是一个接口。这个接口在 AbstractApplicationContext 中实现。</li>
+</ul>
+<h3 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h3><p>Spring 中完成对事件的订阅和发布，流程如下：</p>
+<ol>
+<li>定义一个事件，继承自 ApplicationEvent。</li>
+<li>定义一个事件监听者，是西安 ApplicationListener 接口，重写 onApplicationEvent 方法。</li>
+<li>使用事件发布者发布消息，通过 ApplicationEventPublisher 的 publishEvent 方法发布消息。</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 定义一个事件,继承自ApplicationEvent并且写相应的构造函数</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoEvent</span> <span class="keyword">extends</span> <span class="title">ApplicationEvent</span></span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">long</span> serialVersionUID = <span class="number">1L</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String message;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">DemoEvent</span><span class="params">(Object source,String message)</span></span>&#123;</span><br><span class="line">        <span class="keyword">super</span>(source);</span><br><span class="line">        <span class="keyword">this</span>.message = message;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">getMessage</span><span class="params">()</span> </span>&#123;</span><br><span class="line">         <span class="keyword">return</span> message;</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">// 定义一个事件监听者,实现ApplicationListener接口，重写 onApplicationEvent() 方法；</span></span><br><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoListener</span> <span class="keyword">implements</span> <span class="title">ApplicationListener</span>&lt;<span class="title">DemoEvent</span>&gt;</span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//使用onApplicationEvent接收消息</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onApplicationEvent</span><span class="params">(DemoEvent event)</span> </span>&#123;</span><br><span class="line">        String msg = event.getMessage();</span><br><span class="line">        System.out.println(<span class="string">&quot;接收到的信息是：&quot;</span>+msg);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 发布事件，可以通过ApplicationEventPublisher  的 publishEvent() 方法发布消息。</span></span><br><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoPublisher</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    ApplicationContext applicationContext;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">publish</span><span class="params">(String message)</span></span>&#123;</span><br><span class="line">        <span class="comment">//发布事件</span></span><br><span class="line">        applicationContext.publishEvent(<span class="keyword">new</span> DemoEvent(<span class="keyword">this</span>, message));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="适配器模式"><a href="#适配器模式" class="headerlink" title="适配器模式"></a>适配器模式</h1><p>适配器模式将一个接口转换成客户希望的另一个接口，适配器模式使接口不兼容的那些类可以一起工作。</p>
+<ul>
+<li>Spring AOP：通知用到了适配器模式，每一种通知都有对应得拦截器（实现了 MethodInterceptor 接口），需要将通知适配成 MethodInterceptor 接口类型的对象。</li>
+<li>Spring MVC：SpringMVC 中有 HandlerAdapter，用于适配执行 Handler。</li>
+</ul>
+<h1 id="装饰器模式"><a href="#装饰器模式" class="headerlink" title="装饰器模式"></a>装饰器模式</h1><p>装饰者模式可以动态地给对象添加一些额外的属性或行为。相比于使用继承，装饰者模式更加灵活。Spring 中配置 DataSource 的时候，DataSource 可能是不同的数据库和数据源，可以通过装饰器模式动态的切换不同的数据源。</p>
+<p>Spring 中用到的装饰器在类名上含有 Wrapper 或者 Decorator。</p>
 
       
     </div>
@@ -335,7 +362,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-4-%E4%BA%8B%E5%8A%A1/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -349,7 +376,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/" class="post-title-link" itemprop="url">Pulsar消息队列(2)租户 命名空间 Topic</a>
+            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-4-%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">SSM学习之Spring (4) 事务</a>
         </h2>
 
         <div class="post-meta">
@@ -358,23 +385,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-02-22 20:02:09" itemprop="dateCreated datePublished" datetime="2024-02-22T20:02:09+08:00">2024-02-22</time>
+              <time title="创建时间：2024-04-28 17:44:23 / 修改时间：20:27:49" itemprop="dateCreated datePublished" datetime="2024-04-28T17:44:23+08:00">2024-04-28</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
                 </span>
             </span>
 
@@ -389,18 +410,85 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Pulsar 在逻辑上的层级，从上到下依次为租户、命名空间、Topic。</p>
-<p>每个租户都可以有单独的认证和授权机制，可以针对租户设置存储配额、消息生存时间 TTL 和隔离策略。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/pulsar-logical-arch2.png" alt="pulsar-logical-arch2.png"></p>
-<p>默认情况下一个 Topic 中的消息只能由 Pulsar 服务层中的一个 Broker 提供服务，因此单个 Topic 的吞吐量受限于为其提供服务的 Broker 的计算能力。 </p>
-<p>好在 Pulsar 还支持<strong>分区主题</strong>，这允许多个 Broker 提供服务，就可以将负载分布到多台机器上。在 Pulsar 内部，<strong>分区主题被实现为 N 个内部 Topic</strong>，N 是分区数量，分区跨 Broker 的分布<strong>由 Pulsar 自动管理</strong>，这对用户来说是完全透明的。 Pulsar 将分区主题实现为多个内部主题，这样就可以在需要增加分区数量的时候不必重新平衡整个主题，Pulsar 只需在其内部创建新的内部主题就能够立即接收新的消息，使客户端能在不中断的情况下对现有分区进行消息读写。</p>
-<p>当生产者发布消息到分区主题时，不需要特意指定路由模式，默认以轮循的方式将消息均匀分布到各个分区。支持以下3种路由模式:</p>
+          <p>事务的 ACID 特性中，<strong>只有保证了事务的持久性、原子性、隔离性之后，一致性才能得到保障。也就是说 A、I、D 是手段，C 是目的。</strong></p>
+<h1 id="Spring-事务"><a href="#Spring-事务" class="headerlink" title="Spring 事务"></a>Spring 事务</h1><h2 id="事务管理方式"><a href="#事务管理方式" class="headerlink" title="事务管理方式"></a>事务管理方式</h2><h3 id="编程式事务管理"><a href="#编程式事务管理" class="headerlink" title="编程式事务管理"></a>编程式事务管理</h3><p>编程式事务管理，通过 <code>TransactionTemplate</code> 或者 <code>TransactionManager</code> 手动管理事务。</p>
 <ul>
-<li><strong>SinglePartition：</strong>如果没有消息 key 提供，生产者将会随机选择一个固定的分区来发布消息（同一个生产者生产在同一个分区中），可用于将来自特定生产者的消息分组在一起，以在没有键值时维护消息顺序。</li>
-<li><strong>RoundRobinPartition：</strong>如果没有消息 key 提供，将以轮循的方式将消息均匀分布到各个分区。</li>
-<li><strong>CustomPartition：</strong>定制实现路由模式，控制消息分发到 Topic 的分区中。</li>
+<li>使用 TransactionTemplate，调用 execute 方法：</li>
 </ul>
-<p>如果提供了消息 key，<strong>会以 key 做 hash，然后分配消息到指定分区</strong>。因此分区中消息的顺序与路由模式和消息的key有关，所有拥有相同的 key 的消息有序，将会被发送到相同的分区</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> TransactionTemplate transactionTemplate;</span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">testTransaction</span><span class="params">()</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">        transactionTemplate.execute(<span class="keyword">new</span> TransactionCallbackWithoutResult() &#123;</span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">doInTransactionWithoutResult</span><span class="params">(TransactionStatus transactionStatus)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line"></span><br><span class="line">                    <span class="comment">// ....  业务代码</span></span><br><span class="line">                &#125; <span class="keyword">catch</span> (Exception e)&#123;</span><br><span class="line">                    <span class="comment">//回滚</span></span><br><span class="line">                    transactionStatus.setRollbackOnly();</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用 TransactionManager，调用 getTransaction 获取一个新的事务。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> PlatformTransactionManager transactionManager;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">testTransaction</span><span class="params">()</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  TransactionStatus status = transactionManager.getTransaction(<span class="keyword">new</span> DefaultTransactionDefinition());</span><br><span class="line">          <span class="keyword">try</span> &#123;</span><br><span class="line">               <span class="comment">// ....  业务代码</span></span><br><span class="line">              transactionManager.commit(status);</span><br><span class="line">          &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">              transactionManager.rollback(status);</span><br><span class="line">          &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="声明式事务管理"><a href="#声明式事务管理" class="headerlink" title="声明式事务管理"></a>声明式事务管理</h3><p>通过 @Transaction 注解，代码的侵入性最小，原理是 AOP。</p>
+<h2 id="事务管理接口"><a href="#事务管理接口" class="headerlink" title="事务管理接口"></a>事务管理接口</h2><p>Spring 框架中，事务管理相关最重要的 3 个接口如下：</p>
+<ul>
+<li>**<code>PlatformTransactionManager</code>**：（平台）事务管理器，Spring 事务策略的核心。</li>
+<li>**<code>TransactionDefinition</code>**：事务定义信息（事务隔离级别、传播行为、超时、只读、回滚规则）。</li>
+<li>**<code>TransactionStatus</code>**：事务运行状态。</li>
+</ul>
+<p>可以把 <strong><code>PlatformTransactionManager</code></strong> 接口可以被看作是事务上层的管理者，而 <strong><code>TransactionDefinition</code></strong> 和 <strong><code>TransactionStatus</code></strong> 这两个接口可以看作是事务的描述。</p>
+<p><strong><code>PlatformTransactionManager</code></strong> 会根据 <strong><code>TransactionDefinition</code></strong> 的定义比如事务超时时间、隔离级别、传播行为等来进行事务管理 ，而 <strong><code>TransactionStatus</code></strong> 接口则提供了一些方法来获取事务相应的状态比如是否新事务、是否可以回滚等等。</p>
+<h3 id="事务管理接口-1"><a href="#事务管理接口-1" class="headerlink" title="事务管理接口"></a>事务管理接口</h3><p><strong>Spring 并不直接管理事务，而是提供了多种事务管理器</strong> 。Spring 事务管理器的接口是 PlatformTransactionManager，通过这个接口 Spring 可以为各个平台如 JDBC（DataSourceTransactionManager）、Hibernate（HibernateTransactionManager）等提供了对应的事务管理器。</p>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-4-%E4%BA%8B%E5%8A%A1/PlatformTransactionManager-Sss6sitn.png" alt="img"></p>
+<p>PlatformTransactionManager 接口中定义了三个方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> org.springframework.transaction;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.lang.Nullable;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">PlatformTransactionManager</span> </span>&#123;</span><br><span class="line">    <span class="comment">//获得事务</span></span><br><span class="line">    <span class="function">TransactionStatus <span class="title">getTransaction</span><span class="params">(<span class="meta">@Nullable</span> TransactionDefinition var1)</span> <span class="keyword">throws</span> TransactionException</span>;</span><br><span class="line">    <span class="comment">//提交事务</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">commit</span><span class="params">(TransactionStatus var1)</span> <span class="keyword">throws</span> TransactionException</span>;</span><br><span class="line">    <span class="comment">//回滚事务</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">rollback</span><span class="params">(TransactionStatus var1)</span> <span class="keyword">throws</span> TransactionException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="事务属性"><a href="#事务属性" class="headerlink" title="事务属性"></a>事务属性</h3><p>事务属性 TransactionDefinition，定义了基本的事务属性，包括五个方面：</p>
+<ul>
+<li>隔离级别。</li>
+<li>传播行为。</li>
+<li>回滚规则。</li>
+<li>是否只读。</li>
+<li>事务超时。</li>
+</ul>
+<p>TransactionDefinition 接口定义如下。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> org.springframework.transaction;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.lang.Nullable;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">TransactionDefinition</span> </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_REQUIRED = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_SUPPORTS = <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_MANDATORY = <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_REQUIRES_NEW = <span class="number">3</span>;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_NOT_SUPPORTED = <span class="number">4</span>;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_NEVER = <span class="number">5</span>;</span><br><span class="line">    <span class="keyword">int</span> PROPAGATION_NESTED = <span class="number">6</span>;</span><br><span class="line">    <span class="keyword">int</span> ISOLATION_DEFAULT = -<span class="number">1</span>;</span><br><span class="line">    <span class="keyword">int</span> ISOLATION_READ_UNCOMMITTED = <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">int</span> ISOLATION_READ_COMMITTED = <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">int</span> ISOLATION_REPEATABLE_READ = <span class="number">4</span>;</span><br><span class="line">    <span class="keyword">int</span> ISOLATION_SERIALIZABLE = <span class="number">8</span>;</span><br><span class="line">    <span class="keyword">int</span> TIMEOUT_DEFAULT = -<span class="number">1</span>;</span><br><span class="line">    <span class="comment">// 返回事务的传播行为，默认值为 REQUIRED。</span></span><br><span class="line">    <span class="function"><span class="keyword">int</span> <span class="title">getPropagationBehavior</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="comment">//返回事务的隔离级别，默认值是 DEFAULT</span></span><br><span class="line">    <span class="function"><span class="keyword">int</span> <span class="title">getIsolationLevel</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="comment">// 返回事务的超时时间，默认值为-1。如果超过该时间限制但事务还没有完成，则自动回滚事务。</span></span><br><span class="line">    <span class="function"><span class="keyword">int</span> <span class="title">getTimeout</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="comment">// 返回是否为只读事务，默认值为 false</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isReadOnly</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Nullable</span></span><br><span class="line">    <span class="function">String <span class="title">getName</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="事务状态"><a href="#事务状态" class="headerlink" title="事务状态"></a>事务状态</h3><p>TransactionStatus 用于描述事务状态，接口定义如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">TransactionStatus</span></span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isNewTransaction</span><span class="params">()</span></span>; <span class="comment">// 是否是新的事务</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">hasSavepoint</span><span class="params">()</span></span>; <span class="comment">// 是否有恢复点</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setRollbackOnly</span><span class="params">()</span></span>;  <span class="comment">// 设置为只回滚</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isRollbackOnly</span><span class="params">()</span></span>; <span class="comment">// 是否为只回滚</span></span><br><span class="line">    <span class="keyword">boolean</span> isCompleted; <span class="comment">// 是否已完成</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="事务属性详解"><a href="#事务属性详解" class="headerlink" title="事务属性详解"></a>事务属性详解</h2><h3 id="事务传播行为"><a href="#事务传播行为" class="headerlink" title="事务传播行为"></a>事务传播行为</h3><p><strong>事务传播行为是为了解决业务层方法之间互相调用的事务问题</strong>。当事务方法被另一个事务方法调用时，必须指定事务应该如何传播。在 TransactionDefinition 定义中包括了如下几个表示传播行为的常量，Spring 也相应地定义了一个枚举类 Propagation。</p>
+<p>传播行为如下：</p>
+<ul>
+<li><strong>PROPAGATION_REQUIRED：</strong>是<strong>默认</strong>的传播行为，如果当前存在事务，则<strong>加入该事务</strong>；如果当前没有事务，则创建一个新的事务。</li>
+<li><strong>PROPAGATION_REQUIRES_NEW：</strong>不管外部是否有事务，修饰的内部方法会<strong>新开启自己的事务</strong>，且开启的事务<strong>相互独立</strong>，互不干扰。</li>
+<li><strong>PROPAGATION_NESTED：</strong>在外部方法开启事务时的情况下，在内部开启一个新的事务，作为<strong>嵌套事务</strong>存在。如果外部方法无事务，则单独开启一个事务。</li>
+<li><strong>PROPAGATION_MANDATORY</strong>：如果当前存在事务，则加入该事务；如果当前没有事务，则抛出异常。</li>
+</ul>
+<p>以下事务传播行为<strong>不常用</strong>，导致事务不会发生回滚：</p>
+<ul>
+<li>PROPAGATION_SUPPORTS：如果当前存在事务，则加入该事务；如果当前没有事务，则以非事务的方式继续运行。</li>
+<li>PROPAGATION_NOT_SUPPORTED：以非事务方式运行，如果当前存在事务，则把当前事务挂起。</li>
+<li>PROPAGATION_NEVER：以非事务方式运行，如果当前存在事务，则抛出异常。</li>
+</ul>
+<h3 id="隔离级别"><a href="#隔离级别" class="headerlink" title="隔离级别"></a>隔离级别</h3><p>隔离级别与数据库中定义的隔离级别一致（读未提交，读已提交，可重复读，穿行化），这里不再赘述。</p>
+<h3 id="事务超时"><a href="#事务超时" class="headerlink" title="事务超时"></a>事务超时</h3><p>所谓事务超时，就是指一个事务所允许执行的最长时间，如果超过该时间限制但事务还没有完成，则自动回滚事务。TransactionDefinition 中以 int 的值来表示超时时间，其单位是秒，默认值为 -1，这表示事务的超时时间取决于底层事务系统或者没有超时时间。</p>
+<h3 id="只读属性"><a href="#只读属性" class="headerlink" title="只读属性"></a>只读属性</h3><p>对于只有读取数据查询的事务，可以指定事务类型为 readonly，即只读事务。只读事务不涉及数据的修改，数据库会提供一些优化手段，适合用在有多条数据库查询操作的方法中。</p>
+<h3 id="事务回滚规则"><a href="#事务回滚规则" class="headerlink" title="事务回滚规则"></a>事务回滚规则</h3><p>定义了哪些异常会导致事务回滚而哪些不会，<strong>默认</strong>情况下，事务只有遇到<strong>运行异常以及 Error 才会回滚</strong>；遇到受检异常时，不会回滚。可以使用 rollbackFor 属性定义需要回滚的异常类型。</p>
+<h2 id="Transaction"><a href="#Transaction" class="headerlink" title="@Transaction"></a>@Transaction</h2><p>@Transaction 的作用范围：</p>
+<p><strong>方法</strong>：推荐将注解使用于方法上，不过需要注意的是：<strong>该注解只能应用到 public 方法上，否则不生效。</strong></p>
+<p><strong>类</strong>：如果这个注解使用在类上的话，表明该注解对该类中所有的 public 方法都生效。</p>
+<p><strong>接口</strong>：不推荐在接口上使用。</p>
+<h3 id="定义"><a href="#定义" class="headerlink" title="定义"></a>定义</h3><p>@Transaction 的定义如下，常用配置有：</p>
+<ul>
+<li>propagation：传播行为，默认为 REQUIRED。</li>
+<li>isolation：隔离级别，默认为 DEFAULT。</li>
+<li>timeout：事务超时事件，默认为 -1（不会超时）。</li>
+<li>readOnly：是否是只读事务，默认为 false。</li>
+<li>rollbackFor：用于指定能够触发事务回滚的异常类型，并且可以指定多个异常类型。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(&#123;ElementType.TYPE, ElementType.METHOD&#125;)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.RUNTIME)</span></span><br><span class="line"><span class="meta">@Inherited</span></span><br><span class="line"><span class="meta">@Documented</span></span><br><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> Transactional &#123;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@AliasFor(&quot;transactionManager&quot;)</span></span><br><span class="line">  <span class="function">String <span class="title">value</span><span class="params">()</span> <span class="keyword">default</span> &quot;&quot;</span>;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@AliasFor(&quot;value&quot;)</span></span><br><span class="line">  <span class="function">String <span class="title">transactionManager</span><span class="params">()</span> <span class="keyword">default</span> &quot;&quot;</span>;</span><br><span class="line"></span><br><span class="line">  <span class="function">Propagation <span class="title">propagation</span><span class="params">()</span> <span class="keyword">default</span> Propagation.REQUIRED</span>;</span><br><span class="line"></span><br><span class="line">  <span class="function">Isolation <span class="title">isolation</span><span class="params">()</span> <span class="keyword">default</span> Isolation.DEFAULT</span>;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">int</span> <span class="title">timeout</span><span class="params">()</span> <span class="keyword">default</span> TransactionDefinition.TIMEOUT_DEFAULT</span>;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">boolean</span> <span class="title">readOnly</span><span class="params">()</span> <span class="keyword">default</span> <span class="keyword">false</span></span>;</span><br><span class="line"></span><br><span class="line">  Class&lt;? extends Throwable&gt;[] rollbackFor() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line"></span><br><span class="line">  String[] rollbackForClassName() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line"></span><br><span class="line">  Class&lt;? extends Throwable&gt;[] noRollbackFor() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line"></span><br><span class="line">  String[] noRollbackForClassName() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h3 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h3><p>@Transaction 基于 AOP，AOP 又是基于动态代理实现的。<strong>如果目标对象实现了接口，默认情况下会采用 JDK 的动态代理，如果目标对象没有实现了接口,会使用 CGLIB 动态代理。</strong></p>
+<p>如果一个类或者一个类中的 public 方法上被标注 @Transactional 注解的话，Spring 容器就会在启动的时候为其创建一个代理类，在调用被 @Transactional 注解的 public 方法的时候，实际调用的是，TransactionInterceptor 类中的 invoke() 方法。这个方法的作用就是在目标方法之前开启事务，方法执行过程中如果遇到异常的时候回滚事务，方法调用完成之后提交事务。</p>
+<h3 id="自调用问题"><a href="#自调用问题" class="headerlink" title="自调用问题"></a>自调用问题</h3><p>当一个方法被标记了 @Transactional 注解的时候，Spring 事务管理器只会在被其他类方法调用的时候生效，而不会在一个类中方法调用生效。</p>
+<p>这是因为 Spring AOP 工作原理决定的。因为 Spring AOP 使用动态代理来实现事务的管理，它会在运行的时候为带有 @Transactional 注解的方法生成代理对象，并在方法调用的前后应用事物逻辑。如果该方法被其他类调用代理对象就会拦截方法调用并处理事务。但是在一个类中的其他方法内部调用的时候，代理对象就无法拦截到这个内部调用，因此事务也就失效了。</p>
+<p>解决办法就是避免同一类中自调用或者<strong>使用 AspectJ 取代 Spring AOP 代理</strong>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyService</span> </span>&#123;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">method1</span><span class="params">()</span> </span>&#123;</span><br><span class="line">     ((MyService)AopContext.currentProxy()).method2(); <span class="comment">// 先获取该类的代理对象，然后通过代理对象调用method2。</span></span><br><span class="line">     <span class="comment">//......</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="meta">@Transactional</span></span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">method2</span><span class="params">()</span> </span>&#123;</span><br><span class="line">     <span class="comment">//......</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>
@@ -420,7 +508,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -434,7 +522,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">Pulsar消息队列(1)简介</a>
+            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/" class="post-title-link" itemprop="url">SSM学习之Spring (3) AOP</a>
         </h2>
 
         <div class="post-meta">
@@ -443,23 +531,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-02-22 13:06:00" itemprop="dateCreated datePublished" datetime="2024-02-22T13:06:00+08:00">2024-02-22</time>
+              <time title="创建时间：2024-04-28 15:24:16 / 修改时间：17:32:55" itemprop="dateCreated datePublished" datetime="2024-04-28T15:24:16+08:00">2024-04-28</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
                 </span>
             </span>
 
@@ -474,34 +556,53 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Apache Pulsar是一个支持<strong>多租户的、高性能的、分布式</strong>的<strong>多租户</strong>消息系统，最初由雅虎开发，现在是Apache软件基金会的顶级项目。 Pulsar提供非常低的消息发布和端到端的延迟、保障消息可靠传递零丢失。</p>
-<h1 id="分布式消息系统"><a href="#分布式消息系统" class="headerlink" title="分布式消息系统"></a>分布式消息系统</h1><blockquote>
-<p>Pulsar 是<strong>基于段</strong>的分布式消息队列。</p>
-</blockquote>
-<p>一般的消息系统在逻辑上都可分为<strong>服务层</strong>和存储层两层:</p>
-<ul>
-<li><strong>服务层：</strong>直接与消息的<strong>生产者和消费者交互</strong>，接收传入的消息并将消息路由到一个或多个目的地。服务层通过支持的消息协议进行通讯，例如AMQP。服务层在消息协议转换上依赖CPU，在通信上依赖网络带宽。</li>
-<li><strong>存储层：</strong>负责消息的<strong>存储</strong>。存储层与服务层交互提供服务层请求的消息，存储层保持消息的正确顺序。存储层严重依赖硬盘来存储消息。</li>
-</ul>
+          <h1 id="AOP"><a href="#AOP" class="headerlink" title="AOP"></a>AOP</h1><p>面向切面编程也是一种设计思想，核心思想就是将横切关注点从核心业务逻辑中分离出来，形成一个个的<strong>切面（Aspect）</strong>。</p>
+<p>Spring AOP 就是基于动态代理的，如果要代理的对象，实现了某个接口，那么 Spring AOP 会使用 <strong>JDK Proxy</strong>，去创建代理对象；对于没有实现接口的对象，Spring AOP 会使用 <strong>CGLIB</strong> 生成一个被代理对象的子类来作为代理。</p>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/230ae587a322d6e4d09510161987d346.jpeg" alt="SpringAOPProcess"></p>
 <blockquote>
-<p>分布式消息系统与传统单点消息系统在架构上的主要<strong>差别</strong>在于<strong>存储层的设计方式</strong>。在<strong>分布式</strong>消息传递系统中，数据分布在集群中的多台机器上，允许在单个主题中保留超过单个机器存储容量的消息。分布式消息系统存储层的<strong>关键架构抽象是 write-ahead-log</strong>，它将<strong>存储的消息看成是单个仅追加的数据结构</strong>。 对于分布式消息系统，当新消息发布到主题时，从逻辑的角度来看，消息将被追加到日志的末尾；从物理的角度来看，消息可能写入集群中的任何服务器。</p>
+<p>也可以使用 AspectJ，AspectJ 算的上是 Java 生态系统中最完整的 AOP 框架了。</p>
+<p><strong>Spring AOP 和 AspectJ AOP 的区别？</strong></p>
+<ul>
+<li><p><strong>实现原理不同：</strong>Spring AOP 属于运行时增强，而 AspectJ 是编译时增强。** Spring AOP 基于代理，而 AspectJ 基于字节码操作。</p>
+</li>
+<li><p><strong>Spring AOP 集成了 AspectJ AOP：</strong>Spring AOP 已经集成了 AspectJ ，AspectJ 应该算的上是 Java 生态系统中最完整的 AOP 框架了。AspectJ 相比于 Spring AOP 功能更加强大，但是 Spring AOP 相对来说更简单，</p>
+</li>
+<li><p><strong>AspectJ 更快：</strong>如果我们的切面比较少，那么两者性能差异不大。但是，当切面太多的话，最好选择 AspectJ ，它比 Spring AOP 快很多。</p>
+</li>
+</ul>
 </blockquote>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/partion-based-msg.png" alt="partion-based-msg.png"></p>
-<p>分布式消息系统的好处是<strong>将负载分散到多台机器上</strong>，可以提高消息的生产和消费的吞吐量，每台服务器都有自己硬盘和写入路径，将提供更好的写入速率。 在分布式消息系统集群中分布消息数据时，有两种不同的方法: <strong>基于分区（Partion-based）和基于段（Segment-based）</strong>。</p>
-<h2 id="基于分区"><a href="#基于分区" class="headerlink" title="基于分区"></a>基于分区</h2><blockquote>
-<p> Kafka 采用的是基于分区的消息存储架构。</p>
-</blockquote>
-<p>在基于分区的消息存储结构中，<strong>Topic 被划分为固定数量的分区</strong>，发布到 Topic 中的数据均匀的分布在分区中，同时为了确保数据冗余，<strong>每个分区会被复制到不同的节点</strong>。</p>
-<p>Topic 中消息的总存储量为 Topic 的分区数乘以分区的大小，如果达到这个限制，需要向集群添加更多的节点同时增加 Topic 的分区数量才能继续向分区中添加数据，增加分区的数量还需要执行重新平衡，这是一个十分复杂和耗时的过程。</p>
-<p>在基于分区的消息存储结构的分布式消息系统中，一般在创建 Topic 的时候需要预先确定分区数量，但这样做有一些缺点，因为单个分区只会存储在集群中单个集群节点上，因此单个分区的大小就受限于该节点上的硬盘空间大小，由于 Topic 中的数据均匀分布在所有分区中，所以如果集群节点的硬盘容量不一样的话，<strong>那么 Topic 的每个分区的大小将限制为最小硬盘容量的节点</strong>。当 Topic 达到容量限制后，<strong>唯一能做的就是增加 Topic 的分区数量</strong>，但这个扩容的过程包括<strong>重新平衡整个 Topic</strong>，Topic 中的数据将被重新分布到该 Topic 的所有分区中，平衡数据的过程<strong>十分消耗网络带宽和磁盘 I/O</strong>。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/kafka-partitions.png" alt="kafka-partitions"></p>
-<h2 id="基于段"><a href="#基于段" class="headerlink" title="基于段"></a>基于段</h2><blockquote>
-<p>Pulsar 采用的是基于段的消息存储结构。</p>
-<p>Pulsar 中服务层合存储层都是<strong>无状态</strong>的，可以任意的进行<strong>水平</strong>扩容。<strong>引入 Zookeeper 集群</strong>，用于集群级别的配置和协调，Zookeeper 中存储 Pulsar 集群的所有元数据（例如 Topic 元数据、Broker 负载数据等等)</p>
-</blockquote>
-<p><strong>Pulsar 依赖 Apache BookKeeper 项目来实现消息的持久存储</strong>，BookKeeper 的逻辑存储模型是基于无限流记录作为顺序日志存储的概念。</p>
-<p>在BookKeeper中，<strong>每个日志被分解成更小的数据块</strong>，称为段（Segament），这些数据块又由多个日志条目组成。然后，为了实现冗余和扩展，这些段会在存储层中被称为 bookies 的多个节点上写入。可以<strong>将段放在集群节点具有足够硬盘容量的任何位置</strong>，当没有足够的空间用于存储新的段时，可以方便地添加节点并立即存储数据。基于段的存储架构的优点在于<strong>可以实现真正的水平伸缩</strong>，段可以被无限创建并存储在任何位置。</p>
-<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-1-%E7%AE%80%E4%BB%8B/pulsar-segaments.png" alt="pulsar-segaments"></p>
+<p>AOP 的应用场景：</p>
+<ul>
+<li><strong>日志记录：</strong>自定义日志记录注解，利用 AOP，一行代码即可实现日志记录。</li>
+<li><strong>性能统计：</strong>利用 AOP 在目标方法的执行前后统计方法的执行时间，方便优化和分析。</li>
+<li><strong>事务管理：</strong>@Transactional 注解基于 AOP 实现的，可以让 Spring 进行事务管理比如回滚异常操作，免去了重复的事务管理逻辑。</li>
+<li><strong>权限控制：</strong>利用 AOP 在目标方法执行前判断用户是否具备所需要的权限，如果具备，就执行目标方法，否则就不执行。</li>
+<li><strong>接口限流：</strong>利用 AOP 在目标方法执行前通过具体的限流算法和实现对请求进行限流处理。</li>
+<li><strong>缓存管理：</strong>利用 AOP 在目标方法执行前后进行缓存的读取和更新。</li>
+<li>。。。。。。</li>
+</ul>
+<h2 id="核心概念"><a href="#核心概念" class="headerlink" title="核心概念"></a>核心概念</h2><p>AOP中的术语：</p>
+<ul>
+<li><strong>横切关注点（cross-cutting concerns）</strong> ：多个类或对象中的公共行为（如日志记录、事务管理、权限控制、接口限流、接口幂等等）。</li>
+<li><strong>切面（Aspect）</strong>：对横切关注点进行封装的类，一个切面是一个类。切面可以定义多个通知，用来实现具体的功能。</li>
+<li><strong>连接点（JoinPoint）</strong>：连接点是方法调用或者方法执行时的某个特定时刻（如方法调用、异常抛出等）。</li>
+<li><strong>通知（Advice）</strong>：通知就是切面在某个连接点要执行的操作。通知有五种类型，分别是<strong>前置通知（Before）、后置通知（After）、返回通知（AfterReturning）、异常通知（AfterThrowing）和环绕通知（Around）</strong>。前四种通知都是在目标方法的前后执行，而环绕通知可以控制目标方法的执行过程。</li>
+<li><strong>切点（Pointcut）</strong>：一个切点是一个表达式，它用来匹配哪些连接点需要被切面所增强。切点可以通过注解、正则表达式、逻辑运算等方式来定义。比如 <code>execution(* com.xyz.service..*(..))</code>匹配 <code>com.xyz.service</code> 包及其子包下的类或接口。</li>
+<li><strong>织入（Weaving）</strong>：织入是将切面和目标对象连接起来的过程，也就是将通知应用到切点匹配的连接点上。</li>
+</ul>
+<h2 id="通知类型"><a href="#通知类型" class="headerlink" title="通知类型"></a>通知类型</h2><p>Spring AOP 中定义的通知类型：</p>
+<ul>
+<li><strong>Before</strong>（前置通知）：目标对象的方法调用之前触发。</li>
+<li><strong>After</strong> （后置通知）：目标对象的方法调用之后触发。</li>
+<li><strong>AfterReturning</strong>（返回通知）：目标对象的方法调用完成，在返回结果值之后触发。</li>
+<li><strong>AfterThrowing</strong>（异常通知）：目标对象的方法运行中抛出 / 触发异常后触发。AfterReturning 和 AfterThrowing 两者互斥。如果方法调用成功无异常，则会有返回值；如果方法抛出了异常，则不会有返回值。</li>
+<li><strong>Around</strong> （环绕通知）：编程式控制目标对象的方法调用。环绕通知是所有通知类型中可操作范围最大的一种，因为它可以直接拿到目标对象，以及要执行的方法，所以环绕通知可以任意的在目标对象的方法调用前后搞事，<strong>甚至不调用目标对象的方法</strong>。</li>
+</ul>
+<h2 id="切面的执行顺序"><a href="#切面的执行顺序" class="headerlink" title="切面的执行顺序"></a>切面的执行顺序</h2><p>多个切面的执行顺序如何控制，有两种方法：</p>
+<ul>
+<li>@Order 注解，值越小优先级越高。</li>
+<li>通过实现 Ordered 接口，重新 getOrder 方法实现。</li>
+</ul>
 
       
     </div>
@@ -521,7 +622,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/04/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Resource-Manager/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/25/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-2-IOC/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -535,7 +636,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/02/04/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-7-Resource-Manager/" class="post-title-link" itemprop="url">Kuma学习笔记 (7) Resource Manager</a>
+            <a href="/2024/04/25/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-2-IOC/" class="post-title-link" itemprop="url">SSM学习之Spring (2) IOC</a>
         </h2>
 
         <div class="post-meta">
@@ -545,14 +646,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2024-02-04 17:00:10" itemprop="dateCreated datePublished" datetime="2024-02-04T17:00:10+08:00">2024-02-04</time>
+              <time title="创建时间：2024-04-25 16:10:20" itemprop="dateCreated datePublished" datetime="2024-04-25T16:10:20+08:00">2024-04-25</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+                <time title="修改时间：2024-04-28 15:22:52" itemprop="dateModified" datetime="2024-04-28T15:22:52+08:00">2024-04-28</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -560,7 +661,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
                 </span>
             </span>
 
@@ -575,140 +676,186 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Kuma 将使用的对象抽象为各种资源（Resource），如 Zone，Ingress，Dataplain，RateLimit 等，<strong>由资源管理器（Resource Manager）对资源存储（Resource Store）进行增删改查等操作</strong>。</p>
-<p><strong>Resource Store 向上屏蔽了底层存储的差异</strong>，在 Kuma 中使用两种存储模式，kubernetes API Server 和 PostgreSQL 数据库。而 <strong>Resource Manager 屏蔽了对于各个资源操作的差异</strong>。</p>
-<h1 id="Resource-Store"><a href="#Resource-Store" class="headerlink" title="Resource Store"></a>Resource Store</h1><h2 id="接口定义"><a href="#接口定义" class="headerlink" title="接口定义"></a>接口定义</h2><p>ResourceStore 接口用于定义资源的底层存储，ResourceStore 需要实现 Create、Update、Delete、Get、List 操作。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ResourceStore <span class="keyword">interface</span> &#123;</span><br><span class="line">    Create(context.Context, model.Resource, ...CreateOptionsFunc) error</span><br><span class="line">    Update(context.Context, model.Resource, ...UpdateOptionsFunc) error</span><br><span class="line">    Delete(context.Context, model.Resource, ...DeleteOptionsFunc) error</span><br><span class="line">    Get(context.Context, model.Resource, ...GetOptionsFunc) error</span><br><span class="line">    List(context.Context, model.ResourceList, ...ListOptionsFunc) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="接口实现"><a href="#接口实现" class="headerlink" title="接口实现"></a>接口实现</h2><p>在 Kuma 中，ResourceStore 接口由 k8s、memory、postgres、remote 实现。其中：</p>
+          <h1 id="IOC"><a href="#IOC" class="headerlink" title="IOC"></a>IOC</h1><p><strong>IOC（Inversion Of Control，控制反转）</strong>是一种设计思想，就是<strong>将原本在程序中手动创建对象的控制权，交由 Spring 框架来管理</strong>，被管理</p>
 <ul>
-<li><strong>K8s：</strong>在 Kubernetes 模式下，以 Kubernetes API Server 存储资源。</li>
-<li><strong>Postgres：</strong>在 Universal 模式下，以 PostgreSQL 作为底层数据库存储数据。</li>
-<li>Memory：内存数据库，用于测试。</li>
-<li>Remote：为 kuma-ctl 做资源存储，负责以 HTTP Restful API 的方式操作 kuma-cp。</li>
+<li><strong>控制：</strong>指的是对象创建（实例化、管理）的权力。</li>
+<li><strong>反转：</strong>控制权交给外部环境（Spring 框架中的 IOC 容器）。</li>
 </ul>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">├── k8s</span><br><span class="line">├── memory</span><br><span class="line">├── postgres</span><br><span class="line">└── remote</span><br></pre></td></tr></table></figure>
-
-<h2 id="CustomizableResourceStore"><a href="#CustomizableResourceStore" class="headerlink" title="CustomizableResourceStore"></a>CustomizableResourceStore</h2><p>Customizable Resource Store 为<strong>某一种具体的资源</strong>提供<strong>定制化</strong>的 Resource Store：</p>
+<p>IOC 的目的就是<strong>解耦</strong>，将对象之间的相互依赖关系交给 IoC 容器来管理，并由 IoC 容器完成对象的注入。也就是说，IOC 有两个好处：</p>
+<ol>
+<li>对象之间的耦合性降低。</li>
+<li>资源变的容易管理，由手动管理变为 Spring IOC 容器进行管理，比如可以很容易的通过 IOC 容器实现单例模式。</li>
+</ol>
+<h1 id="Bean"><a href="#Bean" class="headerlink" title="Bean"></a>Bean</h1><p>Bean 是指被 IOC 容器管理的 Java 对象。</p>
+<h2 id="声明-Bean"><a href="#声明-Bean" class="headerlink" title="声明 Bean"></a>声明 Bean</h2><h3 id="作用于类的注解"><a href="#作用于类的注解" class="headerlink" title="作用于类的注解"></a>作用于类的注解</h3><p>声明为 Bean 的注解：</p>
 <ul>
-<li><strong>Customize 方法：</strong>为 model.ReourceType 类型的资源<strong>指定</strong>资源存储器。</li>
-<li><strong>ResourceStore 方法：</strong>返回 model.ResourceType 类型的资源存储器，如果没有该类型，则会返回默认的资源存储器。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ResourceStoreWrapper is a function that takes a ResourceStore and returns a wrapped ResourceStore.</span></span><br><span class="line"><span class="comment">// The wrapped ResourceStore can be used to modify or augment the behavior of the original ResourceStore.</span></span><br><span class="line"><span class="keyword">type</span> ResourceStoreWrapper = <span class="function"><span class="keyword">func</span><span class="params">(delegate ResourceStore)</span> <span class="title">ResourceStore</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CustomizableResourceStore <span class="keyword">interface</span> &#123;</span><br><span class="line">    ResourceStore</span><br><span class="line">    ResourceStore(typ model.ResourceType) ResourceStore</span><br><span class="line">    DefaultResourceStore() ResourceStore</span><br><span class="line">    Customize(typ model.ResourceType, store ResourceStore)</span><br><span class="line">    WrapAll(wrapper ResourceStoreWrapper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Resource-Manager"><a href="#Resource-Manager" class="headerlink" title="Resource Manager"></a>Resource Manager</h1><h2 id="接口定义-1"><a href="#接口定义-1" class="headerlink" title="接口定义"></a>接口定义</h2><p>Resource Manager 用于对资源（Zone、Dataplain 等）进行操作，定义的方法与 Resource Store 差不多，都是增删改查。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ReadOnlyResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    Get(context.Context, model.Resource, ...store.GetOptionsFunc) error</span><br><span class="line">    List(context.Context, model.ResourceList, ...store.ListOptionsFunc) error</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    ReadOnlyResourceManager</span><br><span class="line">    Create(context.Context, model.Resource, ...store.CreateOptionsFunc) error</span><br><span class="line">    Update(context.Context, model.Resource, ...store.UpdateOptionsFunc) error</span><br><span class="line">    Delete(context.Context, model.Resource, ...store.DeleteOptionsFunc) error</span><br><span class="line">    DeleteAll(context.Context, model.ResourceList, ...store.DeleteAllOptionsFunc) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="CustomizableResourceManager"><a href="#CustomizableResourceManager" class="headerlink" title="CustomizableResourceManager"></a>CustomizableResourceManager</h2><p>Customizable Resource Manager 为<strong>某一种具体的资源</strong>提供<strong>定制化</strong>的 Resource Manager：</p>
-<ul>
-<li><strong>Customize 方法：</strong>为 model.ReourceType 类型的资源<strong>指定</strong>资源管理器。</li>
-<li><strong>ResourceManager 方法：</strong>返回 model.ResourceType 类型的资源管理器，如果没有该类型，则会返回默认的资源管理器。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> ResourceManagerWrapper = <span class="function"><span class="keyword">func</span><span class="params">(delegate ResourceManager)</span> <span class="title">ResourceManager</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CustomizableResourceManager <span class="keyword">interface</span> &#123;</span><br><span class="line">    ResourceManager</span><br><span class="line">    Customize(model.ResourceType, ResourceManager)</span><br><span class="line">    ResourceManager(model.ResourceType) ResourceManager</span><br><span class="line">    WrapAll(ResourceManagerWrapper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h3><p>在 kuma-cp 初始化 Resource Manager 时，会为<strong>每一种资源指定一种资源管理器</strong>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initializeResourceManager</span><span class="params">(cfg kuma_cp.Config, builder *core_runtime.Builder)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">    defaultManager := core_manager.NewResourceManager(builder.ResourceStore())</span><br><span class="line">    customizableManager := core_manager.NewCustomizableResourceManager(defaultManager, <span class="literal">nil</span>)</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.MeshType,</span><br><span class="line">       mesh_managers.NewMeshManager(</span><br><span class="line">          builder.ResourceStore(),</span><br><span class="line">          customizableManager,</span><br><span class="line">          builder.CaManagers(),</span><br><span class="line">          registry.Global(),</span><br><span class="line">          builder.ResourceValidators().Mesh,</span><br><span class="line">          cfg.Store.UnsafeDelete,</span><br><span class="line">          builder.Extensions(),</span><br><span class="line">       ),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    rateLimitValidator := ratelimit_managers.RateLimitValidator&#123;</span><br><span class="line">       Store: builder.ResourceStore(),</span><br><span class="line">    &#125;</span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.RateLimitType,</span><br><span class="line">       ratelimit_managers.NewRateLimitManager(builder.ResourceStore(), rateLimitValidator),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    externalServiceValidator := externalservice_managers.ExternalServiceValidator&#123;</span><br><span class="line">       Store: builder.ResourceStore(),</span><br><span class="line">    &#125;</span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ExternalServiceType,</span><br><span class="line">       externalservice_managers.NewExternalServiceManager(builder.ResourceStore(), externalServiceValidator),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.DataplaneType,</span><br><span class="line">       dataplane.NewDataplaneManager(builder.ResourceStore(), builder.Config().Multizone.Zone.Name, builder.ResourceValidators().Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.DataplaneInsightType,</span><br><span class="line">       dataplaneinsight.NewDataplaneInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.ZoneType,</span><br><span class="line">       zone.NewZoneManager(builder.ResourceStore(), zone.Validator&#123;Store: builder.ResourceStore()&#125;, builder.Config().Store.UnsafeDelete),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.ZoneInsightType,</span><br><span class="line">       zoneinsight.NewZoneInsightManager(builder.ResourceStore(), builder.Config().Metrics.Zone),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ZoneIngressInsightType,</span><br><span class="line">       zoneingressinsight.NewZoneIngressInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       mesh.ZoneEgressInsightType,</span><br><span class="line">       zoneegressinsight.NewZoneEgressInsightManager(builder.ResourceStore(), builder.Config().Metrics.Dataplane),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> cipher secret_cipher.Cipher</span><br><span class="line">    <span class="keyword">switch</span> cfg.Store.Type &#123;</span><br><span class="line">    <span class="keyword">case</span> store.KubernetesStore:</span><br><span class="line">       cipher = secret_cipher.None() <span class="comment">// deliberately turn encryption off on Kubernetes</span></span><br><span class="line">    <span class="keyword">case</span> store.MemoryStore, store.PostgresStore:</span><br><span class="line">       cipher = secret_cipher.TODO() <span class="comment">// get back to encryption in universal case</span></span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">       <span class="keyword">return</span> errors.Errorf(<span class="string">&quot;unknown store type %s&quot;</span>, cfg.Store.Type)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">var</span> secretValidator secret_manager.SecretValidator</span><br><span class="line">    <span class="keyword">if</span> cfg.IsFederatedZoneCP() &#123;</span><br><span class="line">       secretValidator = secret_manager.ValidateDelete(<span class="function"><span class="keyword">func</span><span class="params">(ctx context.Context, secretName <span class="keyword">string</span>, secretMesh <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123; <span class="keyword">return</span> <span class="literal">nil</span> &#125;)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       secretValidator = secret_manager.NewSecretValidator(builder.CaManagers(), builder.ResourceStore())</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.SecretType,</span><br><span class="line">       secret_manager.NewSecretManager(builder.SecretStore(), cipher, secretValidator, cfg.Store.UnsafeDelete),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    customizableManager.Customize(</span><br><span class="line">       system.GlobalSecretType,</span><br><span class="line">       secret_manager.NewGlobalSecretManager(builder.SecretStore(), cipher),</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    builder.WithResourceManager(customizableManager)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> builder.Config().Store.Cache.Enabled &#123;</span><br><span class="line">       cachedManager, err := core_manager.NewCachedManager(</span><br><span class="line">          customizableManager,</span><br><span class="line">          builder.Config().Store.Cache.ExpirationTime.Duration,</span><br><span class="line">          builder.Metrics(),</span><br><span class="line">          builder.Tenants(),</span><br><span class="line">       )</span><br><span class="line">       <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">          <span class="keyword">return</span> err</span><br><span class="line">       &#125;</span><br><span class="line">       builder.WithReadOnlyResourceManager(cachedManager)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       builder.WithReadOnlyResourceManager(customizableManager)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Cached-Manager"><a href="#Cached-Manager" class="headerlink" title="Cached Manager"></a>Cached Manager</h2><p>Cached Manager 实现了只读资源管理器 Read Only Resource Manager，为对资源的 Get 和 List 操作进行<strong>缓存</strong>（有过期时间）。</p>
-<ul>
-<li>delegate：底层 ReadOnlyResourceManager，若缓存未命中则会从底层只读资源管理器中读取数据，并记录在缓存中。</li>
-<li><strong>cache：</strong>cached manager 的核心数据结构，用于缓存查询结果。key 为 <code>&lt;op&gt;:&lt;resource_type&gt;:&lt;ops.hashcode(resource_name+resource_mesh)&gt;:tenantID</code>。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cacheKey := fmt.Sprintf(<span class="string">&quot;GET:%s:%s:%s&quot;</span>, res.Descriptor().Name, opts.HashCode(), tenantID)</span><br></pre></td></tr></table></figure>
-
-<ul>
-<li>mutexes：为每一个 key 单独加锁，保证每一个 k-v 都互斥访问。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cached version of the ReadOnlyResourceManager designed to be used only for use cases of eventual consistency.</span></span><br><span class="line"><span class="comment">// This cache is NOT consistent across instances of the control plane.</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// When retrieving elements from cache, they point to the same instances of the resources.</span></span><br><span class="line"><span class="comment">// We cannot do deep copies because it would consume lots of memory, therefore you need to be extra careful to NOT modify the resources.</span></span><br><span class="line"><span class="keyword">type</span> cachedManager <span class="keyword">struct</span> &#123;</span><br><span class="line">    delegate ReadOnlyResourceManager</span><br><span class="line">    cache    *cache.Cache</span><br><span class="line">    metrics  *prometheus.CounterVec</span><br><span class="line"></span><br><span class="line">    mutexes  <span class="keyword">map</span>[<span class="keyword">string</span>]*sync.Mutex</span><br><span class="line">    mapMutex sync.Mutex <span class="comment">// guards &quot;mutexes&quot; field</span></span><br><span class="line">    tenants  multitenant.Tenants</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/" class="post-title-link" itemprop="url">Kuma学习笔记 (6) Inter CP</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-01-30 16:40:46" itemprop="dateCreated datePublished" datetime="2024-01-30T16:40:46+08:00">2024-01-30</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Kuma-cp 的 Intercp（Control Plane Intercommunication）组件用于 kuma 控制面之间的通信，旨在实现 kuma-cp 的<strong>水平扩展。</strong></p>
-<p>kuma 的水平扩展包含三个方面：</p>
-<ul>
-<li><strong>Leader 选举机制：</strong>在 kuma 中，leader 选举机制非常简单，就是<strong>选择最新加入的 kuma-cp 节点作为 Leader</strong>。作为 Leader，会接收成员的心跳，并且定期监测超时的 kuma-cp 成员。</li>
-<li><strong>心跳机制：</strong>作为成员，会定期向 Leader 发送心跳，表明自己还存活。</li>
-<li><strong>EnvoyAdminServer：</strong>对于 Global Cp 的水平扩展多实例部署，会将 EnvoyAdmin 请求<strong>转发</strong>给 Leader Global Kuma-cp 执行。对于 Zone Cp 的水平扩展多实例部署，会在本实例执行对 envoy 发起 Admin 请求获取响应。</li>
+<li>@Component：通用的注解，可标注任意类为 Spring 组件。如果一个 Bean 不知道属于哪个层，可以使用该注解。</li>
+<li>@Repository：持久化层，用于数据库相关的操作。</li>
+<li>@Service：对应服务层，主要涉及一些复杂的逻辑，需要用到 Dao 层。</li>
+<li>@Controller：对应 Spring MVC 控制层，主要用于接受用户请求并调用 Service 层，返回数据给前端。</li>
 </ul>
 <blockquote>
-<p>下文中的实例，表示 kuma-cp 水平扩展中的某一实例。</p>
+<p>可以通过 @ComponentScan 注解定义要扫描的路径。</p>
 </blockquote>
+<h3 id="Bean-注解"><a href="#Bean-注解" class="headerlink" title="@Bean 注解"></a>@Bean 注解</h3><p>@Bean 注解修饰方法，表示在这个方法中定义产生这个 bean。使用示例如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AppConfig</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> TransferService <span class="title">transferService</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> TransferServiceImpl();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>@Bean 和 @Component 的区别如下：</p>
+<ul>
+<li>@Component 作用于类，@Bean 作用于方法。</li>
+<li>@Component 修饰类，表示这个类需要自动装配到 Spring 容器中。@Bean 注解修饰方法，表示在这个方法中定义产生这个 bean。</li>
+<li>@Bean 注解比 @Component 的自定义性更强。比如当我们引用第三方库中的类需要装配到 Spring 容器中时，通过 @Bean 实现。</li>
+</ul>
+<h2 id="注入-Bean"><a href="#注入-Bean" class="headerlink" title="注入 Bean"></a>注入 Bean</h2><p>用于注入 Bean 的注解：</p>
+<ul>
+<li>@Autowired：来自于 org.springframework.bean.factory</li>
+<li>@Resource：来自于 javax.annotation</li>
+<li>@Inject：来自于 javax.inject</li>
+</ul>
+<h3 id="Autowired-和-Resource-的区别"><a href="#Autowired-和-Resource-的区别" class="headerlink" title="@Autowired 和 @Resource 的区别"></a>@Autowired 和 @Resource 的区别</h3><h4 id="Autowired"><a href="#Autowired" class="headerlink" title="@Autowired"></a>@Autowired</h4><p>@Autowired 是 Spring 内置的注解，默认注入方式为 byType（根据<strong>类型</strong>进行匹配），也就是说会优先根据接口类型去匹配并注入 Bean （接口的实现类）。</p>
+<p>当接口存在多个实现类时，Spring 可以通过被注入的变量名称选择注入的 bean，变量名称等于首字母小写的实现类的名称。可以通过 @Qualifier 注解来显式指定名称而不是依赖变量的名称。</p>
 <blockquote>
-<p>可以发现，kuma-cp 在水平扩展时，如果 leader 下线了<strong>没有自动故障切换机制</strong>，除非原来的 leader 再次上线或者有新的 kuma-cp 实例上线，leader 才会正常工作。</p>
+<p> 当一个接口存在多个实现类的话，byType 就无法正确注入对象了，因为这个时候 Spring 会同时找到多个满足条件的选择，默认情况下它自己不知道选择哪一个。</p>
+<p>这种情况下，注入方式变为 byName（根据<strong>名称</strong>进行匹配），这个名称通常就是类名（首字母小写）。</p>
 </blockquote>
+<h4 id="Resource"><a href="#Resource" class="headerlink" title="@Resource"></a>@Resource</h4><p>@Resource 是 JDK 提供的注解，<strong>默认注入方式为 byName</strong>。如果无法通过名称匹配到对应的 Bean 的话，注入方式会变为 byType。@Resource 有两个属性，name 和 type。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> Resource &#123;</span><br><span class="line">    <span class="function">String <span class="title">name</span><span class="params">()</span> <span class="keyword">default</span> &quot;&quot;</span>;</span><br><span class="line">    Class&lt;?&gt; type() <span class="keyword">default</span> Object.class;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果仅指定 name 属性则注入方式为 byName，如果仅指定 type 属性则注入方式为 byType，如果同时指定 name 和 type 属性（不建议这么做）则注入方式为 byType+byName。</p>
+<h2 id="Bean-的作用域"><a href="#Bean-的作用域" class="headerlink" title="Bean 的作用域"></a>Bean 的作用域</h2><p>Spring 中 Bean 的作用域通常有下面几种：</p>
+<ul>
+<li><strong>singleton</strong> : IoC 容器中只有唯一的 bean 实例。Spring 中的 bean 默认都是单例的，是对单例设计模式的应用。</li>
+<li><strong>prototype</strong> : 每次获取都会创建一个新的 bean 实例。也就是说，连续 getBean() 两次，得到的是不同的 Bean 实例。</li>
+<li><strong>request</strong> （仅 Web 应用可用）: 每一次 HTTP 请求都会产生一个新的 bean（请求 bean），该 bean 仅在当前 HTTP request 内有效。</li>
+<li><strong>session</strong> （仅 Web 应用可用） : 每一次来自新 session 的 HTTP 请求都会产生一个新的 bean（会话 bean），该 bean 仅在当前 HTTP session 内有效。</li>
+<li><strong>application/global-session</strong> （仅 Web 应用可用）：每个 Web 应用在启动时创建一个 Bean（应用 Bean），该 bean 仅在当前应用启动时间内有效。</li>
+<li><strong>websocket</strong> （仅 Web 应用可用）：每一次 WebSocket 会话产生一个新的 bean。</li>
+</ul>
+<p>可以通过配置或者 @Scope 注解来声明 Bean 的作用域：<code>@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)</code></p>
+<blockquote>
+<p>Bean 是线程安全的吗？</p>
+<p>取决于其<strong>作用域和状态</strong>。</p>
+<ul>
+<li>prototype 作用域下，每次获取都会创建一个新的 bean 实例，不存在资源竞争问题，所以不存在线程安全问题。</li>
+<li>singleton 作用域下，IoC 容器中只有唯一的 bean 实例，可能会存在资源竞争问题（取决于 Bean 是否有状态）。如果这个 bean 是有状态的话，那就存在线程安全问题（有状态 Bean 是指包含可变的成员变量的对象）。无状态则不存在线程安全问题（事实上，大部分 Bean 都是无状态的，如 Dao、Service）。</li>
+</ul>
+<p>对于有状态单例 Bean 的线程安全问题，<strong>常见的有两种解决办法：</strong></p>
+<ol>
+<li>在 Bean 中尽量避免定义可变的成员变量。</li>
+<li>使用 ThreadLocal，将有状态的变量保存在 ThreadLocal 中。</li>
+</ol>
+</blockquote>
+<h2 id="Bean-的生命周期"><a href="#Bean-的生命周期" class="headerlink" title="Bean 的生命周期"></a>Bean 的生命周期</h2><p>Bean 的声明周期分为四步：</p>
+<ol>
+<li><strong>创建 Bean 的实例</strong>：Bean 容器首先会找到配置文件中的 Bean 定义，然后使用 Java 反射 API 来创建 Bean 的实例。</li>
+<li><strong>Bean 属性赋值/填充</strong>：为 Bean 设置相关属性和依赖，例如 @Autowired 等注解注入的对象、@Value 注入的值、setter 方法或构造函数注入依赖和值、@Resource 注入的各种资源。</li>
+<li><strong>Bean 的初始化</strong>：<ul>
+<li>如果实现了 <code>*.Aware</code> 接口，调用相应的方法，如 BeanNameAware、BeanClassLoaderAware、BeanFactoryAware 等接口。</li>
+<li>如果实现了 BeanPostProcessor 接口，执行 <code>postProcessBeforeInitialization()</code> 方法。</li>
+<li>如果 Bean 实现了 InitializingBean 接口，执行 <code>afterPropertiesSet() </code>方法。</li>
+<li>如果 Bean 在配置文件中的定义包含 init-method 属性，执行指定的方法。</li>
+<li>如果实现了 BeanPostProcessor 接口，执行 <code>postProcessAfterInitialization()</code> 方法。</li>
+</ul>
+</li>
+<li><strong>销毁 Bean</strong>：注册相关销毁回调接口，将来需要销毁 Bean 或者销毁容器的时候，就调用这些方法去释放 Bean 所持有的资源。<ul>
+<li>如果 Bean 实现了 DisposableBean 接口，执行 destroy 方法。</li>
+<li>如果 Bean 在配置文件中的定义了 destory-method 属性，执行指定的 Bean 销毁方法。或者，也可以直接通过 @PreDestory 注解标记 Bean 销毁之前执行的方法。</li>
+</ul>
+</li>
+</ol>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-2-IOC/spring-bean-lifestyle.png" alt="img"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/24/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-1-Spring%E7%AE%80%E4%BB%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/24/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-1-Spring%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">SSM学习之Spring (1) Spring简介</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-04-24 15:17:49" itemprop="dateCreated datePublished" datetime="2024-04-24T15:17:49+08:00">2024-04-24</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-04-28 17:18:03" itemprop="dateModified" datetime="2024-04-28T17:18:03+08:00">2024-04-28</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Spring-介绍"><a href="#Spring-介绍" class="headerlink" title="Spring 介绍"></a>Spring 介绍</h1><p>Spring 是一款开源 Java 开发框架，旨在提高开发人员的开发效率以及系统的可维护性。Spring 指的是 Spring Framework，包含很多模块，这些模块可以协助开发。如 Spring 支持 IOC 和 AOP，可以很方便地对数据库进行访问、可以很方便地集成第三方组件电子邮件，任务，调度，缓存等等）、对单元测试支持比较好、支持 RESTful Java 应用程序的开发。</p>
+<p>Spring 最核心的思想就是不重新造轮子，开箱即用，提高开发效率。</p>
+<h2 id="Spring-模块"><a href="#Spring-模块" class="headerlink" title="Spring 模块"></a>Spring 模块</h2><p>Spring 1 仅仅支持配置文件，Spring 2 开始引入注解，Spring 3 引入纯注解模式（Spring 配置类代替配置文件）。</p>
+<p>Spring 4 的模块架构图：</p>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-1-Spring%E7%AE%80%E4%BB%8B/jvme0c60b4606711fc4a0b6faf03230247a.png" alt="Spring4.x主要模块"></p>
+<p>Spring 5 的模块架构图：</p>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-1-Spring%E7%AE%80%E4%BB%8B/20200831175708.png" alt="Spring5.x主要模块"></p>
+<p>Spring5.x 版本中 Web 模块的 Portlet 组件已经被废弃掉，同时增加了用于异步响应式处理的 WebFlux 组件。</p>
+<p>从模块架构图中可以看到，Spring 的模块组织如下：</p>
+<ul>
+<li>Core Container（核心容器）：提供了对 IOC 控制反转的支持，即对象管理的支持，是 Spring 的基础模块。</li>
+<li>AOP 和 Aspects：AOP 为面向切面的编程，Aspects 提供对 AOP 思想的实现。</li>
+<li>Data Access/Integration：提供数据访问，数据集成的功能。</li>
+<li>Web：Web 开发。</li>
+<li>Test：单元测试与集成测试。</li>
+</ul>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2024/01/30/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-Inter-CP/#more" rel="contents">
+              <a class="btn" href="/2024/04/24/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-1-Spring%E7%AE%80%E4%BB%8B/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -732,7 +879,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/29/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/17/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-4-%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -746,7 +893,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/29/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/" class="post-title-link" itemprop="url">Triple协议 (7) 应用级别的服务发现</a>
+            <a href="/2024/04/17/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-4-%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8/" class="post-title-link" itemprop="url">Java面试之JVM (4) 类加载器</a>
         </h2>
 
         <div class="post-meta">
@@ -755,23 +902,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-29 19:52:09" itemprop="dateCreated datePublished" datetime="2024-01-29T19:52:09+08:00">2024-01-29</time>
+              <time title="创建时间：2024-04-17 22:38:05 / 修改时间：23:05:15" itemprop="dateCreated datePublished" datetime="2024-04-17T22:38:05+08:00">2024-04-17</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -786,88 +927,66 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>在微服务架构中，如何感知后端服务实例的动态上下线，就是<strong>服务发现（Service Discovery）</strong>。业界比较有代表性的微服务框架如 SpringCloud、Dubbo 等都抽象了强大的动态地址发现能力，并且为了满足微服务业务场景的需求，绝大多数框架的地址发现都是基于自己设计的一套机制来实现。在 SpringCloud 中使用 Eureka 作为注册中心，Dubbo 通常采用 zookeeper 和 nacos 作为注册中心。注册中心不仅仅记录了 IP+Port，还包括微服务的元信息，如序列化类型，实例方法列表，各个方法级的定制化配置等。</p>
-<p>服务发现包含三种角色：<strong>服务提供者（Provider）、服务消费者（Consumer）和注册中心（Registry）</strong>。不同框架之间的区别在于如何组织注册中心中的数据。</p>
+          <p>Java 类在加载时，完成以下事情：</p>
+<ol>
+<li>通过全类名读取获取二进制字节流。</li>
+<li>将字节流所代表的静态结构转为方法区的运行时数据结构。</li>
+<li>生成一个该类对应的 Class 对象。</li>
+</ol>
+<h1 id="类加载器"><a href="#类加载器" class="headerlink" title="类加载器"></a>类加载器</h1><p>ClassLoader 类加载器的<strong>主要作用</strong>就是加载 Java 类的字节码（<code>.class</code> 文件）到 JVM 中，在内存中生成一个代表该类的 Class 对象。除了加载类之外，类加载器还可以加载 Java 应用所需的资源如文本、图像、配置文件、视频等等文件资源。</p>
+<ul>
+<li>类加载器是一个负责加载类的对象，用于实现类加载过程中的加载这一步。</li>
+<li>每个 Java 类都有一个引用指向加载它的 ClassLoader。</li>
+<li>数组不是通过 ClassLoader 创建的，是由 JVM 直接生成的。</li>
+</ul>
+<p>JVM 启动的时候，<strong>并不会一次性加载所有的类</strong>，而是根据需要去<strong>动态加载</strong>。也就是说，大部分类在具体用到的时候才会去加载，这样对内存更加友好。对于已经加载的类会被放在 ClassLoader 中。在类加载的时候，系统会首先判断当前类是否被加载过。已经被加载的类会直接返回，否则才会尝试加载。也就是说，对于一个类加载器来说，相同二进制名称的类只会被加载一次。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">ClassLoader</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> ClassLoader parent;</span><br><span class="line">  <span class="comment">// 由这个类加载器加载的类。</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> Vector&lt;Class&lt;?&gt;&gt; classes = <span class="keyword">new</span> Vector&lt;&gt;();</span><br><span class="line">  <span class="comment">// 由VM调用，用此类加载器记录每个已加载类。</span></span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">addClass</span><span class="params">(Class&lt;?&gt; c)</span> </span>&#123;</span><br><span class="line">        classes.addElement(c);</span><br><span class="line">   &#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="类加载器类型"><a href="#类加载器类型" class="headerlink" title="类加载器类型"></a>类加载器类型</h2><p>JVM 中内置了三个重要的 <code>ClassLoader</code>：</p>
+<ul>
+<li><strong><code>BootstrapClassLoader</code>(启动类加载器)<strong>：最顶层的加载类，</strong>由 C++实现，通常表示为 null</strong>，并且没有父级，主要用来加载 JDK 内部的核心类库（ <code>%JAVA_HOME%/lib</code>目录下的 <code>rt.jar</code>、<code>resources.jar</code>、<code>charsets.jar</code>等 jar 包和类）以及被 <code>-Xbootclasspath</code>参数指定的路径下的所有类。</li>
+<li>**<code>ExtensionClassLoader</code>(扩展类加载器)**：主要负责加载 <code>%JRE_HOME%/lib/ext</code> 目录下的 jar 包和类以及被 <code>java.ext.dirs</code> 系统变量所指定的路径下的所有类。</li>
+<li>**<code>AppClassLoader</code>(应用程序类加载器)**：面向我们用户的加载器，负责加载当前应用 classpath 下的所有 jar 包和类。</li>
+</ul>
+<p>除了这三种类加载器之外，用户还可以加入自定义的类加载器来进行拓展，以满足自己的特殊需求。</p>
+<h3 id="获取父类加载器"><a href="#获取父类加载器" class="headerlink" title="获取父类加载器"></a>获取父类加载器</h3><p>除了 BootstrapClassLoader 外，<strong>其他所有的类加载器都继承自抽象类 ClassLoader</strong>。类加载中 BootstrapClassLoader 时 ExtensionClassLoader 的父加载器，ExtensionClassLoader 是 AppClassLoader 的父加载器，而 AppClassLoader 是用户自定义加载器的父加载器。</p>
 <blockquote>
-<p>dubbo中应用，服务和实例的概念区分：</p>
-<p><strong>应用</strong>是一个独立的逻辑单元，一个应用可以包含多个<strong>服务</strong>，每个服务可以包含多个<strong>实例</strong>。</p>
+<p>通过组合而不是继承实现加载器之间的父子关系。</p>
+<p>在面向对象编程中，有一条非常经典的设计原则：<strong>组合优于继承，多用组合少用继承。（合成复用原则）</strong></p>
 </blockquote>
-<h1 id="业界服务发现方式"><a href="#业界服务发现方式" class="headerlink" title="业界服务发现方式"></a>业界服务发现方式</h1><h2 id="Spring-Cloud"><a href="#Spring-Cloud" class="headerlink" title="Spring Cloud"></a>Spring Cloud</h2><p>Spring Cloud 通过注册中心<strong>只同步了应用与实例地址</strong>，消费方可以基于实例地址与服务提供方建立链接，但是消费方对于如何发起 HTTP 调用（SpringCloud 基于 rest 通信）一无所知，比如对方有哪些 HTTP endpoint，需要传入哪些参数等。</p>
-<p>RPC 服务这部分信息目前都是通过线下约定或离线的管理系统来协商的。这种架构的优缺点总结如下。</p>
-<ul>
-<li><strong>优势</strong>： 部署结构清晰、地址推送量小。</li>
-<li><strong>缺点</strong>： 地址订阅需要指定应用名， provider 应用变更（拆分）需消费端感知；RPC 调用无法全自动同步。</li>
-</ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/d6b81ecf9bf5b3d630cab1fb0059756f.png" alt="img"></p>
-<h2 id="Dubbo"><a href="#Dubbo" class="headerlink" title="Dubbo"></a>Dubbo</h2><p>Dubbo 通过注册中心<strong>同时同步了实例地址和 RPC 方法</strong>，因此其能实现 RPC 过程的自动同步，面向 RPC 编程、面向 RPC 治理，对后端应用的拆分消费端无感知，其缺点则是<strong>地址推送数量变大</strong>，和 RPC 方法成正比。</p>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/d4863add6a9031faa9dda73f23ff0fab.png" alt="img"></p>
-<h2 id="Dubbo-Kubernetes"><a href="#Dubbo-Kubernetes" class="headerlink" title="Dubbo + Kubernetes"></a>Dubbo + Kubernetes</h2><p>Kubernetes Service 作为一个抽象概念，怎么映射到 Dubbo 是一个值得讨论的点。</p>
-<ol>
-<li><strong>Service Name - &gt; Application Name：</strong>Dubbo 应用和 Kubernetes 服务一一对应，对于微服务运维和建设环节透明，与开发阶段解耦（对应于应用服务发现）。</li>
-<li><strong>Service Name - &gt; Dubbo RPC Service：</strong>维护的 Service 数量变多，一个 Dubbo 应用可以运行多个接口，即一个 Dubbo 应用可以创建多个 Kubernetes Service（如 dubbo-app-service-1，dubbo-app- service-2 等）。</li>
-</ol>
-<h1 id="Dubbo-3-服务发现"><a href="#Dubbo-3-服务发现" class="headerlink" title="Dubbo 3 服务发现"></a>Dubbo 3 服务发现</h1><h2 id="服务自省"><a href="#服务自省" class="headerlink" title="服务自省"></a>服务自省</h2><h3 id="是什么？"><a href="#是什么？" class="headerlink" title="是什么？"></a>是什么？</h3><p>以 Dubbo 之前的地址发现数据格式为例，它是“RPC 服务粒度”的，它是以 RPC 服务作为 key，以实例列表作为 value 来组织数据的：</p>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">&quot;RPC Service1&quot;</span>: [  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance1&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">1000</span>&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance2&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">2000</span>&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance3&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;<span class="attr">&quot;timeout&quot;</span>:<span class="number">3000</span>&#125;&#125;</span><br><span class="line">],</span><br><span class="line"></span><br><span class="line"><span class="string">&quot;RPC Service2&quot;</span>: [Instance list of RPC Service2],</span><br><span class="line"><span class="string">&quot;RPC ServiceN&quot;</span>: [Instance list of RPC ServiceN]</span><br></pre></td></tr></table></figure>
-
-<p>而 Dubbo 3 中的服务发现，<strong>是“应用粒度的服务发现”</strong>，它以<strong>应用名（Application）作为 key</strong>，以<strong>这个应用部署的一组实例（Instance）列表作为 value</strong>。这带来两点不同：</p>
-<ol>
-<li>数据映射关系变了，从 RPC Service -&gt; Instance 变为 Application -&gt; Instance。</li>
-<li><strong>数据变少了</strong>，注册中心没有了 RPC Service 及其相关配置信息。</li>
-</ol>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">&quot;application1&quot;</span>: [</span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance1&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instance2&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;,  </span><br><span class="line">  &#123;<span class="attr">&quot;name&quot;</span>:<span class="string">&quot;instanceN&quot;</span>, <span class="attr">&quot;ip&quot;</span>:<span class="string">&quot;127.0.0.1&quot;</span>, <span class="attr">&quot;metadata&quot;</span>:&#123;&#125;&#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
-
-<p>Dubbo 之前的服务发现粒度更细，在注册中心产生的数据条目也会更多（与 RPC 服务成正比），同时也存在一定的<strong>数据冗余</strong>。</p>
-<p>接着解释<strong>它为什么会被叫做“服务自省”？</strong>其实这还是得从它的工作原理说起，上面提到，应用粒度服务发现的数据模型有几个以下明显变化：数据中心的数据量少了，RPC 服务相关的数据在注册中心没有了，现在只有 application - instance 这两个层级的数据。</p>
-<p><strong>为了保证这部分缺少的 RPC 服务数据仍然能被 Consumer 端正确的感知</strong>，我们在 Consumer 和 Provider 间建立了一条单独的通信通道：Consumer 和 Provider 两两之间<strong>通过特定端口交换信息</strong>，我们把这种 Provider 自己<strong>主动暴露自身信息的行为</strong>认为是一种内省机制，因此整个机制命名为：服务自省。</p>
-<h3 id="为什么需要？"><a href="#为什么需要？" class="headerlink" title="为什么需要？"></a>为什么需要？</h3><p>为什么需要服务自省，这会带来以下优势：</p>
-<ol>
-<li><strong>与业界主流微服务模型对齐</strong>，比如 SpringCloud、Kubernetes Service 等。</li>
-<li><strong>提升性能与可伸缩性</strong>。<ul>
-<li>注册中心的数据减少了，<strong>大幅度的减轻注册中心的存储、推送压力</strong>，进而减少 Dubbo Consumer 侧的地址计算压力。</li>
-<li><strong>服务发现的数据规模，以及集群规模</strong>也开始变得<strong>可预测、可评估</strong>（与 RPC 接口数量无关，只与实例部署规模相关）。</li>
-</ul>
-</li>
-</ol>
+<p>所以，加载器之间都是“<strong>父子关系</strong>”，类加载器中有一个 <code>private final ClassLoader parent</code> 属性，指向这个类加载器的父加载器，可以通过 <code>getParent()</code> 方法获取。如果获取到 parent 为 null 的话，那么父 ClassLoader 为 BootstrapClassLoader。</p>
 <blockquote>
-<p>根据统计，平均情况下 Consumer 订阅的 3 个接口来自同一个 Provider 应用，如此计算下来，如果以应用粒度为地址通知和选址基本单位，则平均地址推送和计算量将下降 60% 还要多。而在极端情况下，也就是当 Consumer 端消费的接口更多的来自同一个应用时，这个地址推送与内存消耗的占用将会进一步得到降低，甚至可以超过 80% 以上。</p>
-<p>典型的例子是 API 网关，可能一个 API 网关有几十个甚至上百个定义的服务。</p>
+<p><strong>为什么 获取到 <code>ClassLoader</code> 为<code>null</code>就是 <code>BootstrapClassLoader</code> 加载的呢？</strong> 这是因为<code>BootstrapClassLoader</code> 由 C++ 实现，由于这个 C++ 实现的类加载器在 Java 中是没有与之对应的类的，所以拿到的结果是 null。</p>
 </blockquote>
-<h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><p>以下是服务自省的一个完整工作流程图，详细描述了服务注册、服务发现、MetadataService、RPC 调用间的协作流程。</p>
+<h2 id="自定义类加载器"><a href="#自定义类加载器" class="headerlink" title="自定义类加载器"></a>自定义类加载器</h2><p>除了 <code>BootstrapClassLoader</code> 其他类加载器均由 Java 实现且全部继承自<code>java.lang.ClassLoader</code>。如果我们要自定义自己的类加载器，很明显需要继承 <code>ClassLoader</code>抽象类。</p>
+<p><code>ClassLoader</code> 类有两个关键的方法：</p>
 <ul>
-<li>服务提供者启动，首先解析应用<strong>定义的“普通服务”并依次注册为 RPC 服务</strong>，紧接着<strong>注册内建的 MetadataService 服务</strong>，最后打开 TCP 监听端口。</li>
-<li>启动完成后，<strong>将实例信息注册到注册中心（仅限 ip、port 等实例相关数据）</strong>，提供者启动完成。</li>
-<li>服务消费者启动，首先依据其要<strong>“消费的 provider 应用名”</strong>到注册中心查询地址列表，并完成<strong>订阅</strong>（以实现后续地址变更自动通知）。</li>
-<li>消费端拿到地址列表后，紧接着<strong>对 MetadataService 发起调用</strong>，返回结果中包含了<strong>所有应用定义的“普通服务”及其相关配置信息</strong>。</li>
-<li>至此，消费者可以接收外部流量，并对提供者<strong>发起 Dubbo RPC 调用</strong>。</li>
+<li><code>protected Class loadClass(String name, boolean resolve)</code>：加载指定二进制名称的类，实现了双亲委派机制 。<code>name</code> 为类的二进制名称，<code>resolve</code> 如果为 true，在加载时调用 <code>resolveClass(Class&lt;?&gt; c)</code> 方法解析该类。</li>
+<li><code>protected Class findClass(String name)</code>：根据类的二进制名称来查找类，默认实现是空方法。</li>
 </ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/bf45f69f7a9fcb04e085be062481bba9.png" alt="img"></p>
-<h3 id="设计原则"><a href="#设计原则" class="headerlink" title="设计原则"></a>设计原则</h3><p>接口级服务发现的好处是数据量小，但是<strong>接口粒度的服务治理能力还是要继续保留</strong>。这就需要两点设计原则：</p>
+<p>如果<strong>不想打破双亲委派模型</strong>，就重写 <code>ClassLoader</code> 类中的 <code>findClass()</code> 方法即可，无法被父类加载器加载的类最终会通过这个方法被加载。但是，如果想打破双亲委派模型则需要重写 <code>loadClass()</code> 方法。</p>
+<h1 id="双亲委派模型"><a href="#双亲委派模型" class="headerlink" title="双亲委派模型"></a>双亲委派模型</h1><p>双亲委派模型简而言之就是：</p>
 <ol>
-<li>新的服务发现模型要实现对原有 Dubbo 消费端开发者的<strong>无感知迁移</strong>，即 Dubbo 继续面向 RPC 服务编程、面向 RPC 服务治理，做到对用户侧完全无感知。</li>
-<li>建立 Consumer 与 Provider 间的<strong>自动化 RPC 服务元数据协调机制</strong>，解决传统微服务模型无法同步 RPC 级接口配置的缺点。</li>
+<li>除了顶层的启动类加载器外，其余的类加载器都应有自己的<strong>父类加载器</strong>。</li>
+<li>在加载类是，首先<strong>委托父类加载器进行加载</strong>，父类如果发现已经被加载则直接返回，没有加载则进行加载（自底向上查找类是否被加载）。</li>
+<li><strong>当父类无法加载时，子类进行加载</strong>（自顶向下尝试加载类）。</li>
 </ol>
-<h3 id="基本原理"><a href="#基本原理" class="headerlink" title="基本原理"></a>基本原理</h3><ol>
-<li><strong>注册中心的数据组织方式：</strong>以应用名为 key，实例列表为 value 组织数据。元数据只包含实例级别的元数据，不包含接口级别的元数据。注册中心的一个实例条目如下，仅仅包含实例地址，端口，实例级别的元数据信息等基本信息。</li>
-</ol>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">&quot;name&quot;</span>: <span class="string">&quot;provider-app-name&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;id&quot;</span>: <span class="string">&quot;192.168.0.102:20880&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;address&quot;</span>: <span class="string">&quot;192.168.0.102&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;port&quot;</span>: <span class="number">20880</span>,</span><br><span class="line">  <span class="attr">&quot;sslPort&quot;</span>: <span class="literal">null</span>,</span><br><span class="line">  <span class="attr">&quot;payload&quot;</span>: &#123;</span><br><span class="line">    <span class="attr">&quot;id&quot;</span>: <span class="literal">null</span>,</span><br><span class="line">    <span class="attr">&quot;name&quot;</span>: <span class="string">&quot;provider-app-name&quot;</span>,</span><br><span class="line">    <span class="attr">&quot;metadata&quot;</span>: &#123;</span><br><span class="line">      <span class="attr">&quot;metadataService&quot;</span>: <span class="string">&quot;&#123;\&quot;dubbo\&quot;:&#123;\&quot;version\&quot;:\&quot;1.0.0\&quot;,\&quot;dubbo\&quot;:\&quot;2.0.2\&quot;,\&quot;release\&quot;:\&quot;2.7.5\&quot;,\&quot;port\&quot;:\&quot;20881\&quot;&#125;&#125;&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;endpoints&quot;</span>: <span class="string">&quot;[&#123;\&quot;port\&quot;:20880,\&quot;protocol\&quot;:\&quot;dubbo\&quot;&#125;]&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;storage-type&quot;</span>: <span class="string">&quot;local&quot;</span>,</span><br><span class="line">      <span class="attr">&quot;revision&quot;</span>: <span class="string">&quot;6785535733750099598&quot;</span>,</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;,</span><br><span class="line">  <span class="attr">&quot;registrationTimeUTC&quot;</span>: <span class="number">1583461240877</span>,</span><br><span class="line">  <span class="attr">&quot;serviceType&quot;</span>: <span class="string">&quot;DYNAMIC&quot;</span>,</span><br><span class="line">  <span class="attr">&quot;uriSpec&quot;</span>: <span class="literal">null</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
-<li><strong>服务调用者和提供者自行协商 RPC 方法信息。</strong>在注册中心不再同步 RPC 服务信息后，服务自省在服务消费端和提供端之间建立了一条内置的 RPC 服务信息协商机制。<strong>服务端实例会暴露一个预定义的 MetadataService RPC 服务</strong>，消费端通过调用 MetadataService 获取每个实例 RPC 方法相关的配置信息。当前 MetadataService 返回的数据格式如下：</li>
-</ol>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">  <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.DemoService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span>, </span><br><span class="line"> <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.HelloService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span>,</span><br><span class="line">  <span class="string">&quot;dubbo://192.168.0.102:20880/org.apache.dubbo.demo.WorldService?anyhost=true&amp;application=demo-provider&amp;deprecated=false&amp;dubbo=2.0.2&amp;dynamic=true&amp;generic=false&amp;interface=org.apache.dubbo.demo.DemoService&amp;methods=sayHello&amp;pid=9585&amp;release=2.7.5&amp;side=provider&amp;timestamp=1583469714314&quot;</span></span><br><span class="line">]</span><br></pre></td></tr></table></figure>
-
-<h2 id="关键机制"><a href="#关键机制" class="headerlink" title="关键机制"></a>关键机制</h2><h3 id="元数据同步机制"><a href="#元数据同步机制" class="headerlink" title="元数据同步机制"></a>元数据同步机制</h3><p>Client 与 Server 间在收到地址推送后的配置同步是服务自省的关键环节，目前针对元数据同步有两种具体的可选方案，分别是：</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-4-%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8/class-loader-parents-delegation-model.png" alt="类加载器层次关系图"></p>
+<h2 id="执行流程"><a href="#执行流程" class="headerlink" title="执行流程"></a>执行流程</h2><p>双亲委派模型的执行流程：</p>
 <ul>
-<li><strong>内建的 MetadataService 服务</strong>。</li>
-<li><strong>独立的元数据中心</strong>，通过中心化的元数据集群协调数据。Provider 实例启动后，会尝试将内部的 RPC 服务组织成元数据的格式到元数据中心，而 consumer 则在每次收到注册中心推送更新后，主动查询元数据中心。</li>
+<li>在类加载的时候，<strong>系统会首先判断当前类是否被加载过</strong>。已经被加载的类会直接返回，否则才会尝试加载（每个父类加载器都会走一遍这个流程）。</li>
+<li>类加载器在进行类加载的时候，它首先不会自己去尝试加载这个类，而是<strong>把这个请求委派给父类加载器去完成</strong>（调用父加载器 <code>loadClass()</code>方法来加载类）。这样的话，所有的请求最终都会传送到顶层的启动类加载器 <code>BootstrapClassLoader</code> 中。</li>
+<li>只有<strong>当父加载器反馈自己无法完成这个加载请求</strong>（它的搜索范围中没有找到所需的类）时，<strong>子加载器才会尝试自己去加载</strong>（调用自己的 <code>findClass()</code> 方法来加载类）。</li>
+<li>如果子类加载器也无法加载这个类，那么它会抛出一个 <code>ClassNotFoundException</code> 异常。</li>
 </ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/cef0a9b33a8f710d00e048fc7868925a.png" alt="img"></p>
-<h3 id="RPC-服务与应用之间的映射关系"><a href="#RPC-服务与应用之间的映射关系" class="headerlink" title="RPC 服务与应用之间的映射关系"></a>RPC 服务与应用之间的映射关系</h3><p><strong>从服务粒度到应用粒度</strong>，要想用户完全无感知必须<strong>知道 RPC 服务与应用名之间的映射关系</strong>。所以为了使整个开发流程对老的 Dubbo 用户更透明，同时避免指定 provider 对可扩展性带来的影响，设计了一套 RPC 服务到应用名的映射关系，以尝试在 consumer 自动完成 RPC 服务到 provider 应用名的转换。</p>
-<ul>
-<li>consumer 通过配置中心<strong>以服务名查询应用名</strong>。</li>
-<li>consumer 得到应用名，就可以检索注册中心，进行应用级别的服务发现了。</li>
-</ul>
-<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-7-%E5%BA%94%E7%94%A8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/3ab172dd6153a031b4f65e034d9a03f0.png" alt="img"></p>
+<blockquote>
+<p><strong>JVM 判定两个 Java 类是否相同的具体规则</strong>：JVM 不仅要看类的全名是否相同，还要看加载此类的类加载器是否一样。只有两者都相同的情况，才认为两个类是相同的。即使两个类来源于同一个 <code>Class</code> 文件，被同一个虚拟机加载，只要加载它们的类加载器不同，那这两个类就必定不相同。</p>
+</blockquote>
+<p>双亲委派模型的实现代码都集中在 <code>java.lang.ClassLoader</code> 的 <code>loadClass()</code> 中，相关代码如下所示。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> Class&lt;?&gt; loadClass(String name, <span class="keyword">boolean</span> resolve)</span><br><span class="line">    <span class="keyword">throws</span> ClassNotFoundException</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (getClassLoadingLock(name)) &#123;</span><br><span class="line">        <span class="comment">//首先，检查该类是否已经加载过</span></span><br><span class="line">        Class c = findLoadedClass(name);</span><br><span class="line">        <span class="keyword">if</span> (c == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">//如果 c 为 null，则说明该类没有被加载过</span></span><br><span class="line">            <span class="keyword">long</span> t0 = System.nanoTime();</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="keyword">if</span> (parent != <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="comment">//当父类的加载器不为空，则通过父类的loadClass来加载该类</span></span><br><span class="line">                    c = parent.loadClass(name, <span class="keyword">false</span>);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="comment">//当父类的加载器为空，则调用启动类加载器来加载该类</span></span><br><span class="line">                    c = findBootstrapClassOrNull(name);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">                <span class="comment">//非空父类的类加载器无法找到相应的类，则抛出异常</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (c == <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="comment">//当父类加载器无法加载时，则调用findClass方法来加载该类</span></span><br><span class="line">                <span class="comment">//用户可通过覆写该方法，来自定义类加载器</span></span><br><span class="line">                <span class="keyword">long</span> t1 = System.nanoTime();</span><br><span class="line">                c = findClass(name);</span><br><span class="line"></span><br><span class="line">                <span class="comment">//用于统计类加载器相关的信息</span></span><br><span class="line">                sun.misc.PerfCounter.getParentDelegationTime().addTime(t1 - t0);</span><br><span class="line">                sun.misc.PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);</span><br><span class="line">                sun.misc.PerfCounter.getFindClasses().increment();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (resolve) &#123;</span><br><span class="line">            <span class="comment">//对类进行link操作</span></span><br><span class="line">            resolveClass(c);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> c;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="好处"><a href="#好处" class="headerlink" title="好处"></a>好处</h2><p>双亲委派模型保证了 Java 程序的稳定运行，<strong>可以避免类的重复加载</strong>（JVM 区分不同类的方式不仅仅根据类名，相同的类文件被不同的类加载器加载产生的是两个不同的类），也保证了 Java 的核心 API 不被篡改。</p>
+<p>如果没有使用双亲委派模型，而是每个类加载器加载自己的话就会出现一些问题，比如我们编写一个称为 <code>java.lang.Object</code> 类的话，那么程序运行的时候，系统就会出现两个不同的 <code>Object</code> 类。双亲委派模型可以保证加载的是 JRE 里的那个 <code>Object</code> 类，而不是你写的 <code>Object</code> 类。这是因为 <code>AppClassLoader</code> 在加载你的 <code>Object</code> 类时，会委托给 <code>ExtClassLoader</code> 去加载，而 <code>ExtClassLoader</code> 又会委托给 <code>BootstrapClassLoader</code>，<code>BootstrapClassLoader</code> 发现自己已经加载过了 <code>Object</code> 类，会直接返回，不会去加载你写的 <code>Object</code> 类。</p>
 
       
     </div>
@@ -887,7 +1006,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/15/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -901,7 +1020,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">用户增长 Marketing-API重构设计</a>
+            <a href="/2024/04/15/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/" class="post-title-link" itemprop="url">Java面试之JVM (3) 垃圾回收</a>
         </h2>
 
         <div class="post-meta">
@@ -910,23 +1029,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-29 13:57:27" itemprop="dateCreated datePublished" datetime="2024-01-29T13:57:27+08:00">2024-01-29</time>
+              <time title="创建时间：2024-04-15 10:36:12 / 修改时间：15:48:13" itemprop="dateCreated datePublished" datetime="2024-04-15T10:36:12+08:00">2024-04-15</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -941,10 +1054,219 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          这是一篇加密文章，需要密码才能继续阅读
+          <p>在 Java 7 以及之前，堆分为三个区域新生代（Eden、S0、S1）、老生代（Tenured）、永久代；但是从 Java 8 开始，永久代已经被元空间所代替，元空间使用的是直接内存。</p>
+<h1 id="垃圾回收"><a href="#垃圾回收" class="headerlink" title="垃圾回收"></a>垃圾回收</h1><h2 id="空间回收原则"><a href="#空间回收原则" class="headerlink" title="空间回收原则"></a>空间回收原则</h2><p>针对 HotSpot VM 的实现，它里面的 GC 其实准确分类只有两大种：</p>
+<ul>
+<li><p><strong>部分收集 (Partial GC)：</strong></p>
+<ul>
+<li><strong>新生代收集（Minor GC / Young GC）：</strong>只对新生代进行垃圾收集；</li>
+<li><strong>老年代收集（Major GC / Old GC）：</strong>只对老年代进行垃圾收集。需要注意的是 Major GC 在有的语境中也用于指代整堆收集；</li>
+<li><strong>混合收集（Mixed GC）：</strong>对整个新生代和<strong>部分</strong>老年代进行垃圾收集。</li>
+</ul>
+</li>
+<li><p><strong>整堆收集 (Full GC)：</strong>收集整个 Java 堆和方法区。</p>
+</li>
+</ul>
+<p>JVM 内存分配与空间回收有以下几个原则：</p>
+<ul>
+<li>对象优先在 Eden 区分配。</li>
+<li>大对象直接进入老年代。</li>
+<li>长期存活的对象进入老年代。</li>
+<li>空间分配担保。</li>
+</ul>
+<h3 id="对象优先在-Eden-分配"><a href="#对象优先在-Eden-分配" class="headerlink" title="对象优先在 Eden 分配"></a>对象优先在 Eden 分配</h3><p>大多数情况下，对象在新生代中 Eden 区分配。<strong>当 Eden 区没有足够空间进行分配时，虚拟机将发起一次 Minor GC</strong>，然后在 Eden 区分配。</p>
+<h3 id="大对象直接进入老年代"><a href="#大对象直接进入老年代" class="headerlink" title="大对象直接进入老年代"></a>大对象直接进入老年代</h3><p>大对象直接进入老年代的行为是由虚拟机动态决定的，它与具体使用的垃圾回收器和相关参数有关。大对象直接进入老年代是一种优化策略，旨在<strong>避免将大对象放入新生代，从而减少新生代的垃圾回收频率和成本</strong>。</p>
+<ul>
+<li>G1 垃圾回收器根据 <code>-XX:G1HeapRegionSize</code> 参数设置的堆区域大小和 <code>-XX:G1MixedGCLiveThresholdPercent</code> 参数设置的阈值，来决定哪些对象会直接进入老年代。</li>
+<li>Parallel Scavenge 垃圾回收器中，默认情况下，并没有一个固定的阈值来决定何时直接在老年代分配大对象。而是由虚拟机根据当前的堆内存情况和历史数据动态决定。</li>
+</ul>
+<h3 id="长期存活的对象进入老年代"><a href="#长期存活的对象进入老年代" class="headerlink" title="长期存活的对象进入老年代"></a>长期存活的对象进入老年代</h3><p>虚拟机给每一个对象一个年龄计数器，作为对象存活的年龄。大部分情况，对象都会首先在 Eden 区域分配。如果对象在 Eden 出生并<strong>经过第一次 Minor GC 后仍然存活</strong>，并且能被 Survivor 容纳的话，将被移动到 Survivor 空间（s0 或者 s1）中，<strong>并将对象年龄设为 1</strong>。</p>
+<p>对象在 Survivor 中每熬过一次 MinorGC,年龄就增加 1 岁，当它的年龄增加到一定程度（默认为 15 岁），就会被晋升到老年代中。对象晋升到老年代的年龄阈值，可以通过参数 <code>-XX:MaxTenuringThreshold</code> 来设置。</p>
+<blockquote>
+<p>Hotspot 遍历所有对象时，按照年龄从小到大对其所占用的大小进行累加，当累加到某个年龄时，<strong>所累加的大小超过了 Survivor 区的一半</strong>，则取这个年龄和 <code>MaxTenuringThreshold</code> 中更小的一个值，作为新的晋升年龄阈值。</p>
+</blockquote>
+<h3 id="空间分配担保"><a href="#空间分配担保" class="headerlink" title="空间分配担保"></a>空间分配担保</h3><p>空间分配担保是为了确保<strong>在 Minor GC 之前老年代本身还有容纳新生代所有对象的剩余空间</strong>。</p>
+<p>只要老年代的连续空间大于<strong>新生代对象总大小</strong>或者<strong>历次晋升的平均大小</strong>，就会进行 Minor GC，否则将进行 Full GC。</p>
+<h2 id="死亡对象判别"><a href="#死亡对象判别" class="headerlink" title="死亡对象判别"></a>死亡对象判别</h2><p>死亡对象判别常用方法有：应用计数法和可达性分析。</p>
+<blockquote>
+<p><strong>如何判断废弃常量？</strong></p>
+<p>如果没有任何一个 String 对象引用一个字符串常量，那么这个字符串常量就是废弃的。</p>
+<p><strong>如何判断无用的类？</strong></p>
+<p>判断无用的类，需要满足三个条件（虚拟机可以对满足上述 3 个条件的无用类进行回收，仅仅是可以，不是一定）：</p>
+<ol>
+<li>该类的所有实例被回收。</li>
+<li>加载该类的 ClassLoader 被回收。</li>
+<li>该类对应的 <code>java.lang.Class</code> 对象没有在任何地方被引用，无法在任何地方通过反射访问该类的方法。</li>
+</ol>
+</blockquote>
+<h3 id="引用计数法"><a href="#引用计数法" class="headerlink" title="引用计数法"></a>引用计数法</h3><p><strong>引用计数法：</strong>每一个对象有一个引用计数器，<strong>这个方法实现简单，效率高，但是没有办法解决循环引用问题。</strong></p>
+<h3 id="可达性分析"><a href="#可达性分析" class="headerlink" title="可达性分析"></a>可达性分析</h3><p><strong>可达性分析：</strong>从 <strong>GC ROOT</strong> 出发，找到所有可达对象；不可达对象就是需要被回收的。</p>
+<p><strong>哪些对象可以作为 GC Roots 呢？</strong></p>
+<ul>
+<li>虚拟机栈（栈帧中的局部变量表）中引用的对象</li>
+<li>本地方法栈（Native 方法）中引用的对象</li>
+<li>方法区中类静态属性引用的对象</li>
+<li>方法区中常量引用的对象</li>
+<li>所有被同步锁持有的对象</li>
+<li>JNI（Java Native Interface）引用的对象</li>
+</ul>
+<h3 id="引用类型"><a href="#引用类型" class="headerlink" title="引用类型"></a>引用类型</h3><p>JDK1.2 之前，Java 中引用的定义很传统：如果 reference 类型的数据存储的数值代表的是另一块内存的起始地址，就称这块内存代表一个引用。</p>
+<p>JDK1.2 以后，Java 对引用的概念进行了扩充，将引用分为强引用、软引用、弱引用、虚引用四种（引用强度逐渐减弱）。</p>
+<ol>
+<li><strong>强引用（StrongReference）：</strong>类似于<strong>必不可少的生活用品</strong>，平时的引用就是强引用。当内存空间不足，Java 虚拟机宁愿抛出 OutOfMemoryError 错误，使程序异常终止，也不会回收具有强引用的对象来解决内存不足问题。</li>
+<li><strong>软引用（SoftReference）：</strong>类似于<strong>可有可无的生活用品</strong>。如果内存空间足够，垃圾回收器就不会回收它，<strong>如果内存空间不足了，就会回收这些对象的内存</strong>。只要垃圾回收器没有回收它，该对象就可以被程序使用。软引用可以和一个引用队列（ReferenceQueue）联合使用，如果软引用所引用的对象被垃圾回收，JAVA 虚拟机就会把这个软引用加入到与之关联的引用队列中。</li>
+<li><strong>弱引用（WeekReference）：</strong>类似于<strong>可有可无的生活用品</strong>。弱引用与软引用的区别在于：只具有弱引用的对象拥有更短暂的生命周期。在垃圾回收器线程扫描它所管辖的内存区域的过程中，<strong>一旦发现了只具有弱引用的对象，不管当前内存空间足够与否，都会回收它的内存</strong>。弱引用可以和一个引用队列（ReferenceQueue）联合使用，如果弱引用所引用的对象被垃圾回收，Java 虚拟机就会把这个弱引用加入到与之关联的引用队列中。</li>
+<li><strong>虚引用（PhantomReference）：</strong>虚引用并不会决定对象的生命周期。如果一个对象仅持有虚引用，那么它就和没有任何引用一样，在任何时候都可能被垃圾回收。</li>
+</ol>
+<blockquote>
+<p><strong>虚引用主要用来跟踪对象被垃圾回收的活动</strong>。</p>
+<p><strong>虚引用与软引用和弱引用的一个区别在于：</strong> 虚引用<strong>必须</strong>和引用队列（ReferenceQueue）联合使用。当垃圾回收器准备回收一个对象时，如果发现它还有虚引用，就会在回收对象的内存之前，把这个虚引用加入到与之关联的引用队列中。程序可以通过判断引用队列中是否已经加入了虚引用，来了解被引用的对象是否将要被垃圾回收。程序如果发现某个虚引用已经被加入到引用队列，那么就可以在所引用的对象的内存被回收之前采取必要的行动。</p>
+<p>在程序设计中一般很少使用弱引用与虚引用，使用软引用的情况较多，这是因为<strong>软引用可以加速 JVM 对垃圾内存的回收速度，可以维护系统的运行安全，防止内存溢出（OutOfMemory）等问题的产生</strong>。</p>
+</blockquote>
+<h2 id="垃圾清扫算法"><a href="#垃圾清扫算法" class="headerlink" title="垃圾清扫算法"></a>垃圾清扫算法</h2><h3 id="标记-清除"><a href="#标记-清除" class="headerlink" title="标记-清除"></a>标记-清除</h3><p>标记-清除（Mark-and-Sweep）算法分为“标记（Mark）”和“清除（Sweep）”阶段：首先标记出所有不需要回收的对象，在标记完成后统一回收掉所有没有被标记的对象。</p>
+<p>这种垃圾收集算法会带来两个明显的问题：</p>
+<ol>
+<li><strong>效率问题</strong>：标记和清除两个过程效率都不高。</li>
+<li><strong>空间问题</strong>：标记清除后会产生大量不连续的<strong>内存碎片</strong>。</li>
+</ol>
+<h3 id="复制"><a href="#复制" class="headerlink" title="复制"></a>复制</h3><p>它可以将内存分为大小相同的两块，每次使用其中的一块。当这一块的内存使用完后，就<strong>将还存活的对象复制到另一块</strong>去，然后再<strong>把使用的空间一次清理掉</strong>。这样就使每次的内存回收都是对内存区间的一半进行回收。虽然改进了标记-清除算法，但依然存在下面这些问题：</p>
+<ul>
+<li><strong>可用内存变小</strong>：可用内存缩小为原来的一半。</li>
+<li><strong>不适合老年代</strong>：如果存活对象数量比较大，复制性能会变得很差。</li>
+</ul>
+<h3 id="标记-整理（标记-压缩）"><a href="#标记-整理（标记-压缩）" class="headerlink" title="标记-整理（标记-压缩）"></a>标记-整理（标记-压缩）</h3><p>标记-整理（压缩）算法是根据<strong>老年代</strong>的特点提出的一种算法，在回收时，<strong>让所有存活的对象向一端移动</strong>。</p>
+<p>由于多了整理这一步，因此效率也不高，适合老年代这种垃圾回收频率不是很高的场景。</p>
+<h3 id="分代收集"><a href="#分代收集" class="headerlink" title="分代收集"></a>分代收集</h3><p>当前虚拟机的垃圾收集都采用分代收集算法，根据对象存活周期的不同将内存分为几块，<strong>不同代采用不同的算法</strong>。一般将 Java 堆分为新生代和老年代，这样就可以根据各个年代的特点选择合适的垃圾收集算法。</p>
+<p>比如在<strong>新生代</strong>中，<strong>每次收集都会有大量对象死去</strong>，所以可以选择”<strong>标记-复制</strong>“算法，只需要付出少量对象的复制成本就可以完成每次垃圾收集。而<strong>老年代</strong>的对象<strong>存活几率比较高</strong>，而且没有额外的空间对它进行分配担保，所以必须<strong>选择“标记-清除”或“标记-整理”算法</strong>进行垃圾收集。</p>
+<h2 id="垃圾收集器"><a href="#垃圾收集器" class="headerlink" title="垃圾收集器"></a>垃圾收集器</h2><p>JDK 默认垃圾收集器（使用 <code>java -XX:+PrintCommandLineFlags -version</code> 命令查看）：</p>
+<ul>
+<li>JDK 8：Parallel Scavenge（新生代）+ Parallel Old（老年代）</li>
+<li>JDK 9 ~ JDK20: G1</li>
+</ul>
+<h3 id="Serial-Serial-Old-收集器"><a href="#Serial-Serial-Old-收集器" class="headerlink" title="Serial/Serial Old 收集器"></a>Serial/Serial Old 收集器</h3><p>Serial 负责新生代，Serial Old 负责老年代。二者都是<strong>单线程</strong>收集器，在垃圾回收的过程中需要 STW，直到垃圾收集结束。<strong>新生代采用标记-复制算法，老年代采用标记-整理算法。</strong></p>
+<p>优点：它<strong>简单而高效（与其他收集器的单线程相比）</strong>。Serial 收集器由于没有线程交互的开销，自然可以获得很高的单线程收集效率。Serial 收集器对于运行在 Client 模式下的虚拟机来说是个不错的选择。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/serial-garbage-collector.png" alt="Serial 收集器"></p>
+<h3 id="ParNew-收集器"><a href="#ParNew-收集器" class="headerlink" title="ParNew 收集器"></a>ParNew 收集器</h3><p>ParNew 是 Serial 收集器的<strong>多线程</strong>版本。<strong>新生代采用标记-复制算法，老年代采用标记-整理算法。</strong></p>
+<p>它是许多运行在 Server 模式下的虚拟机的首要选择，除了 Serial 收集器外，只有它能与 CMS 收集器配合工作。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parnew-garbage-collector.png" alt="ParNew 收集器 "></p>
+<h3 id="Parallel-Scavenge-Parallel-Old-收集器"><a href="#Parallel-Scavenge-Parallel-Old-收集器" class="headerlink" title="Parallel Scavenge/Parallel Old 收集器"></a>Parallel Scavenge/Parallel Old 收集器</h3><p><strong>Parallel Scavenge 收集器是负责年轻代的垃圾回收</strong>，也是使用<strong>标记-复制</strong>算法的多线程收集器。Parallel Scavenge 收集器关注点是吞吐量，CMS 等垃圾收集器的关注点更多的是用户线程的停顿时间（提高用户体验）。Parallel Scavenge 收集器提供了很多参数供用户找到最合适的停顿时间或最大吞吐量，如果对于收集器运作不太了解，手工优化存在困难的时候，使用 Parallel Scavenge 收集器配合自适应调节策略，把内存管理优化交给虚拟机去完成也是一个不错的选择。</p>
+<p><strong>Parallel Old 是 Parallel Scavenge 收集器的老年代版本</strong>。使用多线程和<strong>标记-整理</strong>算法。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parallel-scavenge-garbage-collector.png" alt="Parallel Old收集器运行示意图"></p>
+<h3 id="CMS-收集器"><a href="#CMS-收集器" class="headerlink" title="CMS 收集器"></a>CMS 收集器</h3><p><strong>CMS（Concurrent Mark Sweep）收集器是一种以获取最短回收停顿时间为目标的收集器。它非常符合在注重用户体验的应用上使用。</strong></p>
+<p><strong>CMS（Concurrent Mark Sweep）收集器是 HotSpot 虚拟机第一款真正意义上的并发收集器，它第一次实现了让垃圾收集线程与用户线程（基本上）同时工作。</strong></p>
+<p>CMS 收集器是一种<strong>标记-清除算法</strong>实现的，它的运作过程相比于前面几种垃圾收集器来说更加复杂一些。整个过程分为四个步骤：</p>
+<ul>
+<li><strong>初始标记：</strong> 暂停所有的其他线程，并记录下直接与 root 相连的对象，速度很快 ；</li>
+<li><strong>并发标记：</strong> 同时开启 GC 和用户线程，用一个闭包结构去记录可达对象。但在这个阶段结束，这个闭包结构并不能保证包含当前所有的可达对象。因为用户线程可能会不断的更新引用域，所以 GC 线程无法保证可达性分析的实时性。所以这个算法里会跟踪记录这些发生引用更新的地方。</li>
+<li><strong>重新标记：</strong> 重新标记阶段就是为了修正并发标记期间因为用户程序继续运行而导致标记产生变动的那一部分对象的标记记录，这个阶段的停顿时间一般会比初始标记阶段的时间稍长，远远比并发标记阶段时间短。</li>
+<li><strong>并发清除：</strong> 开启用户线程，同时 GC 线程开始对未标记的区域做清扫。</li>
+</ul>
+<p>主要优点：<strong>并发收集、低停顿</strong>。但是它有下面三个明显的缺点：</p>
+<ul>
+<li><strong>对 CPU 资源敏感；</strong></li>
+<li><strong>无法处理浮动垃圾；</strong></li>
+<li><strong>它使用的回收算法-“标记-清除”算法会导致收集结束时会有大量空间碎片产生。</strong></li>
+</ul>
+<p><strong>从 JDK9 开始，CMS 收集器已被弃用。</strong></p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/cms-garbage-collector.png" alt="CMS 收集器"></p>
+<h3 id="G1-收集器"><a href="#G1-收集器" class="headerlink" title="G1 收集器"></a>G1 收集器</h3><p><strong>G1 (Garbage-First) 是一款面向服务器的垃圾收集器，主要针对配备多颗处理器及大容量内存的机器。以极高概率满足 GC 停顿时间要求的同时，还具备高吞吐量性能特征。</strong></p>
+<p>它具备以下特点：</p>
+<ul>
+<li><strong>并行与并发</strong>：G1 能充分利用 CPU、多核环境下的硬件优势，使用多个 CPU（CPU 或者 CPU 核心）来缩短 Stop-The-World 停顿时间。部分其他收集器原本需要停顿 Java 线程执行的 GC 动作，G1 收集器仍然可以通过并发的方式让 java 程序继续执行。</li>
+<li><strong>分代收集</strong>：虽然 G1 可以不需要其他收集器配合就能独立管理整个 GC 堆，但是还是保留了分代的概念。</li>
+<li><strong>空间整合</strong>：与 CMS 的“标记-清除”算法不同，G1 从整体来看是基于“标记-整理”算法实现的收集器；从局部上来看是基于“标记-复制”算法实现的。</li>
+<li><strong>可预测的停顿</strong>：这是 G1 相对于 CMS 的另一个大优势，降低停顿时间是 G1 和 CMS 共同的关注点，但 G1 除了追求低停顿外，还能建立可预测的停顿时间模型，能让使用者明确指定在一个长度为 M 毫秒的时间片段内，消耗在垃圾收集上的时间不得超过 N 毫秒。</li>
+</ul>
+<p>G1 收集器的运作大致分为以下几个步骤：</p>
+<ul>
+<li><strong>初始标记</strong></li>
+<li><strong>并发标记</strong></li>
+<li><strong>最终标记</strong></li>
+<li><strong>筛选回收</strong></li>
+</ul>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/g1-garbage-collector.png" alt="G1 收集器"></p>
+<p><strong>G1 收集器在后台维护了一个优先列表，每次根据允许的收集时间，优先选择回收价值最大的 Region（这也就是它的名字 Garbage-First 的由来）</strong>。这种使用 Region 划分内存空间以及有优先级的区域回收方式，保证了 G1 收集器在有限时间内可以尽可能高的收集效率。</p>
+<p><strong>从 JDK9 开始，G1 垃圾收集器成为了默认的垃圾收集器。</strong></p>
+<h3 id="ZGC-收集器"><a href="#ZGC-收集器" class="headerlink" title="ZGC 收集器"></a>ZGC 收集器</h3><p>ZGC 在 Java 11 引入，处于实验阶段；在 Java15 已经可以正式使用了；在 Java 21 中引入分代 ZGC。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/" class="post-title-link" itemprop="url">Java面试之JVM (2) HotSpot对象</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-14 17:14:08 / 修改时间：17:30:44" itemprop="dateCreated datePublished" datetime="2024-04-14T17:14:08+08:00">2024-04-14</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>下面解释一下 HotSpot 虚拟机对象的一些面试问题。</p>
+<h1 id="对象的创建"><a href="#对象的创建" class="headerlink" title="对象的创建"></a>对象的创建</h1><p>对象的创建分为五步：</p>
+<ol>
+<li>类加载检查。</li>
+<li>内存分配。</li>
+<li>初始化零值。</li>
+<li>设置对象头。</li>
+<li>执行 init 方法。</li>
+</ol>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2024/01/29/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-Marketing-API%E9%87%8D%E6%9E%84%E8%AE%BE%E8%AE%A1/#more" rel="contents">
+              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-2-HotSpot%E5%AF%B9%E8%B1%A1/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -968,7 +1290,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -982,7 +1304,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E7%BD%91%E7%BB%9C/" class="post-title-link" itemprop="url">Kuma学习笔记 (5) 网络</a>
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/" class="post-title-link" itemprop="url">Java面试之JVM (1) 内存模型</a>
         </h2>
 
         <div class="post-meta">
@@ -991,23 +1313,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-25 12:53:28" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:28+08:00">2024-01-25</time>
+              <time title="创建时间：2024-04-14 16:05:54 / 修改时间：17:14:17" itemprop="dateCreated datePublished" datetime="2024-04-14T16:05:54+08:00">2024-04-14</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -1022,231 +1338,17 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h1><p>本节介绍 kuma 如何处理 service mesh 中的服务发现问题，包括数据平面代理和控制平面之间的通信，控制平面代理间的通信。</p>
-<h2 id="数据平面代理和控制平面之间的通信"><a href="#数据平面代理和控制平面之间的通信" class="headerlink" title="数据平面代理和控制平面之间的通信"></a>数据平面代理和控制平面之间的通信</h2><p>当数据平面代理连接到控制平面时，它会<strong>启动到控制平面的 gRPC 流连接（xDS）</strong>。它从控制平面<strong>检索最新的策略配置</strong>并向控制平面发送诊断信息。</p>
-<ul>
-<li>在<strong>独立部署</strong>下，kuma-dp 直接连接到 kuma-cp 实例。</li>
-<li>在<strong>多区域部署</strong>下，<strong>kuma-dp 连接到 zone kuma-cp，zone kuma-cp 将通过 KDS 的 xDS API 扩展连接到 global kuma-cp</strong>。在多区域模式下，数据平面代理永远不会连接到全局控制平面，而仅连接到区域控制平面。</li>
-</ul>
-<blockquote>
-<p><strong>数据平面和控制平面之间的连接不在服务请求的执行路径上</strong>，这意味着如果数据平面暂时失去与控制平面的连接，服务流量不会受到影响。</p>
-</blockquote>
-<h2 id="数据平面代理间的通信"><a href="#数据平面代理间的通信" class="headerlink" title="数据平面代理间的通信"></a>数据平面代理间的通信</h2><p>数据平面会<strong>通报每一个服务的 IP 地址：</strong></p>
-<ul>
-<li>在 Kubernetes 环境中，IP 地址<strong>为 Pod 的地址</strong>。</li>
-<li>在 Universal 环境中，IP地址会<strong>检索 inbound listeners</strong>（用于配置控制平面代理的入站监听地址）。</li>
-</ul>
-<p>数据平面会通报 IP 地址到控制平面，这意味着在任何时间 kuma-cp 都知道每一个服务的每个副本关联的所有 IP 地址是什么。</p>
-<p>Kuma 数据平面代理间的通信，在独立部署和多区域部署使用自己的 DNS：</p>
-<ul>
-<li>在<strong>独立部署</strong>模式下，直接<strong>使用 IP 地址</strong>进行通信。</li>
-<li>在<strong>多区域部署</strong>模式下，Kuma 将自动<strong>解析域名</strong>，可以连接到在同一区域中运行的数据平面代理，或者通过 Egress（如果存在）和 另一个区域中的 Ingress 的地址 来实现跨区域连接。这意味着多区域部署模式下，<strong>服务之间可以跨集群</strong>（不管是 Kubernetes 还是 VM）连接。</li>
-</ul>
-<h1 id="DNS"><a href="#DNS" class="headerlink" title="DNS"></a>DNS</h1><p>对于每一份服务，都会生成一个以 <code>.mesh</code> 结尾的域名：</p>
-<ul>
-<li><p>对于一个 Kubernetes Service 和关联的 Pod，Kuma 控制面会自动的生成一个注解 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc_&lt;port&gt;</code>，其中 name 和 namespace 还有 port 均来自 Service 信息。</p>
-</li>
-<li><p>某些情况下 Pods 不属于任何的 Service，仅仅是单纯的一个 Pod（或者在 Universal 下）。在这种情况下，Kuma 会自动生成的注解为 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc</code> ，其中 name 和 namespace 来自于 Pod 资源。</p>
-</li>
-</ul>
-<p>服务的域名被定义为 <code>&lt;kuma.io/service的值&gt;.mesh</code>，默认端口为 80。</p>
-<h1 id="非-mesh-流量"><a href="#非-mesh-流量" class="headerlink" title="非 mesh 流量"></a>非 mesh 流量</h1><h2 id="传入流量"><a href="#传入流量" class="headerlink" title="传入流量"></a>传入流量</h2><p>启用 mTLS 后，来自网格外部的客户端无法访问网格内部的应用程序。如果想允许外部客户端使用服务网格，可以使用 Permissive mTLS 模式（宽松的 mTLS，即允许 mTLS，也允许明文请求）。</p>
-<p>所有域名查找均由数据平面代理在本地处理，而不是由控制平面处理。这种方法允许更稳健地处理名称解析，例如，当控制平面关闭时，数据平面代理仍然可以解析 DNS。</p>
-<p>数据平面代理 DNS 包括：</p>
-<ul>
-<li>Envoy DNS 过滤器提供来自网格的 DNS 记录响应。</li>
-<li>CoreDNS 用于 Envoy DNS 过滤器和原始主机 DNS 之间发送请求</li>
-<li>iptable 规则将原始 DNS 流量重定向到本地 CoreDNS 实例。</li>
-</ul>
-<h2 id="穿出流量"><a href="#穿出流量" class="headerlink" title="穿出流量"></a>穿出流量</h2><p>在默认设置中，Kuma 允许任何非网状流量通过 Envoy，而无需应用任何策略。当 <code>networking.outbound.passthrough</code> 为 <code>false</code> 时，任何非网格资源的流量都不能离开网格。</p>
-<p>使用 ProxyTemplate，可以设置非 mesh 流量的配置。如断路器，超时。</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/" class="post-title-link" itemprop="url">Kuma学习笔记 (4) KDS</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-01-25 12:53:19" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:19+08:00">2024-01-25</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>Kuma 通过 KDS（Kuma Discovery Service）进行 Global kuma-cp 和 Zone kuma-cp 的资源交换，以实现跨集群的通信。</p>
-<p>在第一节首先会简要说明 KDS 中需要同步的资源，第二节说明 KDS 的实现。</p>
-<h1 id="资源"><a href="#资源" class="headerlink" title="资源"></a>资源</h1><p>KDS 同步的资源按照资源的流向，可以分为两种类型：</p>
-<ul>
-<li>ZoneToGlobal：区域 cp 到全局 cp 同步的信息。</li>
-<li>GlobalToZone：全局 cp 到区域 cp 同步的信息。</li>
-</ul>
-<h2 id="ZoneToGlobal"><a href="#ZoneToGlobal" class="headerlink" title="ZoneToGlobal"></a>ZoneToGlobal</h2><h3 id="Dataplane"><a href="#Dataplane" class="headerlink" title="Dataplane"></a>Dataplane</h3><p><strong>Dataplane：</strong>允许 Zone kuma-cp -&gt; Global kuma-cp，Dataplane 定义了一个数据面 sidecar 代理的配置，spec 包括：</p>
-<ul>
-<li><strong>Network：网络</strong>，描述数据面代理的入站和出站地址。</li>
-<li>Metrics： 定义数据面收集的指标。</li>
-<li>Probes：暴露健康检查端口，健康检查配置。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Dataplane defines a configuration of a side-car proxy.</span></span><br><span class="line"><span class="keyword">type</span> Dataplane <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Networking describes inbound and outbound interfaces of the data plane</span></span><br><span class="line">    <span class="comment">// proxy.</span></span><br><span class="line">    Networking *Dataplane_Networking <span class="string">`protobuf:&quot;bytes,1,opt,name=networking,proto3&quot; json:&quot;networking,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Configuration for metrics that should be collected and exposed by the</span></span><br><span class="line">    <span class="comment">// data plane proxy.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Settings defined here will override their respective defaults</span></span><br><span class="line">    <span class="comment">// defined at a Mesh level.</span></span><br><span class="line">    Metrics *MetricsBackend <span class="string">`protobuf:&quot;bytes,2,opt,name=metrics,proto3&quot; json:&quot;metrics,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Probes describe a list of endpoints that will be exposed without mTLS.</span></span><br><span class="line">    <span class="comment">// This is useful to expose the health endpoints of the application so the</span></span><br><span class="line">    <span class="comment">// orchestration system (e.g. Kubernetes) can still health check the</span></span><br><span class="line">    <span class="comment">// application.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// See</span></span><br><span class="line">    <span class="comment">// https://kuma.io/docs/latest/policies/service-health-probes/#virtual-probes</span></span><br><span class="line">    <span class="comment">// for more information.</span></span><br><span class="line">    Probes *Dataplane_Probes <span class="string">`protobuf:&quot;bytes,3,opt,name=probes,proto3&quot; json:&quot;probes,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>DataplaneInsight：</strong>表示了数据平面的运行时状态，包括：</p>
-<ul>
-<li>Subscriptions：描述了由数据平面向控制平面创建的 ADS 订阅。</li>
-<li>MTLS：数据平面代理的 mTLS 状态，如证书过期时间，上次证书的生成时间等。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// DataplaneInsight defines the observed state of a Dataplane.</span></span><br><span class="line"><span class="keyword">type</span> DataplaneInsight <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// List of ADS subscriptions created by a given Dataplane.</span></span><br><span class="line">    Subscriptions []*DiscoverySubscription <span class="string">`protobuf:&quot;bytes,1,rep,name=subscriptions,proto3&quot; json:&quot;subscriptions,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Insights about mTLS for Dataplane.</span></span><br><span class="line">    MTLS *DataplaneInsight_MTLS <span class="string">`protobuf:&quot;bytes,2,opt,name=mTLS,proto3&quot; json:&quot;mTLS,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="Egress"><a href="#Egress" class="headerlink" title="Egress"></a>Egress</h3><p><strong>Egress：</strong>用于定义 Zone Egress。</p>
-<ul>
-<li>Zone：所属的 Zone 名称。</li>
-<li>Network：描述了 Egress 监听的地址和端口。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneEgress allows us to configure dataplane in the Egress mode.</span></span><br><span class="line"><span class="keyword">type</span> ZoneEgress <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Zone field contains Zone name where egress is serving, field will be</span></span><br><span class="line">    <span class="comment">// automatically set by Global Kuma CP</span></span><br><span class="line">    Zone <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,opt,name=zone,proto3&quot; json:&quot;zone,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Networking defines the address and port of the Egress to listen on.</span></span><br><span class="line">    Networking *ZoneEgress_Networking <span class="string">`protobuf:&quot;bytes,2,opt,name=networking,proto3&quot; json:&quot;networking,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>EgressInsight：</strong>定义了 Zone Egress 的运行时状态，包括：</p>
-<ul>
-<li>DiscoverySubscription：定义了由 Zone kuma-cp 创建的 ADS 订阅。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneEgressInsight defines the observed state of a Zone Egress.</span></span><br><span class="line"><span class="keyword">type</span> ZoneEgressInsight <span class="keyword">struct</span> &#123;</span><br><span class="line">	state         protoimpl.MessageState</span><br><span class="line">	sizeCache     protoimpl.SizeCache</span><br><span class="line">	unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">	<span class="comment">// List of ADS subscriptions created by a given Zone Kuma CP.</span></span><br><span class="line">	Subscriptions []*DiscoverySubscription <span class="string">`protobuf:&quot;bytes,1,rep,name=subscriptions,proto3&quot; json:&quot;subscriptions,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="Ingress"><a href="#Ingress" class="headerlink" title="Ingress"></a>Ingress</h3><p><strong>Ingress：</strong>定义了 Zone Ingress。允许 Zone kuma-cp -&gt; Global kuma-cp，和 Global kuma-cp -&gt; Zone kuma-cp，<strong>Global kuma-cp 接收 Zone kuma-cp 的 Ingress 资源，并向其他 Zone kuma-cp 同步 Ingress 信息</strong>。</p>
-<ul>
-<li>Zone：标识 Ingress 服务于哪个区域。</li>
-<li><strong>Networking：</strong>定义了 Zone Ingress 的监听地址和端口，以及公开的地址端口。</li>
-<li><strong>AvailableServices：</strong>定义了可以通过该 Zone Ingress 访问的服务，是 Kuma 跨集群通信的基础。<ul>
-<li>Tags：服务 tag。</li>
-<li>Instances：给定标签可用的服务实例数量。</li>
-<li>Mesh：给定标签可用的服务实例所属的服务网格名称。</li>
-<li>ExternalService：表明该服务是否为外部服务。</li>
-</ul>
-</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneIngress allows us to configure dataplane in the Ingress mode. In this</span></span><br><span class="line"><span class="comment">// mode, dataplane has only inbound interfaces. Every inbound interface matches</span></span><br><span class="line"><span class="comment">// with services that reside in that cluster.</span></span><br><span class="line"><span class="keyword">type</span> ZoneIngress <span class="keyword">struct</span> &#123;</span><br><span class="line">    state         protoimpl.MessageState</span><br><span class="line">    sizeCache     protoimpl.SizeCache</span><br><span class="line">    unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Zone field contains Zone name where ingress is serving, field will be</span></span><br><span class="line">    <span class="comment">// automatically set by Global Kuma CP</span></span><br><span class="line">    Zone <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,opt,name=zone,proto3&quot; json:&quot;zone,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// Networking defines the address and port of the Ingress to listen on.</span></span><br><span class="line">    <span class="comment">// Additionally publicly advertised address and port could be specified.</span></span><br><span class="line">    Networking *ZoneIngress_Networking <span class="string">`protobuf:&quot;bytes,2,opt,name=networking,proto3&quot; json:&quot;networking,omitempty&quot;`</span></span><br><span class="line">    <span class="comment">// AvailableService contains tags that represent unique subset of</span></span><br><span class="line">    <span class="comment">// endpoints</span></span><br><span class="line">    AvailableServices []*ZoneIngress_AvailableService <span class="string">`protobuf:&quot;bytes,3,rep,name=availableServices,proto3&quot; json:&quot;availableServices,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ZoneIngress_AvailableService <span class="keyword">struct</span> &#123;</span><br><span class="line">	state         protoimpl.MessageState</span><br><span class="line">	sizeCache     protoimpl.SizeCache</span><br><span class="line">	unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">	<span class="comment">// tags of the service</span></span><br><span class="line">	Tags <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,rep,name=tags,proto3&quot; json:&quot;tags,omitempty&quot; protobuf_key:&quot;bytes,1,opt,name=key,proto3&quot; protobuf_val:&quot;bytes,2,opt,name=value,proto3&quot;`</span></span><br><span class="line">	<span class="comment">// number of instances available for given tags</span></span><br><span class="line">	Instances <span class="keyword">uint32</span> <span class="string">`protobuf:&quot;varint,2,opt,name=instances,proto3&quot; json:&quot;instances,omitempty&quot;`</span></span><br><span class="line">	<span class="comment">// mesh of the instances available for given tags</span></span><br><span class="line">	Mesh <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,3,opt,name=mesh,proto3&quot; json:&quot;mesh,omitempty&quot;`</span></span><br><span class="line">	<span class="comment">// instance of external service available from the zone</span></span><br><span class="line">	ExternalService <span class="keyword">bool</span> <span class="string">`protobuf:&quot;varint,4,opt,name=externalService,proto3&quot; json:&quot;externalService,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>IngressInsight：</strong>定义了 ZoneIngress 的运行时状态。允许 Zone kuma-cp -&gt; Global kuma-cp，和 Global kuma-cp -&gt; Zone kuma-cp，Global kuma-cp 接收 Zone kuma-cp 的 IngressInsight 资源，并向其他 Zone kuma-cp 同步 IngressInsight 信息。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ZoneIngressInsight defines the observed state of a Zone Ingress.</span></span><br><span class="line"><span class="keyword">type</span> ZoneIngressInsight <span class="keyword">struct</span> &#123;</span><br><span class="line">	state         protoimpl.MessageState</span><br><span class="line">	sizeCache     protoimpl.SizeCache</span><br><span class="line">	unknownFields protoimpl.UnknownFields</span><br><span class="line"></span><br><span class="line">	<span class="comment">// List of ADS subscriptions created by a given Zone Kuma CP.</span></span><br><span class="line">	Subscriptions []*DiscoverySubscription <span class="string">`protobuf:&quot;bytes,1,rep,name=subscriptions,proto3&quot; json:&quot;subscriptions,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="GlobalToZone"><a href="#GlobalToZone" class="headerlink" title="GlobalToZone"></a>GlobalToZone</h2><p>Global kuma-cp 到 zone kuma-cp 的资源，除了 Ingress 外剩下的均是来<strong>自于 Global kuma-cp 策略的更新</strong>。</p>
-<p>如 CircuitBreaker，FaultInjection，HealthCheck，Retry 等，这里不再详细说明。</p>
-<h1 id="KDS"><a href="#KDS" class="headerlink" title="KDS"></a>KDS</h1><p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/kds.svg" alt="kds"></p>
-<h2 id="KDS-v1"><a href="#KDS-v1" class="headerlink" title="KDS v1"></a>KDS v1</h2><h3 id="服务定义"><a href="#服务定义" class="headerlink" title="服务定义"></a>服务定义</h3><p>在 KDS v1 中，global 和 zone 之间在<strong>一个双向 gRPC 流</strong>中进行资源同步，KDS 服务定义如下：</p>
-<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">MultiplexService</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> StreamMessage(stream Message) <span class="keyword">returns</span> (stream Message)</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">Message</span> </span>&#123;</span><br><span class="line">  <span class="keyword">oneof</span> value &#123;</span><br><span class="line">    envoy.api.v2.DiscoveryRequest legacy_request = <span class="number">1</span>;</span><br><span class="line">    envoy.api.v2.DiscoveryResponse legacy_response = <span class="number">2</span>;</span><br><span class="line">    envoy.service.discovery.v3.DiscoveryRequest request = <span class="number">3</span>;</span><br><span class="line">    envoy.service.discovery.v3.DiscoveryResponse response = <span class="number">4</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h3><p>在 zone kuma-cp 和 global kuma-cp 建立连接后：</p>
-<ul>
-<li><p>会<strong>创建 Session 对象</strong>，并启动两个协程用于<strong>读写 gRPC streaming</strong>。Session 底层抽象分离了 serverStream 和 clientStream 并实现了基于 buffer 的 streaming，用于表示 global 到 zone 和 zone 到 global 的连接。</p>
-</li>
-<li><p>接着<strong>调用 OnSessionStarted 回调函数</strong>，开启两个协程用于表示 server（global kuma-cp）和 client（global kuma-cp）。</p>
-<ul>
-<li><p>server 实现了 xDS 服务器，用于响应客户端的 xDS 请求。</p>
-</li>
-<li><p>client 在建立时：</p>
-<ul>
-<li>首先对所有需要从 zone 到 global（ZoneToGlobal）的资源发起 DiscoveryRequest。</li>
-<li>接收 xDS 响应，并同步资源到缓存中。</li>
-</ul>
-</li>
-<li><p>server 和 client 所有读写的数据，均从 serverStream 和 clientStream 中读取/发送。</p>
-</li>
-</ul>
-</li>
-</ul>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128202501932.png" alt="image-20240128202501932"></p>
-<h2 id="KDS-v2"><a href="#KDS-v2" class="headerlink" title="KDS v2"></a>KDS v2</h2><h3 id="为什么引入-KDS-v2"><a href="#为什么引入-KDS-v2" class="headerlink" title="为什么引入 KDS v2"></a>为什么引入 KDS v2</h3><p>为什么要重新设计 KDS v2，因为 KDS v1 实现非常复杂并且可能存在一些 bug（如 <a target="_blank" rel="noopener" href="https://github.com/kumahq/kuma/pull/5373">issues #5373</a>）。KDS v2 主要的变化如下：</p>
-<ul>
-<li>分离 kds 中 zone 和 global 之间流的共用（这引入了复杂性和 bug）。</li>
-<li>当数据从 zone 同步到 global 时，使用<strong>增量更新</strong>而不是全量更新。</li>
-</ul>
-<p>KDS v1 使用<strong>一个</strong>双向流从同步 zone 和 global 之间的资源。KDS v2 引入 2 个<strong>独立</strong>的 RPC 来同步资源来简化逻辑，将简化逻辑和可读性，并且使用<strong>增量更新 Delta xDS</strong>。</p>
-<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">KDSSyncService</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> GlobalToZoneSync(stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span></span><br><span class="line"><span class="function">  <span class="keyword">rpc</span> ZoneToGlobalSync(stream envoy.service.discovery.v3.DeltaDiscoveryResponse)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>KDS v1 zone 向 global 发送 DiscoveryRequest 并等待资源的更新通知。global 将状态存储在缓存中，并在发生变化时发送响应。在 global 到 zone 同步的情况下效果很好，但在<strong>大型部署中更多的流量来自从 zone 到 global 的同步</strong>。每当有变化时，zone 控制平面需要将所有数据平面资源发送到 global。所以，KDS v2 使用 delta xDS，可以用<strong>更高效的方式同步资源</strong>。</p>
-<h3 id="服务定义-1"><a href="#服务定义-1" class="headerlink" title="服务定义"></a>服务定义</h3><p>KDS v2 分离出了两个接口，GlobalToZoneSync 和 ZoneToGlobalSync，用于 global 和 zone 之间的资源同步，使用 delta xDS。</p>
-<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// KDSSyncService is a service exposed by the control-plane for the</span></span><br><span class="line"><span class="comment">// synchronization of the resources between zone and global control-plane.</span></span><br><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">KDSSyncService</span> </span>&#123;</span><br><span class="line">  <span class="comment">// GlobalToZoneSync is logically a service exposed by global control-plane</span></span><br><span class="line">  <span class="comment">// that allows zone control plane to connect and synchronize resources from</span></span><br><span class="line">  <span class="comment">// the global control-plane to the zone control-plane. It uses delta xDS from</span></span><br><span class="line">  <span class="comment">// go-control-plane and responds only with the changes to the resources.</span></span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> GlobalToZoneSync(stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream envoy.service.discovery.v3.DeltaDiscoveryResponse)</span>;</span><br><span class="line">  <span class="comment">// ZoneToGlobalSync is logically a service exposed by global control-plane</span></span><br><span class="line">  <span class="comment">// that allows zone control plane to connect and synchronize resources to</span></span><br><span class="line">  <span class="comment">// the global control-plane. It uses delta xDS from go-control-plane and</span></span><br><span class="line">  <span class="comment">// responds only with the changes to the resources.</span></span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> ZoneToGlobalSync(stream envoy.service.discovery.v3.DeltaDiscoveryResponse)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream envoy.service.discovery.v3.DeltaDiscoveryRequest)</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="流程-1"><a href="#流程-1" class="headerlink" title="流程"></a>流程</h3><p>GlobalToZoneSync 和 ZoneToGobalSync 在连接开始时，都从 EventBus 订阅了 ZoneWentOffline 事件，接着向 EventBus 发送 ZoneOpenStream 事件（用于通知 HealthCheck 对新的 zone 和 的健康检查），<strong>用于结束与 zone 之间的连接</strong>（如正常结束，发生错误，健康检查超时）。</p>
-<ul>
-<li><p>在 GlobalToZoneSync 方法中，接着调用 OnGlobalToZoneSyncConnect 回调函数：</p>
-<ul>
-<li><strong>开启 delta xDS 服务器</strong>，用于响应 zone 到 global 对 GlobalToZone 资源的 xDS 请求。</li>
-</ul>
-</li>
-<li><p>ZoneToGobalSync 方法中，调用 OnGlobalToZoneSyncConnect 回调函数：</p>
-<ul>
-<li><strong>对所有 ZoneToGlobal 资源</strong>发起 DeltaDiscoveryRequest 请求。</li>
-<li>接收 xDS 响应，并<strong>同步</strong>资源到缓存中。</li>
-</ul>
-</li>
-</ul>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128201819505.png" alt="image-20240128201819505"></p>
-<h3 id="其他服务"><a href="#其他服务" class="headerlink" title="其他服务"></a>其他服务</h3><h4 id="ZoneWatch"><a href="#ZoneWatch" class="headerlink" title="ZoneWatch"></a>ZoneWatch</h4><p>ZoneWatch 订阅 ZoneOpenStream 事件，用于添加活跃的 zone 列表，并通知 zone kuma-cp 下线。</p>
-<ul>
-<li>每次都会轮询所有的 zone，检查上一次发送 HealthCheck 请求的时间是否超时。</li>
-<li>如果超时，则会发送 ZoneWentOffline 事件，通知 KDS 服务器终止与 zone kuma-cp 的连接。</li>
-</ul>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128210831447.png" alt="image-20240128210831447"></p>
-<h4 id="GlobalKDSService"><a href="#GlobalKDSService" class="headerlink" title="GlobalKDSService"></a>GlobalKDSService</h4><p><strong>Kuma 提供在在 Global Zone 上获取 zone xDS 配置、状态等信息的 API</strong>，所以需要通过 GlobalKDSService 收集 zone 的信息，并暴露方法以进行健康检查。</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-KDS/image-20240128210844323.png" alt="image-20240128210844323"></p>
-
+          <h1 id="内存区域"><a href="#内存区域" class="headerlink" title="内存区域"></a>内存区域</h1><p>JDK 1.8 和之前的 JVM 内存区域有所不同。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/java-runtime-data-areas-jdk1.7.png" alt="Java 运行时数据区域（JDK1.7）"></p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/java-runtime-data-areas-jdk1.8.png" alt="Java 运行时数据区域（JDK1.8 ）"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
       
     </div>
 
@@ -1264,7 +1366,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/2/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><span class="page-number current">3</span><a class="page-number" href="/page/4/">4</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/4/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/2/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><span class="page-number current">3</span><a class="page-number" href="/page/4/">4</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/4/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1330,20 +1432,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

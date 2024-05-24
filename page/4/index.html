@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%A4%9A%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/25/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%A4%9A%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">Kuma学习笔记 (3) 多集群部署方案</a>
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/" class="post-title-link" itemprop="url">Java面试之IO (3) IO模型</a>
         </h2>
 
         <div class="post-meta">
@@ -181,23 +181,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-25 12:53:03" itemprop="dateCreated datePublished" datetime="2024-01-25T12:53:03+08:00">2024-01-25</time>
+              <time title="创建时间：2024-04-14 14:34:25 / 修改时间：16:06:34" itemprop="dateCreated datePublished" datetime="2024-04-14T14:34:25+08:00">2024-04-14</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -212,87 +206,20 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="多集群部署方案"><a href="#多集群部署方案" class="headerlink" title="多集群部署方案"></a>多集群部署方案</h1><p>Kuma 支持多区域部署，甚至是 Kubernetes 集群和 Universal 集群的混合部署。</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%A4%9A%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/kuma_multizone-20240122105251305.svg" alt="Kuma 服务网格多区域部署，无区域出口"></p>
-<h2 id="运行机制"><a href="#运行机制" class="headerlink" title="运行机制"></a>运行机制</h2><p>在 Kuma 中将服务标记以 <code>kuma.io/service</code> 标签标记，这意味着<strong>运行在任何地方</strong>的数据平面代理可以通过 <code>kuma.io/service</code> 标签值找到该服务。<strong>不同区域上的同一服务</strong>用相同的 <code>kuma.io/service</code> 标记，可以在特定区域发生故障时自动进行<strong>服务故障转移</strong>。</p>
-<p>如果一个新的后端服务 serviceA 部署在区域 zone-b，下面看这两个问题。</p>
-<ol>
-<li>这个新的后端服务如何被通告到 zone-a 区域（区域间的同步）。</li>
-<li>一个来自于 zone-a 区域的请求如何被路由到 zone-b 区域（区域间的请求路由）。</li>
-</ol>
-<h3 id="区域间的信息同步"><a href="#区域间的信息同步" class="headerlink" title="区域间的信息同步"></a>区域间的信息同步</h3><p>当 zone-b 区域中加入了一个新的服务 serviceA 后，区域间的信息同步如下：</p>
+          <p>当应用程序发起 IO 系统调用后，会经历两个阶段：</p>
 <ul>
-<li><strong>zone-b 的控制面</strong>将该服务<strong>加入到 zone-b Ingress 资源的 availableServices（可用服务列表）</strong>中，Ingress 持有可用服务列表，以便可以路由区域外的请求。</li>
-<li><strong>zone-b 的控制平面</strong>也会将<strong>该区域的 Ingress 资源信息</strong>（Ingress 的地址等），<strong>同步到 Global 全局控制平面</strong>。</li>
-<li><strong>全局控制平面</strong>将通过 Kuma 发现服务（<strong>KDS</strong>，基于 xDS 的协议）<strong>将区域入口 Ingress 资源和所有策略传播到所有其他区域</strong>。</li>
+<li>内核等待 I/O 设备准备好数据。</li>
+<li>内核将数据从内核空间拷贝到用户空间。</li>
 </ul>
-<h3 id="区域间的请求路由"><a href="#区域间的请求路由" class="headerlink" title="区域间的请求路由"></a>区域间的请求路由</h3><p>当 zone-a 中有请求想请求 serviceA 服务时：</p>
-<ul>
-<li>首先会进行本地服务和远程服务之间的<strong>负载均衡</strong>，决定发往本区域服务还是远程区域服务。</li>
-<li>如果存在区域 Egress，流量会先通过本地区域 zone-a 出口进行路由，然后再<strong>发送到远程区域 zone-b 入口</strong>。</li>
-<li>远程区域 zone-b 入口收到请求后，<strong>路由</strong>到本地服务 ServiceA。</li>
-</ul>
-<blockquote>
-<p>对于负载平衡，是<strong>根据其后面运行的实例数量进行加权</strong>。因此，具有 2 个实例的区域接收的流量是具有 1 个实例的区域的两倍。可以配置<strong>位置感知的负载均衡</strong>，来支持本地服务实例。</p>
-</blockquote>
-<h2 id="组件"><a href="#组件" class="headerlink" title="组件"></a>组件</h2><p>多区域部署包括：</p>
-<ul>
-<li><strong>全局控制平面（Global kuma-cp）：</strong><ul>
-<li>仅接受来自<strong>区域控制平面的连接</strong>。</li>
-<li>接受对将应用于数据平面代理的<strong>策略的创建和更改</strong>。</li>
-<li><strong>将策略发送到区域控制平面</strong>。</li>
-<li><strong>将区域入口向下发送到区域控制平面</strong>。</li>
-<li>保留所有区域中运行的所有数据平面代理的清单（这样做只是为了可观察性，但对于操作不是必需的）。</li>
-<li><strong>拒绝</strong>来自数据平面代理的连接。</li>
-</ul>
-</li>
-<li><strong>区域控制平面（Zone kuma-cp）：</strong><ul>
-<li>接受来自该<strong>区域内启动的数据平面代理的连接</strong>。</li>
-<li><strong>从全局控制平面接收策略更新</strong>。</li>
-<li>将数据平面代理和区域入口的<strong>更改发送到全局控制平面</strong>。</li>
-<li>使用 XDS 计算配置并<strong>将其发送到本地数据平面代理</strong>。</li>
-<li>更新区域入口中区域中存在的服务列表。</li>
-<li><strong>拒绝</strong>非来自全球的政策变化。</li>
-</ul>
-</li>
-<li><strong>数据平面代理（Envoy）：</strong><ul>
-<li>连接到本地区域控制平面。</li>
-<li>使用 XDS 从<strong>本地区域控制平面接收配置</strong>。</li>
-<li>连接到其他本地数据平面代理。</li>
-<li><strong>连接到区域入口以发送跨区域流量。</strong></li>
-<li><strong>从本地数据平面代理和本地区域入口接收流量。</strong></li>
-</ul>
-</li>
-<li><strong>区域入口（Ingress）：</strong><ul>
-<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
-<li><strong>从其他区域数据平面代理到本地数据平面代理的代理流量。</strong></li>
-</ul>
-</li>
-<li><strong>（可选）区域出口（Egress）：</strong><ul>
-<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
-<li><strong>来自本地数据平面代理的代理流量：</strong><ul>
-<li>来自其他区域的区域入口代理；</li>
-<li>从本地区域到外部服务。</li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-<h1 id="跨区域服务发现和连接"><a href="#跨区域服务发现和连接" class="headerlink" title="跨区域服务发现和连接"></a>跨区域服务发现和连接</h1><h2 id="KDS"><a href="#KDS" class="headerlink" title="KDS"></a>KDS</h2><p>在多区域部署中，Kuma 提供了几个重要功能：</p>
-<ul>
-<li>有<strong>两种</strong>控制平面，global 和 zone 控制面。</li>
-<li>一种<strong>新的 DNS</strong>，用于跨集群通信。</li>
-<li>一种<strong>新的 Ingress 数据平面代理</strong>，可以在 Kuma service mesh 实现区域之间的连接。</li>
-</ul>
-<p>在分布式部署中，global 控制平面将负责接受 Kuma 资源，通过原生 Kubernetes CRD 或基于 VM 的部署中的 YAML 来确定服务网格的行为。</p>
-<h3 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h3><p>Global 将负责将这些资源传播到 zone 控制平面。<strong>zone 控制平面和 global 控制平面通过 KDS</strong>（Kuma Discovery Service）以 gRPC（H2）的方式进行<strong>资源的同步</strong>。Zone 控制面还会接收来自于数据面的请求，zone 控制面和其下的所有控制平面代理属于同一区域。</p>
-<p>Zone 控制平面还嵌入<strong>一个 DNS 服务发现</strong>，可用于跨不同区域的服务。</p>
-<h3 id="分层的好处"><a href="#分层的好处" class="headerlink" title="分层的好处"></a>分层的好处</h3><p>global 和 zone 架构有几个好处：</p>
-<ul>
-<li>可以通过拓展 zone 控制平面来独立拓展每个区域，并且在某个区域出现问题的时候<strong>实现 HA 故障转移</strong>。</li>
-<li><strong>没有单点故障</strong>。即使 global 控制平面发生故障，仍然可以在 zone 控制平面上创建和销毁数据平面代理，并且每个服务的最新地址仍然可以传播到 sidecar 中。</li>
-<li>global 控制平面自动传播每个区域的状态，<strong>同时确保“远程”控制平面了解每个区域的Kuma Ingress，以实现跨区域连接</strong>。</li>
-</ul>
+<h1 id="BIO"><a href="#BIO" class="headerlink" title="BIO"></a>BIO</h1><p>BIO（Blocking IO）属于同步阻塞 IO，<strong>应用程序发起 read 调用后，会一直阻塞</strong>，直到内核把数据拷贝到用户空间。BIO 因为应用程序一直阻塞，直到系统调用返回，所以效率不高。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/6a9e704af49b4380bb686f0c96d33b81~tplv-k3u1fbpfcp-watermark.png" alt="图源：《深入拆解Tomcat &amp; Jetty》"></p>
+<h1 id="NIO"><a href="#NIO" class="headerlink" title="NIO"></a>NIO</h1><p>NIO（Non-blocking/New IO），可以看作是多路复用 IO，Java 在 1.4 中引入 <code>java.nio</code> 包，提供了 <code>Channel</code> , <code>Selector</code>，<code>Buffer</code> 等抽象。</p>
+<p>IO 多路复用模型中，线程首先发起 select 调用，询问内核数据是否准备就绪，等内核把数据准备好了，用户线程再发起 read 调用。read 调用的过程（数据从内核空间 -&gt; 用户空间）还是阻塞的。<strong>IO 多路复用模型，通过减少无效的系统调用，减少了对 CPU 资源的消耗。</strong></p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/88ff862764024c3b8567367df11df6ab~tplv-k3u1fbpfcp-watermark.png" alt="img"></p>
+<p>Java 中的 NIO ，有一个非常重要的<strong>选择器 ( Selector )</strong> 的概念，也可以被称为 <strong>多路复用器</strong>。通过它，只需要一个线程便可以管理多个客户端连接。当客户端数据到了之后，才会为其服务。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/channel-buffer-selector.png" alt="Buffer、Channel和Selector三者之间的关系"></p>
+<h1 id="AIO"><a href="#AIO" class="headerlink" title="AIO"></a>AIO</h1><p>AIO（Asynchronous IO）异步 IO，Java 7 中引入。异步 IO 是基于<strong>事件</strong>和<strong>回调机制</strong>实现的，也就是应用操作之后会直接返回，不会堵塞在那里，当后台处理完成，操作系统会通知相应的线程进行后续的操作。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-3-IO%E6%A8%A1%E5%9E%8B/3077e72a1af049559e81d18205b56fd7~tplv-k3u1fbpfcp-watermark.png" alt="img"></p>
 
       
     </div>
@@ -312,7 +239,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/22/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-2-IO%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -326,7 +253,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/22/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/" class="post-title-link" itemprop="url">Kuma学习笔记 (2) 部署拓扑</a>
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-2-IO%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Java面试之IO (2) IO设计模式</a>
         </h2>
 
         <div class="post-meta">
@@ -335,23 +262,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-22 10:40:35" itemprop="dateCreated datePublished" datetime="2024-01-22T10:40:35+08:00">2024-01-22</time>
+              <time title="创建时间：2024-04-14 14:34:15 / 修改时间：16:12:18" itemprop="dateCreated datePublished" datetime="2024-04-14T14:34:15+08:00">2024-04-14</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -366,177 +287,34 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>Kuma 提供的部署模式在 service mesh 领域非常独特，有两种部署模式：</p>
-<ul>
-<li><strong>独立式：</strong>Kuma 的默认部署模型具有一个控制平面（可以水平扩展）和许多直接与其连接的数据平面。</li>
-<li><strong>多区域：</strong>Kuma 的高级部署模型<strong>支持多个 Kubernetes 或基于 VM 的区域</strong>，或在 Kubernetes 和 VM 上运行的<strong>混合</strong>服务网格。</li>
-</ul>
-<h1 id="独立部署"><a href="#独立部署" class="headerlink" title="独立部署"></a>独立部署</h1><p>这是 Kuma 最简单的部署模式，也是默认的部署模式。</p>
-<ul>
-<li><strong>控制平面</strong>：有一种可以水平扩展的控制平面部署。</li>
-<li><strong>数据平面代理</strong>：数据平面代理连接到控制平面，无论部署在何处。</li>
-<li><strong>服务连接性</strong>：每个数据平面代理都必须能够连接到每个其他数据平面代理，无论它们部署在何处。</li>
-</ul>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/flat-diagram.png" alt="img"></p>
-<p>独立部署模式下，有一定的<strong>局限性：</strong></p>
-<ul>
-<li><strong>要求</strong>所有的数据平面代理与<strong>其他所有</strong>的数据平面代理<strong>都能进行通信</strong>。</li>
-<li>独立部署只能<strong>连接到一个集群</strong>。</li>
-<li>无法混合 Universal 和 Kubernetes 集群工作负载。</li>
-</ul>
-<h2 id="组件"><a href="#组件" class="headerlink" title="组件"></a>组件</h2><p>独立部署包括：</p>
-<ul>
-<li>控制平面（kuma-cp）：<ul>
-<li>接受来自数据平面代理的连接。</li>
-<li>接受对将应用于数据平面代理的策略的创建和更改。</li>
-<li>保存所有正在运行的数据平面代理的清单。</li>
-<li>使用 XDS 将配置发送到数据平面代理。</li>
-</ul>
-</li>
-<li>数据平面代理（envoy）：<ul>
-<li>连接到区域控制平面。</li>
-<li>使用 XDS 从控制平面接收配置。</li>
-<li>连接到其他数据平面代理。</li>
-</ul>
-</li>
-</ul>
-<h2 id="失效模式"><a href="#失效模式" class="headerlink" title="失效模式"></a>失效模式</h2><p><strong>控制平面离线：</strong></p>
-<ul>
-<li><strong>新的数据平面代理将无法加入网格</strong>。这包括通过自动部署机制（例如滚动更新过程）新创建的新实例（Pod/VM），这意味着控制平面连接故障可能会阻止应用程序的更新和创建新实例的事件。</li>
-<li>在启用 mTLS 的网格上，数据平面代理可能<strong>无法</strong>在到期（默认为 24 小时）之前<strong>刷新其客户端证书</strong>，从而导致来自/流向该数据平面的流量失败。</li>
-<li>数据平面代理<strong>配置将不会更新</strong>。</li>
-<li>数据平面代理之间的<strong>通信仍然有效</strong>。</li>
-</ul>
-<h1 id="多区域部署"><a href="#多区域部署" class="headerlink" title="多区域部署"></a>多区域部署</h1><p>Kuma 支持多区域部署，甚至是 Kubernetes 集群和 Universal 集群的混合部署。</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%83%A8%E7%BD%B2%E6%8B%93%E6%89%91/kuma_multizone-20240122105251305.svg" alt="Kuma 服务网格多区域部署，无区域出口"></p>
-<h2 id="运行机制"><a href="#运行机制" class="headerlink" title="运行机制"></a>运行机制</h2><p>在 Kuma 中将服务标记以 <code>kuma.io/service</code> 标签标记，这意味着<strong>运行在任何地方</strong>的数据平面代理可以通过 <code>kuma.io/service</code> 标签值找到该服务。<strong>不同区域上的同一服务</strong>用相同的 <code>kuma.io/service</code> 标记，可以在特定区域发生故障时自动进行<strong>服务故障转移</strong>。</p>
-<p>如果一个新的后端服务 serviceA 部署在区域 zone-b，下面看这两个问题。</p>
-<ol>
-<li>这个新的后端服务如何被通告到 zone-a 区域（区域间的同步）。</li>
-<li>一个来自于 zone-a 区域的请求如何被路由到 zone-b 区域（区域间的请求路由）。</li>
-</ol>
-<h3 id="区域间的信息同步"><a href="#区域间的信息同步" class="headerlink" title="区域间的信息同步"></a>区域间的信息同步</h3><p>当 zone-b 区域中加入了一个新的服务 serviceA 后，区域间的信息同步如下：</p>
-<ul>
-<li><strong>zone-b 的控制面</strong>将该服务<strong>加入到 zone-b Ingress 资源的 availableServices（可用服务列表）</strong>中，Ingress 持有可用服务列表，以便可以路由区域外的请求。</li>
-<li><strong>zone-b 的控制平面</strong>也会将<strong>该区域的 Ingress 资源信息</strong>（Ingress 的地址等），<strong>同步到 Global 全局控制平面</strong>。</li>
-<li><strong>全局控制平面</strong>将通过 Kuma 发现服务（<strong>KDS</strong>，基于 xDS 的协议）<strong>将区域入口 Ingress 资源和所有策略传播到所有其他区域</strong>。</li>
-</ul>
-<h3 id="区域间的请求路由"><a href="#区域间的请求路由" class="headerlink" title="区域间的请求路由"></a>区域间的请求路由</h3><p>当 zone-a 中有请求想请求 serviceA 服务时：</p>
-<ul>
-<li>首先会进行本地服务和远程服务之间的<strong>负载均衡</strong>，决定发往本区域服务还是远程区域服务。</li>
-<li>如果存在区域 Egress，流量会先通过本地区域 zone-a 出口进行路由，然后再<strong>发送到远程区域 zone-b 入口</strong>。</li>
-<li>远程区域 zone-b 入口收到请求后，<strong>路由</strong>到本地服务 ServiceA。</li>
-</ul>
+          <h1 id="IO-设计模式"><a href="#IO-设计模式" class="headerlink" title="IO 设计模式"></a>IO 设计模式</h1><p>在 Java IO 中，所用到的设计模式总结。</p>
+<h2 id="装饰器模式"><a href="#装饰器模式" class="headerlink" title="装饰器模式"></a>装饰器模式</h2><p><strong>装饰器（Decorator）模式</strong> 可以在<strong>不改变原有对象</strong>的情况下<strong>拓展</strong>其功能。</p>
+<p>对于字节流，FilterInputStream 和 FilterOutputStream 是装饰器模式的核心，用于增强 InputStream 和 OutputStream 子类对象的功能。</p>
+<p>对于装饰器类而言，构造器的输入为被装饰类，同时可以嵌套多个装饰器。所以，装<strong>饰器类需要跟原始类继承相同的抽象类或者实现相同的接口</strong>。</p>
 <blockquote>
-<p>对于负载平衡，是<strong>根据其后面运行的实例数量进行加权</strong>。因此，具有 2 个实例的区域接收的流量是具有 1 个实例的区域的两倍。可以配置<strong>位置感知的负载均衡</strong>，来支持本地服务实例。</p>
+<p>举例，BufferedInputStream 为 InputStream 提供了缓冲功能，ZipOutputStream 为 OutputStream 提供了 zip 压缩功能，他们的构造函数都是输出一个 InputStream 或者 OutputStream。</p>
 </blockquote>
-<h2 id="组件-1"><a href="#组件-1" class="headerlink" title="组件"></a>组件</h2><p>多区域部署包括：</p>
+<h2 id="适配器模式"><a href="#适配器模式" class="headerlink" title="适配器模式"></a>适配器模式</h2><p><strong>适配器（Adapter Pattern）模式</strong> 主要用于接口互不兼容的类的协调工作，适配器模式中存在被适配的对象或者类称为<strong>适配者(Adaptee)</strong> ，作用于适配者的对象或者类称为<strong>适配器(Adapter)</strong> 。适配器分为对象适配器和类适配器。类适配器使用继承关系来实现，对象适配器使用组合关系来实现。</p>
+<p>IO 流中的字符流和字节流的接口不同，它们之间可以协调工作就是基于适配器模式来做的，更准确点来说是对象适配器。<strong>通过适配器</strong>，可以<strong>将字节流对象适配成一个字符流对象</strong>，可以直接通过字节流对象来读取或者写入字符数据。</p>
+<h3 id="InputStreamReader-OutputStreamWriter"><a href="#InputStreamReader-OutputStreamWriter" class="headerlink" title="InputStreamReader OutputStreamWriter"></a>InputStreamReader OutputStreamWriter</h3><p>之前提到的 <strong>InputStreamReader</strong> 和 <strong>OutputStreamWriter</strong> 就是两个适配器，是<strong>字节流和字符流之间的桥梁</strong>。</p>
 <ul>
-<li><strong>全局控制平面（Global kuma-cp）：</strong><ul>
-<li>仅接受来自<strong>区域控制平面的连接</strong>。</li>
-<li>接受对将应用于数据平面代理的<strong>策略的创建和更改</strong>。</li>
-<li><strong>将策略发送到区域控制平面</strong>。</li>
-<li><strong>将区域入口向下发送到区域控制平面</strong>。</li>
-<li>保留所有区域中运行的所有数据平面代理的清单（这样做只是为了可观察性，但对于操作不是必需的）。</li>
-<li><strong>拒绝</strong>来自数据平面代理的连接。</li>
+<li>InputStreamReader 使用 StreamDecoder（流解码器）对字节进行解码，<strong>实现字节流到字符流的转换</strong>。</li>
+<li>OutputStreamWriter 使用 StreamEncoder（流编码器）对字节进行编码，实现字符流到字节流的转换。</li>
 </ul>
-</li>
-<li><strong>区域控制平面（Zone kuma-cp）：</strong><ul>
-<li>接受来自该<strong>区域内启动的数据平面代理的连接</strong>。</li>
-<li><strong>从全局控制平面接收策略更新</strong>。</li>
-<li>将数据平面代理和区域入口的<strong>更改发送到全局控制平面</strong>。</li>
-<li>使用 XDS 计算配置并<strong>将其发送到本地数据平面代理</strong>。</li>
-<li>更新区域入口中区域中存在的服务列表。</li>
-<li><strong>拒绝</strong>非来自全球的政策变化。</li>
-</ul>
-</li>
-<li><strong>数据平面代理（Envoy）：</strong><ul>
-<li>连接到本地区域控制平面。</li>
-<li>使用 XDS 从<strong>本地区域控制平面接收配置</strong>。</li>
-<li>连接到其他本地数据平面代理。</li>
-<li><strong>连接到区域入口以发送跨区域流量。</strong></li>
-<li><strong>从本地数据平面代理和本地区域入口接收流量。</strong></li>
-</ul>
-</li>
-<li><strong>区域入口（Ingress）：</strong><ul>
-<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
-<li><strong>从其他区域数据平面代理到本地数据平面代理的代理流量。</strong></li>
-</ul>
-</li>
-<li><strong>（可选）区域出口（Egress）：</strong><ul>
-<li><strong>从本地区域控制平面接收 XDS 配置。</strong></li>
-<li><strong>来自本地数据平面代理的代理流量：</strong><ul>
-<li>来自其他区域的区域入口代理；</li>
-<li>从本地区域到外部服务。</li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-<h2 id="失效模式-1"><a href="#失效模式-1" class="headerlink" title="失效模式"></a>失效模式</h2><h3 id="全局控制平面离线"><a href="#全局控制平面离线" class="headerlink" title="全局控制平面离线"></a>全局控制平面离线</h3><ul>
-<li><strong>政策更新将不可能</strong>。</li>
-<li><strong>区域之间服务列表的更改不会传播：</strong><ul>
-<li>在其他区域中将无法发现新服务。</li>
-<li>从区域中删除的服务在其他区域中仍将显示为可用。</li>
-</ul>
-</li>
-<li><strong>无法禁用或删除区域</strong>。</li>
-</ul>
-<blockquote>
-<p><strong>本地和跨区域</strong>应用程序流量均不会受到此故障情况的影响；数据平面代理更改将在其区域内传播。</p>
-</blockquote>
-<h3 id="区域控制平面离线"><a href="#区域控制平面离线" class="headerlink" title="区域控制平面离线"></a>区域控制平面离线</h3><ul>
-<li><strong>新的数据平面代理将无法加入网格</strong>。这包括通过自动部署机制（例如滚动更新过程）新创建的新实例（Pod/VM），这意味着控制平面连接故障可能会阻止应用程序的更新和创建新实例的事件。</li>
-<li>在启用 mTLS 的网格上，数据平面代理可能无法在到期（默认为 24 小时）之前刷新其客户端证书，从而导致来自/流向该数据平面的流量失败。</li>
-<li>数据平面代理配置将不会更新。</li>
-<li>数据平面代理之间的通信仍然有效。</li>
-<li>跨区域通信仍然有效。</li>
-<li>其他区域不受影响。</li>
-</ul>
-<blockquote>
-<p>这种故障案例，<strong>与独立部署的控制平面离线故障一致</strong>。</p>
-</blockquote>
-<h3 id="全局和区域控制平面之间的通信失效"><a href="#全局和区域控制平面之间的通信失效" class="headerlink" title="全局和区域控制平面之间的通信失效"></a>全局和区域控制平面之间的通信失效</h3><p>控制平面之间的配置错误或网络连接问题可能会发生这种情况：</p>
-<ul>
-<li><p><strong>区域内</strong>的操作是<strong>正常</strong>的（数据平面代理可以加入、离开，所有配置都将正确更新和发送）。</p>
-</li>
-<li><p>策略更改<strong>不会传播到区域控制平面</strong>。</p>
-</li>
-<li><p><strong>区域 Ingress，区域 Egress 和数据平面的变更不会传播到全局控制平面：</strong></p>
-<ul>
-<li>数据平面代理的全局清单视图将过时（这只会影响可观察性）。</li>
-<li>其他区域不会看到该区域内注册的新服务。</li>
-<li>其他区域不会看到该区域不再运行某服务。</li>
-<li>其他区域不会看到本地区域中运行的每个服务的实例数量发生变化。</li>
-</ul>
-</li>
-<li><p><strong>全局控制平面不会将其他区域入口的更改发送到该区域：</strong></p>
-<ul>
-<li>本地数据平面代理不会看到在其他区域注册的新服务。</li>
-<li>本地数据平面代理将看不到其他区域不再运行某服务。</li>
-<li>本地数据平面代理不会看到在其他区域中运行的每个服务的实例数量的变化。</li>
-</ul>
-</li>
-</ul>
-<blockquote>
-<p><strong>本地和跨区域</strong>应用程序流量均不会受到此故障情况的影响。</p>
-</blockquote>
-<h3 id="两个区域之间的通信失效"><a href="#两个区域之间的通信失效" class="headerlink" title="两个区域之间的通信失效"></a>两个区域之间的通信失效</h3><p>如果存在区域之间的网络连接问题，可能是以下原因：</p>
-<ul>
-<li>在控制平面和来自其他区域的区域入口之间。</li>
-<li>在控制平面和区域出口之间（如果存在）。</li>
-<li>在区域出口（如果存在）和其他区域的区域入口之间。</li>
-<li>区域的所有区域出口实例（如果存在）均已关闭。</li>
-<li>区域的所有区域入口实例均已关闭。</li>
-</ul>
-<p>当它发生时：</p>
-<ul>
-<li>每个区域<strong>内</strong>的通信和操作<strong>不受影响</strong>。</li>
-<li>每个区域<strong>之间</strong>的通信将<strong>失败</strong>。</li>
-</ul>
-<blockquote>
-<p>通过<strong>配置正确的弹性设置</strong>（重试、探针、局部感知负载均衡、断路器），可以<strong>快速切断故障区域</strong>并将流量重新路由到另一个区域。</p>
-</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">InputStreamReader</span> <span class="keyword">extends</span> <span class="title">Reader</span> </span>&#123;</span><br><span class="line"> <span class="comment">//用于解码的对象</span></span><br><span class="line"> <span class="keyword">private</span> <span class="keyword">final</span> StreamDecoder sd;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">InputStreamReader</span><span class="params">(InputStream in)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>(in);</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// 获取 StreamDecoder 对象</span></span><br><span class="line">            sd = StreamDecoder.forInputStreamReader(in, <span class="keyword">this</span>, (String)<span class="keyword">null</span>);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (UnsupportedEncodingException e) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> Error(e);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 使用 StreamDecoder 对象做具体的读取工作</span></span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">read</span><span class="params">()</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> sd.read();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="工厂模式"><a href="#工厂模式" class="headerlink" title="工厂模式"></a>工厂模式</h2><p>工厂模式用于创建对象，NIO 中大量用到了工厂模式，比如 <code>Files</code> 类的 <code>newInputStream</code> 方法用于创建 <code>InputStream</code> 对象（静态工厂）、 <code>Paths</code> 类的 <code>get</code> 方法创建 <code>Path</code> 对象（静态工厂）、<code>ZipFileSystem</code> 类（<code>sun.nio</code>包下的类，属于 <code>java.nio</code> 相关的一些内部实现）的 <code>getPath</code> 的方法创建 <code>Path</code> 对象（简单工厂）。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">InputStream is = Files.newInputStream(Paths.get(generatorLogoPath))</span><br></pre></td></tr></table></figure>
+
+<h2 id="观察者模式"><a href="#观察者模式" class="headerlink" title="观察者模式"></a>观察者模式</h2><p>NIO 中的文件目录监听服务使用到了观察者模式。NIO 中的文件目录监听服务基于 <code>WatchService</code> 接口和 <code>Watchable</code> 接口。<code>WatchService</code> 属于观察者，<code>Watchable</code> 属于被观察者。使用方法如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建 WatchService 对象</span></span><br><span class="line">WatchService watchService = FileSystems.getDefault().newWatchService();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化一个被监控文件夹的 Path 类:</span></span><br><span class="line">Path path = Paths.get(<span class="string">&quot;workingDirectory&quot;</span>);</span><br><span class="line"><span class="comment">// 将这个 path 对象注册到 WatchService（监控服务） 中去</span></span><br><span class="line">WatchKey watchKey = path.register(watchService, StandardWatchEventKinds...);</span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> ((key = watchService.take()) != <span class="keyword">null</span>) &#123;</span><br><span class="line">    <span class="keyword">for</span> (WatchEvent&lt;?&gt; event : key.pollEvents()) &#123;</span><br><span class="line">      <span class="comment">// 可以调用 WatchEvent 对象的方法做一些事情比如输出事件的具体上下文信息</span></span><br><span class="line">    &#125;</span><br><span class="line">    key.reset();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Watchable"><a href="#Watchable" class="headerlink" title="Watchable"></a>Watchable</h3><p>Path 实现了 Watchable 接口，说明 Path 是被观察者。Watchable 接口中，watcher 指定了观察者，events 指定了被观察的事件（监听事件）。常用的监听事件：<code>StandardWatchEventKinds.ENTRY_CREATE</code>：文件创建；<code>StandardWatchEventKinds.ENTRY_DELETE</code> : 文件删除；<code>StandardWatchEventKinds.ENTRY_MODIFY</code> : 文件修改。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Path</span></span></span><br><span class="line"><span class="class">    <span class="keyword">extends</span> <span class="title">Comparable</span>&lt;<span class="title">Path</span>&gt;, <span class="title">Iterable</span>&lt;<span class="title">Path</span>&gt;, <span class="title">Watchable</span></span>&#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Watchable</span> </span>&#123;</span><br><span class="line">    <span class="function">WatchKey <span class="title">register</span><span class="params">(WatchService watcher,</span></span></span><br><span class="line"><span class="params"><span class="function">                      WatchEvent.Kind&lt;?&gt;[] events,</span></span></span><br><span class="line"><span class="params"><span class="function">                      WatchEvent.Modifier... modifiers)</span></span></span><br><span class="line"><span class="function">        <span class="keyword">throws</span> IOException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="WatchService"><a href="#WatchService" class="headerlink" title="WatchService"></a>WatchService</h3><p>WatchService 内部<strong>通过一个 daemon thread（守护线程）采用定期轮询的方式来检测文件的变化</strong>，伪代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PollingWatchService</span></span></span><br><span class="line"><span class="class">    <span class="keyword">extends</span> <span class="title">AbstractWatchService</span></span></span><br><span class="line"><span class="class"></span>&#123;</span><br><span class="line">    <span class="comment">// 定义一个 daemon thread（守护线程）轮询检测文件变化</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ScheduledExecutorService scheduledExecutor;</span><br><span class="line"></span><br><span class="line">    PollingWatchService() &#123;</span><br><span class="line">        scheduledExecutor = Executors</span><br><span class="line">            .newSingleThreadScheduledExecutor(<span class="keyword">new</span> ThreadFactory() &#123;</span><br><span class="line">                 <span class="meta">@Override</span></span><br><span class="line">                 <span class="function"><span class="keyword">public</span> Thread <span class="title">newThread</span><span class="params">(Runnable r)</span> </span>&#123;</span><br><span class="line">                     Thread t = <span class="keyword">new</span> Thread(r);</span><br><span class="line">                     t.setDaemon(<span class="keyword">true</span>);</span><br><span class="line">                     <span class="keyword">return</span> t;</span><br><span class="line">                 &#125;&#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">enable</span><span class="params">(Set&lt;? extends WatchEvent.Kind&lt;?&gt;&gt; events, <span class="keyword">long</span> period)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">      <span class="comment">// 更新监听事件</span></span><br><span class="line">      <span class="keyword">this</span>.events = events;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 开启定期轮询</span></span><br><span class="line">      Runnable thunk = <span class="keyword">new</span> Runnable() &#123; <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123; poll(); &#125;&#125;;</span><br><span class="line">      <span class="keyword">this</span>.poller = scheduledExecutor</span><br><span class="line">        .scheduleAtFixedRate(thunk, period, period, TimeUnit.SECONDS);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 
       
     </div>
@@ -556,7 +334,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/01/21/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -570,7 +348,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2024/01/21/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Kuma学习笔记 (1) 概述</a>
+            <a href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/" class="post-title-link" itemprop="url">Java面试之IO (1) IO流</a>
         </h2>
 
         <div class="post-meta">
@@ -579,23 +357,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2024-01-21 19:42:41" itemprop="dateCreated datePublished" datetime="2024-01-21T19:42:41+08:00">2024-01-21</time>
+              <time title="创建时间：2024-04-14 13:49:47 / 修改时间：14:34:34" itemprop="dateCreated datePublished" datetime="2024-04-14T13:49:47+08:00">2024-04-14</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -610,139 +382,39 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p><a target="_blank" rel="noopener" href="https://kuma.io/">Kuma</a> 是一个与平台无关的开源控制平面，用于 service mesh 和微服务的管理，支持 Kubernetes，VM 和 裸机环境。Kuma 有以下特性：</p>
+          <p>IO 流在 Java 中分为输入流和输出流，按照传输单位（数据处理方式）又分为字节流和字符流。Java 有四个 IO 流抽象类基类：</p>
 <ul>
-<li><strong>兼容通用环境和 Kubernetes 环境：</strong>与平台无关，可以在任何地方运行和操作。</li>
-<li><strong>独立和多区域：</strong>可以独立部署，也支持多区域、多集群。</li>
-<li><strong>多服务网格：</strong>可以通过一个控制平面管理多个单独的服务网格，降低整个组织的运维成本。</li>
-<li><strong>基于属性的策略：</strong>允许通过 tag 细粒度的选择 source 和 destination 策略。</li>
-<li><strong>基于 Envoy：</strong>采用 Envoy 作为数据平面。</li>
-<li><strong>水平扩展</strong>。</li>
+<li> InputStream/OutputStream：字节输入流，字节输出流。</li>
+<li>Reader/Writer：字符输入流，字符输出流。</li>
 </ul>
-<p>Kuma 多集群部署示例图如下：</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/kuma_multizone.svg" alt="Kuma 服务网格多区域部署"></p>
-<h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><h3 id="Sidecar"><a href="#Sidecar" class="headerlink" title="Sidecar"></a>Sidecar</h3><p>在编写网络应用程序时，会遇到可观测性、流量管理、安全性等共性问题。可以当然可以采用 sdk 的形式去将这些问题集成在框架中，但这是和语言相关的，必须为每一种编程语言提供这样的 sdk，并且需要考虑不同语言之间的兼容性问题。</p>
-<p>一个想法是<strong>采用 sidecar 代理</strong>：将所有网络连接中可观测性、流量管理等问题，<strong>委托给进程外的 sidecar 完成</strong>，sidecar 接管所有传入和穿出的请求和响应。开发人员可以专注于应用程序本身，而不是处理复杂的网络问题上去。</p>
-<p>由于一个系统具有多个服务，每一个服务有许多实例，这要求具有相同数量的代理。因此，sidecar 代理模型<strong>需要</strong>一个<strong>控制平面</strong>，允许<strong>动态配置代理</strong>的行为，而无需手动配置它们。代理与控制平面的连接以接收新配置，控制平面也为代理提供最新的配置。</p>
+<h1 id="字节流"><a href="#字节流" class="headerlink" title="字节流"></a>字节流</h1><h2 id="InputStream"><a href="#InputStream" class="headerlink" title="InputStream"></a>InputStream</h2><p>InputStream 用于从源头（如文件）读取字节数据到内存中，InputStream 的常用用法：</p>
+<ul>
+<li><code>read()</code>：返回输入流中下一个字节的数据。返回的值介于 0 到 255 之间。如果未读取任何字节，则代码返回 <code>-1</code> ，表示文件结束。</li>
+<li><code>read(byte b[ ])</code> : 从输入流中读取一些字节存储到数组 <code>b</code> 中。如果数组 <code>b</code> 的长度为零，则不读取。如果没有可用字节读取，返回 <code>-1</code>。如果有可用字节读取，则最多读取的字节数最多等于 <code>b.length</code> ， 返回读取的字节数。这个方法等价于 <code>read(b, 0, b.length)</code>。</li>
+<li><code>read(byte b[], int off, int len)</code>：在 <code>read(byte b[ ])</code> 方法的基础上增加了 <code>off</code> 参数（偏移量）和 <code>len</code> 参数（要读取的最大字节数）。</li>
+<li><code>skip(long n)</code>：忽略输入流中的 n 个字节 ,返回实际忽略的字节数。</li>
+<li><code>available()</code>：返回输入流中可以读取的字节数。</li>
+<li><code>close()</code>：关闭输入流释放相关的系统资源。</li>
+</ul>
+<p>从 Java 9 开始，InputStream 新增加了多个实用的方法：</p>
+<ul>
+<li><code>readAllBytes()</code>：读取输入流中的所有字节，返回字节数组。</li>
+<li><code>readNBytes(byte[] b, int off, int len)</code>：阻塞直到读取 <code>len</code> 个字节。</li>
+<li><code>transferTo(OutputStream out)</code>：将所有字节从一个输入流传递到一个输出流。</li>
+</ul>
+<h3 id="常见-InputStream"><a href="#常见-InputStream" class="headerlink" title="常见 InputStream"></a>常见 InputStream</h3><p>常用的 InputStream 如下：</p>
+<ul>
+<li>FileInputStream：用于读取文件。</li>
+<li>BufferInputStream：带缓冲区的 InputStream，缓冲区缓冲数据，有助于减少 IO。</li>
+<li>DataInputStream：用于读取指定类型数据，如 readBoolean、readInt、readUTF 等。</li>
+<li>ObjectInputStream：用于从输入流中读取 Java 对象（反序列化）。</li>
+</ul>
 <blockquote>
-<p>服务网格包括数据平面和控制平面，通常服务网格出现在 Kubernetes 环境中，但是任何环境（VM 和裸机）上都可以构建服务网格）。</p>
+<p>OnjectInputStream 用于序列化和反序列化的类必须实现 <code>Serializable</code> 接口，对象中如果有属性不想被序列化，使用 <code>transient</code> 修饰。</p>
 </blockquote>
-<h3 id="运行模式"><a href="#运行模式" class="headerlink" title="运行模式"></a>运行模式</h3><p>kuma-cp 是 Kuma 控制面的可执行文件，<strong>支持通用环境和 Kubernetes 环境</strong>：</p>
-<ul>
-<li><strong>在 Kubernetes 上运行：</strong>不需要外部依赖，<strong>利用 K8s API 服务器存储配置</strong>。</li>
-<li><strong>在通用环境上运行：</strong>Kuma 需要 PostgreSQL 数据库作为依赖项，用于存储配置。</li>
-</ul>
-<h1 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h1><p>Kuma 网络由数据平面和控制平面两个部分组成：</p>
-<ul>
-<li><strong>数据平面：</strong>由一个个<strong>应用服务+Sidecar 代理</strong>组成，在数据平面中代理接管网络流量，<strong>Kuma 采用 Envoy 作为数据平面代理</strong>。</li>
-<li><strong>控制平面：</strong>用于<strong>配置数据平面</strong>，独立于数据平面运行。用户可以在控制平面配置策略，控制平面生成数据平面配置并分发到数据平面。Kuma 实现了<a target="_blank" rel="noopener" href="https://www.envoyproxy.io/docs/envoy/latest/api-docs/xds_protocol">Envoy <strong>xDS</strong> API</a> ，以便数据平面代理可以从控制平面检索其配置。</li>
-</ul>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/diagram-06.jpg" alt="img"></p>
-<p>Kuma 按照运行环境的不同，分为 Kubernetes 和通用（universal）两种运行模式。</p>
-<h2 id="Kubernetes-模式"><a href="#Kubernetes-模式" class="headerlink" title="Kubernetes 模式"></a>Kubernetes 模式</h2><p>当在 <strong>Kubernetes</strong> 模式下运行时，Kuma 将其所有状态和配置存储在<strong>底层 Kubernetes API 服务器上</strong>。</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/diagram-08.jpg" alt="img"></p>
-<p>将 Kubernetes 中的服务加入服务网格进行管理的唯一步骤就是<strong>开启 Sidecar 注入</strong>，<code>kuma.io/sidecar-injection: enabled</code> 标签用于将 sidecar 注入到 pod 中。</p>
-<h3 id="Services-和-Pods"><a href="#Services-和-Pods" class="headerlink" title="Services 和 Pods"></a>Services 和 Pods</h3><ul>
-<li><p>对于一个 Kubernetes Service 和关联的 Pod，Kuma 控制面会自动的生成一个注解 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc_&lt;port&gt;</code>，其中 name 和 namespace 还有 port 均来自 Service 信息。</p>
-</li>
-<li><p>某些情况下 Pods 不属于任何的 Service，仅仅是单纯的一个 Pod。在这种情况下，Kuma 会自动生成的注解为 <code>kuma.io/service: &lt;name&gt;_&lt;namespace&gt;_svc</code> ，其中 name 和 namespace 来自于 Pod 资源。</p>
-</li>
-</ul>
-<h2 id="Universal-模式"><a href="#Universal-模式" class="headerlink" title="Universal 模式"></a>Universal 模式</h2><p>在通用模式下运行时，<strong>Kuma 需要 PostgreSQL 数据库来存储其状态</strong>。</p>
-<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E6%A6%82%E8%BF%B0/diagram-09.jpg" alt="img"></p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (8) 控制平面之安全性</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-27 13:42:35" itemprop="dateCreated datePublished" datetime="2023-12-27T13:42:35+08:00">2023-12-27</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>以下是 CA 安全性的概述，分为两个部分：</p>
-<ul>
-<li><p><strong>控制面：</strong>实现了一个 CA 负责为网格中的各个服务签发证书，并将证书颁发给各个服务，具体的做法有两个：</p>
-<ul>
-<li>通过（webhook）<strong>动态准入控制器</strong>的方式，将 CA 的证书挂载到 Pod 里面去，同时添加了环境变量，只需要读取环境变量就可以获取路径了。</li>
-<li>Dubbo 应用通过与 CA 建立双向 TLS 连接（CA 证书已经被挂载到了 Pod 中，所以可以验证 CA 证书），<strong>发送 CSR 请求申请这个 dubbo 应用的证书</strong>，dubbo-cp 会验证客户端的 CSR 请求并签发证书返回给客户端。</li>
-</ul>
-</li>
-<li><p><strong>数据面：</strong>在网格中服务相互之前发起通信的时候，dubbo sdk 会拦截服务请求，采用证书进行双向 TLS 认证并建立一个 TLS 连接，使用该 TLS 连接来在网格中传输数据。</p>
-</li>
-</ul>
-<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/1703656322.png" alt="1703656322"></p>
-<p>在 dubbo-cp 中，要实现一个 CA 要做两方面的事情：</p>
-<ol>
-<li><strong>维护 CA：</strong>维护 CA 的证书状态，存储 CA 证书。</li>
-<li><strong>签发证书：</strong>接受 CSR 请求，为 Dubbo 应用签发证书。</li>
-</ol>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/27/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-8-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8B%E5%AE%89%E5%85%A8%E6%80%A7/#more" rel="contents">
+              <a class="btn" href="/2024/04/14/Java%E9%9D%A2%E8%AF%95%E4%B9%8BIO-1-IO%E6%B5%81/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -766,7 +438,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/11/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -780,7 +452,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (7) 控制平面之dds</a>
+            <a href="/2024/04/11/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/" class="post-title-link" itemprop="url">Java面试之集合 (3) Map</a>
         </h2>
 
         <div class="post-meta">
@@ -790,14 +462,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-12-25 21:55:27" itemprop="dateCreated datePublished" datetime="2023-12-25T21:55:27+08:00">2023-12-25</time>
+              <time title="创建时间：2024-04-11 09:48:46" itemprop="dateCreated datePublished" datetime="2024-04-11T09:48:46+08:00">2024-04-11</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+                <time title="修改时间：2024-04-16 22:30:03" itemprop="dateModified" datetime="2024-04-16T22:30:03+08:00">2024-04-16</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -805,7 +477,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -820,398 +492,124 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>类似于 istio 中的 xDS，在 dubbo-kubernetes 中 dds 组件做了一些<strong>对于 dubbo 规则的监听与分发</strong>。它的<strong>作用</strong>是接受各种 dubbo 规则（留了管控、认证、授权），将规则下发至各个 dubbo 应用，<strong>完成具有 dubbo 特色的服务治理</strong>。即作为控制面，将规则下发到数据面进行应用。</p>
-<p><img src="/../images/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/image-20231225215623017.png" alt="image-20231225215623017"></p>
-<p>对于 dds 而言，当一个客户端连接到 dubbo-cp dds，dubbo 规则的推送主要来自两个方面：</p>
-<ol>
-<li>Informer 机制监听到 CRD 资源发生变化，<strong>主动推送</strong>消息给客户端。</li>
-<li>客户端发生 Request 请求，dds 服务器进行<strong>响应</strong>。</li>
-</ol>
-<p>dds 接口定义如下，因为推送的机制，所以定义为双向 streaming：</p>
-<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">ObserveRequest</span> </span>&#123;</span><br><span class="line">  <span class="built_in">string</span> nonce = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> type = <span class="number">2</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">ObserveResponse</span> </span>&#123;</span><br><span class="line">  <span class="built_in">string</span> nonce = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> type = <span class="number">2</span>;</span><br><span class="line">  <span class="built_in">int64</span> revision = <span class="number">3</span>;</span><br><span class="line">  <span class="keyword">repeated</span> google.protobuf.Any data = <span class="number">4</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">RuleService</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> Observe(stream ObserveRequest)</span></span><br><span class="line"><span class="function">      <span class="keyword">returns</span> (stream ObserveResponse) </span>&#123;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/25/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-7-%E6%8E%A7%E5%88%B6%E5%B9%B3%E9%9D%A2%E4%B9%8Bdds/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/19/LMQ%E5%AE%9E%E7%8E%B0-6-LmqLookup/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/19/LMQ%E5%AE%9E%E7%8E%B0-6-LmqLookup/" class="post-title-link" itemprop="url">LMQ实现 (6) LmqLookup</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-19 20:05:38" itemprop="dateCreated datePublished" datetime="2023-12-19T20:05:38+08:00">2023-12-19</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<h1 id="Lookup"><a href="#Lookup" class="headerlink" title="Lookup"></a>Lookup</h1><p>LMQ Lookup 的功能就是存储 LMQ 分布式<strong>拓扑</strong>结构，为客户端提供<strong>查询</strong>服务。</p>
-<h2 id="拓扑结构"><a href="#拓扑结构" class="headerlink" title="拓扑结构"></a>拓扑结构</h2><p><strong>Lookup 维护了 lmqd，topic 和 channel 之间的拓扑结构</strong>，三者的对应关系如下。其中，lmqd 和 topic 为多对多的关系，topic 和 channel 为一对多的关系。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">lmqd(producer) &lt;--- M:N ---&gt; topic &lt;--- 1:N ---&gt; channel</span><br></pre></td></tr></table></figure>
-
-<h2 id="存储结构"><a href="#存储结构" class="headerlink" title="存储结构"></a>存储结构</h2><p>根据 lookup 维护的拓扑结构，look 主要维护了这样一个注册字典：</p>
+          <h1 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h1><h2 id="HashMap"><a href="#HashMap" class="headerlink" title="HashMap"></a>HashMap</h2><h3 id="HashMap-和-Hashtable-的区别"><a href="#HashMap-和-Hashtable-的区别" class="headerlink" title="HashMap 和 Hashtable 的区别"></a>HashMap 和 Hashtable 的区别</h3><p>HashMap 和 Hashtable 的区别如下：</p>
 <ul>
-<li>字典的键值分为两种类型，channel 和 topic。</li>
-<li>字典的值是对应的所有的生产者（Lmqd）。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> RegistrationDB <span class="keyword">struct</span> &#123;</span><br><span class="line">    sync.RWMutex</span><br><span class="line">    registrationMap <span class="keyword">map</span>[iface.IRegistration]iface.ProducerMap</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>所以，存储结构如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">&#123;topic, topicName1, <span class="string">&quot;&quot;</span>&#125; ---&gt; [&#123;id1: producer1&#125;, &#123;id2: producer2&#125;, ...]</span><br><span class="line">&#123;topic, topicName2, <span class="string">&quot;&quot;</span>&#125; ---&gt; [&#123;id3: producer3&#125;, &#123;id4: producer4&#125;, ...]</span><br><span class="line">...</span><br><span class="line"></span><br><span class="line">&#123;channel, topicName1, channelName1&#125; ---&gt; [&#123;id1: producer1&#125;, &#123;id2: producer2&#125;, ...]</span><br><span class="line">&#123;channel, topicName2, channelName2&#125; ---&gt; [&#123;id3: producer3&#125;, &#123;id4: producer4&#125;, ...]</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/19/LMQ%E5%AE%9E%E7%8E%B0-6-LmqLookup/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-5-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-5-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE/" class="post-title-link" itemprop="url">LMQ实现 (5) 通信协议</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-18 19:51:50" itemprop="dateCreated datePublished" datetime="2023-12-18T19:51:50+08:00">2023-12-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-19 16:47:46" itemprop="dateModified" datetime="2023-12-19T16:47:46+08:00">2023-12-19</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<h1 id="消息格式"><a href="#消息格式" class="headerlink" title="消息格式"></a>消息格式</h1><p>LMQ 中的消息格式包括一个全局唯一的 ID（用分布式雪花 ID 生成的），数据，生产消息的时间戳，重试次数。</p>
-<blockquote>
-<p>如时间戳、重试次数、消息 ID 等消息元数据，随着消息传输给客户端，这样做<strong>简化了客户端</strong>，客户端不需要维护消息的状态。</p>
-</blockquote>
-<p>消息会被序列化为<strong>字节流</strong>（依次以<strong>大端存储</strong>的方式保存消息 ID、时间戳、重试次数、数据），保存在了响应的 message 字段中。</p>
-<blockquote>
-<p>客户端与服务器之间的请求和响应统一采用 Json 进行编码。</p>
-</blockquote>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Message <span class="keyword">struct</span> &#123;</span><br><span class="line">   ID        iface.MessageID <span class="string">`json:&quot;ID&quot;`</span></span><br><span class="line">   Data      []<span class="keyword">byte</span>          <span class="string">`json:&quot;Data&quot;`</span></span><br><span class="line">   Timestamp <span class="keyword">int64</span>           <span class="string">`json:&quot;Timestamp&quot;`</span></span><br><span class="line">   Attempts  <span class="keyword">uint16</span>          <span class="string">`json:&quot;Attempts&quot;`</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// 优先队列中使用到的数据结构</span></span><br><span class="line">   clientID <span class="keyword">uint64</span></span><br><span class="line">   pri      <span class="keyword">int64</span></span><br><span class="line">   index    <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="通信协议"><a href="#通信协议" class="headerlink" title="通信协议"></a>通信协议</h1><p>LMQ 中客户端与 lmqd 的通信协议如下：</p>
-<ul>
-<li>首先客户端进行连接。</li>
-<li>发送 SUB 命令订阅某个 Channel。</li>
-<li>发送 RDY 命令更新可以接收消息的数量。</li>
-<li>LMQ 服务器会持续推送规定数量之内的消息。</li>
-<li>最后客户端返回 FIN 和 REQ 表示消息的接收状态。</li>
-</ul>
-<p><img src="/../images/LMQ%E5%AE%9E%E7%8E%B0-5-%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE/design5.png" alt="nsq protocol"></p>
-<h2 id="客户端流量控制"><a href="#客户端流量控制" class="headerlink" title="客户端流量控制"></a>客户端流量控制</h2><p>通过<strong>推送</strong>数据到客户端最大限度地<strong>提高性能和吞吐量</strong>，而不是等待客户端拉数据。LMQ 的客户端<strong>通过 RDY 状态表示自己准备好接受消息的数量</strong>，这是一种<strong>客户端流量控制</strong>的方法。</p>
-<p>当客户端连接到 lmqd 和并订阅到一个 channel 时，客户端的 RDY 初始化为 0。当客户端的 RDY 状态被更新为大于零时，channel 才开始给这个客户端发送消息。</p>
-<h2 id="消息确认"><a href="#消息确认" class="headerlink" title="消息确认"></a>消息确认</h2><p>客户端在收到消息后，需要<strong>发送 FIN 消息</strong>，表示消息已经成功接受。客户端也可以<strong>返回 REQ 消息</strong>，表示消息接受失败，此条消息重新进行排队。</p>
-<p>当 lmqd 在超时时间内没有接受到 FIN 或者 REQ 消息，会<strong>自动判定客户端超时</strong>，这条消息会重新排队发送。</p>
-<p>通过消息确认机制，可以<strong>保证消息确认被客户端收到</strong>，（在 lmqd 不崩溃的情况下）消息不会丢失。</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/" class="post-title-link" itemprop="url">LMQ实现 (4) 磁盘队列和超时队列</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-18 19:51:31" itemprop="dateCreated datePublished" datetime="2023-12-18T19:51:31+08:00">2023-12-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-21 10:26:51" itemprop="dateModified" datetime="2023-12-21T10:26:51+08:00">2023-12-21</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<h1 id="磁盘队列"><a href="#磁盘队列" class="headerlink" title="磁盘队列"></a>磁盘队列</h1><p>每一个 topic 都会维护一个磁盘消息队列，每一个 channel 也会维护一个磁盘消息队列。当内存消息队列满了之后，新的消息就会存储在磁盘消息队列中。</p>
-<p>在 lmqd 退出时消息的<strong>持久化</strong>也是依靠磁盘消息队列实现（将内存消息队列中的消息全部推入磁盘消息队列中，进行持久化存储）。</p>
-<h2 id="元数据"><a href="#元数据" class="headerlink" title="元数据"></a>元数据</h2><p>一个磁盘消息队列会维护多个文件，以 index 标识顺序。一个磁盘队列的核心元数据就是记录四个变量（元数据也会被持久化，以便标识下一次启动时的读取和写入位置）：</p>
-<ul>
-<li>当前读取的文件号，当前读取的文件位置。</li>
-<li>当前写入的文件号，当前写入的文件位置。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-4-%E7%A3%81%E7%9B%98%E9%98%9F%E5%88%97%E5%92%8C%E8%B6%85%E6%97%B6%E9%98%9F%E5%88%97/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/" class="post-title-link" itemprop="url">LMQ实现 (3) Topic和Channel</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-18 19:50:45" itemprop="dateCreated datePublished" datetime="2023-12-18T19:50:45+08:00">2023-12-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-21 10:26:51" itemprop="dateModified" datetime="2023-12-21T10:26:51+08:00">2023-12-21</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<p>lmqd 中的元数据是指 lmqd 中的 Topic 和 Channel 信息</p>
-<h1 id="Topic"><a href="#Topic" class="headerlink" title="Topic"></a>Topic</h1><p>Topic 负责接受生产者的消息，并且将消息复制分发给每一个 channel 中。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>Topic 的结构如下，主要的属性有：</p>
-<ul>
-<li>name：topic 的名称。</li>
-<li>isTemporary：是否是临时的 Topic，如果名称带有 <code>#tmp</code> 则表明这是一个临时的 Topic。<ul>
-<li>对于临时 Topic，backendQueue（磁盘队列）为 nil，所以超出内存队列长度的数据会被直接丢弃。</li>
-<li>若 channel 为空，则会立即删除这个 topic。</li>
-<li>一个临时的 topic 不会持久化到磁盘中。</li>
+<li><strong>线程安全：</strong>HashMap 不是线程安全的，Hashtable 是线程安全的（函数都由 synchronized 修饰，但是锁的粒度很大，并发度为一）。</li>
+<li><strong>效率：</strong>HashMap 效率更高，因为 Hashtable 线程安全，效率更低（Hashtable 已被淘汰，不要使用）。</li>
+<li><strong>对 Null 的支持：</strong>HashMap 支持 Null 的 Key 和 Value，而 Hashtable 不支持。</li>
+<li><strong>初始容量和扩容大小：</strong><ul>
+<li>Hashtable：如果不指定初始容量，默认初始容量为 11，每一次扩容 2n+1。</li>
+<li>HashMap：如果不知道初始容量，默认初始容量为 16，每一次扩容 2n；指定初始容量时，容量扩充为 2 的幂次方大小。</li>
 </ul>
 </li>
-<li>channels：topic 下有多个 channel，保存所有在此 topic 下的 channel。</li>
-<li>memoryMsgChan：内存消息队列。</li>
-<li>backendMsgChan：磁盘消息队列。</li>
-<li>deleteCallback：这个 topic 删除后的回调函数，主要用于删除 lmqd 中维护的 topic 信息。</li>
+<li><strong>底层数据结构：</strong>HashMap 在 JDK 1.8 之前，采用数组+链表的方式，之后采用数组+链表/红黑树的方式（当链表长度大于16，会将链表转为红黑树。但是如果数组长度小于 64，会优先扩容数组）</li>
 </ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Topic <span class="keyword">struct</span> &#123;</span><br><span class="line">   lmqd iface.ILmqDaemon</span><br><span class="line"></span><br><span class="line">   name         <span class="keyword">string</span></span><br><span class="line">   isTemporary  <span class="keyword">bool</span>                      <span class="comment">// 标记是否是临时的topic</span></span><br><span class="line">   isPausing    atomic.Bool               <span class="comment">// 标记是否已经暂停</span></span><br><span class="line">   isExiting    atomic.Bool               <span class="comment">// 标记是否已经退出</span></span><br><span class="line">   channels     <span class="keyword">map</span>[<span class="keyword">string</span>]iface.IChannel <span class="comment">// 保存所有的channel字典</span></span><br><span class="line">   channelsLock sync.RWMutex              <span class="comment">// 控制对channel字典的互斥访问</span></span><br><span class="line"></span><br><span class="line">   guidFactory *GUIDFactory <span class="comment">// message id 生成器</span></span><br><span class="line"></span><br><span class="line">   memoryMsgChan <span class="keyword">chan</span> iface.IMessage       <span class="comment">// 内存chan</span></span><br><span class="line">   backendQueue  backendqueue.BackendQueue <span class="comment">// 当内存chan满了之后，将消息存入到后端队列中（持久化保存）</span></span><br><span class="line"></span><br><span class="line">   deleteCallback <span class="function"><span class="keyword">func</span><span class="params">(topic iface.ITopic)</span></span></span><br><span class="line">   deleter        sync.Once</span><br><span class="line"></span><br><span class="line">   startChan   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   updateChan  <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   pauseChan   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   closingChan <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   closedChan  <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">   messageCount atomic.Uint64</span><br><span class="line">   messageBytes atomic.Uint64</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p><strong>为什么 HashMap 的容量是 2 的幂次方？</strong></p>
+<p>因为在通过对哈希取模选则数组下标时，2 的幂次方可以<strong>快速计算</strong>：<code>(n-1) &amp; hash = hash % 数组长度</code></p>
+</blockquote>
+<h3 id="HashMap-和-TreeMap-的区别"><a href="#HashMap-和-TreeMap-的区别" class="headerlink" title="HashMap 和 TreeMap 的区别"></a>HashMap 和 TreeMap 的区别</h3><p>HashMap 和 TreeMap 都继承自 AbstractMap，<strong>但是 TreeMap 还实现了 NavigableMap 接口和 SortedMap 接口</strong>。实现 NavigableMap 接口让 TreeMap 有了对集合内元素的<strong>搜索</strong>能力；实现 SortedMap 接口让 TreeMap 有了对集合中元素根据 key 的<strong>排序</strong>能力。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-3-Map/treemap_hierarchy.png" alt="TreeMap 继承关系图"></p>
+<h3 id="HashMap-多线程死循环问题"><a href="#HashMap-多线程死循环问题" class="headerlink" title="HashMap 多线程死循环问题"></a>HashMap 多线程死循环问题</h3><p><strong>JDK1.7 及之前版本的 HashMap 在多线程环境下扩容操作可能存在死循环问题</strong>，这是由于当一个桶位中有多个元素需要进行扩容时，多个线程同时对链表进行操作，<strong>头插法</strong>可能会导致链表中的节点指向错误的位置，从而形成一个<strong>环形链表</strong>，进而使得查询元素的操作陷入死循环无法结束。</p>
+<p>为了解决这个问题，JDK1.8 版本的 HashMap 采用了<strong>尾插法</strong>而不是头插法来避免链表倒置，使得插入的节点永远都是放在链表的末尾，避免了链表中的环形结构。</p>
+<h2 id="ConcurrentHashMap"><a href="#ConcurrentHashMap" class="headerlink" title="ConcurrentHashMap"></a>ConcurrentHashMap</h2><h3 id="ConcurrentHashMap-和-Hashtable-的区别"><a href="#ConcurrentHashMap-和-Hashtable-的区别" class="headerlink" title="ConcurrentHashMap 和 Hashtable 的区别"></a>ConcurrentHashMap 和 Hashtable 的区别</h3><p>ConcurrentHashMap 和 Hashtable 的区别主要体现在实现线程安全的方式不同：</p>
+<ul>
+<li><strong>底层数据结构：</strong>Hashtable 采用数组+链表的方式。ConcurrentHashMap 在 JDK 1.7 采用分段锁+链表，JDK 1.8 采用数组+链表/红黑树的方式。</li>
+<li><strong>实现线程安全的方式：</strong><ul>
+<li>ConcurrentHashMap：在 JDK 1.7 时，使用<strong>分段锁</strong>的方式保证线程安全；在 JDK 1.8 时，摒弃了分段锁而是直接使用 Node 数组+链表/红黑树的方式，<strong>并发控制使用 synchronized 和 CAS 操作</strong>。</li>
+<li>Hashtable：使用 synchronized（同一把锁）保证线程安全，并发程度为 1。</li>
+</ul>
+</li>
+</ul>
+<h3 id="ConcurrentHashMap-并发实现机制"><a href="#ConcurrentHashMap-并发实现机制" class="headerlink" title="ConcurrentHashMap 并发实现机制"></a>ConcurrentHashMap 并发实现机制</h3><p>ConcurrentHashMap 在 JDK 1.7 和 1.8 中实现并发的机制不同：</p>
+<ul>
+<li>JDK 1.7：<strong>分段锁</strong>的方式实现并发，默认 16 个段，也就是说最多支持 16 个线程并发访问。段的个数一旦初始化之后不能改变。</li>
+<li>JDK 1.8：摈弃了分段锁的概念，<strong>采用 Node 数组+synchronized+CAS 保证并发安全</strong>。锁粒度更细，<strong>synchronized 只锁定当前链表或红黑二叉树的首节点</strong>，这样只要 hash 不冲突，就不会产生并发，就不会影响其他 Node 的读写，效率大幅提升。</li>
+</ul>
+<h3 id="ConcurrentHashMap-为什么-key-和-value-不支持-null"><a href="#ConcurrentHashMap-为什么-key-和-value-不支持-null" class="headerlink" title="ConcurrentHashMap 为什么 key 和 value 不支持 null"></a>ConcurrentHashMap 为什么 key 和 value 不支持 null</h3><p><strong>多线程环境下</strong>，存在一个线程操作该 ConcurrentHashMap 时，其他的线程将该 ConcurrentHashMap 修改的情况，所以<strong>无法通过 containsKey(key) 来判断否存在这个键值对</strong>，也就没办法解决二义性问题了。</p>
+<p>与此形成对比的是，HashMap 可以存储 null 的 key 和 value，但 null 作为键只能有一个，null 作为值可以有多个。如果传入 null 作为参数，就会返回 hash 值为 0 的位置的值。<strong>单线程环境下</strong>，不存在一个线程操作该 HashMap 时，其他的线程将该 HashMap 修改的情况，所以<strong>可以通过 contains(key)来做判断是否存在这个键值对</strong>，从而做相应的处理，也就不存在二义性问题。</p>
+<p><strong>也就是说，多线程下无法正确判定键值对是否存在（存在其他线程修改的情况），单线程是可以的（不存在其他线程修改的情况）。</strong></p>
 
-<h2 id="生产消息"><a href="#生产消息" class="headerlink" title="生产消息"></a>生产消息</h2><p>通过 select，在内存队列中放入消息。如果内存队列已满，则会进入 default 分支，将消息送入磁盘消息队列中。</p>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/" class="post-title-link" itemprop="url">Java面试之集合 (2) List Set Queue</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-10 10:09:40 / 修改时间：12:17:10" itemprop="dateCreated datePublished" datetime="2024-04-10T10:09:40+08:00">2024-04-10</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>ArrayList、LinkedList、Vector 实现了 List 接口。其中 Vector 是 ArrayList 的古老实现类，最重要的还是 ArrayList 和 LinkedList。<strong>那么 ArrayList 和 LinkedList 的区别有什么？</strong></p>
+<ul>
+<li><strong>是否线程安全：</strong>二者都是线程不安全的，不保证并发访问。</li>
+<li><strong>底层数据结构：</strong>ArrayList 底层采用数组，而 LinkedList 底层采用双向链表。</li>
+<li><strong>插入和删除：</strong>ArrayList 除了在尾部插入和删除的时间复杂度为 <code>O(1)</code>，其余时间复杂度均为 <code>O(n)</code>。LinkedList 在头尾插入和删除的时间复杂度为 <code>O(1)</code>，其余位置因为需要先定位元素再删除，时间复杂度为 <code>O(n)</code>。</li>
+<li><strong>是否支持随机访问：</strong>ArrayList 支持快速的随机访问，而 LinkedList 不支持。</li>
+<li><strong>内存占用：</strong>ArrayList 的空间浪费体现在容量大于长度的情况，LinkedList 的空间浪费体现在每一个元素都要记录前驱和后继。</li>
+</ul>
+<blockquote>
+<p>一般都会使用 ArrayList，需要用到 LinkedList 的场景几乎可以用 ArrayList 代替。</p>
+</blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-3-Topic%E5%92%8CChannel/#more" rel="contents">
+              <a class="btn" href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-2-List-Set-Queue/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1235,7 +633,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1249,7 +647,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">LMQ实现 (2) 整体设计</a>
+            <a href="/2024/04/10/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Java面试之集合 (1) 概述</a>
         </h2>
 
         <div class="post-meta">
@@ -1258,23 +656,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2023-12-18 19:47:20" itemprop="dateCreated datePublished" datetime="2023-12-18T19:47:20+08:00">2023-12-18</time>
+              <time title="创建时间：2024-04-10 10:09:28 / 修改时间：10:33:12" itemprop="dateCreated datePublished" datetime="2024-04-10T10:09:28+08:00">2024-04-10</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-19 10:59:19" itemprop="dateModified" datetime="2023-12-19T10:59:19+08:00">2023-12-19</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -1289,28 +681,419 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<p>LMQ 与 NSQ 的整体设计类似。</p>
-<h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><h2 id="特性"><a href="#特性" class="headerlink" title="特性"></a>特性</h2><p>LMQ 是分布式的消息队列，特性为：</p>
+          <h1 id="集合概述"><a href="#集合概述" class="headerlink" title="集合概述"></a>集合概述</h1><p>Java 集合（容器）由两大接口派生而来：Collection 接口，用于存放单一的元素；Map 接口，用于存放键值对。对于 Collection 接口，派生出了几个子接口：List、Set、Queue。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E9%9B%86%E5%90%88-1-%E6%A6%82%E8%BF%B0/java-collection-hierarchy.png" alt="Java 集合框架概览"></p>
+<h2 id="区别"><a href="#区别" class="headerlink" title="区别"></a>区别</h2><p>几个接口的区别如下：</p>
 <ul>
-<li>支持<strong>无单点故障</strong>的分布式拓扑。</li>
-<li>无缝的支持<strong>水平扩展</strong>，无缝的添加更多节点到集群。</li>
-<li>主要是在<strong>内存</strong>中传递消息，直接<strong>使用 TCP 协议</strong>而不是 HTTP 协议，所以<strong>性能</strong>可以保障。</li>
-<li><strong>客户端发现</strong>的方式，通过查询 LmqLookup 找到生产者。</li>
+<li>List：顺序存储元素。</li>
+<li>Set：存储的元素是不可重复的。</li>
+<li>Queue：队列，按照某种规则进行排队。</li>
+<li>Map：键值对。</li>
 </ul>
-<h2 id="消息保证"><a href="#消息保证" class="headerlink" title="消息保证"></a>消息保证</h2><h3 id="消息不持久化机制"><a href="#消息不持久化机制" class="headerlink" title="消息不持久化机制"></a>消息不持久化机制</h3><p>LMQ 支持<strong>内存队列</strong>和<strong>磁盘队列</strong>，超过内存队列长度的消息会被存放在磁盘队列中。在内存队列中的消息可能因为宕机而丢失，存储在磁盘中的消息不会丢失。</p>
-<p>可以通过<strong>设置内存队列长度为 0</strong>，所有的消息将会存储到磁盘，这样<strong>消息不会丢失</strong>。</p>
-<p>在正常推出的情况下，内存中的消息会被推送至磁盘队列中，在磁盘中保存持久化，元数据信息以 json 的格式进行持久化。</p>
-<h3 id="消息最少被投递一次"><a href="#消息最少被投递一次" class="headerlink" title="消息最少被投递一次"></a>消息最少被投递一次</h3><p>由于客户端超时导致的消息重新排队等原因，<strong>消息会被重复投递</strong>，消息<strong>通过 ID 区分</strong>，由客户端负责操作。</p>
-<h3 id="消息是无序的"><a href="#消息是无序的" class="headerlink" title="消息是无序的"></a>消息是无序的</h3><p>LMQ 不保证消息的投递顺序和生产顺序是一致的。因为 LMQ 由<strong>内存队列、磁盘队列、重排队列混合组成</strong>，所以消息是<strong>无序</strong>的。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-2-%E6%95%B4%E4%BD%93%E8%AE%BE%E8%AE%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
+<h2 id="底层数据结构"><a href="#底层数据结构" class="headerlink" title="底层数据结构"></a>底层数据结构</h2><h3 id="Collection"><a href="#Collection" class="headerlink" title="Collection"></a>Collection</h3><p>Collection 接口下集合的数据结构：</p>
+<ul>
+<li>List：<ul>
+<li><strong>ArrayList：</strong>Object 数组。</li>
+<li><strong>Vector：</strong>Object 数组，并发安全，是 ArrayList 的古老实现类。</li>
+<li><strong>LinkedList：</strong>双向链表。</li>
+</ul>
+</li>
+<li>Set：<ul>
+<li><strong>HashSet：</strong>基于 HashMap 实现，底层使用 HashMap 存储元素。</li>
+<li><strong>LinkedHashSet：</strong>是 HashSet 的子类，内部是通过 LinkedHashMap 实现的。</li>
+<li><strong>TreeSet：</strong>红黑树。</li>
+</ul>
+</li>
+<li>Queue：<ul>
+<li><strong>PriorityQueue：</strong>Object 数组实现的小顶堆。</li>
+<li><strong>DelayQueue：</strong>延迟队列，基于 PriorityQueue 实现的。</li>
+<li><strong>ArrayDeque：</strong>可以动态扩容的双向数组。</li>
+</ul>
+</li>
+</ul>
+<h3 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h3><p>Map 接口下集合的数据结构：</p>
+<ul>
+<li><strong>HashMap：</strong>JDK 1.8 之前由<strong>数组+链表</strong>组成，使用拉链法解决哈希冲突。JDK 1.8 之后在解决哈希冲突时有了较大变化，当链表长度大于阈值（默认为 8）（将链表转换成红黑树前会判断，如果当前数组的长度小于 64，那么会选择先进行数组扩容，而不是转换为红黑树）时，将链表转化为<strong>红黑树</strong>，以减少搜索时间。</li>
+<li><strong>LinkedHashMap：</strong>继承自 HashMap，底层依然是数组+链表/红黑树的结构。另外，LinkedHashMap 在HashMap 的基础上，增加了一条<strong>双向链表</strong>，使得上面的结构可以<strong>保持键值对的插入顺序</strong>。同时通过对链表进行相应的操作，实现了顺序访问相关逻辑。</li>
+<li><strong>Hashtable：</strong>数组+链表组成，使用拉链法解决哈希冲突。</li>
+<li><strong>TreeMap：</strong>红黑树。</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/09/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/09/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/" class="post-title-link" itemprop="url">GaiaDB 架构简介</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-09 20:58:08 / 修改时间：21:16:05" itemprop="dateCreated datePublished" datetime="2024-04-09T20:58:08+08:00">2024-04-09</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/gaiadb/" itemprop="url" rel="index"><span itemprop="name">gaiadb</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>GaiaDB 是百度自研的<strong>云原生数据库</strong>，GaiaDB 采用计算与存储分离的架构，不仅在性能、扩展性和高可用方面有大幅提升，而且架构的解耦使得计算层和存储层都获得了很大的优化空间。</p>
+<h1 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h1><p>GaiaDB 在运行形态上是一个<strong>多节点集群</strong>，集群中有一个<strong>主节点</strong>和多个<strong>从节点</strong>，<strong>日志服务（LogService）</strong>用于持久化主节点生成的日志，所有节点共享底层的<strong>分布式存储</strong>（PageServer），各模块分布到不同的K8S容器内。</p>
+<p>架构上采用合-分-合的架构，在扩展性和使用便捷性之间保持了平衡，使得对于上层应用程序来说，就像使用一个单点的MySQL数据库一样简单。</p>
+<ul>
+<li>【合】最上层是接入代理，作为统一的入口。</li>
+<li>【分】中间数据库引擎作为计算层，扩展为一个主节点合多个从节点，提高扩展性。</li>
+<li>【合】底层采用一套分布式存储，节省成本。</li>
+</ul>
+<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763097015_6751dd8.png" alt="img"></p>
+<h2 id="GaiaDB-代理层"><a href="#GaiaDB-代理层" class="headerlink" title="GaiaDB 代理层"></a>GaiaDB 代理层</h2><p>GaiaDB 通过内部的代理层（Proxy）对外提供服务，也就是说所有的应用程序都先经过这层代理，然后才访问到具体的数据库节点。这样的好处：</p>
+<ul>
+<li>Proxy 提供<strong>安全</strong>认证和保护。</li>
+<li><strong>Proxy 解析 SQL</strong>，把写操作（比如事务、Update、Insert、Delete、DDL 等）发送到主节点，把读操作（比如 Select）均衡地分发到多个读节点，这个也叫<strong>读写分离</strong>。</li>
+<li>通过 Proxy 把<strong>不同的业务用不同的连接地址，使用不同的数据节点</strong>。这样就可以避免相互影响，不会影响在线业务。</li>
+</ul>
+<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763335982_9d10ab8.png" alt="img"></p>
+<h2 id="GaiaDB-计算层"><a href="#GaiaDB-计算层" class="headerlink" title="GaiaDB 计算层"></a>GaiaDB 计算层</h2><p>计算层由一个主节点合最多十五个从节点组成。计算层百分百支持 MySQL 语法，相对于 MySQL 的主从节点来说，GaiaDB 的计算节点是无状态的。</p>
+<ul>
+<li>主节点：处理读写请求，处理事务。相比于 MySQL 的主节点，GaiaDB 的主节点仅需要将日志（RedoLog）发送至日志服务（LogService）持久化，不需要写数据。数据是由数据存储节点<strong>（PageServer）</strong>从 LogService 拉取日志并回放。</li>
+<li>从节点：处理只读负载。从 <strong>PageServer</strong> 拉取最新的数据。</li>
+</ul>
+<p>这样的设计具有以下<strong>优势</strong>：</p>
+<ul>
+<li><strong>计算节点无状态，弹性快速扩容</strong>。计算层节点无持久化数据，本地文件不复存在，包括日志文件，所以<strong>支持快速扩容</strong>，大概在 30 秒内就能快速创建从节点并提供服务。</li>
+<li><strong>只有单机事务</strong>，没有分布式事务问题。集群所有的事务都请求到主节点，<strong>主节点自身保障事务的 ACID 特性</strong>。</li>
+<li><strong>单机故障不影响集群一致性</strong>，底层存储层利用 Raft 一致性算法保障数据的一致性。事务产生的 Redo 日志均实时写入 LogService，从节点利用 <strong>PageServer</strong> 上的数据文件和 LogService 中的 Redo 日志，在内存中恢复最新的数据对外提供服务。每一次主备故障切换，从节点均可以获取最新的事务 Redo 日志，因此不会出现数据丢失。</li>
+</ul>
+<h2 id="GaiaDB-存储层"><a href="#GaiaDB-存储层" class="headerlink" title="GaiaDB 存储层"></a>GaiaDB 存储层</h2><p>存储层是由多组数据存储节点（PageServer）和一组日志服务节点（LogService）组成。包括两个组件，LogService 和 Page Server。</p>
+<ul>
+<li><p>LogService 用于<strong>持久化数据库日志</strong>（RedoLog），采用 Raft 一致性协议保障日志的高可用和一致性。<strong>缓存近期产生的日志</strong>，供从节点和 PageServer 快速拉取。</p>
+</li>
+<li><p>PageServer 用于<strong>缓存和持久化数据页</strong>，每组包含三个 PageServer 节点，一组 PageServer 管理 32GB 的数据（这 32GB 的数据称为一个 Segment）。</p>
+</li>
+</ul>
+<p><img src="/../images/GaiaDB-%E6%9E%B6%E6%9E%84%E7%AE%80%E4%BB%8B/1692763429701_7c175ad.png" alt="img"></p>
+<p>这样的设计有以下<strong>优势</strong>：</p>
+<ul>
+<li>数据的<strong>一致性和数据存储分离</strong>，LogService 专注一致性保障，PageServer 专注持久化数据。</li>
+<li>PageServer 和 LogService 都采用<strong>多副本</strong>的方式保障高可用。</li>
+<li>PageServer 之间<strong>逻辑独立</strong>。独立从 LogService 拉取数据，LogService 保障数据的一致性。</li>
+<li>存储节点的扩容只需要增加 PageServer 的个数，<strong>扩容操作对用户无感</strong>。</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-8-Atomic%E5%8E%9F%E5%AD%90%E7%B1%BB/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-8-Atomic%E5%8E%9F%E5%AD%90%E7%B1%BB/" class="post-title-link" itemprop="url">Java面试之并发编程 (8) Atomic原子类</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-04-08 21:22:42" itemprop="dateCreated datePublished" datetime="2024-04-08T21:22:42+08:00">2024-04-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-04-09 23:33:53" itemprop="dateModified" datetime="2024-04-09T23:33:53+08:00">2024-04-09</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>原子类都存放在<code>java.util.concurrent.atomic</code>下：</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-8-Atomic%E5%8E%9F%E5%AD%90%E7%B1%BB/JUC%E5%8E%9F%E5%AD%90%E7%B1%BB%E6%A6%82%E8%A7%88.png" alt="JUC原子类概览"></p>
+<p>根据操作的数据类型，可以将 JUC 包中的原子类分为 4 类：</p>
+<p><strong>基本类型</strong></p>
+<ul>
+<li><code>AtomicInteger</code>：整型原子类。</li>
+<li><code>AtomicLong</code>：长整型原子类。</li>
+<li><code>AtomicBoolean</code>：布尔型原子类。</li>
+</ul>
+<p><strong>数组类型</strong></p>
+<ul>
+<li><code>AtomicIntegerArray</code>：整型数组原子类。</li>
+<li><code>AtomicLongArray</code>：长整型数组原子类。</li>
+<li><code>AtomicReferenceArray</code>：引用类型数组原子类。</li>
+</ul>
+<p><strong>引用类型</strong></p>
+<ul>
+<li><code>AtomicReference</code>：引用类型原子类。</li>
+<li><code>AtomicMarkableReference</code>：原子更新带有标记的引用类型，该类将 boolean 标记与引用关联起来。</li>
+<li><code>AtomicStampedReference</code>：原子更新带有版本号的引用类型。该类将整数值与引用关联起来，可用于解决原子的更新数据和数据的版本号，<strong>可以解决使用 CAS 进行原子更新时可能出现的 ABA 问题</strong>。</li>
+</ul>
+<p><strong>对象的属性修改类型</strong></p>
+<ul>
+<li><code>AtomicIntegerFieldUpdater</code>:原子更新整型字段的更新器。</li>
+<li><code>AtomicLongFieldUpdater</code>：原子更新长整型字段的更新器。</li>
+<li><code>AtomicReferenceFieldUpdater</code>：原子更新引用类型里的字段。</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-7-%E4%B9%90%E8%A7%82%E9%94%81-%E6%82%B2%E8%A7%82%E9%94%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-7-%E4%B9%90%E8%A7%82%E9%94%81-%E6%82%B2%E8%A7%82%E9%94%81/" class="post-title-link" itemprop="url">Java面试之并发编程 (7) 乐观锁 悲观锁</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-04-08 21:22:28" itemprop="dateCreated datePublished" datetime="2024-04-08T21:22:28+08:00">2024-04-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-04-09 23:30:40" itemprop="dateModified" datetime="2024-04-09T23:30:40+08:00">2024-04-09</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p><strong>Java 的悲观锁可以使用 ReentrantLock，乐观锁采用版本号或者 CAS 实现。</strong></p>
+<blockquote>
+<p>CAS 的 ABA 问题：</p>
+<p>如果一个变量 V 初次读取的时候是 A 值，并且在准备赋值的时候检查到它仍然是 A 值，那我们就能说明它的值没有被其他线程修改过了吗？很明显是不能的，因为在这段时间它的值可能被改为其他值，然后又改回 A，那 CAS 操作就会误认为它从来没有被修改过。这个问题被称为 CAS 操作的 ABA 问题。</p>
+<p>ABA 问题的解决思路是在变量前面追加上<strong>版本号或者时间戳</strong>。JDK 1.5 以后的 <code>AtomicStampedReference</code> 类就是用来解决 ABA 问题的，其中的 <code>compareAndSet()</code> 方法就是首先检查当前引用是否等于预期引用，并且当前标志是否等于预期标志，如果全部相等，则以原子方式将该引用和该标志的值设置为给定的更新值。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">compareAndSet</span><span class="params">(V   expectedReference,</span></span></span><br><span class="line"><span class="params"><span class="function">                             V   newReference,</span></span></span><br><span class="line"><span class="params"><span class="function">                             <span class="keyword">int</span> expectedStamp,</span></span></span><br><span class="line"><span class="params"><span class="function">                             <span class="keyword">int</span> newStamp)</span> </span>&#123;</span><br><span class="line">    Pair&lt;V&gt; current = pair;</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">        expectedReference == current.reference &amp;&amp;</span><br><span class="line">        expectedStamp == current.stamp &amp;&amp;</span><br><span class="line">        ((newReference == current.reference &amp;&amp;</span><br><span class="line">          newStamp == current.stamp) ||</span><br><span class="line">         casPair(current, Pair.of(newReference, newStamp)));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></blockquote>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-6-Feature/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-6-Feature/" class="post-title-link" itemprop="url">Java面试之并发编程 (6) Feature</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-04-08 21:21:37" itemprop="dateCreated datePublished" datetime="2024-04-08T21:21:37+08:00">2024-04-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-04-09 23:01:14" itemprop="dateModified" datetime="2024-04-09T23:01:14+08:00">2024-04-09</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Feature"><a href="#Feature" class="headerlink" title="Feature"></a>Feature</h1><p>Feature 的思想是<strong>异步</strong>调用，当执行一个耗时很长的任务时，可以将这个耗时任务<strong>交给一个子线程去异步执行</strong>，然后<strong>通过 Feature 类获取任务的执行结果</strong>。</p>
+<p>在 Java 中 Feature 是一个泛型接口，位于 <code>java.util.concurrent</code> 包下，其中定义了 5 个方法，主要包括下面这 4 个功能：</p>
+<ul>
+<li>取消任务；</li>
+<li>判断任务是否被取消;</li>
+<li>判断任务是否已经执行完成;</li>
+<li>获取任务执行结果。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// V 代表了Future执行的任务返回值的类型</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Future</span>&lt;<span class="title">V</span>&gt; </span>&#123;</span><br><span class="line">    <span class="comment">// 取消任务执行</span></span><br><span class="line">    <span class="comment">// 成功取消返回 true，否则返回 false</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">cancel</span><span class="params">(<span class="keyword">boolean</span> mayInterruptIfRunning)</span></span>;</span><br><span class="line">    <span class="comment">// 判断任务是否被取消</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isCancelled</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="comment">// 判断任务是否已经执行完成</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isDone</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="comment">// 获取任务执行结果</span></span><br><span class="line">    <span class="function">V <span class="title">get</span><span class="params">()</span> <span class="keyword">throws</span> InterruptedException, ExecutionException</span>;</span><br><span class="line">    <span class="comment">// 指定时间内没有返回计算结果就抛出 TimeOutException 异常</span></span><br><span class="line">    <span class="function">V <span class="title">get</span><span class="params">(<span class="keyword">long</span> timeout, TimeUnit unit)</span></span></span><br><span class="line"><span class="function"></span></span><br><span class="line"><span class="function">        <span class="keyword">throws</span> InterruptedException, ExecutionException, TimeoutExceptio</span></span><br><span class="line"><span class="function"></span></span><br><span class="line"><span class="function">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>FeatureTask 类是 Feature 的具体实现。</strong></p>
+<h1 id="CompletableFuture"><a href="#CompletableFuture" class="headerlink" title="CompletableFuture"></a>CompletableFuture</h1><p><code>Future</code> 在实际使用过程中存在一些局限性比如不支持异步任务的编排组合、获取计算结果的 <code>get()</code> 方法为阻塞调用。Java 8 才被引入<code>CompletableFuture</code> 类可以解决<code>Future</code> 的这些缺陷。</p>
+<p><code>CompletableFuture</code> 除了提供了更为好用和强大的 <code>Future</code> 特性之外，还提供了函数式编程、<strong>异步任务编排组合</strong>（可以将多个异步任务串联起来，组成一个完整的链式调用）等能力。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-6-Feature/completablefuture-class-diagram.jpg" alt="img"></p>
+
       
     </div>
 
@@ -1328,7 +1111,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/3/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span><a class="page-number" href="/page/5/">5</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/5/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/3/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span><a class="page-number" href="/page/5/">5</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/5/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1394,20 +1177,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

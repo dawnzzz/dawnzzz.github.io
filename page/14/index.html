@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/16/Kubernetes%E5%AD%A6%E4%B9%A0-2-Kubernetes%E5%AF%B9%E8%B1%A1%E4%B9%8B%E5%9F%BA%E6%9C%AC%E7%90%86%E8%A7%A3/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/05/16/Kubernetes%E5%AD%A6%E4%B9%A0-2-Kubernetes%E5%AF%B9%E8%B1%A1%E4%B9%8B%E5%9F%BA%E6%9C%AC%E7%90%86%E8%A7%A3/" class="post-title-link" itemprop="url">Kubernetes学习 (2) Kubernetes对象之基本理解</a>
+            <a href="/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/" class="post-title-link" itemprop="url">软件架构设计读书笔记 (3) 数据库</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-05-16 22:12:11" itemprop="dateCreated datePublished" datetime="2023-05-16T22:12:11+08:00">2023-05-16</time>
+              <time title="创建时间：2023-06-25 20:22:44" itemprop="dateCreated datePublished" datetime="2023-06-25T20:22:44+08:00">2023-06-25</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
                 </span>
             </span>
 
@@ -212,891 +212,973 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="基本理解"><a href="#基本理解" class="headerlink" title="基本理解"></a>基本理解</h1><p>在 Kubernetes 系统中，<strong>Kubernetes 对象</strong>是持久化的实体。Kubernetes 使用这些实体去表示整个集群的状态。 比较特别地是，<strong>它们描述了如下信息</strong>：</p>
+          <p>下面主要介绍 MySQL 中的一些实现，包括 Redo Log、Undo Log。</p>
+<h1 id="Redo-Log"><a href="#Redo-Log" class="headerlink" title="Redo Log"></a>Redo Log</h1><p>一个事务如果要修改一张表中的多条记录，记录都分布在不同的 Page 中。如果事务每一次都直接写磁盘，相当于随机 I/O，性能非常差。</p>
+<p>所以先写日志，再把内存中的数据异步的刷到磁盘中。日志是顺序追加的，所以写日志是顺序 I/O，所以性能相比于随机 I/O 有很大的提升。</p>
+<h2 id="异步刷盘策略"><a href="#异步刷盘策略" class="headerlink" title="异步刷盘策略"></a>异步刷盘策略</h2><p>在 MySQL InnoDB 中，不光数据写入到磁盘是异步的，而且<strong>从内存写入到 Redo Log 也是异步的</strong>。MySQL innodb_flush_log_at_trx_commit 参数可以控制 Redo Log 的刷盘策略，分别是：</p>
 <ul>
-<li>哪些容器化应用正在运行（以及在哪些节点上运行）。</li>
-<li>可以被应用使用的资源。</li>
-<li>关于应用运行时表现的策略，比如重启策略、升级策略以及容错策略。</li>
+<li><strong>0：每秒钟</strong>刷一次盘（<strong>默认</strong>）。</li>
+<li><strong>1：每次提交事务</strong>都会将内存中的数据刷到 Redo Log 中。</li>
+<li><strong>2：不刷盘</strong>，根据 innodb_flush_log_at_timeout 决定刷盘频率。</li>
 </ul>
 <blockquote>
-<p>k8s一旦创建对象，将<strong>不断确保该对象存在</strong>。 通过创建对象，你就是在告知 Kubernetes 系统，你想要的集群工作负载状态看起来应是什么样子的， 这就是 Kubernetes 集群所谓的<strong>期望状态</strong>。</p>
-<p>操作 k8s 对象需要使用 Kubernetes API。</p>
+<p><strong>1 是最安全的，却也是性能最低的</strong>。InnoDB 选择 0 作为默认值，就是安全性和性能之间做出一个平衡。</p>
 </blockquote>
-<h2 id="对象规约（Spec）与状态（Status）"><a href="#对象规约（Spec）与状态（Status）" class="headerlink" title="对象规约（Spec）与状态（Status）"></a>对象规约（Spec）与状态（Status）</h2><p>每一个 Kubernetes 对象包含两个字段，它们负责管理对象的配置：</p>
-<ul>
-<li><strong>对象规约 Spec：</strong>期望状态，在创建对象时必须设置的内容。</li>
-<li><strong>对象状态 Status：</strong>当前状态，由 Kubernetes 系统和组件设置并更新的。</li>
-</ul>
+<h2 id="物理结构"><a href="#物理结构" class="headerlink" title="物理结构"></a>物理结构</h2><p>因为磁盘是按块设备，所以 MySQL 日志也是按照<strong>块（Log Block）</strong>去读写的。每一个 Log Block 都是固定大小，即 512 字节。</p>
+<p>而且因为日志可以看作是无限增长的文件，所以在具体实现时，Redo Log 是<strong>固定大小</strong>的（可以看作是一个循环队列，后面的块会覆盖最前面的块）。</p>
+<h3 id="Physiological-Logging"><a href="#Physiological-Logging" class="headerlink" title="Physiological Logging"></a>Physiological Logging</h3><p>在 Log Block 中的日志采用何种方式去存储呢？这也是一个问题。</p>
+<p>MySQL 中采用的<strong>是物理和逻辑相结合</strong>的方式。<strong>以 Page 为单位记录日志，每一个日志里面再采取逻辑记法</strong>（记录 Page 中的哪一行被修改了），这种<strong>叫做 Physiological Logging</strong>。</p>
 <blockquote>
-<p>如一个对象需要启动 3 个副本，那么酒吧这个对象 Spec 设置为 3，当前副本数量就是 Status。Kubernetes 控制面会根据 Spec 和 Staus 来新增或者删除副本的数量。</p>
-</blockquote>
-<h2 id="描述-Kubernetes-对象"><a href="#描述-Kubernetes-对象" class="headerlink" title="描述 Kubernetes 对象"></a>描述 Kubernetes 对象</h2><p>在创建 k8s 对象是，需要描述对象的基本信息，通过 yaml 文件来提供描述 Kubernetes 对象的信息。</p>
-<p>一个 Kubernetes Deployment 对象的描述信息如下：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">nginx-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">2</span> <span class="comment"># 告知 Deployment 运行 2 个与该模板匹配的 Pod</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">nginx</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">nginx:1.14.2</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
-
-<h3 id="必须字段"><a href="#必须字段" class="headerlink" title="必须字段"></a>必须字段</h3><p>在 yaml 文件中，有以下必须的字段：</p>
+<p>纯逻辑和物理记法的<strong>缺点</strong>。</p>
 <ul>
-<li>apiVersion：创建该对象所使用的 Kubernetes API 的版本。</li>
-<li>kind：创建对象的类别。</li>
-<li>metadata：帮助唯一标识对象的一些数据，包括一个 name、UID 和可选的 namespace。</li>
-<li>spec：规约，期望的状态。</li>
+<li><strong>纯逻辑记法：</strong>就是直接<strong>将 SQL 语句记录在日志中</strong>。而需要修改的记录可能被分散在多个 Page 中，如果<strong>涉及到多个 Page 的修改</strong>，修改到一半系统<strong>宕机</strong>。那么<strong>恢复的时候很难知道哪个 Page 写成功了，哪个写失败了</strong>。</li>
+<li><strong>纯物理记法：</strong>就是记录<strong>每一个 Page 在哪一个字节被修改了什么</strong>。因为 InnoDB 中采用 B+ 树存储数据，如果增加一条记录就需要修改前后指针，会<strong>产生多条物理日志</strong>。</li>
 </ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/26/Kubernetes%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/26/Kubernetes%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/" class="post-title-link" itemprop="url">Kubernetes学习 (1) 基本介绍</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-26 10:08:52" itemprop="dateCreated datePublished" datetime="2023-04-26T10:08:52+08:00">2023-04-26</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Kubernetes-简介"><a href="#Kubernetes-简介" class="headerlink" title="Kubernetes 简介"></a>Kubernetes 简介</h1><p>k8s 是一个大规模<strong>容器编排</strong>系统，具有以下特性：</p>
-<ul>
-<li><strong>服务发现和负载均衡</strong><br>Kubernetes 可以使用名称或自己的 IP 地址<strong>公开容器（服务发现）</strong>，如果进入容器的流量很大， Kubernetes 可以<strong>负载均衡</strong>并分配网络流量，从而使部署稳定。</li>
-<li><strong>存储编排</strong><br>Kubernetes 允许你<strong>自动挂载你选择的存储系统</strong>，并且<strong>管理这些分配的存储空间</strong>，例如本地存储、公共云提供商等。</li>
-<li><strong>自动部署和回滚</strong><br>你可以使用 Kubernetes 描述已部署容器的所需状态，它可以以受控的速率将实际状态更改为期望状态。例如，你可以自动化 Kubernetes 来为你的部署创建新容器， 删除现有容器并将它们的所有资源用于新容器。</li>
-<li><strong>自动完成装箱计算</strong><br>Kubernetes 允许你指定每个容器所需 CPU 和内存（RAM）。 当容器指定了资源请求时，Kubernetes 可以做出更好的决策来管理容器的资源。</li>
-<li><strong>自我修复</strong><br>Kubernetes 重新启动失败的容器、替换容器、杀死不响应用户定义的 运行状况检查的容器，并且在准备好服务之前不将其通告给客户端。</li>
-<li><strong>密钥与配置管理</strong><br>Kubernetes 允许你存储和管理敏感信息，例如密码、OAuth 令牌和 ssh 密钥。 你可以在不重建容器镜像的情况下部署和更新密钥和应用程序配置，也无需在堆栈配置中暴露密钥。</li>
-</ul>
-<h2 id="组件架构"><a href="#组件架构" class="headerlink" title="组件架构"></a>组件架构</h2><p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-1-%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D/components-of-kubernetes.svg" alt="Components of Kubernetes"></p>
-<h3 id="控制平面（Control-Plane）组件"><a href="#控制平面（Control-Plane）组件" class="headerlink" title="控制平面（Control Plane）组件"></a>控制平面（Control Plane）组件</h3><p>控制平面组件会为集群做出全局决策，比如资源的调度、 以及检测和响应集群事件。</p>
-<blockquote>
-<p>控制平面组件可以在集群中的任何节点上运行。 然而为了简单起见，<strong>设置脚本通常会在同一个计算机上启动所有控制平面组件</strong>， 并且不会在此计算机上运行用户容器。 </p>
-</blockquote>
-<ul>
-<li><strong>kube-apiserver：</strong>API 服务器，相当于控制平面的前端负责接受请求，可以水平扩容。</li>
-<li><strong>etcd：</strong>所有集群数据的后台数据库。</li>
-<li><strong>kube-scheduler：</strong>负责 Pod 的调度决策工作。</li>
-<li><strong>kube-controller-manager：</strong>负责运行控制器进程（控制器通过 API 服务器监控集群的公共状态，并致力于将当前的状态转换为期望的状态）。从逻辑上讲， 每个控制器都是一个单独的进程， 但是为了降低复杂性，它们都被编译到同一个可执行文件，并在同一个进程中运行。控制器包括：<ul>
-<li>节点控制器：负责在节点出现故障时进行通知和响应。</li>
-<li>任务控制器：监测代表一次性任务的 Job 对象，然后创建 Pods 来运行这些任务直至完成。</li>
-<li>端点分片控制器：填充端点分片（EndpointSlice）对象（以提供 Service 和 Pod 之间的链接）。</li>
-<li>服务账号控制器：为新的命名空间创建默认的服务账号（ServiceAccount）。</li>
-</ul>
-</li>
-<li><strong>cloud-controller-manager：</strong>仅运行特定于云平台的控制器。</li>
-</ul>
-<h3 id="Node-组件"><a href="#Node-组件" class="headerlink" title="Node 组件"></a>Node 组件</h3><p>节点组件会在每个节点上运行，负责维护运行的 Pod 并提供 Kubernetes 运行环境。</p>
-<ul>
-<li><strong>kubelet：</strong>在每一个节点上运行，用于管理运行在这个节点上的 Pod。</li>
-<li><strong>kube-proxy：</strong>是每一个节点上的网络代理，维护节点上的一些网络规则， 这些网络规则会允许从集群内部或外部的网络会话与 Pod 进行网络通信。</li>
-<li><strong>容器运行时（Container Runtime）：</strong>负责运行容器的软件。</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/24/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F-%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/24/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F-%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (7) 行为型模式之策略模式 观察者模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-24 22:28:56" itemprop="dateCreated datePublished" datetime="2023-04-24T22:28:56+08:00">2023-04-24</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="策略模式"><a href="#策略模式" class="headerlink" title="策略模式"></a>策略模式</h1><p>策略模式中，可以随意的更换算法使用的策略。策略模式的角色和职责如下：</p>
-<ul>
-<li><strong>环境类（Context）：</strong>环境类是使用算法的角色，它<strong>在解决某个问题时可以采用多种策略</strong>。在环境类中维持一个对抽象策略类的引用实例，用于定义所采用的策略。</li>
-<li><strong>Strategy（抽象策略类）：</strong>定义了策略抽象方法，<strong>在环境类的算法中调用了抽象策略类中的抽象方法</strong>，所以在具体执行时会调用具体策略类中定义的方法。</li>
-<li><strong>ConcreteStrategy（具体策略类）：</strong>实现了抽象策略类，定义了具体的策略方法。</li>
-</ul>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F-%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/image-20230424223552253.png" alt="image-20230424223552253"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/04/24/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-7-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F-%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/24/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%A8%A1%E6%9D%BF%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F-%E5%91%BD%E4%BB%A4%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/24/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%A8%A1%E6%9D%BF%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F-%E5%91%BD%E4%BB%A4%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (6) 行为型模式之模板方法模式 命令模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-24 21:31:06" itemprop="dateCreated datePublished" datetime="2023-04-24T21:31:06+08:00">2023-04-24</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="模板方法模式"><a href="#模板方法模式" class="headerlink" title="模板方法模式"></a>模板方法模式</h1><p>模板方法就是定<strong>义一个模板方法和组成模板方法的许多抽象子方法</strong>，通过<strong>重写抽象子方法</strong>来自定义模板方法的执行过程。模板方法模式中的角色和职责如下：</p>
-<ul>
-<li><strong>抽象类（AbstractClass）：</strong>在抽象类中定义了<strong>一系列基本操作</strong>，这些基本操作可以是具体的，也可以是抽象的，每一个基本操作对应算法的一个步骤，<strong>在其子类中可以重定义或实现这些步骤</strong>。同时，在抽象类中实现了一个<strong>模板方法</strong>，用于定义一个算法的框架。</li>
-<li><strong>具体子类（ConcreteClass）：</strong>抽象类的子类，用于实现在父类中声明的抽象基本操作以完成子类特定算法的步骤，也可以覆盖在父类中已经实现的具体基本操作。</li>
-</ul>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%A8%A1%E6%9D%BF%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F-%E5%91%BD%E4%BB%A4%E6%A8%A1%E5%BC%8F/image-20230424220043836.png" alt="image-20230424220043836"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/04/24/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-6-%E8%A1%8C%E4%B8%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%A8%A1%E6%9D%BF%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F-%E5%91%BD%E4%BB%A4%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F-%E5%A4%96%E8%A7%82%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F-%E5%A4%96%E8%A7%82%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (5) 结构型模式之适配器模式 外观模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-18 21:06:25" itemprop="dateCreated datePublished" datetime="2023-04-18T21:06:25+08:00">2023-04-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="适配器模式"><a href="#适配器模式" class="headerlink" title="适配器模式"></a>适配器模式</h1><p>适配器模式<strong>将一个类的接口转换成客户希望的另外一个接口</strong>。使得原本由于接口不兼容而不能一起工作的那些类可以一起工作。</p>
-<p>适配器的<strong>核心在于将一个适配者 Adaptee，通过适配器 Adapter 转换为另一个接口 Target 来使用</strong>。实现<strong>原理</strong>就是 Adapter 通过实现 Target 接口，并在对应的方法中调用 Adaptee 的接口实现。</p>
-<p>适配器模式的角色和职责如下：</p>
-<ul>
-<li><strong>目标抽象类 Target：</strong>定义客户所需要的接口，也可以是具体类。</li>
-<li><strong>适配器类 Adapter：</strong>适配器类是适配器模式的核心，在对象适配器中，它通过<strong>继承（活实现）Target 并关联一个 Adaptee 对象</strong>使二者产生联系。</li>
-<li><strong>适配者类 Adaptee：</strong>被适配的角色，它定义了一个已经存在的接口，这个接口需要适配。</li>
-</ul>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F-%E5%A4%96%E8%A7%82%E6%A8%A1%E5%BC%8F/image-20230418212755861.png" alt="image-20230418212755861"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-5-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F-%E5%A4%96%E8%A7%82%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F-%E8%A3%85%E9%A5%B0%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F-%E8%A3%85%E9%A5%B0%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (4) 结构型模式之代理模式 装饰模式"</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-18 20:20:40" itemprop="dateCreated datePublished" datetime="2023-04-18T20:20:40+08:00">2023-04-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="代理模式"><a href="#代理模式" class="headerlink" title="代理模式"></a>代理模式</h1><p>代理模式就是为对象提供一个代理，这个<strong>代理可以控制对这个对象的访问</strong>。这个代理又投了额外添加的功能，同样也符合开闭原则，因为原来对象并不会改变只会增加代理的功能。</p>
-<p>代理中的角色和职责如下：</p>
-<p><strong>抽象主题角色：</strong>真实主题和代理主题的共同接口。</p>
-<p><strong>真实主题角色：</strong>代理角色所代理的真实对象，实现了抽象主题接口。</p>
-<p><strong>代理主题角色：</strong>包含对真实主题角色的引用，代理也实现了抽象主题接口，代理在执行真实主题之前或者之后又进行了一些操作。</p>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F-%E8%A3%85%E9%A5%B0%E6%A8%A1%E5%BC%8F/image-20230418202707559.png" alt="image-20230418202707559"></p>
-<h2 id="案例"><a href="#案例" class="headerlink" title="案例"></a>案例</h2><p>比如购物作为一个主题任务，这是一个抽象的主题。那么真实的主题包括韩国购物、美国购物等。那么海外代购就算是这些主题的代理，代理在去购物之前还需要辨别真假，接着购物，最后进行海关安检等。</p>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F-%E8%A3%85%E9%A5%B0%E6%A8%A1%E5%BC%8F/image-20230418204443811.png" alt="image-20230418204443811"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E7%BB%93%E6%9E%84%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F-%E8%A3%85%E9%A5%B0%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%8A%BD%E8%B1%A1%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%8A%BD%E8%B1%A1%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (3) 创建型模式之抽象工厂模式 单例模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-18 17:06:28" itemprop="dateCreated datePublished" datetime="2023-04-18T17:06:28+08:00">2023-04-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="抽象工厂模式"><a href="#抽象工厂模式" class="headerlink" title="抽象工厂模式"></a>抽象工厂模式</h1><p>工厂方法模式通过引入工厂等级结构，解决了简单工厂模式中工厂类职责太重的问题，但由于工厂方法模式中的每个工厂只生产一类产品，可能会导致系统中存在大量的工厂类，势必会增加系统的开销。因此，可以考虑将一些相关的产品组成<strong>一个产品族，由同一个工厂来统一生产</strong>，这就是抽象工厂模式的基本思想。</p>
-<h2 id="产品族和产品等级结构"><a href="#产品族和产品等级结构" class="headerlink" title="产品族和产品等级结构"></a>产品族和产品等级结构</h2><p><strong>产品族：</strong>具有同一个地区、同一个厂商、同一个开发包、同一个组织模块等，但是具备<strong>不同特点或功能的产品</strong>集合，称之为是一个产品族。</p>
-<p><strong>产品等级结构：</strong>具有相同特点或功能，但是来自<strong>不同的地区、不同的厂商、不同的开发包、不同的组织模块等</strong>的产品集合，称之为是一个产品等级结构。</p>
-<p>当程序中的对象<strong>可以被划分为产品族和产品等级结构</strong>之后，那么抽象工厂方法模式才可以被适用。抽象工厂模式就是一个针对产品族进行生产的。</p>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%8A%BD%E8%B1%A1%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F/image-20230418171322007.png" alt="image-20230418171322007"></p>
-<h2 id="角色和职责"><a href="#角色和职责" class="headerlink" title="角色和职责"></a>角色和职责</h2><p><strong>抽象工厂角色：</strong>声明了一组用于创建一族产品的方法，每一个方法对应一种产品。</p>
-<p><strong>具体工厂角色：</strong>实现了在抽象工厂中声明的创建产品的方法，生成一组具体产品，这些产品构成了一个产品族，每一个产品都位于某个产品等级结构中。</p>
-<p><strong>抽象产品角色：</strong>工厂所创建对象的父类，描述产品的接口。抽象产品的角色定义了产品等级结构。</p>
-<p><strong>具体产品角色：</strong>抽象产品的具体实现。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-3-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E6%8A%BD%E8%B1%A1%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AE%80%E5%8D%95%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%B7%A5%E5%8E%82%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AE%80%E5%8D%95%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%B7%A5%E5%8E%82%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (2) 创建型模式之简单工厂模式 工厂方法模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-18 16:55:27" itemprop="dateCreated datePublished" datetime="2023-04-18T16:55:27+08:00">2023-04-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="简单工厂模式"><a href="#简单工厂模式" class="headerlink" title="简单工厂模式"></a>简单工厂模式</h1><p>简单工厂模式就是<strong>用一个工厂类负责生产所有的产品</strong>。其结构和职责如下：</p>
-<ul>
-<li><strong>工厂角色：</strong>简单工厂模式的核心，<strong>负责生产所有的产品</strong>。工厂类可以被外界直接调用，创建所需的产品对象。</li>
-<li><strong>抽象产品角色：</strong>工厂所创建对象的父类，描述产品的接口。</li>
-<li><strong>具体产品角色：</strong>工厂所创建的对象。</li>
-</ul>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AE%80%E5%8D%95%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%B7%A5%E5%8E%82%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F/image-20230418165944956.png" alt="image-20230418165944956"></p>
-<h2 id="优缺点"><a href="#优缺点" class="headerlink" title="优缺点"></a>优缺点</h2><p><strong>优点：</strong></p>
-<ul>
-<li>实现了对象创建和使用的分离。</li>
-</ul>
-<p><strong>缺点：</strong></p>
-<ul>
-<li>工厂类职责过重，所有的产品均通过工厂类生产。</li>
-<li>违反开闭原则，添加新产品需要修改工厂逻辑，工厂越来越复杂。</li>
-</ul>
-<h1 id="工厂方法模式"><a href="#工厂方法模式" class="headerlink" title="工厂方法模式"></a>工厂方法模式</h1><p>在工厂方法种，将工厂抽象为一个抽象工厂，具体的工厂是抽象工厂的一个实现类。其角色和职责如下：</p>
-<ul>
-<li><strong>抽象工厂角色：</strong>工厂方法模式的核心，任何工厂类都必须实现这个接口。</li>
-<li><strong>工厂角色：</strong>是抽象工厂的一个实现，负责实例化产品对象。</li>
-<li><strong>抽象产品角色：</strong>工厂所创建对象的父类，描述产品的接口。</li>
-<li><strong>具体产品角色：</strong>工厂角色所创建的对象。</li>
-</ul>
-<p><img src="/../images/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-2-%E5%88%9B%E5%BB%BA%E5%9E%8B%E6%A8%A1%E5%BC%8F%E4%B9%8B%E7%AE%80%E5%8D%95%E5%B7%A5%E5%8E%82%E6%A8%A1%E5%BC%8F-%E5%B7%A5%E5%8E%82%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8F/image-20230418170410589.png" alt="image-20230418170410589"></p>
-<h2 id="优缺点-1"><a href="#优缺点-1" class="headerlink" title="优缺点"></a>优缺点</h2><p><strong>优点：</strong></p>
-<ul>
-<li> 实现了对象创建和使用的分离。</li>
-<li>对于新产品的创建，符合开闭原则。</li>
-</ul>
-<p><strong>缺点：</strong></p>
-<ul>
-<li>每一种工厂负责一个产品的实现，增加了类的个数，抽象性和理解难度增加。</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-1-%E9%9D%A2%E5%90%91%E5%AF%B9%E8%B1%A1%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-1-%E9%9D%A2%E5%90%91%E5%AF%B9%E8%B1%A1%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/" class="post-title-link" itemprop="url">Easy搞定Golang设计模式 (1) 面向对象设计原则</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-04-18 15:44:28" itemprop="dateCreated datePublished" datetime="2023-04-18T15:44:28+08:00">2023-04-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">Easy搞定Golang设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="设计模式概述"><a href="#设计模式概述" class="headerlink" title="设计模式概述"></a>设计模式概述</h1><p>GoF 提出的设计模式总共有 23 种，包括三种类型：</p>
-<ul>
-<li>创建型模式：如何创建对象。</li>
-<li>结构型模式：如何实现对象的组合。</li>
-<li>行为型模式：对象如何交互、怎样分配职责。</li>
-</ul>
-<p>23 种设计模式 + 简单工厂模式，就是全部的 24 种设计模式。</p>
-<h2 id="设计模式总结"><a href="#设计模式总结" class="headerlink" title="设计模式总结"></a>设计模式总结</h2><p>24 种设计模式总结如下：</p>
-<ul>
-<li>创建型模式（6种）：<ul>
-<li><strong>单例模式：</strong>保证一个类只有<strong>一个实例</strong>，提供一个访问这个实例的<strong>全局访问点</strong>。</li>
-<li><strong>简单工厂模式：</strong>通过专门<strong>定义一个类来负责创建其他类的实例</strong>，被创建的实例通常都具有共同的父类。</li>
-<li><strong>工厂方法模式：</strong>定义一个<strong>创建产品对象的工厂接口</strong>，将实际创建工作推迟到子类中。</li>
-<li><strong>抽象工厂模式：</strong>提供一个<strong>创建一系列相关或者相互依赖的接口</strong>，而无需指定它们具体的类。</li>
-<li>原型模式：用原型实例指定创建对象的种类，并且通过拷贝这些原型创建新的对象。</li>
-<li>建造者模式：将一个复杂的构建与其表示相分离，使得同样的构建过程可以创建不同的表示。</li>
-</ul>
-</li>
-<li>结构型模式（7种）：<ul>
-<li><strong>适配器模式：</strong>将一个类的接口<strong>转换</strong>成客户希望的另外一个接口。使得原本由于接口不兼容而不能一起工作的那些类可以一起工作。</li>
-<li><strong>装饰器模式：</strong>动态的给一个对象<strong>添加一些额外的职责</strong>。就增加功能来说，此模式比生成子类更为灵活。</li>
-<li><strong>外观模式：</strong>为子系统中的<strong>一组接口提供一个一致的界面</strong>，此模式定义了一个<strong>高层接口</strong>，这个接口使得这一子系统更加容易使用。</li>
-<li><strong>代理模式：</strong>为其他对象提供一种代理以<strong>控制对这个对象的访问</strong>。</li>
-<li>桥接模式：将抽象部分与实际部分分离，使它们都可以独立的变化。</li>
-<li>组合模式：将对象组合成树形结构以表示“部分–整体”的层次结构。使得用户对单个对象和组合对象的使用具有一致性。</li>
-<li>亨元模式：以共享的方式高效的支持大量的细粒度的对象。     </li>
-</ul>
-</li>
-<li>行为型模式（11种）：<ul>
-<li><strong>命令模式：</strong>将<strong>一个请求封装为一个对象</strong>，从而使你可用不同的请求对客户端进行参数化；对请求排队或记录请求日志，以及支持可撤销的操作。</li>
-<li><strong>观察者模式：</strong>定义对象间的一种<strong>一对多的依赖关系</strong>，当一个对象的状态发生改变时，所有依赖于它的对象都得到通知并被自动更新。</li>
-<li><strong>策略模式：</strong>准备一组算法，并将每一个算法封装起来，使得它们可以互换。</li>
-<li><strong>模板方法模式：</strong>子类可以不改变一个算法的结构即可重定义该算法的某些特定步骤。 </li>
-<li>解释器模式：如何为简单的语言定义一个语法，如何在该语言中表示一个句子，以及如何解释这些句子。 </li>
-<li>迭代器模式：提供了一种方法顺序来访问一个聚合对象中的各个元素，而又不需要暴露该对象的内部表示。</li>
-<li>中介者模式：定义一个中介对象来封装系列对象之间的交互。终结者使各个对象不需要显示的相互调用 ，从而使其耦合性松散，而且可以独立的改变他们之间的交互。</li>
-<li>备忘录模式：是在不破坏封装的前提下，捕获一个对象的内部状态，并在该对象之外保存这个状态。</li>
-<li>状态模式：对象的行为，依赖于它所处的状态。</li>
-<li>访问者模式：表示一个作用于某对象结构中的各元素的操作，它使你可以在不改变各元素的类的前提下定义作用于这些元素的新操作。</li>
-</ul>
-</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/04/18/Easy%E6%90%9E%E5%AE%9AGolang%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-1-%E9%9D%A2%E5%90%91%E5%AF%B9%E8%B1%A1%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-7-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E6%AD%BB%E7%A0%81%E6%B6%88%E9%99%A4/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-7-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E6%AD%BB%E7%A0%81%E6%B6%88%E9%99%A4/" class="post-title-link" itemprop="url">Go语言高性能编程 (7) 编译优化——死码消除</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-03-27 21:27:25" itemprop="dateCreated datePublished" datetime="2023-03-27T21:27:25+08:00">2023-03-27</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="死码消除"><a href="#死码消除" class="headerlink" title="死码消除"></a>死码消除</h1><h2 id="什么是死码消除"><a href="#什么是死码消除" class="headerlink" title="什么是死码消除"></a>什么是死码消除</h2><p>死码消除（dead code elimination，DCE）是一种编译器优化技术，用处是<strong>在编译阶段去掉对程序运行结果没有任何影响的代码</strong>。</p>
-<p>死码消除有很多<strong>好处</strong>：减小程序体积，程序运行过程中避免执行无用的指令，缩短运行时间。</p>
-<h2 id="应用"><a href="#应用" class="headerlink" title="应用"></a>应用</h2><h3 id="全局常量-vs-全局变量"><a href="#全局常量-vs-全局变量" class="headerlink" title="全局常量 vs 全局变量"></a>全局常量 vs 全局变量</h3><p>在某些情景下使用全局常量替换全局变量，性能可能会有很大的提升。</p>
-<blockquote>
-<p>在使用<strong>常量</strong>时，在某些情况下<strong>编译器可以直接得到计算结果</strong>，进而可以<strong>死码消除</strong>。</p>
-<p>死码消除<strong>删除了不必要的分支和语句</strong>，不仅二编译后的<strong>二进制文件体积减小</strong>，而且因为可能<strong>少了一些判断分支的条件所以效率也会提升</strong>。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/03/27/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-7-%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%E2%80%94%E2%80%94%E6%AD%BB%E7%A0%81%E6%B6%88%E9%99%A4/#more" rel="contents">
+              <a class="btn" href="/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/" class="post-title-link" itemprop="url">软件架构设计读书笔记 (2) HTTP HTTPS QUIC</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-19 16:36:48" itemprop="dateCreated datePublished" datetime="2023-06-19T16:36:48+08:00">2023-06-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="HTTP"><a href="#HTTP" class="headerlink" title="HTTP"></a>HTTP</h1><p>HTTP 协议主要有三个版本，分别是 1996 年发布的 HTTP 1.0、1999 年发布的 HTTP 1.1 以及 2015 年发布的 HTTP 2。</p>
+<h2 id="HTTP-1-0"><a href="#HTTP-1-0" class="headerlink" title="HTTP 1.0"></a>HTTP 1.0</h2><p>在 HTTP 1.0 中，默认发出一个请求就建立一个 TCP 连接。但是可以使用 Keep-Alive 和 Content-Length 来实现<strong>持久连接</strong>。</p>
+<ul>
+<li><strong>Keep-Alive：</strong>用于声明这个字段是持久连接，多个 HTTP 请求都在同一个 TCP 连接上。</li>
+<li><strong>Content-Length：</strong>之前服务器响应完成就会关闭连接，而在持久连接中客户端不知道服务器的数据是否发送完成，所以<strong>需要 Content-Length 字段来告知数据长度</strong>。</li>
+</ul>
+<p>但是 Content-Length 字段有一个<strong>缺点</strong>，如果服务器使用了压缩，那么在生成 Header 时并不知道压缩之后的长度，所以无法生成 Content-Length。</p>
+<blockquote>
+<p>所以在 HTTP 1.0 中，压缩和持久连接是<strong>冲突</strong>的。</p>
+</blockquote>
+<h2 id="HTTP-1-1"><a href="#HTTP-1-1" class="headerlink" title="HTTP 1.1"></a>HTTP 1.1</h2><h3 id="分块传输编码-chunk"><a href="#分块传输编码-chunk" class="headerlink" title="分块传输编码 chunk"></a>分块传输编码 chunk</h3><p>在 HTTP 1.1 中，Keep-Alive 变成了默认选项，也可以利用 Content-Length 字段，让客户端判断服务器响应是否结束。但是因为 Content-Length 的缺点，所以<strong>引入了 Chunk 机制（分块传输编码）</strong>。</p>
+<p>在响应 Header 中添加 <code>Transfer-Encoding: chunked</code>，Body 中可以采用分块传输。分块包含<strong>十六进制的长度值</strong>和对应长度的数据<strong>内容</strong>，长度值独占一行，数据从下一行开始。最后以<strong>一个长度值为 0 的分块来表示资源结束</strong>。</p>
+<h3 id="pipeline"><a href="#pipeline" class="headerlink" title="pipeline"></a>pipeline</h3><p>尽管 HTTP 1.0 中的已经引入了长连接模式，但是 HTTP 1.0 中在收到上一次请求之后才能发出下一次请求。</p>
+<p>在 HTTP 1.1 中改进了这个问题，<strong>引入了 Pipeline 机制</strong>。在没有收到响应之前，就可以发出之后的请求。</p>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/image-20230619204542901.png" alt="image-20230619204542901"></p>
+<p>但是不管是 HTTP 1.0 还是 Pipeline，都有个问题就是<strong>队头阻塞</strong>。因为<strong>服务器的响应顺序必须是请求发出的顺序</strong>，所以如果前面的响应处理流程缓慢，则会延缓后面请求响应的处理。</p>
+<blockquote>
+<p>由于队头阻塞的问题，Pipeline 的推广并不是很成功。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-2-HTTP-HTTPS-QUIC/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/" class="post-title-link" itemprop="url">软件架构设计读书笔记 (1) I/O</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-19 10:59:50" itemprop="dateCreated datePublished" datetime="2023-06-19T10:59:50+08:00">2023-06-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="I-O"><a href="#I-O" class="headerlink" title="I/O"></a>I/O</h1><h2 id="分类"><a href="#分类" class="headerlink" title="分类"></a>分类</h2><h3 id="缓冲-I-O-与直接-I-O"><a href="#缓冲-I-O-与直接-I-O" class="headerlink" title="缓冲 I/O 与直接 I/O"></a>缓冲 I/O 与直接 I/O</h3><p>不管是文件 I/O 还是网络 I/O，最基本的分为两种类型：缓冲 I/O 和直接 I/O：</p>
+<ul>
+<li><strong>缓冲 I/O：</strong>读写操作都进行<strong>三次数据拷贝</strong>操作，以读操作为例，数据从<strong>磁盘</strong>进入<strong>内核缓冲区</strong>（Page Cache，操作系统会把数据<strong>以 Page 为单位</strong>存储在操作系统内存空间中），从内核缓冲区进入<strong>用户缓冲区</strong>（<strong>避免频繁的切换内核态</strong>，所以设立用户缓冲区，每次都读满缓冲区），最后从用户缓冲区进入<strong>应用程序内存</strong>。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111345104.png" alt="image-20230619111345104"></p>
+<ul>
+<li><strong>直接 I/O：</strong>直接 I/O 的读写操作会进行<strong>两次数据拷贝</strong>，与缓冲 I/O 不同的是，直接 I/O 中<strong>内核缓冲区直接与应用程序内存打交道</strong>。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619111358424.png" alt="image-20230619111358424"></p>
+<h3 id="内存映射文件与零拷贝"><a href="#内存映射文件与零拷贝" class="headerlink" title="内存映射文件与零拷贝"></a>内存映射文件与零拷贝</h3><p>在读写操作时的拷贝消耗了 CPU 和内存资源，为了进一步减少拷贝，又引入了内存映射文件和零拷贝技术。</p>
+<ul>
+<li><strong>内存映射文件：</strong>内存映射文件中，<strong>拷贝次数为一次</strong>。在<strong>应用程序中的地址</strong>为<strong>指向系统内核缓冲区</strong>的<strong>逻辑地址</strong>，所以在读操作时只需要将数据从<strong>磁盘</strong>读入<strong>内核缓冲区</strong>，应用程序通过内存映射就可以使用这些数据了。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619112432185.png" alt="image-20230619112432185"></p>
+<ul>
+<li><strong>零拷贝：</strong>零拷贝应用于<strong>避免数据从一个内核缓冲区拷贝到另一个内核缓冲区</strong>的场景（比如读取一个文件，然后将文件内容通过 socket 发送出去）。具体的做法是，直接使得一个内核缓冲区<strong>映射</strong>到另一个内核缓冲区中，两个内核缓冲区共用同一片内存空间。实际上这是有两次拷贝的，零拷贝指的是内存内部不需要拷贝操作。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/image-20230619113753783.png" alt="image-20230619113753783"></p>
+<blockquote>
+<p>Golang 中内存映射文件使用 syscall.mmap，零拷贝使用 syscall.sendfile。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/19/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-I-O/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/10/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/10/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/" class="post-title-link" itemprop="url">凤凰架构笔记 (9) 可观测性之日志 追踪 度量</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-10 21:23:40" itemprop="dateCreated datePublished" datetime="2023-06-10T21:23:40+08:00">2023-06-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-03-25 10:46:19" itemprop="dateModified" datetime="2024-03-25T10:46:19+08:00">2024-03-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>可观测性包含三个方面：日志、追踪、度量：</p>
+<ul>
+<li><strong>日志：</strong>日志用于<strong>记录离散的事件</strong>，这些事件就是程序的行为。</li>
+<li><strong>追踪：</strong>追踪就是为了<strong>得到完整的远程调用链路</strong>，主要目的是排查故障、观察调用链是否符合预期。</li>
+<li><strong>度量：</strong>度量是指对系统中<strong>某一类信息的统计聚合</strong>，如内存占用率、磁盘占用率等等。</li>
+</ul>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/mtl.7974eb9f.png" alt="img"></p>
+<h1 id="日志"><a href="#日志" class="headerlink" title="日志"></a>日志</h1><p>日志不仅仅是输出并记录日志这么简单，在微服务架构中的海量日志处理也是十分重要的。日志处理过程包括如下步骤：</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/logging.3b2352c5.jpg" alt="img"></p>
+<h3 id="输出"><a href="#输出" class="headerlink" title="输出"></a>输出</h3><p>日志应该无有遗漏地记录信息，格式统一，内容恰当（不应该过多占用 I/O，不应该过少缺少必要信息）。</p>
+<h3 id="收集和缓冲"><a href="#收集和缓冲" class="headerlink" title="收集和缓冲"></a>收集和缓冲</h3><p>将日志文件统一收集起来集中存储、索引，由此便催生了专门的日志收集器。</p>
+<p>最初日志收集器是由 Logstash 负责的，但是 Logstash 需要跑在单独的 JAVA 虚拟机上，默认堆栈就达到了 1GB。作为每一个节点上都要部署的收集器，这就过于沉重了。</p>
+<p>后来 Elastic.co 公司利用 Golang 编写了<strong>轻量高效的日志收集器 Filebeat</strong>。不过 Beats 家族不仅于此，处理 Filebeat 外，有用于收集 Linux 审计数据的 Auditbeat、用于收集 Windows 事件日志的 Winlogbeat、用于心跳检测的 Heartbeat 等等。</p>
+<p>因为集群中有很多节点都在日志收集，产生的日志数据数以万计。在日志收集过后的流程中，需要<strong>保证日志不丢失</strong>，在做到在后续处理能力出现瓶颈时做到<strong>削峰填谷</strong>。所以在这之后<strong>架设一个 Kafka 或者 Redis 作为缓冲层</strong>，以应对突发流量。</p>
+<h3 id="聚合加工"><a href="#聚合加工" class="headerlink" title="聚合加工"></a>聚合加工</h3><p>将日志集中收集之后，存入 Elasticsearch 之前，一般还要对它们进行<strong>加工转换和聚合处理</strong>。这是因为日志是非结构化数据，一行日志中通常会包含多项信息，如果不做处理，那在 Elasticsearch 就只能以全文检索的原始方式去使用日志，既不利于统计对比，也不利于条件过滤。</p>
+<p>Logstash 的基本职能是把日志行中的非结构化数据，<strong>通过 Grok 表达式语法转换为结构化数据</strong>，进行结构化的同时，还可能会根据需要，调用其他插件来完成时间处理（统一时间格式）、类型转换（如字符串、数值的转换）、查询归类（譬如将 IP 地址根据地理信息库按省市归类）等额外处理工作，然后<strong>以 JSON 格式输出</strong>。</p>
+<h3 id="存储和查询"><a href="#存储和查询" class="headerlink" title="存储和查询"></a>存储和查询</h3><p><strong>Elasticsearch 是一种文档数据库，它用于存储日志</strong>。对于加工过后已经结构化的日志，Elasticsearch 便可针对不同的数据项来建立索引，进行条件查询、统计、聚合等操作的了。</p>
+<p>Elasticsearch 只提供了 API 层面的查询能力，它通常搭配同样出自 Elastic.co 公司的 Kibana 一起使用，<strong>Kibana 作为 GUI 图形界面</strong>。</p>
+<h1 id="追踪"><a href="#追踪" class="headerlink" title="追踪"></a>追踪</h1><p>追踪用于知晓服务调用链路，所以又称之为链路追踪。</p>
+<h3 id="追踪和跨度"><a href="#追踪和跨度" class="headerlink" title="追踪和跨度"></a>追踪和跨度</h3><p>对于链路追踪，有<strong>追踪</strong>和<strong>跨度</strong>两个概念。Trace 就是一次调用的完整过程（<strong>纵向</strong>的），而 Span 是在一个服务内部的处理过程（<strong>横向</strong>的，包括处理时间、处理结果）。想要进行链路追踪，对于<strong>每一次服务调用都需要记录 Trace 和 Span</strong>，通过 Trace 和 Span 生成<strong>服务调用拓扑图</strong>。根据拓扑图中 Span 记录的时间信息和响应结果（正常或异常返回）就可以定位到缓慢或者出错的服务；将 Trace 与历史记录进行对比统计，就可以从系统整体层面分析服务性能，定位性能优化的目标。</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/spans.df373532.png" alt="img"></p>
+<h3 id="OpenTelemetry-Jaeger"><a href="#OpenTelemetry-Jaeger" class="headerlink" title="OpenTelemetry + Jaeger"></a>OpenTelemetry + Jaeger</h3><p>OpenTelemetry 只涉及到遥感数据（链路追踪信息、日志、指标）的<strong>采集和传输</strong>，为遥感数据的采集和传输提供一套统一的标准。</p>
+<p>Jaeger 是分布式链路追踪工具，用于<strong>管理和监控</strong>链路追踪数据。</p>
+<p>链路追踪可以涉及两个步骤：</p>
+<ul>
+<li><strong>采集</strong>链路请求数据。</li>
+<li><strong>存储、管理和可视化</strong>收集的数据以采取快速行动。</li>
+</ul>
+<p><strong>OpenTelemetry 解决了第一步，而 Jaeger 旨在解决后者。</strong>使用 OpenTelemetry，可以生成链路信息、日志、指标，而 Jaeger 只负责链路追踪分析。</p>
+<h1 id="度量"><a href="#度量" class="headerlink" title="度量"></a>度量</h1><p>度量虽然没有一个统一的协议标准，但是 Prometheus 已经成为了实践标准。下面以 Prometheus 为例进行说明。</p>
+<h2 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h2><p>Prometheus 作为一种云原生监控系统，有以下特点：</p>
+<h3 id="易于管理"><a href="#易于管理" class="headerlink" title="易于管理"></a>易于管理</h3><ul>
+<li>Prometheus 核心部分只有一个<strong>单独的二进制</strong>文件，不存在任何的第三方依赖（数据库、缓存等），因此不会存在<strong>级联故障</strong>。</li>
+<li>Prometheus <strong>基于 Pull 模型</strong>的架构方式，可以在任何地方搭建监控系统。</li>
+<li>对于一些复杂的情况，还可以使用 Prometheus <strong>服务发现</strong>功能动态管理监控目标。</li>
+</ul>
+<h3 id="监控服务的内部运行状态"><a href="#监控服务的内部运行状态" class="headerlink" title="监控服务的内部运行状态"></a><strong>监控服务的内部运行状态</strong></h3><ul>
+<li>Pometheus 鼓励用户监控<strong>服务的内部状态</strong>，基于 Prometheus 丰富的 Client 库，用户可以轻松的在应用程序中添加对 Prometheus 的支持，从而让用户可以获取服务和应用内部真正的运行状态。</li>
+</ul>
+<h3 id="强大的数据模型"><a href="#强大的数据模型" class="headerlink" title="强大的数据模型"></a>强大的数据模型</h3><ul>
+<li>所有采集的监控数据均以<strong>指标（metric）</strong>的形式保存在<strong>内置的时间序列数据库</strong>当中。所有的样本除了基本的<strong>指标名称</strong>以外，还包含一组用于描述该样本特征的<strong>标签</strong>。每一条时间序列由<strong>指标名称（Metrics Name）</strong>以及一组<strong>标签（Labels）</strong>唯一标识。如下所示：</li>
+</ul>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">	<span class="comment">// 时间戳</span></span><br><span class="line">	<span class="attr">&quot;timestamp&quot;</span>: <span class="number">1599117392</span>,</span><br><span class="line">	<span class="comment">// 指标名称</span></span><br><span class="line">	<span class="attr">&quot;metric&quot;</span>: <span class="string">&quot;total_website_visitors&quot;</span>,</span><br><span class="line">	<span class="comment">// 标签组</span></span><br><span class="line">	<span class="attr">&quot;tags&quot;</span>: &#123;</span><br><span class="line">		<span class="attr">&quot;host&quot;</span>: <span class="string">&quot;xxx.cn&quot;</span>,</span><br><span class="line">		<span class="attr">&quot;job&quot;</span>: <span class="string">&quot;prometheus&quot;</span></span><br><span class="line">	&#125;,</span><br><span class="line">	<span class="comment">// 指标值</span></span><br><span class="line">	<span class="attr">&quot;value&quot;</span>: <span class="number">10011</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="强大的查询语言-PromQL"><a href="#强大的查询语言-PromQL" class="headerlink" title="强大的查询语言 PromQL"></a>强大的查询语言 PromQL</h3><ul>
+<li>Prometheus 内置了一个强大的<strong>数据查询语言 PromQL</strong>。 通过 PromQL 可以实现对监控数据的查询、聚合。同时 PromQL 也被应用于数据可视化（如 Grafana）以及告警当中。</li>
+</ul>
+<h3 id="可扩展"><a href="#可扩展" class="headerlink" title="可扩展"></a>可扩展</h3><ul>
+<li>Prometheus 对于联邦集群的支持，可以让多个 Prometheus 实例产生一个逻辑<strong>集群</strong>，当单实例 Prometheus Server 处理的任务量过大时，通过使用功能分区 + 联邦集群可以对其进行扩展。</li>
+</ul>
+<h2 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h2><p>Prometheus 整体上可以分为三个模块：</p>
+<ul>
+<li>采集层</li>
+<li>存储计算层</li>
+<li>应用层</li>
+</ul>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-9-%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7%E4%B9%8B%E6%97%A5%E5%BF%97-%E8%BF%BD%E8%B8%AA-%E5%BA%A6%E9%87%8F/prometheus_architecture.8b9f3856.png" alt="img"></p>
+<h3 id="采集层"><a href="#采集层" class="headerlink" title="采集层"></a>采集层</h3><p>采集层主要用于采集被监控的数据，层分为两类，一类是生命周期较短的作业，还有一类是生命周期较长的作业（这种对应于监控特定的机器）。</p>
+<ul>
+<li>短作业：直接通过 API，在<strong>退出时将指标推送给 Pushgateway</strong>（推送网关，短作业将指标推送给推送网关，之后 Prometheus server 中的 Retrieval 统一从推送网关中拉取短作业的监控数据）。Prometheus 基于 Pull 架构的同时还能够有限度地兼容 Push 式采集，是因为它有 Push Gateway 的存在。</li>
+<li>长作业：Retrieval 组件直接从 Job 或者 Exporter（Exporter 为专门为一些应用开发的数据获取组件，如 mysqld_exporter、node_exporter 等）拉取数据。Exporter 以 HTTP 协议返回符合 Prometheus 格式要求的文本数据给 Prometheus 服务器。</li>
+</ul>
+<h3 id="存储计算层"><a href="#存储计算层" class="headerlink" title="存储计算层"></a>存储计算层</h3><p>存储计算层包含两个主要组件，Prometheus server 和 Service discovery。</p>
+<ul>
+<li><strong>Prometheus server：</strong><ul>
+<li><strong>Retrieval：</strong>取数据组件，它会<strong>主动从 Pushgateway 或者 Exporter 中拉取</strong>指标数据。</li>
+<li><strong>TSDB：</strong>时序数据库，提供数据核心<strong>存储与查询</strong>。</li>
+<li><strong>HTTP server：</strong>对外提供 HTTP 服务。</li>
+</ul>
+</li>
+<li><strong>Service discovery：</strong>可以动态发现要监控的目标。</li>
+</ul>
+<h3 id="应用层"><a href="#应用层" class="headerlink" title="应用层"></a>应用层</h3><p>应用层主要分为两种，AlertManager 和数据可视化。</p>
+<ul>
+<li>AlertManager：专门用于处理告警的组件。</li>
+<li>数据可视化：用于数据可视化或者向外提供 API 用于提供监控数据，数据可视化可以采用 Prometheus Web UI、Grafana。</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-8-%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%AE%B9%E9%94%99%E5%92%8C%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-8-%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%AE%B9%E9%94%99%E5%92%8C%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/" class="post-title-link" itemprop="url">凤凰架构笔记 (8) 流量治理之服务容错和流量控制</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-09 21:45:25" itemprop="dateCreated datePublished" datetime="2023-06-09T21:45:25+08:00">2023-06-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="服务容错"><a href="#服务容错" class="headerlink" title="服务容错"></a>服务容错</h1><p>微服务架构中必须有服务容错的设计，否则会造成故障服务带来的雪崩效应。下面介绍几种服务容错设计模式。</p>
+<h2 id="断路器模式"><a href="#断路器模式" class="headerlink" title="断路器模式"></a>断路器模式</h2><p>断路器就是熟悉的熔断器，通过熔断器对象接管服务调用者的远程调用，一个熔断器<strong>一对一</strong>的对应一个远程服务对象。</p>
+<h3 id="状态"><a href="#状态" class="headerlink" title="状态"></a>状态</h3><p>熔断器实际上可以看作是一个有限状态机，<strong>有三种状态 CLOSE、OPEN、HALF-OPEN</strong>。</p>
+<ul>
+<li>当熔断器监控到服务返回的故障超过了<strong>阈值</strong>时，就会<strong>变为 OPEN</strong>，此后一段时间内不会对该服务（实例）发出任何实际请求，而是<strong>直接返回错误</strong>。</li>
+<li><strong>一段时间之后</strong>，熔断器会<strong>变为 HALF-OPEN 状态</strong>，此时下一个远程调用请求会<strong>尝试发出</strong>，熔断器<strong>根据结果变更状态</strong>，如果成功则变为 CLOSE，如果失败则继续为 OPEN。</li>
+</ul>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-8-%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%AE%B9%E9%94%99%E5%92%8C%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/image-20230610145226779.png" alt="image-20230610145226779"></p>
+<h3 id="阈值"><a href="#阈值" class="headerlink" title="阈值"></a>阈值</h3><p><strong>什么情况下 CLOSE 会变为 OPEN</strong>，最简单的方法就是如果出现任何一个错误，就变更状态。但是在用户的角度看来，这是十分糟糕的体验，因为此时调用的服务可能只是偶然的错误并不是真正的故障，在用户看来系统表现十分不稳定。</p>
+<p>一个可行的方案是从两个方面考虑，只有<strong>同时满足时</strong>才从 CLOSE 变为 OPEN：</p>
+<ul>
+<li>一段时间的<strong>请求数量</strong>达到阈值：如果请求本身很少，不用熔断器介入。</li>
+<li>一段时间内的<strong>请求故障率</strong>达到阈值：如果错误很少，也不用熔断器介入。</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-8-%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%AE%B9%E9%94%99%E5%92%8C%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/" class="post-title-link" itemprop="url">凤凰架构笔记 (7) 服务调用之服务发现 网关路由 客户端负载均衡</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-09 16:58:10" itemprop="dateCreated datePublished" datetime="2023-06-09T16:58:10+08:00">2023-06-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h1><p>服务发现<strong>既要高可用，又要高可靠</strong>。因为服务注册中心的地位是特殊的，<strong>不依赖其他服务，但被所有其他服务共同依赖</strong>（类似于配置中心），是系统中最基础的服务。服务注册中心一旦崩溃，整个系统都不再可用，因此，必须尽最大努力保证服务发现的可用性。</p>
+<p>实际用于生产的分布式系统，服务注册中心都是以<strong>集群</strong>的方式进行部署的。</p>
+<p>采用集群部署注册中心时，就会遇到 CAP 矛盾。所以注册中心分为两类，<strong>满足 AP 的注册中心</strong>和<strong>满足 CP 的注册中心</strong>：</p>
+<ul>
+<li>满足 AP 的注册中心，保证了高可用，但是注册中心内部可能会发生不一致的情况。<strong>代表如 Eureka、Redis、Nacos 等</strong>。</li>
+<li>满足 CP 的注册中心，保证了一致性，但是必须经过集群之间的同步之后，才算是注册完成。<strong>代表如 Consul、Zookeeper、Etcd、Nacos 等</strong>。</li>
+</ul>
+<h2 id="实现注册中心"><a href="#实现注册中心" class="headerlink" title="实现注册中心"></a>实现注册中心</h2><p>实现注册中心，主要通过以下三种方式实现：</p>
+<ul>
+<li><strong>在分布式 K/V 存储框架上自己开发的服务发现：</strong>这一类的代表为 Etcd、Zookeeper 等，需要在 CRUD 和 Watch 等 API 的基础上，自己去实现服务的注册和发现功能，还需要考虑健康检查。</li>
+<li><strong>以基础设施来实现服务发现：</strong>代表就是 Kubernetes 的服务注册发现功能，如 Kubernetes 中采用 CoreDNS 进行服务发现。这种方案是 CP 还是 AP，取决于后端采用何种存储。</li>
+<li><strong>专门用于服务发现的框架和工具：</strong>代表是 Eureka、Consul 和 Nacos，其中 Nacos 支持 AP 或者 CP 二选一。这类服务发现提供了专门的 API，使用这类服务发现必须有语言的支持。</li>
+</ul>
+<h1 id="网关路由"><a href="#网关路由" class="headerlink" title="网关路由"></a>网关路由</h1><p>在为微服务中，路由网关又称之为 API 网关或者服务网关。作为微服务架构的入口，具有路由的功能，还可以具有认证、监控、缓存等辅助功能。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-7-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8%E4%B9%8B%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0-%E7%BD%91%E5%85%B3%E8%B7%AF%E7%94%B1-%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/" class="post-title-link" itemprop="url">凤凰架构笔记 (6) 安全之授权和加密</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-09 11:11:10" itemprop="dateCreated datePublished" datetime="2023-06-09T11:11:10+08:00">2023-06-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="授权"><a href="#授权" class="headerlink" title="授权"></a>授权</h1><p>授权的过程就是解决这样一个问题：谁拥有什么权限去操作哪些资源。</p>
+<h2 id="访问控制模型"><a href="#访问控制模型" class="headerlink" title="访问控制模型"></a>访问控制模型</h2><p>可以通过访问控制模型来解决授权问题，有常见的三种访问控制模型：DAC（自主访问控制）、MAC（强制访问控制）、RBAC（基于角色的访问控制）。</p>
+<h3 id="DAC"><a href="#DAC" class="headerlink" title="DAC"></a>DAC</h3><p>自主访问控制就是<strong>资源的所有者，规定谁有权限访问它们</strong>。</p>
+<p>Linux 文件的权限就是 DAC 的一种实现方式。</p>
+<h3 id="MAC"><a href="#MAC" class="headerlink" title="MAC"></a>MAC</h3><p>主体和客体都有一个<strong>固定属性</strong>，系统用该安全属性来决定一个主体是否可以访问某个客体。</p>
+<blockquote>
+<p>保护敏感信息一般用 MAC，需要用户提供灵活的保护，更多的考虑共享信息时，使用 DAC。</p>
+</blockquote>
+<h3 id="RBAC"><a href="#RBAC" class="headerlink" title="RBAC"></a>RBAC</h3><p>将权限从用户身上剥离，<strong>将权限分配在角色上，再给用户分配角色</strong>，这是最常用的访问控制模型。</p>
+<p>RBAC 有以下特点：</p>
+<ul>
+<li>通过角色实现用户和权限的<strong>解耦</strong>，具有很高的<strong>灵活性</strong>。</li>
+<li>同时还天然的满足<strong>最小分配原则</strong>。在 RBAC 模型中，角色拥有许可的数量是根据完成该角色工作职责所需的最小权限来赋予的。</li>
+<li>不同的<strong>角色</strong>之间可以有<strong>继承性</strong>，也可以有<strong>互斥性</strong>（角色的互斥约束可限制同一用户只能分配到一组互斥角色集合中至多一个角色）。</li>
+</ul>
+<h2 id="OAuth2"><a href="#OAuth2" class="headerlink" title="OAuth2"></a>OAuth2</h2><p>OAuth2 是<strong>面向于解决第三方应用</strong>的认证授权协议，以 token 代替密码访问资源服务器。整个授权的流程如下图所示：</p>
+<p><img src="/../images/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/image-20230609155251566.png" alt="image-20230609155251566"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/09/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-6-%E5%AE%89%E5%85%A8%E4%B9%8B%E6%8E%88%E6%9D%83%E5%92%8C%E5%8A%A0%E5%AF%86/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/" class="post-title-link" itemprop="url">凤凰架构笔记 (5) 安全之认证和凭证</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-08 21:09:35" itemprop="dateCreated datePublished" datetime="2023-06-08T21:09:35+08:00">2023-06-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h1><p>认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。</p>
+<h2 id="HTTP-认证"><a href="#HTTP-认证" class="headerlink" title="HTTP 认证"></a>HTTP 认证</h2><p>HTTP 认证<strong>通过 Authication Header 实现</strong>，服务器告知客户端应该采用哪种认证方式：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">WWW-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br><span class="line"><span class="attribute">Proxy-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br></pre></td></tr></table></figure>
+
+<p>客户端进行响应：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br><span class="line"><span class="attribute">Proxy-Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br></pre></td></tr></table></figure>
+
+<p>认证方案如下：</p>
+<ul>
+<li><strong>Basic：</strong>让用户输入用户名和密码，经过 Base64 编码后作为凭证内容。</li>
+<li><strong>Digest：</strong>HTTP 摘要认证，Digest 认证把用户名和密码加盐（Nonce）后通过哈希后发送出去。</li>
+<li><strong>Bearer：</strong>基于 OAuth 2 规范来完成认证。</li>
+</ul>
+<h2 id="Web-认证"><a href="#Web-认证" class="headerlink" title="Web 认证"></a>Web 认证</h2><p>Web 认证就是通过 Web 表单让用户去填写用户名密码等信息。</p>
+<blockquote>
+<p>这种认证方法<strong>没有固定的标准</strong>，没有一个统一的标准去规定用户名、密码、验证码是否需要加密，并且用何种方法进行加密。这不是缺点，<strong>反而是一大优点</strong>，因为足够的<strong>自主性</strong>，可以设计出符合需求的各种认证方式。</p>
+</blockquote>
+<p>请注意，Web 认证是可以基于 HTTP 认证实现的，也就是说可以使用 HTTP Authentication Header 记录认证信息。</p>
+<h3 id="WebAuthn"><a href="#WebAuthn" class="headerlink" title="WebAuthn"></a>WebAuthn</h3><p>2019 年 W3C 起草了<strong>第一份 Web 内容认证标准 WebAuthn</strong>，WebAuthn 彻底抛弃了传统的密码登录方式，改为直接采用<strong>生物识别</strong>（指纹、人脸、虹膜、声纹）或者<strong>实体密钥</strong>（以 USB、蓝牙、NFC 连接的物理密钥容器）来作为身份凭证。所以，这个规范不关注界面该是什么样子、要不要验证码、是否要前端校验这些问题。</p>
+<p>WebAuthn包含注册和登录两大流程。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/" class="post-title-link" itemprop="url">凤凰架构笔记 (4) 透明多级分流系统之传输链路</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-07 22:07:51" itemprop="dateCreated datePublished" datetime="2023-06-07T22:07:51+08:00">2023-06-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="传输链路"><a href="#传输链路" class="headerlink" title="传输链路"></a>传输链路</h1><p>数据通过 HTTP 协议进行通信，所以这里的传输链路指的是 HTTP 在传输链路上的优化。</p>
+<h2 id="连接数优化"><a href="#连接数优化" class="headerlink" title="连接数优化"></a>连接数优化</h2><p>HTTP over TCP，需要三次握手才能进行传输，并且 TCP 还有慢启动的特性，所以减少连接数可以优化传输时延。</p>
+<h3 id="HTTP-1-x"><a href="#HTTP-1-x" class="headerlink" title="HTTP 1.x"></a>HTTP 1.x</h3><p>在 HTTP 1.0 版本就已经支持<strong>连接复用</strong>技术（在 HTTP 1.0 默认关闭，在 HTTP 1.1 默认开启），即与服务器维护一个或者多个持久连接。客户端维护一个 FIFO 队列，每一次得到完整的响应后发出下一个请求。这种方法的问题在于队头阻塞，如果第一个请求的响应非常慢那么会直接阻塞后续请求的发出。</p>
+<p>后续又<strong>提出 HTTP 管道复用</strong>技术，令 HTTP 服务器也维护一个 FIFO 队列，客户端一次性把所有的请求都发送给服务器，由服务端来安排返回顺序。由于 HTTP 管道需要多方共同支持，协调起来相当复杂，推广得并不算成功。</p>
+<h3 id="HTTP-2-0"><a href="#HTTP-2-0" class="headerlink" title="HTTP 2.0"></a>HTTP 2.0</h3><p>HTTP 2.0 中，<strong>帧（Frame）是传输的最小单位</strong>，每一个帧都<strong>附带一个 ID 用于标识这个帧属于哪个流</strong>，从而可以通过不同流重组出 HTTP 请求和响应，被<strong>称为 HTTP 2 多路复用技术</strong>。HTTP 与同一个服务器只维护<strong>一个连接</strong>。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/" class="post-title-link" itemprop="url">凤凰架构笔记 (3) 透明多级分流系统之缓存</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-07 15:58:30" itemprop="dateCreated datePublished" datetime="2023-06-07T15:58:30+08:00">2023-06-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="客户端缓存"><a href="#客户端缓存" class="headerlink" title="客户端缓存"></a>客户端缓存</h1><p>客户端缓存依赖于 HTTP 缓存机制，通过 HTTP Header 控制。</p>
+<h2 id="强制缓存"><a href="#强制缓存" class="headerlink" title="强制缓存"></a>强制缓存</h2><p>HTTP 强制缓存<strong>规定了一个过期时间</strong>，在这个时间点之前客户端可以不发出请求，直接使用本地缓存。</p>
+<p>根据约定，强制缓存在浏览器的地址输入、页面链接跳转、新开窗口、前进和后退中均可生效，但在用户主动<strong>刷新</strong>页面时应当自动<strong>失效</strong>。</p>
+<p>两类 HTTP Header 保证了强制缓存：</p>
+<ul>
+<li><strong>Expires：</strong>Expires 是 HTTP 1.0 提供的 Header，后面跟随一个截止时间用于定于缓存的有效时间。</li>
+</ul>
+<blockquote>
+<p>Expires 有设计缺陷：</p>
+<ul>
+<li>受限于客户端的本地时间。</li>
+<li>无法处理涉及客户端身份的私有资源。</li>
+<li>无法描述不缓存。</li>
+</ul>
+</blockquote>
+<ul>
+<li><strong>Cache-Control：</strong>Cache-Control 是 HTTP 1.1 种定义的 Header，如果 Cache-Control 和 Expires 同时存在，并且语义存在冲突，规定必须以 Cache-Control 为准。它有一系列参数：<ul>
+<li><strong>max-age 和 s-maxage：</strong>max-age 后面跟随一个以秒为单位的数字，表明相对于请求时间多少秒以内缓存是有效的。s-maxage 中的 s 为 Share，即允许被 CDN、代理等持有的缓存有效时间。</li>
+<li><strong>public 和 private：</strong>指明是否涉及到用户身份的私有资源，如果是 public，则可以被代理、CDN 等缓存，如果是 private，则只能由用户的客户端进行私有缓存。</li>
+<li><strong>no-cache 和 no-store：</strong>no-cache 指明该资源不应该被缓存，如果一个页面中引用了两张相同的图片，则会请求两次。no-store 指不能保存在本地，但是用一个页面中引用了两张相同的图片，只会请求一次。</li>
+<li><strong>no-transform：</strong>禁止资源被任何形式地修改。某些 CDN、透明代理支持自动 GZip 压缩图片或文本，以提升网络性能，而 no-transform 就禁止了这样的行为。</li>
+<li><strong>min-fresh 和 only-if-cached：</strong>这两个参数是仅用于客户端的请求 Header。min-fresh 后续跟随一个以秒为单位的数字，用于建议服务器能返回一个不少于该时间的缓存资源。only-if-cached 表示客户端要求不必给它发送资源的具体内容，此时客户端就仅能使用事先缓存的资源来进行响应，若缓存不能命中，就直接返回 503/Service Unavailable 错误。</li>
+</ul>
+</li>
+</ul>
+<h2 id="协商缓存"><a href="#协商缓存" class="headerlink" title="协商缓存"></a>协商缓存</h2><p><strong>强制缓存</strong>有一个缓存过期时间，<strong>没有一个检测变化的机制</strong>，如果缓存还没有过期即使内容发生变化，客户端也不会向服务器请求而是使用本地缓存。</p>
+<p><strong>协商缓存</strong>在一致性上有更好的表现，但是<strong>性能</strong>上会<strong>差一些</strong>，因为需要<strong>一次检测变化的开销</strong>。</p>
+<blockquote>
+<p>强制缓存和协商缓存是完全<strong>并行工作</strong>的，当强制缓存存在时，直接从强制缓存中返回资源，无须进行变动检查；而当强制缓存超过时效，或者被禁止（no-cache）时，协商缓存依然可以工作。</p>
+</blockquote>
+<p>协商缓存有两种变化检测机制，分别是根据资源的<strong>修改时间</strong>、以及根据资源<strong>唯一标识符</strong>进行检查。</p>
+<ul>
+<li><strong>Last-Modified 和 If-Modified-Since：</strong>服务器通过 Last-Modified 告诉客户端资源最后修改时间，客户端通过 If-Modified-Since 将这个时间回送给服务器。</li>
+<li><strong>Etag 和 If-None-Match：</strong>服务器通过 Etag 告诉客户端这个资源的唯一标识符，客户端通过 If-None-Match 将这个唯一标识符回送给服务器。</li>
+</ul>
+<p>如果此时服务端发现资源<strong>没有变动</strong>（通过最后修改时间或者唯一标识符），就只要<strong>返回一个 304/Not Modified 的响应</strong>即可，无须附带消息体。如果发现<strong>有变动</strong>，则<strong>返回 200 并携带完整内容</strong>。</p>
+<blockquote>
+<p>Last-Modified 只能精确到秒级，如果一秒之内发生了多次变化，则不能准确标注修改时间。</p>
+</blockquote>
+<p>HTTP Vary Header 在响应中，用于<strong>指定其他 HTTP 头部作为客户端缓存命中的依据</strong>，如下表示根据 MIME 类型和浏览器类型来缓存资源。</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Vary</span><span class="punctuation">: </span>Accept, User-Agent</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1119,7 +1201,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/13/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/13/">13</a><span class="page-number current">14</span><a class="page-number" href="/page/15/">15</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/15/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/13/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/13/">13</a><span class="page-number current">14</span><a class="page-number" href="/page/15/">15</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/15/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1185,20 +1267,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

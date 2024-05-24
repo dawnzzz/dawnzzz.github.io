@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-9-%E6%93%8D%E4%BD%9CZooKeeper/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/13/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E4%B8%89%E5%89%91%E5%AE%A2%E4%B9%8BCompose-Machine-Swarm/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-9-%E6%93%8D%E4%BD%9CZooKeeper/" class="post-title-link" itemprop="url">GO语言杂谈 (9) 操作ZooKeeper</a>
+            <a href="/2022/05/13/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E4%B8%89%E5%89%91%E5%AE%A2%E4%B9%8BCompose-Machine-Swarm/" class="post-title-link" itemprop="url">Docker学习笔记 (5) 三剑客之Compose Machine Swarm</a>
         </h2>
 
         <div class="post-meta">
@@ -182,7 +182,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-15 15:42:43" itemprop="dateCreated datePublished" datetime="2022-03-15T15:42:43+08:00">2022-03-15</time>
+              <time title="创建时间：2022-05-13 09:39:24" itemprop="dateCreated datePublished" datetime="2022-05-13T09:39:24+08:00">2022-05-13</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
                 </span>
             </span>
 
@@ -212,126 +212,33 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="基本操作"><a href="#基本操作" class="headerlink" title="基本操作"></a>基本操作</h1><h2 id="连接zookeeper"><a href="#连接zookeeper" class="headerlink" title="连接zookeeper"></a>连接zookeeper</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 连接zookeeper服务器</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="增"><a href="#增" class="headerlink" title="增"></a>增</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">conn zookeeper连接</span></span><br><span class="line"><span class="comment">path 节点</span></span><br><span class="line"><span class="comment">data 节点数据</span></span><br><span class="line"><span class="comment">flags有4种取值：</span></span><br><span class="line"><span class="comment">   0:永久，除非手动删除</span></span><br><span class="line"><span class="comment">   zk.FlagEphemeral = 1:短暂，session断开则改节点也被删除</span></span><br><span class="line"><span class="comment">   zk.FlagSequence  = 2:会自动在节点后面添加序号</span></span><br><span class="line"><span class="comment">   3:Ephemeral和Sequence，即，短暂且自动添加序号</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	s, err := conn.Create(path, data, flags, acls)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create success:&quot;</span>, s)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="删"><a href="#删" class="headerlink" title="删"></a>删</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get version failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="改"><a href="#改" class="headerlink" title="改"></a>改</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 更新节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">set</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get version failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 更新</span></span><br><span class="line">	stat, err = conn.Set(path, data, stat.Version)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;set failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;set success ,stat: %v\n&quot;</span>, stat)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="查"><a href="#查" class="headerlink" title="查"></a>查</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 查询</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">get</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="params">([]<span class="keyword">byte</span>, error)</span></span> &#123;</span><br><span class="line">	b, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;info of node for %v: %v\n&quot;</span>, path, stat)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> b, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Watch机制"><a href="#Watch机制" class="headerlink" title="Watch机制"></a>Watch机制</h1><h2 id="只监听一次"><a href="#只监听一次" class="headerlink" title="只监听一次"></a>只监听一次</h2><p>调用<code>zk.WithEventCallback(callback)</code>设置回调</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/samuel/go-zookeeper/zk&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// zk watch 回调函数</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">callback</span><span class="params">(event zk.Event)</span></span> &#123;</span><br><span class="line">	<span class="comment">// zk.EventNodeCreated</span></span><br><span class="line">	<span class="comment">// zk.EventNodeDeleted</span></span><br><span class="line">	fmt.Println(<span class="string">&quot;###########################&quot;</span>)</span><br><span class="line">	fmt.Println(<span class="string">&quot;path: &quot;</span>, event.Path)</span><br><span class="line">	fmt.Println(<span class="string">&quot;type: &quot;</span>, event.Type.String())</span><br><span class="line">	fmt.Println(<span class="string">&quot;state: &quot;</span>, event.State.String())</span><br><span class="line">	fmt.Println(<span class="string">&quot;---------------------------&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	eventCallbackOption := zk.WithEventCallback(callback)</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>, eventCallbackOption)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	_, err := conn.Create(path, data, flags, acls)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listenOne</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">//调用conn.ExistsW(path) 或GetW(path)为对应节点设置监听，该监听只生效一次</span></span><br><span class="line">	_, _, _, err := conn.ExistsW(path)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := initZk()</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	path := <span class="string">&quot;/dawn111&quot;</span></span><br><span class="line">	data := []<span class="keyword">byte</span>(<span class="string">&quot;hello world&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 开始监听path，只监听一次</span></span><br><span class="line">	err = listenOne(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 触发创建数据操作</span></span><br><span class="line">	err = add(conn, path, data, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;创建数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//再次监听path</span></span><br><span class="line">	err = listenOne(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 触发删除数据操作</span></span><br><span class="line">	err = <span class="built_in">delete</span>(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;删除数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="开启一个channel处理"><a href="#开启一个channel处理" class="headerlink" title="开启一个channel处理"></a>开启一个channel处理</h2><p>可以开一一个协程来处理chanel中传来的event事件，可以持续监听</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/samuel/go-zookeeper/zk&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	_, err := conn.Create(path, data, flags, acls)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listenOneChannel</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	_, _, ch, err := conn.ExistsW(path)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		event := &lt;-ch</span><br><span class="line">		fmt.Println(<span class="string">&quot;*******************&quot;</span>)</span><br><span class="line">		fmt.Println(<span class="string">&quot;path:&quot;</span>, event.Path)</span><br><span class="line">		fmt.Println(<span class="string">&quot;type:&quot;</span>, event.Type.String())</span><br><span class="line">		fmt.Println(<span class="string">&quot;state:&quot;</span>, event.State.String())</span><br><span class="line">		fmt.Println(<span class="string">&quot;-------------------&quot;</span>)</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := initZk()</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	path := <span class="string">&quot;/dawn111&quot;</span></span><br><span class="line">	data := []<span class="keyword">byte</span>(<span class="string">&quot;hello world&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 开启一个管道持续监听</span></span><br><span class="line">	err = listenOneChannel(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 创建数据触发事件</span></span><br><span class="line">	err = add(conn, path, data, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;创建数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除数据触发事件</span></span><br><span class="line">	err = <span class="built_in">delete</span>(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;删除数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">ZooKeeper学习 (2) 实现分布式锁和watch机制</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-15 15:00:20" itemprop="dateCreated datePublished" datetime="2022-03-15T15:00:20+08:00">2022-03-15</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-03-15 10:37:20" itemprop="dateModified" datetime="2024-03-15T10:37:20+08:00">2024-03-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="ZooKeeper实现分布式锁"><a href="#ZooKeeper实现分布式锁" class="headerlink" title="ZooKeeper实现分布式锁"></a>ZooKeeper实现分布式锁</h1><p>zookeeper中可以实现两种锁：</p>
+          <h1 id="Compose"><a href="#Compose" class="headerlink" title="Compose"></a>Compose</h1><p><code>Compose</code> 项目负责实现对 Docker 容器集群的快速编排，用于快速部署分布式应用。</p>
+<p><code>Compose</code> 定位是 「定义和运行多个 Docker 容器的应用（Defining and running multi-container Docker applications）」</p>
+<h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p><code>Compose</code> 允许用户通过一个单独的 <code>docker-compose.yml</code> 模板文件（<strong>YAML</strong> 格式）来定义<strong>一组</strong>相关联的应用容器为一个项目（project）。 <code>Compose</code> 中有两个重要概念：</p>
 <ul>
-<li><strong>读锁（共享锁）</strong>：可以一起读，但是与写锁互斥。</li>
-<li><strong>写锁（互斥锁）</strong>：与读锁和写锁都互斥。</li>
+<li><strong>服务</strong> (<code>service</code>)：一个应用的容器，实际上可以包括若干运行相同镜像的容器实例。</li>
+<li><strong>项目</strong> (<code>project</code>)：由一组关联的应用容器组成的一个完整业务单元，在 <code>docker-compose.yml</code> 文件中定义。</li>
 </ul>
-<h2 id="实现读锁"><a href="#实现读锁" class="headerlink" title="实现读锁"></a>实现读锁</h2><ul>
-<li>创建⼀个<strong>临时序号节点</strong>，节点的数据是read，表示是读锁</li>
-<li>获取当前zookeeper中序号比自己小的所有节点。若这些节点有写锁，则加锁不成功。</li>
+<p>一个项目可以由多个服务（容器）关联而成，<code>Compose</code> 面向项目进行管理。</p>
+<h1 id="Machine"><a href="#Machine" class="headerlink" title="Machine"></a>Machine</h1><p>Docker Machine 是 Docker 官方编排（Orchestration）项目之一，负责在多种平台上快速安装 Docker 环境。</p>
+<h1 id="Swarm-mode"><a href="#Swarm-mode" class="headerlink" title="Swarm mode"></a>Swarm mode</h1><p><code>Swarm</code> 提供 Docker 容器集群服务，使用它，用户可以将多个 Docker 主机封装为单个大型的虚拟 Docker 主机，快速打造一套容器云平台。</p>
+<h2 id="基本概念"><a href="#基本概念" class="headerlink" title="基本概念"></a>基本概念</h2><h3 id="节点"><a href="#节点" class="headerlink" title="节点"></a>节点</h3><p>集群中的节点分为管理（<code>manager</code>）节点和工作（<code>worker</code>）节点：</p>
+<ul>
+<li><strong>管理节点</strong>：用于集群的管理，一个 <code>swarm</code> 集群中可以有多个管理节点，但是只能有一个 <strong>leader</strong> 节点，leader 节点由 <strong>raft</strong> 算法选举出。<code>docker swarm</code> 命令基本只能在管理节点执行（除了 <code>docker swarm leave</code> 命令可以在工作节点执行）。</li>
+<li><strong>工作节点</strong>：用于执行任务，管理节点将服务 (<code>service</code>) 下发至工作节点执行。管理节点也默认为工作节点。</li>
 </ul>
-<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328212101.png" alt="读锁"></p>
-<h2 id="实现写锁"><a href="#实现写锁" class="headerlink" title="实现写锁"></a>实现写锁</h2><ul>
-<li>创建⼀个<strong>临时序号节点</strong>，节点的数据是write，表示是写锁</li>
-<li>获取zookeeper中所有的子节点</li>
-<li>判断自己是否是最小的节点：<ul>
-<li>如果是，则上锁成功</li>
-<li>如果不是，说明前面还有锁，上锁失败，为最小节点设置监听。阻塞等待，watch机制会当最小节点发生变化时通知当前节点，再执行第二步</li>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E4%B8%89%E5%89%91%E5%AE%A2%E4%B9%8BCompose-Machine-Swarm/swarm-diagram.png" alt="img"></p>
+<h3 id="服务和任务"><a href="#服务和任务" class="headerlink" title="服务和任务"></a>服务和任务</h3><ul>
+<li>任务（<code>Task</code>）是 <code>swarm</code>中最小的调度单位，目前来说就是一个单一的容器。</li>
+<li>服务（<code>Services</code>）是指一组任务的集合，服务定义了任务的属性。服务有两种模式，通过 <code>docker service create</code> 的 <code>--mode</code> 参数指定：<ul>
+<li><code>replicated services</code>：按照一定规则在各个工作节点上运行指定个数的任务。</li>
+<li><code>global services</code>：每个工作节点上运行一个任务。</li>
 </ul>
 </li>
 </ul>
-<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328263477.png" alt="写锁"></p>
-<h2 id="羊群效应"><a href="#羊群效应" class="headerlink" title="羊群效应"></a>羊群效应</h2><p>羊群效应：如果采用上述的上锁方式，只要有节点发生变化，就会触发其他节点的监听事件，这样对于zookeeper的压力非常大。</p>
-<p>可以调整成链式监听：</p>
-<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328378251.png" alt="链式监听"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
+<p>下图是容器、服务、任务的关系：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-5-%E4%B8%89%E5%89%91%E5%AE%A2%E4%B9%8BCompose-Machine-Swarm/services-diagram.png" alt="img"></p>
+
       
     </div>
 
@@ -350,7 +257,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/12/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -364,7 +271,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/" class="post-title-link" itemprop="url">ZooKeeper学习 (1) 介绍</a>
+            <a href="/2022/05/12/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/" class="post-title-link" itemprop="url">Docker学习笔记 (4) 数据管理和网络</a>
         </h2>
 
         <div class="post-meta">
@@ -374,7 +281,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-14 20:43:39" itemprop="dateCreated datePublished" datetime="2022-03-14T20:43:39+08:00">2022-03-14</time>
+              <time title="创建时间：2022-05-12 21:39:39" itemprop="dateCreated datePublished" datetime="2022-05-12T21:39:39+08:00">2022-05-12</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -389,7 +296,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
                 </span>
             </span>
 
@@ -404,121 +311,397 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="ZooKeeper介绍"><a href="#ZooKeeper介绍" class="headerlink" title="ZooKeeper介绍"></a>ZooKeeper介绍</h1><p>ZooKeeper是一种<strong>分布式协调服务</strong>，用于<strong>管理大型分布式集群</strong>。在分布式环境中协调和管理服务是一个复杂的过程，但是ZooKeeper通过其简单的架构和API解决了这个问题。</p>
-<h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><h3 id="分布式协调组件"><a href="#分布式协调组件" class="headerlink" title="分布式协调组件"></a>分布式协调组件</h3><p>在分布式系统中，需要zookeeper作为<strong>分布式协调组件</strong>，协调分布式系统中的状态。如下图，用户更改了一台服务器A-2上的状态，但是另一台主机A-1上的flag没有做出及时的更改，这就需要zookeeper进行协调，更改A-1的状态，以协调分布式系统中所有服务器的状态。</p>
-<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647262007675.png" alt="zk作为分布式协调组件"></p>
-<h3 id="分布式锁"><a href="#分布式锁" class="headerlink" title="分布式锁"></a>分布式锁</h3><p>zookeeper在实现<strong>分布式锁</strong>上，可以做到<strong>强⼀致性</strong>。</p>
-<p>分布式锁就是将锁放在zookeeper上，当需要上锁时到zookeeper中获取锁。</p>
-<h3 id="无状态化的实现"><a href="#无状态化的实现" class="headerlink" title="无状态化的实现"></a>无状态化的实现</h3><p>对于分布式系统，将Session或者Cookie等状态信息保存在各个主机上是不现实的。可以利用zookeeper实现分布式系统的<strong>无状态化</strong>，将登录信息统一保存在zookeeper中，各个分布式主机在zookeeper中获取状态信息。</p>
-<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647262224747.png" alt="zk作为无状态化的实现"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/" class="post-title-link" itemprop="url">从零开始的日志收集项目 (3) 收集系统信息</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-13 20:29:02" itemprop="dateCreated datePublished" datetime="2022-03-13T20:29:02+08:00">2022-03-13</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="上一版的改进"><a href="#上一版的改进" class="headerlink" title="上一版的改进"></a>上一版的改进</h1><h2 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h2><p>因为log agent可以部署在多台机器上，每一台机器上需要收集的日志可能不尽相同，所以需要<strong>针对不同机器部署不同的配置文件</strong>。</p>
-<h2 id="改进"><a href="#改进" class="headerlink" title="改进"></a>改进</h2><p>因为不同的机器上拥有不同的配置文件，所以etcd中每一台机器对应的配置文件的key应该是唯一可标识的，这样可以区分不同的机器。在key中加入IP地址以区别不同的key，故<code>config.ini</code>做出以下更改：</p>
-<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 原来是collect_conf_key = collect_conf</span></span><br><span class="line"><span class="comment"># 改进版：</span></span><br><span class="line"><span class="comment"># 保存日志收集配置文件的key，根据IP地址(%s)得到key</span></span><br><span class="line"><span class="attr">collect_conf_key</span> = collect_%s_conf</span><br></pre></td></tr></table></figure>
-
-<p>相对应的增加一个获取IP地址的函数，用于获取IP地址：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// GetOutboundIP 获取本机的IP地址</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">GetOutboundIP</span><span class="params">()</span> <span class="params">(ip <span class="keyword">string</span>, err error)</span></span> &#123;</span><br><span class="line">	conn, err := net.Dial(<span class="string">&quot;udp&quot;</span>, <span class="string">&quot;8.8.8.8:80&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line"></span><br><span class="line">	localAddr := conn.LocalAddr().(*net.UDPAddr)</span><br><span class="line">	<span class="comment">// fmt.Println(localAddr.String())</span></span><br><span class="line">	ip = strings.Split(localAddr.IP.String(), <span class="string">&quot;:&quot;</span>)[<span class="number">0</span>]</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在<code>main</code>主函数中，首先获取本机的IP地址：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取本机ip</span></span><br><span class="line">ip, err := common.GetOutboundIP()</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;get local ip failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>根据配置文件中的<code>collect_conf_key = collect_%s_conf</code>项格式化字符串，替换配置文件结构体中的相应字段：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 用ip替换collect_conf_key中的%s</span></span><br><span class="line">configObj.EtcdConfig.CollectConfKey = fmt.Sprintf(configObj.EtcdConfig.CollectConfKey, ip)</span><br></pre></td></tr></table></figure>
-
-<h1 id="收集系统信息"><a href="#收集系统信息" class="headerlink" title="收集系统信息"></a>收集系统信息</h1><p>目前，已经完成了日志收集log agent的构建。</p>
-<p>现在来构建用于收集系统日志的sys info agent，需要收集的系统信息包括CPU、主存、磁盘、网络信息，将收集到的系统信息发送给Kafka。基本思路与log agent相同：</p>
+          <h1 id="数据管理"><a href="#数据管理" class="headerlink" title="数据管理"></a>数据管理</h1><p>在容器中管理数据主要有两种方式：</p>
 <ul>
-<li>首先根据配置文件获取Kafka的相关配置信息</li>
-<li>根据配置信息初始化Kafka<ul>
-<li>连接Kafka</li>
-<li>初始化消息管道，这个消息管道用于接收收集到的系统信息</li>
-<li>开启协程，从消息管道中取出消息，发送到Kafka</li>
+<li>数据卷（Volumes）</li>
+<li>挂载主机目录（Bind mounts）</li>
+</ul>
+<h2 id="数据卷"><a href="#数据卷" class="headerlink" title="数据卷"></a>数据卷</h2><p><code>数据卷</code> 是一个可供一个或多个容器使用的特殊目录，它绕过 UFS，可以提供很多有用的特性：</p>
+<ul>
+<li><code>数据卷</code> 可以在容器之间<strong>共享和重用</strong></li>
+<li>对 <code>数据卷</code> 的修改会立马生效</li>
+<li>对 <code>数据卷</code> 的更新，不会影响镜像</li>
+<li><code>数据卷</code> 默认会一直存在，即使容器被删除</li>
+</ul>
+<h3 id="数据卷的操作"><a href="#数据卷的操作" class="headerlink" title="数据卷的操作"></a>数据卷的操作</h3><ul>
+<li><code> docker volume create</code> 命令：创建数据卷。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker volume create my-vol</span><br><span class="line">my-vol</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker volume ls</code> 命令：查看所有的数据卷。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker volume ls</span><br><span class="line">DRIVER    VOLUME NAME</span><br><span class="line"><span class="built_in">local</span>     my-vol</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker volume inspect</code> 命令：查看指定数据卷。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker volume inspect my-vol</span><br><span class="line">[</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="string">&quot;CreatedAt&quot;</span>: <span class="string">&quot;2022-05-12T13:46:43Z&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Driver&quot;</span>: <span class="string">&quot;local&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Labels&quot;</span>: &#123;&#125;,</span><br><span class="line">        <span class="string">&quot;Mountpoint&quot;</span>: <span class="string">&quot;/var/lib/docker/volumes/my-vol/_data&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Name&quot;</span>: <span class="string">&quot;my-vol&quot;</span>,</span><br><span class="line">        <span class="string">&quot;Options&quot;</span>: &#123;&#125;,</span><br><span class="line">        <span class="string">&quot;Scope&quot;</span>: <span class="string">&quot;local&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>在用 <code>docker run</code> 命令的时候，使用 <code>--mount</code> 标记来将 <code>数据卷</code> 挂载到容器里。在一次 <code>docker run</code> 中可以挂载多个 <code>数据卷</code>。</p>
+</li>
+<li><p>在用 <code>docker run</code> 命令的时候，使用 <code>--mount</code> 标记来将 <code>数据卷</code> 挂载到容器里。在一次 <code>docker run</code> 中可以挂载多个 <code>数据卷</code>。</p>
+</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">--mount <span class="built_in">source</span>=数据卷名,target=容器目录</span><br><span class="line"><span class="comment"># 等价于</span></span><br><span class="line">-v 数据卷名:容器目录</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker volume rm</code> 命令：删除数据卷。<code>docker volume prune</code> 命令：删除所有无主的数据卷。如果需要在删除容器的同时移除数据卷。可以在删除容器的时候使用 <code>docker rm -v</code> 这个命令。</li>
+</ul>
+<h2 id="挂载主机目录"><a href="#挂载主机目录" class="headerlink" title="挂载主机目录"></a>挂载主机目录</h2><ul>
+<li>使用 <code>--mount</code> 标记可以指定挂载一个本地主机的目录到容器中去。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">--mount <span class="built_in">type</span>=<span class="built_in">bind</span>,<span class="built_in">source</span>=主机目录,target=挂载点</span><br><span class="line"><span class="comment"># 等价于</span></span><br><span class="line">-v 宿主机绝对路径目录:容器内挂载点</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>也可以挂载一个主机<strong>文件</strong>到容器中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">--mount <span class="built_in">type</span>=<span class="built_in">bind</span>,<span class="built_in">source</span>=<span class="variable">$HOME</span>/.bash_history,target=/root/.bash_history</span><br></pre></td></tr></table></figure>
+
+<p>这样就可以记录在容器输入过的命令了。</p>
+<blockquote>
+<p>docker 目录主机目录/数据卷<strong>出现 cannot open directory. Permission denied 错误</strong>，解决方法：</p>
+<p><strong>加上 –privileged=true 参数</strong>。在SELinux里面挂载目录被禁止了，如果要开启，我们一般使用–privileged=true命令，扩大容器的权限解决挂载目录没有权限的问题。即<strong>使用该参数，container内的root拥有真正的root权限</strong>；否则，container内的root只是外部的一个普通用户权限。</p>
+</blockquote>
+<blockquote>
+<p><strong>读写权限设置：</strong></p>
+<ul>
+<li><p><strong>读写（read write，rw）：</strong>容器可以对主机目录/数据卷进行读写操作，默认。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">-v /宿主机绝对路径目录或者数据卷名:/容器内目录:rw</span><br></pre></td></tr></table></figure></li>
+<li><p><strong>只读（read only，ro）：</strong>容器实例内部被限制，只能读取不能写。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">-v /宿主机绝对路径目录或者数据卷名:/容器内目录:ro</span><br></pre></td></tr></table></figure></li>
+</ul>
+</blockquote>
+<h1 id="网络"><a href="#网络" class="headerlink" title="网络"></a>网络</h1><p>当 Docker 启动时，会<strong>自动</strong>在主机上创建一个 <code>docker0</code> 虚拟网桥。同时，Docker 随机分配一个本地未占用的<strong>私有网段</strong>中的一个地址给 <code>docker0</code> 接口。此后启动的容器内的网口也会自动分配一个同一网段的地址。通过这种方式，主机可以跟容器通信，容器之间也可以相互通信。Docker 就创建了在主机和所有容器之间一个虚拟共享网络：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/network.png" alt="Docker 网络"></p>
+<h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><h3 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h3><p>Docker 网络的作用如下：</p>
+<ul>
+<li><p>容器间的<strong>互联通信</strong>、<strong>端口映射</strong>。</p>
+</li>
+<li><p>把多个容器放在同一个 Docker 网桥下，<strong>可以通过服务名（容器名）直接网络通信</strong>，而不使用 IP 地址。</p>
+</li>
+</ul>
+<h3 id="外部访问容器"><a href="#外部访问容器" class="headerlink" title="外部访问容器"></a>外部访问容器</h3><p>容器中可以运行一些网络应用，要让外部也可以访问这些应用，可以通过 <code>-P</code> 或 <code>-p</code> 参数来指定端口映射：</p>
+<ul>
+<li>当使用 <code>-P</code> 标记时，Docker 会随机映射一个 <code>49000~49900</code> 的端口到内部容器开放的网络端口。</li>
+<li><code>-p</code> 则可以指定要映射的端口。</li>
+</ul>
+<h3 id="容器互联"><a href="#容器互联" class="headerlink" title="容器互联"></a>容器互联</h3><ul>
+<li><code>docker network create -d bridge my-net</code> 命令：创建网络。</li>
+<li>在 <code>docker run</code> 运行容器时，可以使用 <code>--network</code> 加入到一个网络中。</li>
+</ul>
+<p>多个容器可以加入到同一个网络中，实现容器之间的互联。</p>
+<h2 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h2><p>docker 网络的常用命令如下：</p>
+<ul>
+<li><p><strong>新建网络（网桥）：</strong>docker network 网络名字</p>
+</li>
+<li><p><strong>查看网络：</strong>docker network ls</p>
+</li>
+<li><p><strong>查看网络信息：</strong>docker network inspect 网络名字</p>
+</li>
+<li><p><strong>删除网络：</strong>docker network rm 网络名字</p>
+</li>
+</ul>
+<h2 id="网络模式"><a href="#网络模式" class="headerlink" title="网络模式"></a>网络模式</h2><p>网络模式有四种，分别是：</p>
+<ul>
+<li>bridge 模式</li>
+<li>host 模式</li>
+<li>none 模式</li>
+<li>container 模式</li>
+</ul>
+<h3 id="bridge"><a href="#bridge" class="headerlink" title="bridge"></a>bridge</h3><p><strong>使用 –network  bridge 指定，默认使用 docker0</strong>。docker run 的时候，没有指定 network 的话默认使用的网桥模式就是 bridge，使用的就是 docker0。</p>
+<p>Docker 在宿主机虚拟一个 Docker 容器网桥（默认 docker0），Docker 启动一个容器时会根据 Docker 网桥的网段分配给容器一个 IP 地址，称为 Container-IP，同时 Docker 网桥是每个容器的默认网关。<strong>因为在同一宿主机内的容器都接入同一个网桥，这样容器之间就能够通过容器的 Container-IP 直接通信</strong>。</p>
+<p>网桥创建一对对等虚拟设备接口<strong>一个叫 veth（网桥端），另一个叫 eth0（容器端）</strong>，成对匹配。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228163656973.png" alt="image-20221228163656973"></p>
+<h3 id="host"><a href="#host" class="headerlink" title="host"></a>host</h3><p><strong>使用–network host 指定</strong>，该模式<strong>直接使用宿主机的 IP 地址与外界进行通信</strong>，不再需要额外进行NAT 转换。</p>
+<p>容器将不会获得一个独立的 Network Namespace， 而是和宿主机共用一个 Network Namespace。容器将不会虚拟出自己的网卡而是使用宿主机的IP和端口。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228164308411.png" alt="image-20221228164308411"></p>
+<blockquote>
+<p>注意：</p>
+<p>在使用 host 模式时，无法使用 -p 进行端口映射（会发生 warning），端口映射不起作用。</p>
+</blockquote>
+<h3 id="none"><a href="#none" class="headerlink" title="none"></a>none</h3><p><strong>使用–network none 指定</strong>，在 none 模式下，并<strong>不为 Docker 容器进行任何网络配置</strong>。 </p>
+<p>也就是禁用网络功能，只有lo标识（127.0.0.1，表示本地回环地址）。</p>
+<h3 id="container"><a href="#container" class="headerlink" title="container"></a>container</h3><p><strong>使用 –network container:NAME或者容器ID 指定</strong>。</p>
+<p>新建的容器<strong>和已经存在的一个容器共享一个网络 ip 配置而不是和宿主机共享。</strong>新创建的容器不会创建自己的网卡，配置自己的IP，而是和一个指定的容器共享IP、端口范围等。同样，两个容器除了网络方面，其他的如文件系统、进程列表等还是隔离的。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-4-%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86%E5%92%8C%E7%BD%91%E7%BB%9C/image-20221228164705206.png" alt="image-20221228164705206"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/11/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%AE%B9%E5%99%A8%E5%92%8C%E4%BB%93%E5%BA%93%E6%93%8D%E4%BD%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/05/11/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%AE%B9%E5%99%A8%E5%92%8C%E4%BB%93%E5%BA%93%E6%93%8D%E4%BD%9C/" class="post-title-link" itemprop="url">Docker学习笔记 (3) 容器和仓库操作</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-11 21:02:19" itemprop="dateCreated datePublished" datetime="2022-05-11T21:02:19+08:00">2022-05-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="操作容器"><a href="#操作容器" class="headerlink" title="操作容器"></a>操作容器</h1><h2 id="列出容器"><a href="#列出容器" class="headerlink" title="列出容器"></a>列出容器</h2><p>使用 <code>docker ps [OPTIONS]</code> 命令列出容器：</p>
+<blockquote>
+<p><strong>OPTIONS说明（常用）：</strong><br>-a：列出当前所有正在运行的容器+历史上运行过的容器。<br>-l：显示最近创建的容器。<br>-n：显示最近n个创建的容器。<br>-q：静默模式，只显示容器编号。</p>
+</blockquote>
+<h2 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h2><p>启动容器有两种方式：</p>
+<ul>
+<li><p>一种是基于<strong>镜像</strong>新建一个容器并启动 <code>docker run</code>；</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run [OPTIONS] IMAGE [COMMAND] [ARG...]</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>OPTIONS 说明：</strong></p>
+<ul>
+<li><p><strong>–name=”容器新名字”：</strong> 为容器指定一个名称；</p>
+</li>
+<li><p><strong>-d：</strong>后台运行容器并返回容器ID，也即启动守护式容器；</p>
+</li>
+<li><p><strong>-i：</strong>以交互模式运行容器，通常与 -t 同时使用；</p>
+</li>
+<li><p><strong>-t：</strong>为容器重新分配一个伪输入终端，通常与 -i 同时使用；</p>
+</li>
+<li><p><strong>-P：</strong>随机端口映射；</p>
+</li>
+<li><p><strong>-p：</strong>指定端口映射；</p>
+</li>
+</ul>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-3-%E5%AE%B9%E5%99%A8%E5%92%8C%E4%BB%93%E5%BA%93%E6%93%8D%E4%BD%9C/image-20221223100302221.png" alt="image-20221223100302221"></p>
+<p><strong>启动交互式容器：</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run -it ubuntu /bin/bash</span><br></pre></td></tr></table></figure>
+
+<p>使用镜像ubuntu:latest以交互模式启动一个容器，在容器内执行 /bin/bash 命令。</p>
+</blockquote>
+</li>
+<li><p>另外一个是将在<strong>终止</strong>状态（<code>stopped</code>）的容器重新启动 <code>docker start</code>。</p>
+</li>
+<li><p>重启容器：<code>docker restart 容器名/容器ID</code></p>
+</li>
+</ul>
+<h2 id="后台运行"><a href="#后台运行" class="headerlink" title="后台运行"></a>后台运行</h2><p>可以通过 <code>-d</code> 参数实现容器的<strong>后台</strong>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker run -d ubuntu:18.04 /bin/sh -c <span class="string">&quot;while true; do echo hello world; sleep 1; done&quot;</span></span><br><span class="line">905b8470023fe399cdc97f579cfef7def7450cf62874685ca64e7c7d223b4e78</span><br></pre></td></tr></table></figure>
+
+<p>此时容器会在后台运行并不会把输出的结果打印到宿主机的STDOUT上面（输出结果可以用 <code>docker logs</code> 查看）:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker container logs 905b</span><br><span class="line">hello world</span><br><span class="line">hello world</span><br><span class="line">hello world</span><br><span class="line">hello world</span><br><span class="line">hello world</span><br><span class="line">hello world</span><br><span class="line">hello world</span><br></pre></td></tr></table></figure>
+
+<p>使用 <code>-d</code> 参数启动后会返回一个唯一的 id，也可以通过 <code>docker container ls</code> 命令来查看容器信息（<code>docker ps</code> 命令也可以查看容器信息）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\63544&gt;docker container ls</span><br><span class="line">CONTAINER ID   IMAGE          COMMAND                  CREATED              STATUS              PORTS     NAMES</span><br><span class="line">905b8470023f   ubuntu:18.04   <span class="string">&quot;/bin/sh -c &#x27;while t…&quot;</span>   About a minute ago   Up About a minute             stupefied_pike</span><br></pre></td></tr></table></figure>
+
+<h2 id="终止容器"><a href="#终止容器" class="headerlink" title="终止容器"></a>终止容器</h2><p>可以使用 <code>docker stop</code> 来终止一个运行中的容器。</p>
+<p>此外，当 Docker 容器中指定的应用终结时，容器也自动终止。</p>
+<h2 id="进入容器"><a href="#进入容器" class="headerlink" title="进入容器"></a>进入容器</h2><p>在使用 <code>-d</code> 参数时，容器会在后台运行。那么可以使用 <code>attach</code> 或者 <code>exec</code> 命令进入容器：</p>
+<ul>
+<li><p><code>docker attach </code>命令：如果从这个 stdin 中 exit，会导致容器的停止。</p>
+</li>
+<li><p><code>docker exec</code> 命令：如果从这个 stdin 中 exit，不会导致容器的停止。<strong>推荐使用 exec 命令</strong>。</p>
+<ul>
+<li><code>-i</code> 参数：只是打开容器的 STDIN，此时没有 Linux 命令提示符。</li>
+<li><code>-it</code> 参数：可以看到 Linux 命令提示符。</li>
 </ul>
 </li>
-<li>初始化系统信息收集系统，开启线程用于采集数据，每隔1秒收集一次</li>
 </ul>
+<h2 id="导入和导出容器"><a href="#导入和导出容器" class="headerlink" title="导入和导出容器"></a>导入和导出容器</h2><ul>
+<li><code>docker export</code> 命令：可以导出容器。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">export</span> 7691a814370e &gt; ubuntu.tar</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>docker import</code> 命令：从容器快照文件中再导入为镜像。</li>
+</ul>
+<h2 id="删除容器"><a href="#删除容器" class="headerlink" title="删除容器"></a>删除容器</h2><ul>
+<li>可以使用 <code>docker rm</code> 来删除一个处于终止状态的容器。<ul>
+<li>如果要删除一个运行中的容器，可以添加 <code>-f</code> 参数。</li>
+</ul>
+</li>
+<li><code>docker container prune</code> 清除所有处于终止状态的容器。</li>
+</ul>
+<h2 id="重要操作"><a href="#重要操作" class="headerlink" title="重要操作"></a>重要操作</h2><h3 id="启动守护式容器"><a href="#启动守护式容器" class="headerlink" title="启动守护式容器"></a>启动守护式容器</h3><p>在大部分的场景下，我们希望 docker 的服务是在<strong>后台运行</strong>的，我们可以过 -d 指定容器的后台运行模式。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run -d 容器名</span><br></pre></td></tr></table></figure>
+
+<h3 id="启动前台交互式容器"><a href="#启动前台交互式容器" class="headerlink" title="启动前台交互式容器"></a>启动前台交互式容器</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ docker run -it 容器名 bashShell</span><br><span class="line">UID		PID		PPID	C	STIME	TTY		TIME		CMD</span><br><span class="line">root	5007	4987	0	02:54	?		00:00:00	bash</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看容器日志"><a href="#查看容器日志" class="headerlink" title="查看容器日志"></a>查看容器日志</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker logs 容器ID</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看容器内运行的进程"><a href="#查看容器内运行的进程" class="headerlink" title="查看容器内运行的进程"></a>查看容器内运行的进程</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker top 容器ID</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看容器内部细节"><a href="#查看容器内部细节" class="headerlink" title="查看容器内部细节"></a>查看容器内部细节</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker inspect 容器ID</span><br></pre></td></tr></table></figure>
+
+<h3 id="进入正在运行的容器并以命令行交互"><a href="#进入正在运行的容器并以命令行交互" class="headerlink" title="进入正在运行的容器并以命令行交互"></a>进入正在运行的容器并以命令行交互</h3><p>可以用两个命令：</p>
+<ul>
+<li><code>docker exec -it 容器ID bashShell</code></li>
+<li><code>docker attach 容器ID</code></li>
+</ul>
+<blockquote>
+<p><strong>两种命令的区别：</strong></p>
+<ul>
+<li>attach 直接<strong>进入容器启动命令的终端</strong>，不会启动新的进程。用 exit 退出，会导致容器的停止。</li>
+<li>exec 是<strong>在容器中打开新的终端</strong>，并且可以启动新的进程。<strong>用 exit 退出，不会导致容器的停止</strong>。</li>
+</ul>
+<p>推荐使用 docker exec 命令，因为退出容器终端，不会导致容器的停止。</p>
+</blockquote>
+<h3 id="从容器内拷贝文件到主机上"><a href="#从容器内拷贝文件到主机上" class="headerlink" title="从容器内拷贝文件到主机上"></a>从容器内拷贝文件到主机上</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker cp 容器ID:容器内路径 目的主机路径</span><br></pre></td></tr></table></figure>
+
+<h3 id="导入和导出容器-1"><a href="#导入和导出容器-1" class="headerlink" title="导入和导出容器"></a>导入和导出容器</h3><ul>
+<li><p><strong>export：</strong>导出容器的内容留作为一个tar归档文件。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">export</span> 容器ID &gt; 文件名.tar</span><br></pre></td></tr></table></figure></li>
+<li><p><strong>import：</strong>从tar包中的内容创建一个新的文件系统再导入为镜像。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat 文件名.tar | docker import - 镜像名:镜像版本号</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h1 id="访问仓库"><a href="#访问仓库" class="headerlink" title="访问仓库"></a>访问仓库</h1><h2 id="Docker-Hub"><a href="#Docker-Hub" class="headerlink" title="Docker Hub"></a>Docker Hub</h2><p>Docker 官方维护了一个公共仓库 Docker Hub：</p>
+<ul>
+<li><p><code>docker search</code> 命令可以<strong>查找</strong>官方仓库中的镜像。</p>
+</li>
+<li><p><code>docker pull</code> 命令<strong>下载</strong>镜像到本地。</p>
+</li>
+<li><p>在登录后，可以使用 <code>docker push username/镜像名:标签</code> 将自己的镜像<strong>推送</strong>到 Docker Hub 中。</p>
+</li>
+</ul>
+<hr>
+<p>若不想使用官方的 Docker Hub 仓库，也可以创建私有仓库。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/10/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%95%9C%E5%83%8F%E6%93%8D%E4%BD%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/05/10/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%95%9C%E5%83%8F%E6%93%8D%E4%BD%9C/" class="post-title-link" itemprop="url">Docker学习笔记 (2) 镜像操作</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-10 11:48:58" itemprop="dateCreated datePublished" datetime="2022-05-10T11:48:58+08:00">2022-05-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="使用镜像"><a href="#使用镜像" class="headerlink" title="使用镜像"></a>使用镜像</h1><h2 id="搜索镜像"><a href="#搜索镜像" class="headerlink" title="搜索镜像"></a>搜索镜像</h2><p>使用<code>docker search</code>命令可以搜索镜像：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">$ docker search redis</span><br><span class="line">NAME                                DESCRIPTION                                     STARS     OFFICIAL   AUTOMATED</span><br><span class="line">redis                               Redis is an open <span class="built_in">source</span> key-value store that…   11669     [OK]</span><br><span class="line">bitnami/redis                       Bitnami Redis Docker Image                      236                  [OK]</span><br><span class="line">redislabs/redisinsight              RedisInsight - The GUI <span class="keyword">for</span> Redis                75</span><br><span class="line">redislabs/redisearch                Redis With the RedisSearch module pre-loaded…   56</span><br><span class="line">redislabs/rejson                    RedisJSON - Enhanced JSON data <span class="built_in">type</span> processi…   51</span><br><span class="line">redislabs/redis                     Clustered in-memory database engine compatib…   36</span><br></pre></td></tr></table></figure>
+
+<h2 id="获取镜像"><a href="#获取镜像" class="headerlink" title="获取镜像"></a>获取镜像</h2><p>从 Docker 镜像仓库获取镜像的命令是 <code>docker pull</code>。其命令格式为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker pull [选项] [Docker Registry 地址[:端口号]/]仓库名[:标签]</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>Docker 镜像仓库地址：地址的格式一般是 <code>&lt;域名/IP&gt;[:端口号]</code>。默认地址是 Docker Hub。</li>
+<li>仓库名：如之前所说，这里的仓库名是两段式名称，即 <code>&lt;用户名&gt;/&lt;软件名&gt;</code>。对于 Docker Hub，如果不给出用户名，则默认为 <code>library</code>，也就是官方镜像。</li>
+</ul>
+<p>使用 <code>docker run</code> 命令可以运行容器。</p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/#more" rel="contents">
+              <a class="btn" href="/2022/05/10/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-2-%E9%95%9C%E5%83%8F%E6%93%8D%E4%BD%9C/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -542,7 +725,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/09/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -556,7 +739,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/" class="post-title-link" itemprop="url">GO语言杂谈 (8) 操作influxDB</a>
+            <a href="/2022/05/09/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/" class="post-title-link" itemprop="url">Docker学习笔记 (1) 基本概念</a>
         </h2>
 
         <div class="post-meta">
@@ -566,7 +749,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-13 10:04:13" itemprop="dateCreated datePublished" datetime="2022-03-13T10:04:13+08:00">2022-03-13</time>
+              <time title="创建时间：2022-05-09 20:48:11" itemprop="dateCreated datePublished" datetime="2022-05-09T20:48:11+08:00">2022-05-09</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -581,7 +764,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
                 </span>
             </span>
 
@@ -596,491 +779,85 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="influxDB"><a href="#influxDB" class="headerlink" title="influxDB"></a>influxDB</h1><p>influxDB是<strong>时间序列数据库</strong>，主键是时间戳。</p>
-<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><table>
-<thead>
-<tr>
-<th align="center">influxDB名词</th>
-<th align="center">传统数据库概念</th>
-</tr>
-</thead>
-<tbody><tr>
-<td align="center">database</td>
-<td align="center">数据库</td>
-</tr>
-<tr>
-<td align="center">measurement</td>
-<td align="center">数据表</td>
-</tr>
-<tr>
-<td align="center">point</td>
-<td align="center">数据行</td>
-</tr>
-</tbody></table>
-<h3 id="数据格式"><a href="#数据格式" class="headerlink" title="数据格式"></a>数据格式</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">measurement [,tag_key1=tag_value1...] field_key=field_value[,field_key2=field_value2] [timestamp]</span><br></pre></td></tr></table></figure>
+          <h1 id="Docker介绍"><a href="#Docker介绍" class="headerlink" title="Docker介绍"></a>Docker介绍</h1><h2 id="什么是Docker"><a href="#什么是Docker" class="headerlink" title="什么是Docker"></a>什么是Docker</h2><p>Docker是基于Go语言开发并实现的，基于Linux内核的<strong>cgroups</strong>（control groups，控制群组，是Linux内核的一个功能，用来限制、控制与分离一个进程组的资源，如CPU、内存等）、<strong>namespace</strong>（是Linux内核用来隔离内核资源的方式，通过namespace可以让一些进程只能看到与自己相关的一部分资源，而另外一些进程也只能看到与它们自己相关的资源）以及<strong>Union FS</strong>等技术，对进程进行封装隔离，属于<strong>操作系统层面的虚拟化技术</strong>。</p>
+<blockquote>
+<p><strong>Docker和传统虚拟化技术的不同：</strong></p>
+<p>传统虚拟机技术是<strong>虚拟出一套硬件</strong>后，在其上运行一个<strong>完整操作系统</strong>，在该系统上再运行所需应用进程：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/virtualization.png" alt="传统虚拟化"></p>
+<p>Docker容器内的应用进程<strong>直接运行于宿主的内核</strong>，容器内没有自己的内核，而且也没有进行硬件虚拟。因此容器要比传统虚拟机更为轻便：</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/docker.png" alt="Docker"></p>
+</blockquote>
+<!--more--->
 
+<h2 id="为什么使用Docker"><a href="#为什么使用Docker" class="headerlink" title="为什么使用Docker"></a>为什么使用Docker</h2><p>Docker与传统虚拟化技术相比，有如下<strong>优点</strong>：</p>
 <ul>
-<li><strong>measurement：</strong>类似于<strong>数据表</strong>的概念</li>
-<li><strong>field-key，field-value：</strong>用来存储数据支持各种类型，数据存储时<strong>不会进行索引</strong>。每条数据必须拥有一个field-key，如果使用field-key作为过滤条件则需要遍历所有的数据</li>
-<li><strong>tag-key，tag-value：</strong>与field类似，不过<strong>会进行索引</strong>，方便查询时用于过滤条件</li>
+<li><strong>更高效的利用系统资源：</strong>Docker不需要对硬件虚拟化以及运行完整的操作系统等额外开销，所以Docker对系统资源的利用更有效。在相同配置下，Docker可以运行更多的应用程序。</li>
+<li><strong>更快速的启动时间：</strong>Docker容器运行于宿主内核，启动速度可以达到秒级。</li>
+<li><strong>一致的运行环境：</strong>Docker镜像提供了除内核外完整的运行时环境，确保了应用运行环境一致性。</li>
+<li><strong>持续交付和部署：</strong>一次创建或配置，可以在任意地方正常运行。</li>
+<li><strong>更轻松的迁移：</strong>Docker确保了执行环境的一致性，使得应用的迁移更加容易。</li>
+<li><strong>更轻松的维护和扩展：</strong>Docker使用的分层存储以及镜像的技术，使得应用重复部分的复用更为容易，也使得应用的维护更新更加简单，基于基础镜像进一步扩展镜像也变得非常简单。</li>
 </ul>
-<p>measurements, tag keys, field keys，tag values 全局存一份；field values 和 timestamps 每条数据存一份</p>
-<h3 id="Point"><a href="#Point" class="headerlink" title="Point"></a>Point</h3><p>influxDB中的point相当于传统数据库里的<strong>一行数据</strong>，由时间戳（time）、数据（field）、标签（tag）组成。</p>
 <table>
 <thead>
 <tr>
-<th align="center">Point属性</th>
-<th align="center">传统数据库概念</th>
+<th align="left">特性</th>
+<th align="left">Docker容器</th>
+<th align="left">传统虚拟机</th>
 </tr>
 </thead>
 <tbody><tr>
-<td align="center">time</td>
-<td align="center">每个数据记录时间，是数据库中的主索引</td>
+<td align="left">启动</td>
+<td align="left">秒级</td>
+<td align="left">分钟级</td>
 </tr>
 <tr>
-<td align="center">field</td>
-<td align="center">各种记录值（没有索引的属性），例如温度、湿度</td>
+<td align="left">硬盘使用</td>
+<td align="left">一般为 <code>MB</code></td>
+<td align="left">一般为 <code>GB</code></td>
 </tr>
 <tr>
-<td align="center">tags</td>
-<td align="center">各种有索引的属性，例如地区、海拔</td>
+<td align="left">性能</td>
+<td align="left">接近原生</td>
+<td align="left">弱于</td>
+</tr>
+<tr>
+<td align="left">系统支持量</td>
+<td align="left">单机支持上千个容器</td>
+<td align="left">一般几十个</td>
 </tr>
 </tbody></table>
-<h3 id="Series"><a href="#Series" class="headerlink" title="Series"></a>Series</h3><p><strong>measurement、tag set、retention policy相同</strong>的数据集合，称为一个series。同一个series的数据，在物理上会按照时间顺序排列存储在一起。</p>
-<p>series的key为<code>measurement + 所有tags的序列化字符串</code></p>
-<h3 id="Retention-Policy"><a href="#Retention-Policy" class="headerlink" title="Retention Policy"></a>Retention Policy</h3><p><strong>保留策略RP</strong>，包括数据<strong>保存的时间</strong>以及在集群中的<strong>副本个数</strong>。</p>
-<p>默认的保留策略为，保存时间无限制、副本个数为1</p>
-<h3 id="Shard"><a href="#Shard" class="headerlink" title="Shard"></a>Shard</h3><p>shard与RP相关联，每一个存储策略下会存在许多shard，每一个shard存储一个指定时间段内的数据，并且不会重复。</p>
-<p>shard保存数据的始阶段计算函数如下：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">shardGroupDuration</span><span class="params">(d time.Duration)</span> <span class="title">time</span>.<span class="title">Duration</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> d &gt;= <span class="number">180</span>*<span class="number">24</span>*time.Hour || d == <span class="number">0</span> &#123; <span class="comment">// 6 months or 0</span></span><br><span class="line">        <span class="keyword">return</span> <span class="number">7</span> * <span class="number">24</span> * time.Hour</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> d &gt;= <span class="number">2</span>*<span class="number">24</span>*time.Hour &#123; <span class="comment">// 2 days</span></span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span> * <span class="number">24</span> * time.Hour</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span> * time.Hour</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>每一个shard都对应底层的一个TSM存储引擎，这样做的目的就是为了可以<strong>通过时间来快速定位</strong>到要查询数据的相关资源，加速查询的过程，并且也让之后的批量删除数据的操作变得非常简单且高效。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/13/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-8-%E6%93%8D%E4%BD%9CinfluxDB/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/" class="post-title-link" itemprop="url">从零开始的日志收集项目 (2) 通过etcd管理日志配置</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-12 11:24:46" itemprop="dateCreated datePublished" datetime="2022-03-12T11:24:46+08:00">2022-03-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="上一版本的问题"><a href="#上一版本的问题" class="headerlink" title="上一版本的问题"></a>上一版本的问题</h1><p>首先来看上一版本的配置文件：</p>
-<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[collect]</span></span><br><span class="line"><span class="comment"># 日志文件存放路径</span></span><br><span class="line"><span class="attr">logfile_path</span> = F:\gopath\src\logagent\logs\<span class="number">1</span>.log</span><br></pre></td></tr></table></figure>
-
-<p>通过配置文件指定需要收集的日志时，主要有两个问题：</p>
+<h1 id="基本概念"><a href="#基本概念" class="headerlink" title="基本概念"></a>基本概念</h1><p>Docker包括三个基本概念：</p>
 <ul>
-<li>日志文件的存放路径只能有一条，也就是说不能同时启动多个<code>tail.Tail</code>对象，来收集多个日志</li>
-<li>无法实现对配置文件的实时监控，根据配置文件的更改来做出及时的变化</li>
+<li>镜像（Image）</li>
+<li>容器（Container）</li>
+<li>仓库（Repository）</li>
 </ul>
-<h1 id="通过etcd管理日志配置"><a href="#通过etcd管理日志配置" class="headerlink" title="通过etcd管理日志配置"></a>通过etcd管理日志配置</h1><p>上述问题的原因在于ini配置文件无法同时定义多个日志文件路径。解决的方法就是通过etcd管理日志收集配置，在etcd中以json的格式存储日志收集配置信息，如下方：</p>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;path&quot;</span>:<span class="string">&quot;F:/gopath/src/logagent/logs/web.log&quot;</span>,</span><br><span class="line">        <span class="attr">&quot;topic&quot;</span>:<span class="string">&quot;web_log&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="attr">&quot;path&quot;</span>:<span class="string">&quot;F:/gopath/src/logagent/logs/blog.log&quot;</span>,</span><br><span class="line">        <span class="attr">&quot;topic&quot;</span>:<span class="string">&quot;blog_log&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
-
-<p>相应的，需要修改<code>config.ini</code>配置文件，配置etcd的相关设置：</p>
-<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[etcd]</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">2379</span></span><br><span class="line"><span class="comment"># 保存日志收集配置文件的key</span></span><br><span class="line"><span class="attr">collect_conf_key</span> = collect_conf</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/12/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-2-%E9%80%9A%E8%BF%87etcd%E7%AE%A1%E7%90%86%E6%97%A5%E5%BF%97%E9%85%8D%E7%BD%AE/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/" class="post-title-link" itemprop="url">GO语言杂谈 (7) 操作etcd</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-11 17:50:11" itemprop="dateCreated datePublished" datetime="2022-03-11T17:50:11+08:00">2022-03-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="etcd"><a href="#etcd" class="headerlink" title="etcd"></a>etcd</h1><p>etcd是使用Go语言开发的一个开源的、高可用的<strong>分布式key-value存储系统</strong>，可以用于<strong>配置共享</strong>和<strong>服务的注册和发现</strong>。</p>
-<p>etcd具有以下<strong>特点</strong>：</p>
+<h2 id="镜像"><a href="#镜像" class="headerlink" title="镜像"></a>镜像</h2><p>对于 Linux 而言，内核启动后，会挂载 <code>root</code> 文件系统为其提供用户空间支持。而 Docker 镜像（Image），就相当于是一个 <code>root</code> 文件系统。</p>
+<p><strong>Docker 镜像是一个特殊的文件系统</strong>，除了提供容器运行时所需的程序、库、资源、配置等文件外，还包含了一些为运行时准备的一些配置参数（如匿名卷、环境变量、用户等）。<strong>镜像不包含任何动态数据，其内容在构建之后也不会被改变。</strong></p>
+<h3 id="分层存储"><a href="#分层存储" class="headerlink" title="分层存储"></a>分层存储</h3><p>Docker设计时，就充分利用了<strong>Union FS（联合文件系统）</strong>技术，将其设计为<strong>分层存储</strong>的结构。</p>
+<p>镜像只是一个虚拟的概念，其实际体现并非由一个文件组成，而是由一组（<strong>多层</strong>）文件系统组成。</p>
+<p>镜像构建时，<strong>会一层层构建，前一层是后一层的基础</strong>。每一层构建完就不会再发生改变，<strong>后一层上的任何改变只发生在自己这一层</strong>。比如，删除前一层文件的操作，实际不是真的删除前一层的文件，而是仅在当前层标记为该文件已删除。在最终容器运行的时候，虽然不会看到这个文件，但是实际上该文件会一直跟随镜像。因此，在构建镜像的时候，需要额外小心，每一层尽量只包含该层需要添加的东西，任何额外的东西应该在该层构建结束前清理掉。</p>
+<p>分层存储使得镜像的复用、定制更加容易，<strong>可以用之前构建好的镜像作为基础层，然后进一步添加新的层</strong>，以定制自己所需的内容，构建新的镜像。</p>
+<h3 id="docker镜像加载原理"><a href="#docker镜像加载原理" class="headerlink" title="docker镜像加载原理"></a>docker镜像加载原理</h3><p>docker的镜像实际上由一层一层的文件系统组成。</p>
 <ul>
-<li><strong>完全复制：</strong>集群中的每个节点都可以使用完整的存档</li>
-<li><strong>高可用性：</strong>Etcd可用于避免硬件的单点故障或网络问题</li>
-<li><strong>一致性</strong>：每次读取都会返回跨多主机的最新写入</li>
-<li><strong>简单：</strong>包括一个定义良好、面向用户的API（gRPC）</li>
-<li><strong>安全：</strong>实现了带有可选的客户端证书身份验证的自动化TLS</li>
-<li><strong>快速：</strong>每秒10000次写入的基准速度</li>
-<li><strong>可靠：</strong>使用Raft算法实现了强一致、高可用的服务存储目录</li>
-</ul>
-<h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><h3 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h3><p>在一个分布式集群中，如何找到提供某项服务的主机并与之建立连接，这就是服务发现所完成的功能：</p>
-<ol>
-<li>服务提供者首先在注册中心注册服务</li>
-<li>服务请求者根据所需要的服务在注册中心请求服务提供者的地址信息</li>
-<li>服务请求者与服务提供者建立连接，完成服务</li>
-</ol>
-<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/etcd_01.png" alt="服务发现"></p>
-<h3 id="配置中心"><a href="#配置中心" class="headerlink" title="配置中心"></a>配置中心</h3><p>将一些配置信息放到 etcd 上进行集中管理。</p>
-<p>这类场景的使用方式通常是这样：应用在启动的时候主动从 etcd 获取一次配置信息，同时，在 etcd 节点上<strong>注册一个 Watcher 并等待</strong>，以后每次配置有更新的时候，<strong>etcd 都会实时通知订阅者</strong>，以此达到获取最新配置信息的目的。</p>
-<h3 id="分布式锁"><a href="#分布式锁" class="headerlink" title="分布式锁"></a>分布式锁</h3><p>因为 etcd 使用 Raft 算法保持了数据的强一致性，某次操作存储到集群中的值必然是全局一致的，所以很容易实现分布式锁。锁服务有两种使用方式，一是保持独占，二是控制时序。</p>
-<ul>
-<li><strong>保持独占即所有获取锁的用户最终只有一个可以得到</strong>。etcd 为此提供了一套实现分布式锁原子操作 CAS（<code>CompareAndSwap</code>）的 API。通过设置<code>prevExist</code>值，可以保证在多个节点同时去创建某个目录时，只有一个成功。而创建成功的用户就可以认为是获得了锁。</li>
-<li><strong>控制时序</strong>，即所有想要获得锁的用户都会被安排执行，但是<strong>获得锁的顺序也是全局唯一的，同时决定了执行顺序</strong>。etcd 为此也提供了一套 API（自动创建有序键），对一个目录建值时指定为<code>POST</code>动作，这样 etcd 会自动在目录下生成一个当前最大的值为键，存储这个新的值（客户端编号）。同时还可以使用 API 按顺序列出所有当前目录下的键值。此时这些键的值就是客户端的时序，而这些键中存储的值可以是代表客户端的编号。</li>
-</ul>
-<h2 id="etcd架构"><a href="#etcd架构" class="headerlink" title="etcd架构"></a>etcd架构</h2><p>etcd主要分为四个部分：</p>
-<ul>
-<li><strong>HTTP Server：</strong>用于处理用户发送的API请求以及其他etcd节点的同步与心跳信息请求。</li>
-<li><strong>Store：</strong>用于处理etcd支持的各类功能的事务，包括数据索引、节点状态变更、监控与反馈、事件的处理与执行等等，是etcd对用户提供的大多数API的具体实现。</li>
-<li><strong>Raft：</strong>强一致性算法</li>
-<li><strong>WAL：</strong>Write Ahead Log（预写式日志），etcd通过WAL对数据进行持久化存储。WAL中，所有的数据提交前都会实现记录日志。Snapshot（快照）是为了方式数据过多而进行的状态快照；Entry表示存储的日志内容。</li>
-</ul>
-<p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-7-%E6%93%8D%E4%BD%9Ceted/1646993179943.png" alt="etcd架构"></p>
-<h2 id="etcd集群"><a href="#etcd集群" class="headerlink" title="etcd集群"></a>etcd集群</h2><p>etcd一般部署集群推荐奇数个节点，推荐的数量为 3、5 或者 7 个节点构成一个集群。</p>
-<h1 id="GO语言操作etcd"><a href="#GO语言操作etcd" class="headerlink" title="GO语言操作etcd"></a>GO语言操作etcd</h1><h2 id="put和get"><a href="#put和get" class="headerlink" title="put和get"></a>put和get</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;context&quot;</span></span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	clientv3 <span class="string">&quot;go.etcd.io/etcd/client/v3&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cli, err := clientv3.New(clientv3.Config&#123;</span><br><span class="line">		Endpoints:   []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2379&quot;</span>&#125;,</span><br><span class="line">		DialTimeout: <span class="number">5</span> * time.Second,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// handle error!</span></span><br><span class="line">		fmt.Printf(<span class="string">&quot;connect to etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;connect to etcd success&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">defer</span> cli.Close()</span><br><span class="line">	<span class="comment">// put</span></span><br><span class="line">	<span class="comment">// ctx用于控制超时</span></span><br><span class="line">	ctx, cancel := context.WithTimeout(context.Background(), time.Second)</span><br><span class="line">	_, err = cli.Put(ctx, <span class="string">&quot;dawn&quot;</span>, <span class="string">&quot;zh&quot;</span>)</span><br><span class="line">	cancel()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Printf(<span class="string">&quot;put to etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// get</span></span><br><span class="line">	ctx, cancel = context.WithTimeout(context.Background(), time.Second)</span><br><span class="line">	resp, err := cli.Get(ctx, <span class="string">&quot;dawn&quot;</span>)</span><br><span class="line">	cancel()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Printf(<span class="string">&quot;get from etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 遍历取到结果</span></span><br><span class="line">	<span class="keyword">for</span> _, ev := <span class="keyword">range</span> resp.Kvs &#123;</span><br><span class="line">		fmt.Printf(<span class="string">&quot;%s:%s\n&quot;</span>, ev.Key, ev.Value)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<h2 id="watch"><a href="#watch" class="headerlink" title="watch"></a>watch</h2><p>用于<strong>监控</strong>etcd中的key的变化（创建/更改/删除）</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cli, err := clientv3.New(clientv3.Config&#123;</span><br><span class="line">		Endpoints:   []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2379&quot;</span>&#125;,</span><br><span class="line">		DialTimeout: <span class="number">5</span> * time.Second,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// handle error!</span></span><br><span class="line">		fmt.Printf(<span class="string">&quot;connect to etcd failed, err:%v\n&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;connect to etcd success&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// watch，返回一个通道</span></span><br><span class="line">	wChan := cli.Watch(context.Background(), <span class="string">&quot;key&quot;</span>)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 遍历通道，一旦有事件发生，watch会向通道中发送数据</span></span><br><span class="line">	<span class="keyword">for</span> wresp := <span class="keyword">range</span> wChan &#123;</span><br><span class="line">		<span class="keyword">for</span> _, evt := <span class="keyword">range</span> wresp.Events &#123;</span><br><span class="line">			fmt.Printf(<span class="string">&quot;type:%s key:%s value:%s\n&quot;</span>, evt.Type, evt.Kv.Key, evt.Kv.Value)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="lease租约"><a href="#lease租约" class="headerlink" title="lease租约"></a>lease租约</h2><h2 id="keepAlive"><a href="#keepAlive" class="headerlink" title="keepAlive"></a>keepAlive</h2><h2 id="基于etcd实现分布式锁"><a href="#基于etcd实现分布式锁" class="headerlink" title="基于etcd实现分布式锁"></a>基于etcd实现分布式锁</h2>
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-6-go-ini%E7%9A%84%E4%BD%BF%E7%94%A8/" class="post-title-link" itemprop="url">GO语言杂谈 (6) go-ini的使用</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-11 11:55:00" itemprop="dateCreated datePublished" datetime="2022-03-11T11:55:00+08:00">2022-03-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><p><a target="_blank" rel="noopener" href="https://ini.unknwon.io/">go-ini官方网站</a></p>
-<h2 id="ini文件"><a href="#ini文件" class="headerlink" title="ini文件"></a>ini文件</h2><p>ini格式的文件是配置文件中常用的格式。</p>
-<ul>
-<li>在ini文件中，每个<strong>键值对</strong>占用一行，中间使用<code>=</code>隔开</li>
-<li>以<code>#</code>开头的为<strong>注释</strong></li>
-<li>ini文件是以<strong>分区</strong>为组织的，分区以<code>[name]</code>作为标志</li>
-</ul>
-<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[mysql]</span></span><br><span class="line"><span class="attr">ip</span> = <span class="number">127.0</span>.<span class="number">0.1</span></span><br><span class="line"><span class="attr">port</span> = <span class="number">3306</span></span><br><span class="line"><span class="attr">user</span> = root</span><br><span class="line"><span class="attr">password</span> = <span class="number">123456</span></span><br><span class="line"><span class="attr">database</span> = test</span><br><span class="line"></span><br><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br></pre></td></tr></table></figure>
-
-<h2 id="go-ini"><a href="#go-ini" class="headerlink" title="go-ini"></a>go-ini</h2><p>go-ini为GO语言提供了读写ini文件的功能。如使用go-ini读取上面的配置文件：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/go-ini/ini&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 加载配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Load config file failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 获取配置文件信息</span></span><br><span class="line">    </span><br><span class="line">	<span class="comment">// [mysql]分区</span></span><br><span class="line">	mysqlSection := cfg.Section(<span class="string">&quot;mysql&quot;</span>)</span><br><span class="line">	mysqlIP := mysqlSection.Key(<span class="string">&quot;ip&quot;</span>).String()</span><br><span class="line">	fmt.Println(<span class="string">&quot;mysql ip =&quot;</span>, mysqlIP)</span><br><span class="line">	mysqlPort, err := mysqlSection.Key(<span class="string">&quot;port&quot;</span>).Int()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;mysql port parse failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(<span class="string">&quot;mysql port =&quot;</span>, mysqlPort)</span><br><span class="line">    </span><br><span class="line">	<span class="comment">// [kafka]分区</span></span><br><span class="line">	kafkaAddress := cfg.Section(<span class="string">&quot;kafka&quot;</span>).Key(<span class="string">&quot;address&quot;</span>).String()</span><br><span class="line">	fmt.Println(<span class="string">&quot;kafka address=&quot;</span>, kafkaAddress)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>使用go-ini读取配置文件的步骤如下：</p>
-<ul>
-<li>调用<code>ini.Load</code>加载<strong>配置文件</strong>，得到配置对象<code>cfg</code></li>
-<li>调用<code>cfg.Section</code>获取<strong>分区对象</strong>，使用<code>Key</code>方法得到对应配置项的对象</li>
-<li><code>Key</code>对象需根据类型调用对应的方法<strong>返回具体类型</strong>，可以使用<code>String</code>、<code>Int</code>、<code>Float64</code>等方法。</li>
-</ul>
-<p>配置文件中存储的都是字符串，所以类型为字符串的配置项不会出现类型转换失败的，故<code>String</code>方法只返回一个值。但是<code>Int</code>和<code>Uint</code>等方法可能会转换失败，返回一个值和一个错误。</p>
-<p>如果每次取值都需要进行错误判断，那么代码写起来会非常繁琐。go-ini为此提供了对应的<code>MustType</code>方法（Type为<code>Int/Uint/Float64</code>等），这个方法<strong>只返回一个值</strong>。同时它接收可变参数，如果类型无法转换，取参数中第一个值返回，并且该参数设置为这个配置的值，下次调用返回这个值。</p>
-<h1 id="go-ini使用"><a href="#go-ini使用" class="headerlink" title="go-ini使用"></a>go-ini使用</h1><h2 id="分区操作"><a href="#分区操作" class="headerlink" title="分区操作"></a>分区操作</h2><h3 id="获取信息"><a href="#获取信息" class="headerlink" title="获取信息"></a>获取信息</h3><p>在加载配置之后</p>
-<ul>
-<li>通过<code>Sections</code>方法获取所有分区</li>
-<li><code>SectionStrings()</code>方法获取所有的分区名</li>
-<li><code>Section(name)</code>获取名为name的分区，如果该分区不存在，则自动创建一个分区并返回</li>
-<li><code>NewSection(name)</code>手动创建一个新分区，如果分区已存在，则返回错误</li>
-</ul>
-<h3 id="父子分区"><a href="#父子分区" class="headerlink" title="父子分区"></a>父子分区</h3><p>可以在分区名中使用<code>.</code>表示两个或多个分区之间的父子关系。</p>
-<p>例如<code>package.sub</code>的父分区为<code>package</code>，<code>package</code>的父分区为默认分区。如果某个键在子分区中不存在，则会在它的父分区中再次查找，直到没有父分区为止。</p>
-<h2 id="保存配置"><a href="#保存配置" class="headerlink" title="保存配置"></a>保存配置</h2><p>可以将生成的配置对象写入到文件中，保存有两种类型的接口，一种直接保存到文件，另一种写入到<code>io.Writer</code>中：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">err = cfg.SaveTo(<span class="string">&quot;my.ini&quot;</span>)</span><br><span class="line">err = cfg.SaveToIndent(<span class="string">&quot;my.ini&quot;</span>, <span class="string">&quot;\t&quot;</span>)	<span class="comment">// 有缩进</span></span><br><span class="line"></span><br><span class="line">cfg.WriteTo(writer)</span><br><span class="line">cfg.WriteToIndent(writer, <span class="string">&quot;\t&quot;</span>)		<span class="comment">// 有缩进</span></span><br></pre></td></tr></table></figure>
-
-<p><code>*Indent</code>方法会对分区下的键进行缩进。</p>
-<h2 id="分区与结构体字段映射"><a href="#分区与结构体字段映射" class="headerlink" title="分区与结构体字段映射"></a>分区与结构体字段映射</h2><p>定义结构变量，加载完配置文件后，调用<code>MapTo</code>将配置项赋值到结构变量的对应字段中。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	MySQL MySQLConfig <span class="string">`ini:&quot;mysql&quot;`</span></span><br><span class="line">	Kafka KafkaConfig <span class="string">`ini:&quot;kafka&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MySQLConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	IP       <span class="keyword">string</span> <span class="string">`ini:&quot;ip&quot;`</span></span><br><span class="line">	Port     <span class="keyword">int</span>    <span class="string">`ini:&quot;port&quot;`</span></span><br><span class="line">	User     <span class="keyword">string</span> <span class="string">`ini:&quot;user&quot;`</span></span><br><span class="line">	Password <span class="keyword">string</span> <span class="string">`ini:&quot;password&quot;`</span></span><br><span class="line">	Database <span class="keyword">string</span> <span class="string">`ini:&quot;database&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;Load config file failed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 映射整个配置文件</span></span><br><span class="line">	c := &amp;Config&#123;&#125;</span><br><span class="line">	cfg.MapTo(c)</span><br><span class="line">	fmt.Println(c)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 只映射mysql分区</span></span><br><span class="line">	mysql := &amp;MySQLConfig&#123;&#125;</span><br><span class="line">	cfg.Section(<span class="string">&quot;mysql&quot;</span>).MapTo(mysql)</span><br><span class="line">	fmt.Println(mysql)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>也可以通过结构体生成配置：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewIni</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cfg := ini.Empty()</span><br><span class="line">	<span class="comment">// 构造配置信息</span></span><br><span class="line">	c := Config&#123;</span><br><span class="line">		MySQL: MySQLConfig&#123;</span><br><span class="line">			IP:       <span class="string">&quot;192.168.1.2&quot;</span>,</span><br><span class="line">			Port:     <span class="number">3306</span>,</span><br><span class="line">			User:     <span class="string">&quot;Dawn&quot;</span>,</span><br><span class="line">			Password: <span class="string">&quot;123456&quot;</span>,</span><br><span class="line">			Database: <span class="string">&quot;dbname&quot;</span>,</span><br><span class="line">		&#125;,</span><br><span class="line">		Kafka: KafkaConfig&#123;</span><br><span class="line">			Address: <span class="string">&quot;127.0.0.1:9092&quot;</span>,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 通过结构体生成配置</span></span><br><span class="line">	err := ini.ReflectFrom(cfg, &amp;c)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;ReflectFrom failed: &quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 保存到文件</span></span><br><span class="line">	err = cfg.SaveTo(<span class="string">&quot;new-conf.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;SaveTo failed: &quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/11/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-1-%E8%A7%A3%E6%9E%90%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86/" class="post-title-link" itemprop="url">从零开始的日志收集项目 (1) 解析配置文件进行日志收集</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-11 11:34:14" itemprop="dateCreated datePublished" datetime="2022-03-11T11:34:14+08:00">2022-03-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE/" itemprop="url" rel="index"><span itemprop="name">日志收集项目</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="项目介绍"><a href="#项目介绍" class="headerlink" title="项目介绍"></a>项目介绍</h1><h1 id="解析配置文件，进行日志收集"><a href="#解析配置文件，进行日志收集" class="headerlink" title="解析配置文件，进行日志收集"></a>解析配置文件，进行日志收集</h1><p>首先，初步编写一个<code>logagent</code>：</p>
-<ol>
-<li>从配置文件中读取信息。</li>
-<li>根据从配置文件中得到的Kafka地址，初始化Kafka生产者：<ul>
-<li>生产者配置</li>
-<li>连接Kafka</li>
-<li>初始化消息管道，并且起一个协程，用于从消息管道中读取数据并向Kafka推送消息</li>
-</ul>
+<li><p><strong>bootfs（boot file system）</strong>主要包含bootloader和kernel。<strong>bootloader主要是引导加载kernel</strong>，Linux刚启动时会加载bootfs文件系统，在<strong>Docker镜像的最底层是引导文件系统bootfs</strong>。这一层与典型的Linux/Unix系统是一样的，包含boot加载器和内核。当boot加载完成之后整个内核就都在内存中了，此时内存的使用权已由bootfs转交给内核，此时系统也会卸载bootfs。</p>
 </li>
-<li>根据从配置文件中得到的日志路径，初始化一个<code>tail.Tail</code>对象<code>TailObj</code>。</li>
-<li><code>TailObj</code>从日志中读取数据，封装成msg送入消息管道。协程从消息管道中取出数据并发送给Kafka</li>
-</ol>
-<h2 id="读取配置文件"><a href="#读取配置文件" class="headerlink" title="读取配置文件"></a>读取配置文件</h2><p>配置文件<code>conf/config.ini</code>：</p>
-<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[kafka]</span></span><br><span class="line"><span class="comment"># Kafka地址</span></span><br><span class="line"><span class="attr">address</span> = <span class="number">127.0</span>.<span class="number">0.1</span>:<span class="number">9092</span></span><br><span class="line"><span class="comment"># 主题</span></span><br><span class="line"><span class="attr">topic</span> = web_log</span><br><span class="line"><span class="comment"># 消息管道大小</span></span><br><span class="line"><span class="attr">chan_size</span> = <span class="number">1000</span></span><br><span class="line"></span><br><span class="line"><span class="section">[collect]</span></span><br><span class="line"><span class="comment"># 日志文件存放路径</span></span><br><span class="line"><span class="attr">logfile_path</span> = F:\gopath\src\logagent\logs\<span class="number">1</span>.log</span><br></pre></td></tr></table></figure>
-
-<p>读取配置文件：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 读配置文件</span></span><br><span class="line">cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">err = cfg.MapTo(configObj)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">	logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="初始化Kafka生产者"><a href="#初始化Kafka生产者" class="headerlink" title="初始化Kafka生产者"></a>初始化Kafka生产者</h2><p><code>kafka/kafka.go</code>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> kafka</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// kafka相关操作</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	Client  sarama.SyncProducer</span><br><span class="line">	MsgChan <span class="keyword">chan</span> *sarama.ProducerMessage</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(address []<span class="keyword">string</span>, chanSize <span class="keyword">int</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 生产者配置</span></span><br><span class="line">	config := sarama.NewConfig()</span><br><span class="line">	config.Producer.RequiredAcks = sarama.WaitForAll          <span class="comment">// 等待leader和follow都确认</span></span><br><span class="line">	config.Producer.Partitioner = sarama.NewRandomPartitioner <span class="comment">// 分区</span></span><br><span class="line">	config.Producer.Return.Successes = <span class="literal">true</span>                   <span class="comment">// 确认</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 连接kafka</span></span><br><span class="line">	Client, err = sarama.NewSyncProducer(address, config)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;kafka: producer closed, err:&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 初始化消息管道</span></span><br><span class="line">	MsgChan = <span class="built_in">make</span>(<span class="keyword">chan</span> *sarama.ProducerMessage, chanSize)</span><br><span class="line">	<span class="comment">// 起一个协程向kafka发送数据</span></span><br><span class="line">	<span class="keyword">go</span> sendMsg()</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 从MsgChan中读取msg，发送给kafka</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">sendMsg</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> msg := &lt;-MsgChan:</span><br><span class="line">			pid, offser, err := Client.SendMessage(msg)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				logrus.Warn(<span class="string">&quot;send msg failed, err:&quot;</span>, err)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			logrus.Infof(<span class="string">&quot;send msg to kafka success. pid=%v offset=%v&quot;</span>, pid, offser)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="初始化tail-Tail对象"><a href="#初始化tail-Tail对象" class="headerlink" title="初始化tail.Tail对象"></a>初始化tail.Tail对象</h2><p><code>tailfile.tailfile.go</code>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> tailfile</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;github.com/hpcloud/tail&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">	<span class="string">&quot;os&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	TailObj *tail.Tail</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Init</span><span class="params">(fileName <span class="keyword">string</span>)</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">	TailObj, err = tail.TailFile(fileName, tail.Config&#123;</span><br><span class="line">		Location: &amp;tail.SeekInfo&#123; <span class="comment">// 从文件的哪个地方开始读取</span></span><br><span class="line">			Offset: <span class="number">0</span>,</span><br><span class="line">			Whence: os.SEEK_END,</span><br><span class="line">		&#125;,</span><br><span class="line">		ReOpen:    <span class="literal">true</span>,  <span class="comment">// 重新打开文件</span></span><br><span class="line">		MustExist: <span class="literal">false</span>, <span class="comment">// 文件不存在不报错</span></span><br><span class="line">		Follow:    <span class="literal">true</span>,  <span class="comment">// 进行跟随</span></span><br><span class="line">		Poll:      <span class="literal">true</span>,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Errorf(<span class="string">&quot;tailfile: create tailObj for path %s failed, err: %v\n&quot;</span>, fileName, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="TailObj从日志中读取数据，送入消息管道"><a href="#TailObj从日志中读取数据，送入消息管道" class="headerlink" title="TailObj从日志中读取数据，送入消息管道"></a>TailObj从日志中读取数据，送入消息管道</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		line, ok := &lt;-tailfile.TailObj.Lines</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, tailfile.TailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		fmt.Println(line.Text)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.MsgChan &lt;- msg</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="总结："><a href="#总结：" class="headerlink" title="总结："></a>总结：</h2><p>所以<code>main.go</code>中的流程为：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/Shopify/sarama&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/go-ini/ini&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/sirupsen/logrus&quot;</span></span><br><span class="line">	<span class="string">&quot;logagent/kafka&quot;</span></span><br><span class="line">	<span class="string">&quot;logagent/tailfile&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 日志收集的客户端</span></span><br><span class="line"><span class="comment">// 收集指定目录下的日志文件，发送到kafka中</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Config <span class="keyword">struct</span> &#123;</span><br><span class="line">	KafkaConfig   <span class="string">`ini:&quot;kafka&quot;`</span></span><br><span class="line">	CollectConfig <span class="string">`ini:&quot;collect&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> KafkaConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	Address  <span class="keyword">string</span> <span class="string">`ini:&quot;address&quot;`</span></span><br><span class="line">	Topic    <span class="keyword">string</span> <span class="string">`ini:&quot;topic&quot;`</span></span><br><span class="line">	ChanSize <span class="keyword">int</span>    <span class="string">`int:&quot;chan_size&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">type</span> CollectConfig <span class="keyword">struct</span> &#123;</span><br><span class="line">	LogFilePath <span class="keyword">string</span> <span class="string">`ini:&quot;logfile_path&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 真正业务逻辑</span></span><br><span class="line"><span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">run</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="comment">// 循环读数据</span></span><br><span class="line">		line, ok := &lt;-tailfile.TailObj.Lines</span><br><span class="line">		<span class="keyword">if</span> !ok &#123;</span><br><span class="line">			logrus.Warnf(<span class="string">&quot;tail file close reopen, filename: %s\n&quot;</span>, tailfile.TailObj.Filename)</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把从tail中读到的日志，包装成kafka的msg类型</span></span><br><span class="line">		fmt.Println(line.Text)</span><br><span class="line">		msg := &amp;sarama.ProducerMessage&#123;&#125;</span><br><span class="line">		msg.Topic = <span class="string">&quot;web_log&quot;</span></span><br><span class="line">		msg.Value = sarama.StringEncoder(line.Text)</span><br><span class="line">		<span class="comment">// 放到通道中</span></span><br><span class="line">		kafka.MsgChan &lt;- msg</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="comment">// 读配置文件</span></span><br><span class="line">	cfg, err := ini.Load(<span class="string">&quot;conf/config.ini&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Load config failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> configObj = <span class="built_in">new</span>(Config)</span><br><span class="line">	err = cfg.MapTo(configObj)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;Map failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Println(configObj)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 初始化Kafka</span></span><br><span class="line">	err = kafka.Init([]<span class="keyword">string</span>&#123;configObj.KafkaConfig.Address&#125;, configObj.KafkaConfig.ChanSize)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init kafka failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init kafka success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 根据配置文件中的日志路径使用tail收集日志，初始化tail</span></span><br><span class="line">	err = tailfile.Init(configObj.CollectConfig.LogFilePath)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logrus.Error(<span class="string">&quot;init tail failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	logrus.Info(<span class="string">&quot;init tail success!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 把日志发往kafka</span></span><br><span class="line">	<span class="comment">// 从TailObj中从log中读取数据，封装成msg放入到通道中</span></span><br><span class="line">	run()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
+<li><p><strong>rootfs（root file system）</strong>，在bootfs之上。包含的就是典型 Linux 系统中的/dev、/proc、/bin、/etc等标准目录和文件。<strong>rootfs就是各种不同的操作系统发行版</strong>，如Ubuntu、CentOS等。</p>
+</li>
+</ul>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/image-20221223111944166.png" alt="image-20221223111944166"></p>
+<blockquote>
+<p>对于一个精简的OS，rootfs可以很小，只需要包括最基本的命令、工具和程序库就可以了，因为底层直接用Host的kernel，自己只需要提供 rootfs 就行了。由此可见对于不同的linux发行版, bootfs基本是一致的, rootfs会有差别, 因此不同的发行版可以公用bootfs。</p>
+</blockquote>
+<h2 id="容器"><a href="#容器" class="headerlink" title="容器"></a>容器</h2><p>镜像和容器的关系，就像是类和实例的关系。镜像是<strong>静态</strong>的定义，容器是镜像<strong>运行时</strong>的实体。容器可以被创建、启动、停止、删除、暂停等。</p>
+<p>容器的实质是进程，但与直接在宿主执行的进程不同，容器进程运行于属于自己的独立的命名空间。因此容器可以拥有自己的 <code>root</code> 文件系统、自己的网络配置、自己的进程空间，甚至自己的用户 ID 空间。容器内的经常运行在一个隔离的环境里，因此也更加的安全。</p>
+<h3 id="容器存储层"><a href="#容器存储层" class="headerlink" title="容器存储层"></a>容器存储层</h3><p>容器也使用<strong>分层存储</strong>，每一个容器运行时，以镜像为基础层，在其上创建一个当前容器的存储层用于容器运行时的读写，称为<strong>容器存储层</strong>。只有<strong>容器层是可写的</strong>，容器层下面的所有<strong>镜像层都是只读的</strong>。</p>
+<p><img src="/../images/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-1-%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/image-20221223112458661.png" alt="image-20221223112458661"></p>
+<p><strong>容器存储层的生存周期和容器一样</strong>，容器消亡时，容器存储层也随之消亡。因此，任何保存于容器存储层的信息都会随容器删除而丢失。因此所有的文件写入操作，都应该使用<strong>数据卷（Volume）</strong>，数据卷的生存周期独立于容器，容器消亡，数据卷不会消亡。因此，使用数据卷后，容器删除或者重新运行之后，数据却不会丢失。</p>
+<h2 id="仓库"><a href="#仓库" class="headerlink" title="仓库"></a>仓库</h2><p>Docker Registry用于提供集中的<strong>存储、分发镜像</strong>的服务。</p>
+<p>一个Docker Registry中可以包含多个<strong>仓库</strong>（Repository），每个仓库包含多个<strong>标签</strong>（Tag，标签用于指明镜像的版本），每个标签对应一个<strong>镜像</strong>。</p>
+<p>可以通过<code>&lt;仓库名&gt;:&lt;标签&gt;</code>指定哪个版本的镜像，默认标签为<code>latest</code>。</p>
 
       
     </div>
@@ -1100,7 +877,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/13/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-31/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1114,7 +891,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/" class="post-title-link" itemprop="url">GO语言杂谈 (5) tail包的使用</a>
+            <a href="/2022/04/13/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-31/" class="post-title-link" itemprop="url">算法刷题笔记 (31) 整数反转</a>
         </h2>
 
         <div class="post-meta">
@@ -1124,7 +901,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2022-03-11 10:43:42" itemprop="dateCreated datePublished" datetime="2022-03-11T10:43:42+08:00">2022-03-11</time>
+              <time title="创建时间：2022-04-13 09:37:12" itemprop="dateCreated datePublished" datetime="2022-04-13T09:37:12+08:00">2022-04-13</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
@@ -1139,7 +916,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
                 </span>
             </span>
 
@@ -1154,17 +931,358 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>tail包用于输出文件的最后几行。<strong>假设该档案有更新，tail会自己主动刷新，确保你看到最新的档案内容</strong> ，在日志收集中可以实时的监测日志的变化。</p>
-<h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TailFile</span><span class="params">(filename <span class="keyword">string</span>, config Config)</span> <span class="params">(*Tail, error)</span></span></span><br></pre></td></tr></table></figure>
-
-<p><code>tail2.TailFile()</code>函数的参数是<strong>文件路径</strong>和<strong>配置文件</strong>，会生成一个<code>Tail</code>结构体。在<code>Tail</code>结构体中，最重要的属性是文件名<code>Filename</code>和用于存储文件一行<code>Line</code>的通道<code>Lines</code>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Tail <span class="keyword">struct</span> &#123;</span><br><span class="line">	Filename <span class="keyword">string</span></span><br><span class="line">	Lines    <span class="keyword">chan</span> *Line</span><br><span class="line">	Config</span><br><span class="line"></span><br><span class="line">	file   *os.File</span><br><span class="line">	reader *bufio.Reader</span><br><span class="line"></span><br><span class="line">	watcher watch.FileWatcher</span><br><span class="line">	changes *watch.FileChanges</span><br><span class="line"></span><br><span class="line">	tomb.Tomb <span class="comment">// provides: Done, Kill, Dying</span></span><br><span class="line"></span><br><span class="line">	lk sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其中表示文件中一行的结构体为<code>Line</code>，这个结构体用于存储读取的一行信息：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Line <span class="keyword">struct</span> &#123;</span><br><span class="line">	Text <span class="keyword">string</span></span><br><span class="line">	Time time.Time</span><br><span class="line">	Err  error <span class="comment">// Error from tail</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <h1 id="整数反转"><a href="#整数反转" class="headerlink" title="整数反转"></a>整数反转</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/reverse-integer">整数反转</a></p>
+<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>通过<strong>模10</strong>的方法取出最低位数字，通过<strong>除以10</strong>去掉最低为数字。</p>
+<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">reverse</span><span class="params">(x <span class="keyword">int</span>)</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> res <span class="keyword">int</span></span><br><span class="line">    <span class="keyword">for</span> x != <span class="number">0</span> &#123;</span><br><span class="line">        res = res*<span class="number">10</span> + x%<span class="number">10</span></span><br><span class="line">        x = x/<span class="number">10</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> res &gt; math.MaxInt32 || res &lt; math.MinInt32 &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-5-tail%E5%8C%85%E7%9A%84%E4%BD%BF%E7%94%A8/#more" rel="contents">
+              <a class="btn" href="/2022/04/13/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-31/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/" class="post-title-link" itemprop="url">机器学习基础 (8) 聚类和降维</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-10 20:47:08" itemprop="dateCreated datePublished" datetime="2022-04-10T20:47:08+08:00">2022-04-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="聚类"><a href="#聚类" class="headerlink" title="聚类"></a>聚类</h1><h2 id="非监督学习"><a href="#非监督学习" class="headerlink" title="非监督学习"></a>非监督学习</h2><p>在非监督学习中，我们的数据<strong>没有附带任何标签</strong>，我们拿到的数据如下图。在这里我们有一系列点，却没有标签。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/6709f5ca3cd2240d4e95dcc3d3e808d5.png" alt="img"></p>
+<p>也就是说，在非监督学习中，我们需要将一系列无标签的训练数据，输入到一个算法中，然后我们告诉这个算法，快去为我们找找这个数据的内在结构给定数据。我们可能需要某种算法帮助我们寻找一种结构。图上的数据看起来可以分成两个分开的点集（称为簇），一个能够找到这些点集的算法，就被称为<strong>聚类</strong>算法。</p>
+<p>当然，非监督算法不只是用来分簇，也可以为我们找到其他类型的结构或者其他的一些模式。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-8-%E8%81%9A%E7%B1%BB%E5%92%8C%E9%99%8D%E7%BB%B4/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-7-%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-7-%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA/" class="post-title-link" itemprop="url">机器学习基础 (7) 支持向量机</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-10 11:45:00" itemprop="dateCreated datePublished" datetime="2022-04-10T11:45:00+08:00">2022-04-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="支持向量机"><a href="#支持向量机" class="headerlink" title="支持向量机"></a>支持向量机</h1><h2 id="目标函数"><a href="#目标函数" class="headerlink" title="目标函数"></a>目标函数</h2><p>以下是支持向量机SVM的目标函数，其形式于逻辑回归的形式类似，其中需要注意的是：</p>
+<ul>
+<li>在SVM中，<strong>删除</strong>了在逻辑回归里第一项中的<strong>1/m</strong>。因为1/m仅仅是一个常量，因此，你在这个最小化问题中，无论前面是否有这一项，最终所得到的最优值θ都是一样的。</li>
+<li>对于逻辑回归的目标函数中，有两项：第一个是训练样本的代价，第二个是我们的正则化项，其形式为A+λB。但是在SVM中，我们将使用一个不同的参数替换这里使用的λ来权衡这两项，其形式为<strong>CA+B</strong>。因此，在逻辑回归中，如果给定λ一个非常大的值，意味着给予B更大的权重。在SVM中，就对应于将C设定为非常小的值，那么，相应的将会给B比给A更大的权重。</li>
+<li>在逻辑回归中，输出的是y=1的概率。而在SVM中，当θ^Tx大于等于0时，会输出1，否则输出0</li>
+</ul>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-7-%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA/5a63e35db410fdb57c76de97ea888278.png" alt="img"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/04/10/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-7-%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/09/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/04/09/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="post-title-link" itemprop="url">机器学习基础 (6) 机器学习应用及系统设计</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-09 11:20:37" itemprop="dateCreated datePublished" datetime="2022-04-09T11:20:37+08:00">2022-04-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="应用及其学习的建议"><a href="#应用及其学习的建议" class="headerlink" title="应用及其学习的建议"></a>应用及其学习的建议</h1><h2 id="决定下一步做什么"><a href="#决定下一步做什么" class="headerlink" title="决定下一步做什么"></a>决定下一步做什么</h2><p>当我们运用训练好了的模型来预测未知数据的时候发现有较大的误差，我们下一步可以做什么？</p>
+<ul>
+<li>获得更多的训练样本</li>
+<li>尝试减少特征的数量，防止过拟合</li>
+<li>需要更多的特征</li>
+<li>尝试增加多项式特征</li>
+<li>减少/增加正则化程度λ</li>
+</ul>
+<p>我们不应该随机选择上面的某种方法来改进我们的算法，而是运用一些机器学习诊断法来帮助我们知道上面哪些方法对我们的算法是有效的。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/04/09/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-6-%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%BA%94%E7%94%A8%E5%8F%8A%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/04/07/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/04/07/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/" class="post-title-link" itemprop="url">机器学习基础 (5) 神经网络</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-04-07 17:30:01" itemprop="dateCreated datePublished" datetime="2022-04-07T17:30:01+08:00">2022-04-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">机器学习基础</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><h2 id="模型"><a href="#模型" class="headerlink" title="模型"></a>模型</h2><p>下面展示一个最简单的神经网络，共有三层。第一层称为<strong>输入层</strong>，最后一层称为<strong>输出层</strong>，中间层次被称为<strong>隐藏层</strong>（隐藏层不止一层）</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/1649385563353.png" alt="神经网络"></p>
+<p>a表示激活项 。Θ表示权重矩阵，它控制从一层到下一层得映射：</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/1649386481865.png" alt="1649386481865"></p>
+<p>以下是激活项的计算公式，其中g代表sigmoid函数。需要注意的是，对于第j层向第j+1层映射的权重矩阵而言，行的数量等于下一层j+1的单元数量，列的数量等于本层j的单元数量+1（因为需要加上偏置单元，x0=1）。</p>
+<p><img src="/../images/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/1649386883950.png" alt="1649386883950"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/04/07/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%9F%BA%E7%A1%80-5-%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1187,7 +1305,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/30/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/30/">30</a><span class="page-number current">31</span><a class="page-number" href="/page/32/">32</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/32/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/30/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/30/">30</a><span class="page-number current">31</span><a class="page-number" href="/page/32/">32</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/32/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1253,20 +1371,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="AOP面向切面编程也是一种设计思想，核心思想就是将横切关注点从核心业务逻辑中分离出来，形成一个个的切面（Aspect）。 Spring AOP 就是基于动态代理的，如果要代理的对象，实现了某个接口，那么 Spring AOP 会使用 JDK Proxy，去创建代理对象；对于没有实现接口的对象，Spring AOP 会使用 CGLIB 生成一个被代理对象的子类来作为代理。   也可以使用 Aspec">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SSM学习之Spring (3) AOP">
+<meta property="og:url" content="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/index.html">
+<meta property="og:site_name" content="Dawn&#39;s Blogs">
+<meta property="og:description" content="AOP面向切面编程也是一种设计思想，核心思想就是将横切关注点从核心业务逻辑中分离出来，形成一个个的切面（Aspect）。 Spring AOP 就是基于动态代理的，如果要代理的对象，实现了某个接口，那么 Spring AOP 会使用 JDK Proxy，去创建代理对象；对于没有实现接口的对象，Spring AOP 会使用 CGLIB 生成一个被代理对象的子类来作为代理。   也可以使用 Aspec">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://dawnzzz.github.io/images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/230ae587a322d6e4d09510161987d346.jpeg">
+<meta property="article:published_time" content="2024-04-28T07:24:16.000Z">
+<meta property="article:modified_time" content="2024-04-28T09:32:55.726Z">
+<meta property="article:author" content="DawnZH">
+<meta property="article:tag" content="SSM - Java">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://dawnzzz.github.io/images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/230ae587a322d6e4d09510161987d346.jpeg">
+
+<link rel="canonical" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>SSM学习之Spring (3) AOP | Dawn's Blogs</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Dawn's Blogs</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">分享技术 记录成长</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          SSM学习之Spring (3) AOP
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-28 15:24:16 / 修改时间：17:32:55" itemprop="dateCreated datePublished" datetime="2024-04-28T15:24:16+08:00">2024-04-28</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="AOP"><a href="#AOP" class="headerlink" title="AOP"></a>AOP</h1><p>面向切面编程也是一种设计思想，核心思想就是将横切关注点从核心业务逻辑中分离出来，形成一个个的<strong>切面（Aspect）</strong>。</p>
+<p>Spring AOP 就是基于动态代理的，如果要代理的对象，实现了某个接口，那么 Spring AOP 会使用 <strong>JDK Proxy</strong>，去创建代理对象；对于没有实现接口的对象，Spring AOP 会使用 <strong>CGLIB</strong> 生成一个被代理对象的子类来作为代理。</p>
+<p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-3-AOP/230ae587a322d6e4d09510161987d346.jpeg" alt="SpringAOPProcess"></p>
+<blockquote>
+<p>也可以使用 AspectJ，AspectJ 算的上是 Java 生态系统中最完整的 AOP 框架了。</p>
+<p><strong>Spring AOP 和 AspectJ AOP 的区别？</strong></p>
+<ul>
+<li><p><strong>实现原理不同：</strong>Spring AOP 属于运行时增强，而 AspectJ 是编译时增强。** Spring AOP 基于代理，而 AspectJ 基于字节码操作。</p>
+</li>
+<li><p><strong>Spring AOP 集成了 AspectJ AOP：</strong>Spring AOP 已经集成了 AspectJ ，AspectJ 应该算的上是 Java 生态系统中最完整的 AOP 框架了。AspectJ 相比于 Spring AOP 功能更加强大，但是 Spring AOP 相对来说更简单，</p>
+</li>
+<li><p><strong>AspectJ 更快：</strong>如果我们的切面比较少，那么两者性能差异不大。但是，当切面太多的话，最好选择 AspectJ ，它比 Spring AOP 快很多。</p>
+</li>
+</ul>
+</blockquote>
+<p>AOP 的应用场景：</p>
+<ul>
+<li><strong>日志记录：</strong>自定义日志记录注解，利用 AOP，一行代码即可实现日志记录。</li>
+<li><strong>性能统计：</strong>利用 AOP 在目标方法的执行前后统计方法的执行时间，方便优化和分析。</li>
+<li><strong>事务管理：</strong>@Transactional 注解基于 AOP 实现的，可以让 Spring 进行事务管理比如回滚异常操作，免去了重复的事务管理逻辑。</li>
+<li><strong>权限控制：</strong>利用 AOP 在目标方法执行前判断用户是否具备所需要的权限，如果具备，就执行目标方法，否则就不执行。</li>
+<li><strong>接口限流：</strong>利用 AOP 在目标方法执行前通过具体的限流算法和实现对请求进行限流处理。</li>
+<li><strong>缓存管理：</strong>利用 AOP 在目标方法执行前后进行缓存的读取和更新。</li>
+<li>。。。。。。</li>
+</ul>
+<h2 id="核心概念"><a href="#核心概念" class="headerlink" title="核心概念"></a>核心概念</h2><p>AOP中的术语：</p>
+<ul>
+<li><strong>横切关注点（cross-cutting concerns）</strong> ：多个类或对象中的公共行为（如日志记录、事务管理、权限控制、接口限流、接口幂等等）。</li>
+<li><strong>切面（Aspect）</strong>：对横切关注点进行封装的类，一个切面是一个类。切面可以定义多个通知，用来实现具体的功能。</li>
+<li><strong>连接点（JoinPoint）</strong>：连接点是方法调用或者方法执行时的某个特定时刻（如方法调用、异常抛出等）。</li>
+<li><strong>通知（Advice）</strong>：通知就是切面在某个连接点要执行的操作。通知有五种类型，分别是<strong>前置通知（Before）、后置通知（After）、返回通知（AfterReturning）、异常通知（AfterThrowing）和环绕通知（Around）</strong>。前四种通知都是在目标方法的前后执行，而环绕通知可以控制目标方法的执行过程。</li>
+<li><strong>切点（Pointcut）</strong>：一个切点是一个表达式，它用来匹配哪些连接点需要被切面所增强。切点可以通过注解、正则表达式、逻辑运算等方式来定义。比如 <code>execution(* com.xyz.service..*(..))</code>匹配 <code>com.xyz.service</code> 包及其子包下的类或接口。</li>
+<li><strong>织入（Weaving）</strong>：织入是将切面和目标对象连接起来的过程，也就是将通知应用到切点匹配的连接点上。</li>
+</ul>
+<h2 id="通知类型"><a href="#通知类型" class="headerlink" title="通知类型"></a>通知类型</h2><p>Spring AOP 中定义的通知类型：</p>
+<ul>
+<li><strong>Before</strong>（前置通知）：目标对象的方法调用之前触发。</li>
+<li><strong>After</strong> （后置通知）：目标对象的方法调用之后触发。</li>
+<li><strong>AfterReturning</strong>（返回通知）：目标对象的方法调用完成，在返回结果值之后触发。</li>
+<li><strong>AfterThrowing</strong>（异常通知）：目标对象的方法运行中抛出 / 触发异常后触发。AfterReturning 和 AfterThrowing 两者互斥。如果方法调用成功无异常，则会有返回值；如果方法抛出了异常，则不会有返回值。</li>
+<li><strong>Around</strong> （环绕通知）：编程式控制目标对象的方法调用。环绕通知是所有通知类型中可操作范围最大的一种，因为它可以直接拿到目标对象，以及要执行的方法，所以环绕通知可以任意的在目标对象的方法调用前后搞事，<strong>甚至不调用目标对象的方法</strong>。</li>
+</ul>
+<h2 id="切面的执行顺序"><a href="#切面的执行顺序" class="headerlink" title="切面的执行顺序"></a>切面的执行顺序</h2><p>多个切面的执行顺序如何控制，有两种方法：</p>
+<ul>
+<li>@Order 注解，值越小优先级越高。</li>
+<li>通过实现 Ordered 接口，重新 getOrder 方法实现。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/SSM-Java/" rel="tag"># SSM - Java</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/04/25/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-2-IOC/" rel="prev" title="SSM学习之Spring (2) IOC">
+      <i class="fa fa-chevron-left"></i> SSM学习之Spring (2) IOC
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-4-%E4%BA%8B%E5%8A%A1/" rel="next" title="SSM学习之Spring (4) 事务">
+      SSM学习之Spring (4) 事务 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#AOP"><span class="nav-number">1.</span> <span class="nav-text">AOP</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="nav-number">1.1.</span> <span class="nav-text">核心概念</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%80%9A%E7%9F%A5%E7%B1%BB%E5%9E%8B"><span class="nav-number">1.2.</span> <span class="nav-text">通知类型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%87%E9%9D%A2%E7%9A%84%E6%89%A7%E8%A1%8C%E9%A1%BA%E5%BA%8F"><span class="nav-number">1.3.</span> <span class="nav-text">切面的执行顺序</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">DawnZH</p>
+  <div class="site-description" itemprop="description">个人博客站点</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">53</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">51</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DawnZH</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

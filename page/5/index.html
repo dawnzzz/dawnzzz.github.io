@@ -158,7 +158,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-5-%E7%BA%BF%E7%A8%8B%E6%B1%A0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,7 +172,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/" class="post-title-link" itemprop="url">LMQ实现 (1) TCP服务器</a>
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-5-%E7%BA%BF%E7%A8%8B%E6%B1%A0/" class="post-title-link" itemprop="url">Java面试之并发编程 (5) 线程池</a>
         </h2>
 
         <div class="post-meta">
@@ -182,14 +182,14 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2023-12-18 13:18:09" itemprop="dateCreated datePublished" datetime="2023-12-18T13:18:09+08:00">2023-12-18</time>
+              <time title="创建时间：2024-04-08 21:21:28" itemprop="dateCreated datePublished" datetime="2024-04-08T21:21:28+08:00">2024-04-08</time>
             </span>
               <span class="post-meta-item">
                 <span class="post-meta-item-icon">
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-19 10:57:25" itemprop="dateModified" datetime="2023-12-19T10:57:25+08:00">2023-12-19</time>
+                <time title="修改时间：2024-04-09 22:59:30" itemprop="dateModified" datetime="2024-04-09T22:59:30+08:00">2024-04-09</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -197,7 +197,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/LMQ%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">LMQ实现</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -212,469 +212,33 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/lmq">LMQ</a></p>
-<p>LMQ 是一个仿照 <a target="_blank" rel="noopener" href="https://github.com/nsqio/nsq">NSQ</a> 的基于 TCP 协议的分布式消息队列，本系列说明 LMQ 的实现方式。</p>
-<p>在本节说明 TCP 服务器的实现，TCP 服务器的实现地址：<a target="_blank" rel="noopener" href="https://github.com/dawnzzz/hamble-tcp-server">Hamble TCP Server</a></p>
-<h1 id="TCP-服务器架构"><a href="#TCP-服务器架构" class="headerlink" title="TCP 服务器架构"></a>TCP 服务器架构</h1><p>TCP 服务器的架构如下，总体上<strong>采用 1+M+N 的服务器编程模型</strong>：</p>
+          <h1 id="线程池"><a href="#线程池" class="headerlink" title="线程池"></a>线程池</h1><p>线程池就是管理线程的资源池，有任务需要处理时，直接从线程池中取得线程进行处理，处理完成后线程会被放回线程池中，而不是立即销毁。Java 已经提供了线程，<strong>为什么还需要使用线程池？</strong></p>
 <ul>
-<li>一个协程（Server goroutine）用于建立连接（Accept）。</li>
-<li>M 个协程用于读写取连接请求信息。</li>
-<li>N 个协程用于处理请求内容，并生成响应信息。</li>
+<li><strong>降低资源消耗</strong>。通过重复利用已创建的线程降低线程创建和销毁造成的消耗。</li>
+<li><strong>提高响应速度</strong>。当任务到达时，任务可以不需要等到线程创建就能立即执行。</li>
+<li><strong>提高线程的可管理性</strong>。线程是稀缺资源，如果无限制的创建，不仅会消耗系统资源，还会降低系统的稳定性，使用线程池可以进行统一的分配，调优和监控。</li>
 </ul>
-<p><img src="/../images/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/image-20231218132654361.png" alt="image-20231218132654361"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/18/LMQ%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-13-%E6%80%BB%E7%BB%93/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-13-%E6%80%BB%E7%BB%93/" class="post-title-link" itemprop="url">Simple-Redis实现 (13) 总结</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 16:16:22" itemprop="dateCreated datePublished" datetime="2023-12-12T16:16:22+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><h2 id="功能实现"><a href="#功能实现" class="headerlink" title="功能实现"></a>功能实现</h2><p>Simple-Redis 是一个 golang 编写的实现了 RESP（REdis Serialization Protocol）协议的简易 Redis，实现的功能包括：</p>
-<ul>
-<li>五大基本数据类型（string、set、hash、list、zset）及其操作。</li>
-<li>通信协议为 RESP 协议，与 Redis-cli 兼容。</li>
-<li>增加并发性，可以并发执行命令。</li>
-<li>AOF 持久化功能，包括 AOF 持久化和 AOF 重写。</li>
-<li>分片集群功能，以一致性哈希实现。</li>
-<li>发布订阅功能，更支持集群下的发布订阅模式。</li>
-<li>支持原子事务，在执行错误时进行回滚。</li>
-<li>支持分布式事务，支持在多集群下的 TCC 分布式事务。</li>
-</ul>
-<h2 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h2><p>相比于 Redis，Simple-Redis 的优势在于：</p>
-<ul>
-<li>与 Redis 在执行命令时单线程不同，Simple-Redis 为每一个客户端<strong>并发的执行命令</strong>。</li>
-<li><strong>pipeline 模式客户端</strong>，无需等待响应即可发送下一条命令。</li>
-<li>TTL 过期使用<strong>时间轮</strong>算法实现，时间轮算法保证了不会扫描全部的 key（节省 CPU），又能够及时的删除过期数据（节省 内存）</li>
-<li>集群采用<strong>一致性哈希</strong>实现，使 key 更加均匀的分布。</li>
-<li>集群间的通信采用<strong>连接池</strong>的方式，优势在于：<ul>
-<li>复用连接（复用空闲连接）。</li>
-<li>增加并发性能（节点之间有多个连接）。</li>
-<li>控制节点之间的连接数，不会因为节点之间的通信而影响客户端与节点之间的通信（有最大空闲连接数和最大活跃连接数的限制）。</li>
-</ul>
-</li>
-<li>支持<strong>集群下的发布订阅模式</strong>，为了支持这一功能，定义了 publish 和 publishsingle 命令。<ul>
-<li><strong>publish 命令：</strong>客户端向集群中的一个节点发送 publish 命令，节点会<strong>向所有的 peers 转发这条发布消息</strong>。</li>
-<li><strong>publishsingle 命令：</strong>节点向所有 peers 转发发布的消息时，使用的是 publishsingle 命令，表明<strong>节点在收到消息后不用继续转发了</strong>（避免了节点转发再转发，造成的无限消息洪泛）。</li>
-</ul>
-</li>
-<li>支持<strong>原子事务</strong>，在执行错误时进行回滚。</li>
-<li>支持<strong>分布式事务</strong>，支持在多集群下的 TCC 分布式事务。以当前节点为<strong>事务协调者</strong>，控制分布在其他节点的<strong>本地事务</strong>。一次分布式事务的流程如下：<ul>
-<li>对命令和 watch 的 key，按照节点的不同进行<strong>分组</strong>。</li>
-<li>对每一组节点<strong>发送 try 命令</strong>，try 命令比较复杂又分为几个子命令：<ul>
-<li>try start：通知节点有新建一个本地分布式事务。</li>
-<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
-<li>try xxx：依次发送在该节点上执行的命令。</li>
-<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
-</ul>
-</li>
-<li>对每一组节点<strong>发送 commit 或者 cancel 命令</strong>。</li>
-<li><strong>重组</strong>事务的返回结果，按照正常的顺序进行返回。</li>
-</ul>
-</li>
-</ul>
-<h2 id="性能"><a href="#性能" class="headerlink" title="性能"></a>性能</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">zhaohan08@MacBook-Pro redis % redis-benchmark -t <span class="built_in">set</span>,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange -n 10000 -q</span><br><span class="line">WARNING: Could not fetch server CONFIG</span><br><span class="line">SET: 68965.52 requests per second, p50=0.367 msec</span><br><span class="line">GET: 62111.80 requests per second, p50=0.399 msec</span><br><span class="line">INCR: 49751.24 requests per second, p50=0.487 msec</span><br><span class="line">LPUSH: 56497.18 requests per second, p50=0.447 msec</span><br><span class="line">RPUSH: 49504.95 requests per second, p50=0.503 msec</span><br><span class="line">LPOP: 68965.52 requests per second, p50=0.375 msec</span><br><span class="line">RPOP: 68493.15 requests per second, p50=0.375 msec</span><br><span class="line">SADD: 52631.58 requests per second, p50=0.495 msec</span><br><span class="line">HSET: 68027.21 requests per second, p50=0.375 msec</span><br><span class="line">SPOP: 68027.21 requests per second, p50=0.383 msec</span><br><span class="line">ZADD: 49751.24 requests per second, p50=0.503 msec</span><br><span class="line">LPUSH (needed to benchmark LRANGE): 56818.18 requests per second, p50=0.463 msec</span><br><span class="line">LRANGE_100 (first 100 elements): 25773.20 requests per second, p50=0.895 msec</span><br><span class="line">LRANGE_300 (first 300 elements): 13586.96 requests per second, p50=1.775 msec</span><br><span class="line">LRANGE_500 (first 500 elements): 9041.59 requests per second, p50=2.607 msec</span><br><span class="line">LRANGE_600 (first 600 elements): 7704.16 requests per second, p50=3.015 msec</span><br></pre></td></tr></table></figure>
-
-<p>在单机时，可以得出结论，Simple-Redis 和 Redis 是有性能差距的（达到 Redis 的 60-70%），具体数据如下：</p>
-<ul>
-<li>string 类型：Simple-Redis 的性能大约是 Redis 的 70%。</li>
-<li>list 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-<li>hash 类型：Simple-Redis 大约是 Redis 的 75%。</li>
-<li>set 类型：Simple-Redis 的性能大约是 Redis 的 55%。</li>
-<li>zset 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-12-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-12-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">Simple-Redis实现 (12) 分布式事务</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 16:16:13" itemprop="dateCreated datePublished" datetime="2023-12-12T16:16:13+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p>Simple-Redis 是支持分布式事务的，采用 TCC（Try-Commit-Cancel）实现分布式事务，以当前节点为<strong>事务协调者</strong>，控制分布在其他节点的<strong>本地事务</strong>。所以 Simple-Redis 的分布式事务实现包括两个部分：</p>
-<ul>
-<li>事务协调者：一个分布式事务的控制器。</li>
-<li>本地事务：用于执行命令，并进行 commit 或者 cancel。</li>
-</ul>
-<h1 id="事务协调者"><a href="#事务协调者" class="headerlink" title="事务协调者"></a>事务协调者</h1><h2 id="定义"><a href="#定义" class="headerlink" title="定义"></a>定义</h2><p>TCC 事务协调者定义如下：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Coordinator TCC事务协调者</span></span><br><span class="line"><span class="keyword">type</span> Coordinator <span class="keyword">struct</span> &#123;</span><br><span class="line">    id      <span class="keyword">string</span>                        <span class="comment">// 事务id</span></span><br><span class="line">    dbIndex <span class="keyword">int</span>                           <span class="comment">// 数据库id</span></span><br><span class="line">    self    <span class="keyword">string</span>                        <span class="comment">// 自己的地址</span></span><br><span class="line">    peers   cluster.PeerPicker            <span class="comment">// 一致性哈希，用于选择节点</span></span><br><span class="line">    getters <span class="keyword">map</span>[<span class="keyword">string</span>]cluster.PeerGetter <span class="comment">// 用于和远程节点通信</span></span><br><span class="line"></span><br><span class="line">    watching <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// key为peer地址，记录被watch的key的版本号</span></span><br><span class="line"></span><br><span class="line">    cmdLinesNum <span class="keyword">int</span></span><br><span class="line">    indexMap    <span class="keyword">map</span>[<span class="keyword">string</span>][]<span class="keyword">int</span> <span class="comment">// key为peer，value为cmdline在原来multi队列中的下标，用于重组reply</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><p>一次分布式事务的流程如下：</p>
-<ul>
-<li>对命令和 watch 的 key，按照节点的不同进行<strong>分组</strong>。</li>
-<li>对每一组节点<strong>发送 try 命令</strong>，try 命令比较复杂又分为几个子命令：<ul>
-<li>try start：通知节点有新建一个本地分布式事务。</li>
-<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
-<li>try xxx：依次发送在该节点上执行的命令。</li>
-<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
-</ul>
-</li>
-<li>对每一组节点<strong>发送 commit 或者 cancel 命令</strong>。</li>
-<li><strong>重组</strong>事务的返回结果，按照正常的顺序进行返回。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ExecTx 执行TCC分布式事务</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(coordinator *Coordinator)</span> <span class="title">ExecTx</span><span class="params">(cmdLines [][][]<span class="keyword">byte</span>, watching <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="comment">// 首先对命令进行分组，以同一个节点上执行的所有命令为一组</span></span><br><span class="line">    groupByMap := coordinator.groupByCmdLines(cmdLines)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对watch的key进行分组</span></span><br><span class="line">    coordinator.groupByWatch(watching)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对每一组中发送try命令</span></span><br><span class="line">    needCancel := <span class="literal">false</span> <span class="comment">// 记录是否需要回滚</span></span><br><span class="line">    <span class="keyword">for</span> peer, cmd := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">       r := coordinator.sendTry(peer, cmd)</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          needCancel = <span class="literal">true</span></span><br><span class="line">          <span class="keyword">break</span></span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 返回之前发送end消息，通知各个分布式节点结束事务</span></span><br><span class="line">       <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">          coordinator.sendEnd(peer)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 向各个节点提交/回滚分布式事务</span></span><br><span class="line">    replies := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]redis.Reply)</span><br><span class="line">    <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">       <span class="keyword">if</span> needCancel &#123;</span><br><span class="line">          <span class="comment">// 取消事务</span></span><br><span class="line">          coordinator.sendCancel(peer)</span><br><span class="line">       &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="comment">// 提交事务</span></span><br><span class="line">          r := coordinator.sendCommit(peer)</span><br><span class="line">          <span class="keyword">if</span> config.Properties.OpenAtomicTx &amp;&amp; reply.IsErrorReply(r) &#123;</span><br><span class="line">             <span class="comment">// 如果开启了原子事务并且提交发生了错误，则进行所有的节点进行回滚</span></span><br><span class="line">             needCancel = <span class="literal">true</span></span><br><span class="line">             <span class="keyword">break</span></span><br><span class="line">          &#125;</span><br><span class="line">          replies[peer] = r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果开启了原子事务，并且发生了错误，所有节点进行回滚</span></span><br><span class="line">    <span class="keyword">if</span> needCancel &amp;&amp; config.Properties.OpenAtomicTx &#123;</span><br><span class="line">       <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">          <span class="comment">// 取消事务，进行回滚</span></span><br><span class="line">          coordinator.sendCancel(peer)</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;EXECABORT Transaction rollback because of errors during executing. (atomic tx is open)&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> needCancel &#123;</span><br><span class="line">       <span class="comment">// 没有开启原子事务，但是发送了错误（如watch的key变化了），则返回(nil)</span></span><br><span class="line">       <span class="keyword">return</span> reply.MakeNullBulkStringReply()</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 正常提交，重组reply</span></span><br><span class="line">    <span class="keyword">return</span> coordinator.recombineReplies(replies)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="try"><a href="#try" class="headerlink" title="try"></a>try</h3><p>try 命令比较复杂，分为几个子命令：</p>
-<ul>
-<li>try start：通知节点有新建一个本地分布式事务。</li>
-<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
-<li>try xxx：依次发送在该节点上执行的命令。</li>
-<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(coordinator *Coordinator)</span> <span class="title">sendTry</span><span class="params">(peer <span class="keyword">string</span>, cmdLines [][][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="comment">// 获取getter</span></span><br><span class="line">    getter := coordinator.getters[peer]</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> r redis.Reply</span><br><span class="line">    <span class="comment">// 发送try开始命令</span></span><br><span class="line">    r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;start&quot;</span>))</span><br><span class="line">    <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">       <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">       <span class="keyword">return</span> r</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送watch时的version，比较version是否发生变化</span></span><br><span class="line">    watching := coordinator.watching[peer]</span><br><span class="line">    <span class="keyword">for</span> key, version := <span class="keyword">range</span> watching &#123;</span><br><span class="line">       versionStr := strconv.FormatInt(<span class="keyword">int64</span>(version), <span class="number">10</span>)</span><br><span class="line">       r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;watched&quot;</span>, key, versionStr))</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 如果发生变化，则中断try，直接返回</span></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 依次发送需要执行的命令，每一条命令=try tx_id cmdline，如 try 123456 set k1 v1</span></span><br><span class="line">    <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> cmdLines &#123;</span><br><span class="line">       tryCmd := <span class="built_in">make</span>([][]<span class="keyword">byte</span>, <span class="number">0</span>, <span class="number">2</span>+<span class="built_in">len</span>(cmdLine))</span><br><span class="line">       tryCmd = <span class="built_in">append</span>(tryCmd, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id)...)</span><br><span class="line">       tryCmd = <span class="built_in">append</span>(tryCmd, cmdLine...)</span><br><span class="line">       r = getter.RemoteExec(coordinator.dbIndex, tryCmd)</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送try结束命令</span></span><br><span class="line">    r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;end&quot;</span>))</span><br><span class="line">    <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">       <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">       <span class="keyword">return</span> r</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><p>本地事务就是分布式事务在节点上的实际执行者，下面是本地事务的定义：</p>
-<ul>
-<li>watchedKeys 对应 try watched 命令，记录 watch 时的版本，用于在执行时进行版本比较。</li>
-<li>cmdLines 对应 try xxx 命令，记录当前节点的本地事务中，包含的所有需要执行的命令。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Transaction TCC本地事务</span></span><br><span class="line"><span class="keyword">type</span> Transaction <span class="keyword">struct</span> &#123;</span><br><span class="line">    id    <span class="keyword">string</span> <span class="comment">// 事务id</span></span><br><span class="line">    phase <span class="keyword">int</span>    <span class="comment">// 阶段，分别是try、commit、cancel三个阶段</span></span><br><span class="line"></span><br><span class="line">    writeKeys   []<span class="keyword">string</span></span><br><span class="line">    readKeys    []<span class="keyword">string</span></span><br><span class="line">    watchedKeys <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// 记录watch时的版本</span></span><br><span class="line"></span><br><span class="line">    cmdLines       [][][]<span class="keyword">byte</span>   <span class="comment">// 本次事务中包含的命令</span></span><br><span class="line">    undoLogs       [][][][]<span class="keyword">byte</span> <span class="comment">// 本次事务的undo log</span></span><br><span class="line">    addVersionKeys []<span class="keyword">string</span>     <span class="comment">// 需要增加版本的key</span></span><br><span class="line"></span><br><span class="line">    db *engine.DB</span><br><span class="line"></span><br><span class="line">    mu sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Try"><a href="#Try" class="headerlink" title="Try"></a>Try</h2><p>在收到 try end 命令后，表明 try 阶段已经结束，此时本地事务：</p>
-<ul>
-<li>锁定需要读写的 key。</li>
-<li>在在时间轮中添加任务, 自动回滚超时未提交的事务。</li>
-<li>读取版本是否变化，如果有变化则返回错误。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Try TCC事务的结束try阶段，锁定key</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Try</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> tx.phase != phaseTry &#123;</span><br><span class="line">       <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;ERR TRY ERROR&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 锁定需要读写的key</span></span><br><span class="line">    tx.db.RWLocks(tx.writeKeys, tx.readKeys)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 在时间轮中添加任务, 自动回滚超时未提交的事务</span></span><br><span class="line">    taskKey := tx.id</span><br><span class="line">    timewheel.Delay(maxLockTime, taskKey, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="keyword">if</span> tx.phase == phaseTry &#123;</span><br><span class="line">          logger.Info(<span class="string">&quot;abort transaction: &quot;</span> + tx.id)</span><br><span class="line">          _ = tx.Cancel()</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取版本是否变化</span></span><br><span class="line">    <span class="keyword">for</span> key, oldVersion := <span class="keyword">range</span> tx.watchedKeys &#123;</span><br><span class="line">       newVersion := tx.db.GetVersion(key)</span><br><span class="line">       <span class="keyword">if</span> oldVersion != newVersion &#123;</span><br><span class="line">          <span class="comment">// 获取key的版本，如果版本变化了，则返回错误</span></span><br><span class="line">          <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;ERR VERSION CHANGED&quot;</span>)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Commit"><a href="#Commit" class="headerlink" title="Commit"></a>Commit</h2><p>在本地事务收到 commit 命令后，会执行命令，（如果开启原子事务）并记录 undolog。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Commit TCC事务的commit阶段</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Commit</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    tx.mu.Lock() <span class="comment">// Commit互斥进行操作，防止commit时调用cancel，发生冲突</span></span><br><span class="line">    <span class="keyword">defer</span> tx.mu.Unlock()</span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 设置阶段</span></span><br><span class="line">       tx.phase = phaseCommit</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 依次执行命令</span></span><br><span class="line">    <span class="keyword">var</span> results [][]<span class="keyword">byte</span> <span class="comment">// 存储命令执行的结果</span></span><br><span class="line">    <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> tx.cmdLines &#123;</span><br><span class="line">       cmdName := <span class="keyword">string</span>(cmdLine[<span class="number">0</span>])</span><br><span class="line">       key := <span class="keyword">string</span>(cmdLine[<span class="number">1</span>])</span><br><span class="line">       <span class="keyword">if</span> !engine.IsReadOnlyCommand(cmdName) &#123;</span><br><span class="line">          <span class="comment">// 写命令，则记录需要add版本的key</span></span><br><span class="line">          tx.addVersionKeys = <span class="built_in">append</span>(tx.addVersionKeys, key)</span><br><span class="line">          <span class="keyword">if</span> config.Properties.OpenAtomicTx &#123;</span><br><span class="line">             <span class="comment">// 开启了原子性事务，则记录undo log</span></span><br><span class="line">             tx.undoLogs = <span class="built_in">append</span>(tx.undoLogs, tx.db.GetUndoLog(key))</span><br><span class="line">          &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// 执行命令</span></span><br><span class="line">       r := tx.db.ExecWithLock(cmdLine)</span><br><span class="line"></span><br><span class="line">       <span class="keyword">if</span> config.Properties.OpenAtomicTx &amp;&amp; reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 开启了原子性事务，并且如果发生错误，直接返回错误</span></span><br><span class="line">          <span class="keyword">if</span> !engine.IsReadOnlyCommand(cmdName) &#123;</span><br><span class="line">             <span class="comment">// 删除错误命令的undo log，不需要增加版本号</span></span><br><span class="line">             tx.addVersionKeys = tx.addVersionKeys[:<span class="built_in">len</span>(tx.addVersionKeys)<span class="number">-1</span>]</span><br><span class="line">             tx.undoLogs = tx.undoLogs[:<span class="built_in">len</span>(tx.undoLogs)<span class="number">-1</span>]</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       results = <span class="built_in">append</span>(results, []<span class="keyword">byte</span>(r.DataString()))</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeMultiBulkStringReply(results)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Cancel"><a href="#Cancel" class="headerlink" title="Cancel"></a>Cancel</h2><p>在收到 cancel 命令后，（如果开启原子性事务）会执行 undo log 进行回滚。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cancel TCC事务的cancel阶段</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Cancel</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    tx.mu.Lock() <span class="comment">// Cancel互斥进行操作，防止commit时调用cancel，发生冲突</span></span><br><span class="line">    <span class="keyword">defer</span> tx.mu.Unlock()</span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 设置阶段</span></span><br><span class="line">       tx.phase = phaseCancel</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 从后向前依次执行undo日志，只有开启原子性事务时，len(tx.undoLogs)才可能大于0</span></span><br><span class="line">    <span class="keyword">for</span> i := <span class="built_in">len</span>(tx.undoLogs) - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i-- &#123;</span><br><span class="line">       undoLog := tx.undoLogs[i]</span><br><span class="line">       <span class="keyword">if</span> <span class="built_in">len</span>(undoLog) == <span class="number">0</span> &#123;</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> undoLog &#123;</span><br><span class="line">          tx.db.ExecWithLock(cmdLine)</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 清空</span></span><br><span class="line">    tx.undoLogs = <span class="literal">nil</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">Simple-Redis实现 (11) 原子事务</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 16:15:50" itemprop="dateCreated datePublished" datetime="2023-12-12T16:15:50+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p>Redis 不支持原子事务，在 multi 排队执行时，如果在入队时发生错误则放弃执行，如果在 exec 执行时错误则跳过这条命令。</p>
-<p><strong>Simple-Redis 支持原子事务</strong>，在 multi 排队执行时，如果在入队时发生错误则放弃执行，在 exec 执行时错误则整条命令回滚。</p>
-<h1 id="原子事务"><a href="#原子事务" class="headerlink" title="原子事务"></a>原子事务</h1><h2 id="watch"><a href="#watch" class="headerlink" title="watch"></a>watch</h2><p>在数据库存储引擎层，使用了<strong>并发的 dict 记录 key 和版本号的映射关系</strong>，当写命令执行成功时版本号加一。</p>
-<p>在 Redis 中 watch 命令用于记录一个 key 当前的版本号，将版本号记录在客户端连接的上下文中。</p>
-<h2 id="事务"><a href="#事务" class="headerlink" title="事务"></a>事务</h2><p>原子事务的实现是在数据库引擎层实现的，在 multi 后客户端发出的每一条命令，数据库只会检查语法错误并将命令记录在客户端连接的上下文中。</p>
-<p>在 exec 时，才会从客户端连接的上下文中读取所有需要执行的命令队列。exec 命令的实现方式如下：</p>
-<ul>
-<li>首先加写锁、加读锁（watch 的 key 也会加上读锁）。</li>
-<li>检查 watch 的 key 版本是否变化，如果变化则直接返回，什么都不做。</li>
-<li>依次执行每一条命令，如果开启了原子事务，则会记录 undo log。</li>
-<li>如果执行成功，对相应的 key 增加版本号；如果执行失败，则根据 undo log 进行回滚。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/" class="post-title-link" itemprop="url">Simple-Redis实现 (10) 集群和订阅</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-12 15:57:15" itemprop="dateCreated datePublished" datetime="2023-12-12T15:57:15+08:00">2023-12-12</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="集群"><a href="#集群" class="headerlink" title="集群"></a>集群</h1><p>Simple-Redis 的集群本质上就是一个分片集群，使用一致性哈希环实现。</p>
-<h2 id="结构体"><a href="#结构体" class="headerlink" title="结构体"></a>结构体</h2><p>Cluster 结构体如下，其中：</p>
-<ul>
-<li>peers 为<strong>一致性哈希</strong>，用于根据 key 选择节点。</li>
-<li>getters 用于和远程节点通信。</li>
-</ul>
-<p>以下三个属性与分布式事务相关：</p>
-<ul>
-<li>idGenerator：雪花 ID（分布式 ID）生成器，用于生成分布式事务 ID。</li>
-<li>transactionMap：记录所有的分布式事务。</li>
-<li>coordinatorMap：记录所有的事物协调者。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cluster 用于和集群中的主机进行交互</span></span><br><span class="line"><span class="keyword">type</span> Cluster <span class="keyword">struct</span> &#123;</span><br><span class="line">    self    <span class="keyword">string</span>                        <span class="comment">// 本机地址，如 127.0.0.1:6107</span></span><br><span class="line">    peers   cluster.PeerPicker            <span class="comment">// 一致性哈希，用于选择节点</span></span><br><span class="line">    getters <span class="keyword">map</span>[<span class="keyword">string</span>]cluster.PeerGetter <span class="comment">// 用于和远程节点通信</span></span><br><span class="line"></span><br><span class="line">    idGenerator    *snowflake.Node  <span class="comment">// snowflake id生成器，用于生成分布式事务的id</span></span><br><span class="line">    transactionMap *dict.SimpleDict <span class="comment">// 记录所有的分布式事务（本地）</span></span><br><span class="line">    coordinatorMap *dict.SimpleDict <span class="comment">// 记录事务协调者</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="getter"><a href="#getter" class="headerlink" title="getter"></a>getter</h2><p>在和远程节点通信时，本节点就作为一个 Client。而一个 getter 维护一个远程节点的连接池（实际上一个 getter 维护多个连接池，一个数据库对应一个连接池。</p>
+<h2 id="如何创建线程池"><a href="#如何创建线程池" class="headerlink" title="如何创建线程池"></a>如何创建线程池</h2><p>Java 中创建线程池有两种方法：ThreadPoolExecutor 和 Executor 框架。</p>
+<ol>
+<li><strong>使用 ThreadPoolExecutor 来创建线程池（推荐）。</strong>使用这种方式可以使得程序员更加明确线程池的运行规则，规避资源耗尽的风险。</li>
+</ol>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-5-%E7%BA%BF%E7%A8%8B%E6%B1%A0/threadpoolexecutor%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0-BR-2Ub-c.png" alt="通过构造方法实现"></p>
+<ol start="2">
+<li>通过 Executor 框架的工具类 Executors 来创建，可以构造多种类型的线程池。这其实就是队 ThreadPoolExecutor 构造函数的封装。</li>
+</ol>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-5-%E7%BA%BF%E7%A8%8B%E6%B1%A0/executors-new-thread-pool-methods.png" alt="img"></p>
 <blockquote>
-<p>集群中节点之间的通信采用连接池，是为了：</p>
+<p>使用 Executors 创建线程池的弊端如下：</p>
 <ul>
-<li>复用连接（复用空闲连接）。</li>
-<li>增加并发性能（节点之间有多个连接）。</li>
-<li>控制节点之间的连接数，不会因为节点之间的通信而影响客户端与节点之间的通信（有最大空闲连接数和最大活跃连接数的限制）。</li>
+<li><p><code>FixedThreadPool</code> 和 <code>SingleThreadExecutor</code>：使用的是无界的 <code>LinkedBlockingQueue</code>，任务队列最大长度为 <code>Integer.MAX_VALUE</code>，可能堆积大量的请求，从而导致 OOM。</p>
+<p><code>CachedThreadPool</code>：使用的是同步队列 <code>SynchronousQueue</code>，允许创建的线程数量为 <code>Integer.MAX_VALUE</code> ，如果任务数量过多且执行速度较慢，可能会创建大量的线程，从而导致 OOM。</p>
+<p><code>ScheduledThreadPool</code> 和 <code>SingleThreadScheduledExecutor</code>：使用的无界的延迟阻塞队列 <code>DelayedWorkQueue</code>，任务队列最大长度为 <code>Integer.MAX_VALUE</code>，可能堆积大量的请求，从而导致 OOM。</p>
+</li>
 </ul>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-10-%E9%9B%86%E7%BE%A4%E5%92%8C%E8%AE%A2%E9%98%85/#more" rel="contents">
+              <a class="btn" href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-5-%E7%BA%BF%E7%A8%8B%E6%B1%A0/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -698,7 +262,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-9-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-4-ThreadLocal/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -712,7 +276,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-9-%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95/" class="post-title-link" itemprop="url">Simple-Redis实现 (9) 性能测试</a>
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-4-ThreadLocal/" class="post-title-link" itemprop="url">Java面试之并发编程 (4) ThreadLocal</a>
         </h2>
 
         <div class="post-meta">
@@ -721,23 +285,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2023-12-12 14:58:13" itemprop="dateCreated datePublished" datetime="2023-12-12T14:58:13+08:00">2023-12-12</time>
+              <time title="创建时间：2024-04-08 21:21:01 / 修改时间：21:44:35" itemprop="dateCreated datePublished" datetime="2024-04-08T21:21:01+08:00">2024-04-08</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -752,129 +310,10 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="性能测试"><a href="#性能测试" class="headerlink" title="性能测试"></a>性能测试</h1><h2 id="测试环境"><a href="#测试环境" class="headerlink" title="测试环境"></a>测试环境</h2><p>使用的机器为 MacBook Pro 13，处理器 Intel i5 四核，内存 8GB。</p>
-<h2 id="测试结果"><a href="#测试结果" class="headerlink" title="测试结果"></a>测试结果</h2><p>在同样的测试环境上，使用 redis-benchmark分别对 Redis 和 Simple-Redis 进行性能测试。</p>
-<p>发送一万条请求，对 <code>set,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange</code> 命令进行测试。</p>
-<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>Redis 测试结果如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">zhaohan08@MacBook-Pro redis % redis-benchmark -t <span class="built_in">set</span>,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange -n 10000 -q</span><br><span class="line">SET: 93457.95 requests per second, p50=0.263 msec</span><br><span class="line">GET: 96153.84 requests per second, p50=0.263 msec</span><br><span class="line">INCR: 96153.84 requests per second, p50=0.263 msec</span><br><span class="line">LPUSH: 100000.00 requests per second, p50=0.263 msec</span><br><span class="line">RPUSH: 97087.38 requests per second, p50=0.263 msec</span><br><span class="line">LPOP: 98039.22 requests per second, p50=0.263 msec</span><br><span class="line">RPOP: 93457.95 requests per second, p50=0.263 msec</span><br><span class="line">SADD: 93457.95 requests per second, p50=0.263 msec</span><br><span class="line">HSET: 87719.30 requests per second, p50=0.271 msec</span><br><span class="line">SPOP: 95238.10 requests per second, p50=0.263 msec</span><br><span class="line">ZADD: 100000.00 requests per second, p50=0.263 msec</span><br><span class="line">LPUSH (needed to benchmark LRANGE): 99009.90 requests per second, p50=0.263 msec</span><br><span class="line">LRANGE_100 (first 100 elements): 38167.94 requests per second, p50=0.647 msec</span><br><span class="line">LRANGE_300 (first 300 elements): 16366.61 requests per second, p50=1.503 msec</span><br><span class="line">LRANGE_500 (first 500 elements): 10989.01 requests per second, p50=2.223 msec</span><br><span class="line">LRANGE_600 (first 600 elements): 9363.30 requests per second, p50=2.639 msec</span><br></pre></td></tr></table></figure>
-
-<h3 id="Simple-Redis"><a href="#Simple-Redis" class="headerlink" title="Simple-Redis"></a>Simple-Redis</h3><p>Simple-Redis 测试结果如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">zhaohan08@MacBook-Pro redis % redis-benchmark -t <span class="built_in">set</span>,get,incr,lpush,rpush,lpop,rpop,sadd,hset,spop,zadd,lrange -n 10000 -q</span><br><span class="line">WARNING: Could not fetch server CONFIG</span><br><span class="line">SET: 68965.52 requests per second, p50=0.367 msec</span><br><span class="line">GET: 62111.80 requests per second, p50=0.399 msec</span><br><span class="line">INCR: 49751.24 requests per second, p50=0.487 msec</span><br><span class="line">LPUSH: 56497.18 requests per second, p50=0.447 msec</span><br><span class="line">RPUSH: 49504.95 requests per second, p50=0.503 msec</span><br><span class="line">LPOP: 68965.52 requests per second, p50=0.375 msec</span><br><span class="line">RPOP: 68493.15 requests per second, p50=0.375 msec</span><br><span class="line">SADD: 52631.58 requests per second, p50=0.495 msec</span><br><span class="line">HSET: 68027.21 requests per second, p50=0.375 msec</span><br><span class="line">SPOP: 68027.21 requests per second, p50=0.383 msec</span><br><span class="line">ZADD: 49751.24 requests per second, p50=0.503 msec</span><br><span class="line">LPUSH (needed to benchmark LRANGE): 56818.18 requests per second, p50=0.463 msec</span><br><span class="line">LRANGE_100 (first 100 elements): 25773.20 requests per second, p50=0.895 msec</span><br><span class="line">LRANGE_300 (first 300 elements): 13586.96 requests per second, p50=1.775 msec</span><br><span class="line">LRANGE_500 (first 500 elements): 9041.59 requests per second, p50=2.607 msec</span><br><span class="line">LRANGE_600 (first 600 elements): 7704.16 requests per second, p50=3.015 msec</span><br></pre></td></tr></table></figure>
-
-<h2 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h2><p>在单机时，可以得出结论，Simple-Redis 和 Redis 是有性能差距的，具体数据如下：</p>
-<ul>
-<li>string 类型：Simple-Redis 的性能大约是 Redis 的 70%。</li>
-<li>list 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-<li>hash 类型：Simple-Redis 大约是 Redis 的 75%。</li>
-<li>set 类型：Simple-Redis 的性能大约是 Redis 的 55%。</li>
-<li>zset 类型：Simple-Redis 的性能大约是 Redis 的 50%。</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/" class="post-title-link" itemprop="url">Simple-Redis实现 (8) AOF持久化</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:46:58" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:58+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<p>本节说明 simple-redis 中的 AOF 持久化功能。AOF（append only file）是一种 Redis 持久化方式。，其优缺点总结如下：</p>
-<ul>
-<li><strong>优势：</strong><ul>
-<li>持久化文件是用户可以理解的。</li>
-<li>备份机制更稳健，<strong>丢失数据概率更低。</strong></li>
-<li>AOF日志文件的命令通过<strong>可读</strong>的方式进行<strong>记录</strong>，这个特性非常适合做<strong>灾难性的误删除的紧急恢复</strong>。比如某人不小心使用了flushall清空了所有数据库，只有重写操作还没有发生，那么就可以立即拷贝AOF文件，将最后一条flushall命令给删了，然后再将该AOF文件放回去，就可以通过恢复机制，自动恢复所有数据。</li>
-</ul>
-</li>
-<li><strong>劣势：</strong><ul>
-<li>比起RDB占用<strong>更多的磁盘空间。</strong></li>
-<li>恢复备份<strong>速度慢</strong>。</li>
-<li>每次读写都同步的话，有一定的性能压力。</li>
-</ul>
-</li>
-</ul>
-<h1 id="AOF-持久化"><a href="#AOF-持久化" class="headerlink" title="AOF 持久化"></a>AOF 持久化</h1><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>Persister 是 AOF 持久化中的核心数据结构，它从 channel 中接收消息并且将消息写入到 AOF 文件中。其中重要的字段如下：</p>
-<ul>
-<li><strong>db：</strong>指向 simple-redis 服务器。</li>
-<li><strong>tmpDBMaker：</strong>临时数据库创建函数，在进行 AOF 重写时，需要建立一个临时数据库加载 AOF 持久化文件，通过遍历临时数据库中的 key 实现 AOF 持久化文件的重写压缩。</li>
-<li><strong>aofChan：</strong>需要持久化的命令（payload 包含命令、数据库编号两个字段）发送到这个管道上进行持久化。</li>
-<li><strong>aofFilename：</strong>AOF 持久化文件名。</li>
-<li><strong>aofFsync：</strong>AOF 刷盘策略，共有三种策略分别是FsyncAlways、FsyncEverySec、FsyncNo。</li>
-<li><strong>currentDB：</strong>当前数据库编号。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> (</span><br><span class="line">   FsyncAlways   = <span class="literal">iota</span> <span class="comment">// 每一个命令都会进行刷盘操作</span></span><br><span class="line">   FsyncEverySec        <span class="comment">// 每秒进行一次刷盘操作</span></span><br><span class="line">   FsyncNo              <span class="comment">// 不主动进行刷盘操作，交给操作系统去决定</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> CmdLine [][]<span class="keyword">byte</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> (</span><br><span class="line">   aofQueueSize = <span class="number">1</span> &lt;&lt; <span class="number">16</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Persister <span class="keyword">struct</span> &#123;</span><br><span class="line">   ctx         context.Context</span><br><span class="line">   cancel      context.CancelFunc</span><br><span class="line">   db          database.DBEngine</span><br><span class="line">   tmpDBMaker  <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="title">database</span>.<span class="title">DBEngine</span></span></span><br><span class="line">   aofChan     <span class="keyword">chan</span> *payload</span><br><span class="line">   aofFile     *os.File</span><br><span class="line">   aofFilename <span class="keyword">string</span></span><br><span class="line">   aofFsync    <span class="keyword">int</span> <span class="comment">// AOF 刷盘策略</span></span><br><span class="line">   <span class="comment">// aof goroutine will send msg to main goroutine through this channel when aof tasks finished and ready to shut down</span></span><br><span class="line">   aofFinished <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   <span class="comment">// pause aof for start/finish aof rewrite progress</span></span><br><span class="line">   pausingAof sync.Mutex</span><br><span class="line">   <span class="comment">// 表示正在aof重写，同时只有一个aof重写</span></span><br><span class="line">   aofRewriting sync.WaitGroup</span><br><span class="line">   currentDB    <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>payload 包含命令、数据库编号两个字段，它表示发送给 aofChan 的数据。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> payload <span class="keyword">struct</span> &#123;</span><br><span class="line">	cmdLine CmdLine</span><br><span class="line">	dbIndex <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>ThreadLocal 使得每一个线程有自己专属的<strong>本地变量</strong>。如果创建了一个 <code>ThreadLocal</code> 变量，那么访问这个变量的每个线程都会有这个变量的本地副本，这也是<code>ThreadLocal</code>变量名的由来。可以使用 <code>get()</code> 和 <code>set()</code> 方法来获取默认值或将其值更改为当前线程所存的副本的值，从而避免了线程安全问题。</p>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-8-AOF%E6%8C%81%E4%B9%85%E5%8C%96/#more" rel="contents">
+              <a class="btn" href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-4-ThreadLocal/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -898,7 +337,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -912,7 +351,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/" class="post-title-link" itemprop="url">Simple-Redis实现 (7) 底层数据库</a>
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/" class="post-title-link" itemprop="url">Java面试之并发编程 (3) AQS和其实现的常用同步器</a>
         </h2>
 
         <div class="post-meta">
@@ -921,23 +360,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2023-12-11 21:46:49" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:49+08:00">2023-12-11</time>
+              <time title="创建时间：2024-04-08 19:27:04 / 修改时间：21:19:07" itemprop="dateCreated datePublished" datetime="2024-04-08T19:27:04+08:00">2024-04-08</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -952,12 +385,18 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="底层数据库"><a href="#底层数据库" class="headerlink" title="底层数据库"></a>底层数据库</h1><p>在上一节中，我们简述了 simple-redis 的工作方式，需要注意的是如 GET、SET 这样需要在某个具体的数据库中执行的命令，单机模式下 Server 会调用 Server.db.Exec 去执行这类命令。</p>
-<p>本节我们就聊一聊 simple-redis 的底层数据库，simple-redis 的底层数据库定义在 database/engine 文件夹中。</p>
+          <h1 id="AQS"><a href="#AQS" class="headerlink" title="AQS"></a>AQS</h1><p>AQS（AbstractQueuedSynchronizer，抽象队列同步器），这个类在 <code>java.util.concurrent.locks</code> 包下面。AQS 就是一个抽象类，主要用来构建锁和同步器，如 ReentrantLock、Semaphore 等，都是基于 AQS 的。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/AQS.png" alt="img"></p>
+<h2 id="核心思想"><a href="#核心思想" class="headerlink" title="核心思想"></a>核心思想</h2><p><strong>AQS 使用 int 变量 state 表示同步状态，并通过 CLH 队列来完成阻塞线程的等待</strong>。如果当前状态空闲，则将当前请求资源的线程设置为有效的工作线程；否则使用 CLH 锁，将当前线程阻塞，当资源资源再次空闲时，通过内置的 FIFO 来完成线程排队获取资源的工作。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 共享变量，使用volatile修饰保证线程可见性</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">int</span> state;</span><br></pre></td></tr></table></figure>
+
+<p><strong>CLH 锁</strong>是对自旋锁的一种改进，是一个虚拟的双向队列（虚拟的双向队列即不存在队列实例，仅存在结点之间的关联关系），<strong>暂时获取不到锁的线程将被加入到该队列中</strong>。AQS 将每条请求共享资源的线程封装成一个 CLH 队列锁的一个结点（Node）来实现锁的分配。在 CLH 队列锁中，一个节点表示一个线程，它保存着线程的引用（thread）、 当前节点在队列中的状态（waitStatus）、前驱节点（prev）、后继节点（next）。</p>
+<p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/clh-queue-state.png" alt="CLH 队列"></p>
+<p>状态信息 <code>state</code> 可以通过 <code>protected</code> 类型的<code>getState()</code>、<code>setState()</code>和<code>compareAndSetState()</code> 进行操作。并且，这几个方法都是 <code>final</code> 修饰的，在子类中无法被重写。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//返回同步状态的当前值</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="keyword">int</span> <span class="title">getState</span><span class="params">()</span> </span>&#123;</span><br><span class="line">     <span class="keyword">return</span> state;</span><br><span class="line">&#125;</span><br><span class="line"> <span class="comment">// 设置同步状态的值</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">setState</span><span class="params">(<span class="keyword">int</span> newState)</span> </span>&#123;</span><br><span class="line">     state = newState;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//原子地（CAS操作）将同步状态值设置为给定值update如果当前同步状态的值等于expect（期望值）</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="keyword">boolean</span> <span class="title">compareAndSetState</span><span class="params">(<span class="keyword">int</span> expect, <span class="keyword">int</span> update)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">return</span> unsafe.compareAndSwapInt(<span class="keyword">this</span>, stateOffset, expect, update);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-7-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E5%BA%93/#more" rel="contents">
+              <a class="btn" href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-3-AQS%E5%92%8C%E5%85%B6%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B8%B8%E7%94%A8%E5%90%8C%E6%AD%A5%E5%99%A8/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -981,7 +420,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-2-volatile%E5%92%8Csynchronized%E5%85%B3%E9%94%AE%E5%AD%97/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -995,7 +434,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/" class="post-title-link" itemprop="url">Simple-Redis实现 (6) simple-redis服务器</a>
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-2-volatile%E5%92%8Csynchronized%E5%85%B3%E9%94%AE%E5%AD%97/" class="post-title-link" itemprop="url">Java面试之并发编程 (2) volatile和synchronized关键字</a>
         </h2>
 
         <div class="post-meta">
@@ -1004,23 +443,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2023-12-11 21:46:36" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:36+08:00">2023-12-11</time>
+              <time title="创建时间：2024-04-08 17:43:19 / 修改时间：19:27:11" itemprop="dateCreated datePublished" datetime="2024-04-08T17:43:19+08:00">2024-04-08</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
                 </span>
             </span>
 
@@ -1035,27 +468,104 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="Simple-Redis-服务器"><a href="#Simple-Redis-服务器" class="headerlink" title="Simple-Redis 服务器"></a>Simple-Redis 服务器</h1><p>在之前已经介绍了 TCP 服务器，本节介绍 Simple-Redis 服务器，这是一个<strong>应用层服务器</strong>。在 Handler 的 Handle 方法中，有这样一条命令 <code>result := h.db.Exec(client, r.Args)</code>，它将收到的命令交给 simple-redis 服务器去执行。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>simple-redis 服务器的被定义在 database/server.go 文件中，simple-redis 服务器的相关代码在 database 文件夹下。</p>
-<p>simple-redis 服务器的数据结构如下，需要说明的是：</p>
-<ul>
-<li>dbSet：代表底层的数据库。</li>
-<li>AofPersister：AOF 持久化。</li>
-<li>AofFileSize：用于记录上一次 AOF 重写后的文件大小。</li>
-<li>rewriteWait、rewriting：用于同步 AOF 重写过程。</li>
-<li>closed：接收关闭信号，用于优雅的关闭（用于关闭自动 AOF 重写协程）。</li>
-<li>cluster：集群相关。</li>
-<li>publish：订阅发布相关操作。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Server <span class="keyword">struct</span> &#123;</span><br><span class="line">   dbSet        []*atomic.Value <span class="comment">// *DB</span></span><br><span class="line">   AofPersister *aof.Persister  <span class="comment">// AOF 持久化</span></span><br><span class="line">   AofFileSize  <span class="keyword">int64</span></span><br><span class="line">   rewriteWait  sync.WaitGroup</span><br><span class="line">   rewriting    atomic.Bool</span><br><span class="line">   closed       <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   cluster      *cluster.Cluster</span><br><span class="line">   publish      publish.Publish</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <h1 id="volatile-关键字"><a href="#volatile-关键字" class="headerlink" title="volatile 关键字"></a>volatile 关键字</h1><p>volatile 关键字可以保证变量的可见性，表示变量是共享且不稳定的，每次使用它都到主存中进行读取。volatile 关键字可以保证变量的可见性，但是<strong>不能保证原子性</strong>，synchronized 关键字二者都可以保证。</p>
+<p>volatile 关键字有两个作用：</p>
+<ol>
+<li>保证变量的<strong>可见性</strong>。</li>
+<li><strong>防止 JVM 的指令重排</strong>。</li>
+</ol>
+<h2 id="单例模式"><a href="#单例模式" class="headerlink" title="单例模式"></a>单例模式</h2><p>单例模式的实现如下，其中单例的对象 uniqueInstance 使用了关键字 volatile 进行修饰。<code>uniqueInstance = new Singleton();</code> 代码分为三步执行：</p>
+<ol>
+<li>为 <code>uniqueInstance</code> 分配内存空间。</li>
+<li>初始化 <code>uniqueInstance</code>。</li>
+<li>将 <code>uniqueInstance</code> 指向分配的内存地址。</li>
+</ol>
+<p>但是由于 JVM 具有指令重排的特性，执行顺序有可能变成 1-&gt;3-&gt;2。指令重排在单线程环境下不会出现问题，但是在多线程环境下会导致一个线程获得还没有初始化的实例。例如，线程 T1 执行了 1 和 3，此时 T2 调用 <code>getUniqueInstance()</code> 后发现 <code>uniqueInstance</code> 不为空，因此返回 <code>uniqueInstance</code>，但此时 <code>uniqueInstance</code> 还未被初始化。</p>
+<p>使用 volatile 关键字可以防止上述这种指令重排的情形。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Singleton</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">static</span> Singleton uniqueInstance;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="title">Singleton</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span>  <span class="keyword">static</span> Singleton <span class="title">getUniqueInstance</span><span class="params">()</span> </span>&#123;</span><br><span class="line">       <span class="comment">//先判断对象是否已经实例过，没有实例化过才进入加锁代码</span></span><br><span class="line">        <span class="keyword">if</span> (uniqueInstance == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">//类对象加锁</span></span><br><span class="line">            <span class="keyword">synchronized</span> (Singleton.class) &#123;</span><br><span class="line">                <span class="keyword">if</span> (uniqueInstance == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    uniqueInstance = <span class="keyword">new</span> Singleton();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> uniqueInstance;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-2-volatile%E5%92%8Csynchronized%E5%85%B3%E9%94%AE%E5%AD%97/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
 
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-1-Java%E7%BA%BF%E7%A8%8B%E6%A6%82%E8%BF%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-1-Java%E7%BA%BF%E7%A8%8B%E6%A6%82%E8%BF%B0/" class="post-title-link" itemprop="url">Java面试之并发编程 (1) Java线程概述</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-04-08 17:06:46 / 修改时间：18:46:36" itemprop="dateCreated datePublished" datetime="2024-04-08T17:06:46+08:00">2024-04-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java%E9%9D%A2%E8%AF%95/" itemprop="url" rel="index"><span itemprop="name">Java面试</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Java-线程"><a href="#Java-线程" class="headerlink" title="Java 线程"></a>Java 线程</h1><p><strong>多线程并不是银弹！</strong>在单核 CPU 上，如果线程是 CPU 密集型的，那么多个线程同时运行会导致频繁的线程切换，增加了系统的开销，降低了效率。如果线程是 IO 密集型的，那么多个线程同时运行可以利用 CPU 在等待 IO 时的空闲时间，提高了效率（线程数量也不能超过系统所能承载的上限）。</p>
+<h2 id="Java-线程和系统线程"><a href="#Java-线程和系统线程" class="headerlink" title="Java 线程和系统线程"></a>Java 线程和系统线程</h2><p>在 Java 1.2 之前线程基于绿色线程（Green Thread）实现的，这是一种用户级别的线程；而<strong>从 Java 1.2 开始</strong>使用原生线程（Native Thread），这是<strong>内核级的线程</strong>，由操作系统内核进行线程的调度和管理。</p>
+<p>在 Windows 和 Linux 等主流操作系统中，Java 线程采用的是<strong>一对一的线程模型</strong>，也就是一个 Java 线程对应一个系统内核线程。Solaris 系统是一个特例（Solaris 系统本身就支持多对多的线程模型），HotSpot VM 在 Solaris 上支持多对多和一对一。</p>
 <blockquote>
-<p>AOF 持久化、集群、发布订阅会在后面的章节中说明。</p>
+<p>一句话概括 Java 线程和操作系统线程的关系：<strong>现在的 Java 线程的本质其实就是操作系统的线程</strong>。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-6-simple-redis%E6%9C%8D%E5%8A%A1%E5%99%A8/#more" rel="contents">
+              <a class="btn" href="/2024/04/08/Java%E9%9D%A2%E8%AF%95%E4%B9%8B%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B-1-Java%E7%BA%BF%E7%A8%8B%E6%A6%82%E8%BF%B0/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1079,7 +589,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/03/25/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -1093,7 +603,7 @@
       <header class="post-header">
         <h2 class="post-title" itemprop="name headline">
           
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/" class="post-title-link" itemprop="url">Simple-Redis实现 (5) 数据结构之List和SortedSet</a>
+            <a href="/2024/03/25/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/" class="post-title-link" itemprop="url">Triple协议 (8) Kubernetes作为注册中心</a>
         </h2>
 
         <div class="post-meta">
@@ -1102,23 +612,17 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
+              
 
-              <time title="创建时间：2023-12-11 21:46:22" itemprop="dateCreated datePublished" datetime="2023-12-11T21:46:22+08:00">2023-12-11</time>
+              <time title="创建时间：2024-03-25 14:58:10 / 修改时间：15:49:58" itemprop="dateCreated datePublished" datetime="2024-03-25T14:58:10+08:00">2024-03-25</time>
             </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                  <a href="/categories/triple%E5%8D%8F%E8%AE%AE/" itemprop="url" rel="index"><span itemprop="name">triple协议</span></a>
                 </span>
             </span>
 
@@ -1133,22 +637,405 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>Godis 中定义了 List 接口，以定义 List 的各种操作。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Expected check whether given item is equals to expected value</span></span><br><span class="line"><span class="keyword">type</span> Expected <span class="function"><span class="keyword">func</span><span class="params">(a <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Consumer traverses list.</span></span><br><span class="line"><span class="comment">// It receives index and value as params, returns true to continue traversal, while returns false to break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(i <span class="keyword">int</span>, v <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> List <span class="keyword">interface</span> &#123;</span><br><span class="line">   Add(val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Get(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Set(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Insert(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Remove(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveLast() (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveAllByVal(expected Expected) <span class="keyword">int</span></span><br><span class="line">   RemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   ReverseRemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   Len() <span class="keyword">int</span></span><br><span class="line">   ForEach(consumer Consumer)</span><br><span class="line">   Contains(expected Expected) <span class="keyword">bool</span></span><br><span class="line">   Range(start <span class="keyword">int</span>, stop <span class="keyword">int</span>) []<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="快速链表"><a href="#快速链表" class="headerlink" title="快速链表"></a>快速链表</h3><p>在 godis 中，采用<strong>快速链表</strong>作为 List 的数据结构。</p>
-<p>快速链表实际上就是一个<strong>双向链表</strong>，但是双向链表中的每一个节点不是存储一个数据，而是<strong>将数据连续存放形成一段连续的存储空间</strong>作为链表的节点。</p>
-<p>这一段连续的存储空间在 godis 中被称为 page（每一个 page 的大小为 1024），page 的类型为<strong>空接口切片</strong>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// pageSize must be even</span></span><br><span class="line"><span class="keyword">const</span> pageSize = <span class="number">1024</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// QuickList is a linked list of page (which type is []interface&#123;&#125;)</span></span><br><span class="line"><span class="comment">// QuickList has better performance than LinkedList of Add, Range and memory usage</span></span><br><span class="line"><span class="keyword">type</span> QuickList <span class="keyword">struct</span> &#123;</span><br><span class="line">   data *list.List <span class="comment">// list of []interface&#123;&#125;</span></span><br><span class="line">   size <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <h1 id="Kubernetes-服务发现"><a href="#Kubernetes-服务发现" class="headerlink" title="Kubernetes 服务发现"></a>Kubernetes 服务发现</h1><h2 id="Kubernetes-Service-服务发现模型"><a href="#Kubernetes-Service-服务发现模型" class="headerlink" title="Kubernetes Service 服务发现模型"></a>Kubernetes Service 服务发现模型</h2><p>在 Kubernetes 中，服务发现通过 Service 实现。每一个 Service 对象都被分配了一个<strong>唯一的 VIP</strong>，访问 Service.name 通过 CoreDNS 既可以访问到 VIP，<strong>kube-proxy 通过 iptables 将 VIP 映射为具体的某个 Pod IP 地址</strong>。流程为：</p>
+<ol>
+<li>客户端通过 CoreDNS 解析 Kubernetes-Service 对应的 VIP。</li>
+<li>客户端向 VIP 发起 HTTP 请求。</li>
+<li>HTTP 请求被 kube-proxy 拦截，通过 kube-proxy 创建的 iptables 将请求的目标地址映射到 Pod 的 IP 地址。</li>
+</ol>
+<p><img src="/../images/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/k8s-service-discovery.png" alt="img"></p>
+<h2 id="为什么无法使用-Kubernetes-Service-作为-Dubbo-接口级服务发现"><a href="#为什么无法使用-Kubernetes-Service-作为-Dubbo-接口级服务发现" class="headerlink" title="为什么无法使用 Kubernetes Service 作为 Dubbo 接口级服务发现"></a>为什么无法使用 Kubernetes Service 作为 Dubbo 接口级服务发现</h2><p>在 Dubbo 中<strong>接口级</strong>服务发现，无法直接使用 Kubernetes 作为注册中心主要有以下几点原因：</p>
+<ol>
+<li>在 Dubbo 调用时，需要<strong>元数据</strong>信息。但是 Kubernetes-Service 的服务描述字段中并不包含 Dubbo 元数据信息。</li>
+<li>Dubbo 的服务注册是基于每一个进程的，<strong>每一个 Dubbo 进程均需要独立的注册</strong>。</li>
+<li>Kubernetes-Service 默认为服务创建 VIP，提供 round-robin 的负载策略也<strong>与 dubbo-go自有的负载策略形成了冲突</strong>。</li>
+</ol>
           <!--noindex-->
             <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-5-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/#more" rel="contents">
+              <a class="btn" href="/2024/03/25/Triple%E5%8D%8F%E8%AE%AE-8-Kubernetes%E4%BD%9C%E4%B8%BA%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
           <!--/noindex-->
         
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/03/08/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/" class="post-title-link" itemprop="url">Kuma学习笔记 (8) KDS Watchdog</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-03-08 10:59:20 / 修改时间：15:18:07" itemprop="dateCreated datePublished" datetime="2024-03-08T10:59:20+08:00">2024-03-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">Kuma学习笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Watchdog"><a href="#Watchdog" class="headerlink" title="Watchdog"></a>Watchdog</h1><h2 id="什么是-Watchdog"><a href="#什么是-Watchdog" class="headerlink" title="什么是 Watchdog"></a>什么是 Watchdog</h2><p>在 Kuma KDS 中，<strong>当 Zone CP 和 Global CP 建立 streaming 连接后</strong>，需要推送资源的一方在每一条连接开启一个 Watchdog。</p>
+<p>Watchdog 用于收集变化的资源，并定期更新 xds-cache（xds-cache 的更新会引发 xds 推送），<strong>完成从 Global CP 与 Zone CP 之间的被更新资源的主动推送过程</strong>。</p>
+<p><img src="/../images/Kuma%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-KDS-Watchdog/image-20240308110246222.png" alt="image-20240308110246222"></p>
+<h2 id="Watchdog-数据结构"><a href="#Watchdog-数据结构" class="headerlink" title="Watchdog 数据结构"></a>Watchdog 数据结构</h2><p>Watchdog 的数据结构如下：</p>
+<ul>
+<li>Node：表示一个 envoy 节点，这里是一个 Zone CP 节点。</li>
+<li>EventBus：事件总线，Watchdog 通过事件总线订阅资源更新的事件。</li>
+<li>Reconciler：调和器，用于重新计算配置资源，并更新 xds-cache。</li>
+<li>ProvidedTypes：需要同步的所有资源类型。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> EventBasedWatchdog <span class="keyword">struct</span> &#123;</span><br><span class="line">   Ctx                 context.Context</span><br><span class="line">   Node                *envoy_core.Node</span><br><span class="line">   EventBus            events.EventBus</span><br><span class="line">   Reconciler          reconcile.Reconciler</span><br><span class="line">   ProvidedTypes       <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">   Log                 logr.Logger</span><br><span class="line">   NewFlushTicker      <span class="function"><span class="keyword">func</span><span class="params">()</span> *<span class="title">time</span>.<span class="title">Ticker</span></span></span><br><span class="line">   NewFullResyncTicker <span class="function"><span class="keyword">func</span><span class="params">()</span> *<span class="title">time</span>.<span class="title">Ticker</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><p>在 Start 方法中定义了 Watchdog 的工作流程：</p>
+<ol>
+<li>首先，从事件总线中<strong>订阅 ResourceChangedEvent 资源更新事件</strong>。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">listener := e.EventBus.Subscribe(<span class="function"><span class="keyword">func</span><span class="params">(event events.Event)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">   resChange, ok := event.(events.ResourceChangedEvent)</span><br><span class="line">   <span class="keyword">if</span> !ok &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">if</span> _, ok := e.ProvidedTypes[resChange.Type]; !ok &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>changedTypes 记录已经修改的资源，<strong>第一次同步的是全量的资源</strong>。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// for the first reconcile assign all types</span></span><br><span class="line">changedTypes := maps.Clone(e.ProvidedTypes)</span><br><span class="line">reasons := <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;&#123;</span><br><span class="line">   ReasonResync: &#123;&#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>开启<strong>两个定时器 flushTicker 和 fullResyncTicker</strong>。flushTicker 用于<strong>定期向 xds-cache 中同步被修改的资源</strong>；fullResyncTicker 用于定期向 xds-cache 进行<strong>全量</strong>的资源同步。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> &#123;</span><br><span class="line">   <span class="keyword">select</span> &#123;</span><br><span class="line">   <span class="keyword">case</span> &lt;-stop:</span><br><span class="line">      <span class="keyword">if</span> err := e.Reconciler.Clear(e.Ctx, e.Node); err != <span class="literal">nil</span> &#123;</span><br><span class="line">         e.Log.Error(err, <span class="string">&quot;reconcile clear failed&quot;</span>)</span><br><span class="line">      &#125;</span><br><span class="line">      listener.Close()</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">   <span class="keyword">case</span> &lt;-flushTicker.C:</span><br><span class="line">      <span class="keyword">if</span> <span class="built_in">len</span>(changedTypes) == <span class="number">0</span> &#123;</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line">      reason := strings.Join(util_maps.SortedKeys(reasons), <span class="string">&quot;_and_&quot;</span>)</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;reconcile&quot;</span>, <span class="string">&quot;changedTypes&quot;</span>, changedTypes, <span class="string">&quot;reason&quot;</span>, reason)</span><br><span class="line">      err, _ := e.Reconciler.Reconcile(e.Ctx, e.Node, changedTypes, e.Log)</span><br><span class="line">      <span class="keyword">if</span> err != <span class="literal">nil</span> &amp;&amp; errors.Is(err, context.Canceled) &#123;</span><br><span class="line">         e.Log.Error(err, <span class="string">&quot;reconcile failed&quot;</span>, <span class="string">&quot;changedTypes&quot;</span>, changedTypes, <span class="string">&quot;reason&quot;</span>, reason)</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">         changedTypes = <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">         reasons = <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">      &#125;</span><br><span class="line">   <span class="keyword">case</span> &lt;-fullResyncTicker.C:</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;schedule full resync&quot;</span>)</span><br><span class="line">      changedTypes = maps.Clone(e.ProvidedTypes)</span><br><span class="line">      reasons[ReasonResync] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   <span class="keyword">case</span> event := &lt;-listener.Recv():</span><br><span class="line">      resChange := event.(events.ResourceChangedEvent)</span><br><span class="line">      e.Log.V(<span class="number">1</span>).Info(<span class="string">&quot;schedule sync for type&quot;</span>, <span class="string">&quot;typ&quot;</span>, resChange.Type)</span><br><span class="line">      changedTypes[resChange.Type] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">      reasons[ReasonEvent] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Reconciler-调和器"><a href="#Reconciler-调和器" class="headerlink" title="Reconciler 调和器"></a>Reconciler 调和器</h1><p>Reconciler 用于重新计算给定 node 的配置资源信息，并同步到 xds-cache 中，接口定义如下：</p>
+<ul>
+<li><strong>Reconcile 方法：</strong>调和已经修改的资源类型，从老的 Snapshot 中取未改变的资源，再重新查询已经改变的资源，并以此创建新的 Snapshot 并更新给 xds-cache。</li>
+<li>Clear 方法：在 xds-cache 中清理 Snapshot，在 streaming 结束时调用。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Reconciler re-computes configuration for a given node.</span></span><br><span class="line"><span class="keyword">type</span> Reconciler <span class="keyword">interface</span> &#123;</span><br><span class="line">   <span class="comment">// Reconcile reconciles state of node given changed resource types.</span></span><br><span class="line">   <span class="comment">// Returns error and bool which is true if any resource was changed.</span></span><br><span class="line">   Reconcile(context.Context, *envoy_core.Node, <span class="keyword">map</span>[model.ResourceType]<span class="keyword">struct</span>&#123;&#125;, logr.Logger) (error, <span class="keyword">bool</span>)</span><br><span class="line">   Clear(context.Context, *envoy_core.Node) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Reconcile-方法"><a href="#Reconcile-方法" class="headerlink" title="Reconcile 方法"></a>Reconcile 方法</h2><p>Reconcile 方法调和已经修改的资源类型，从老的 Snapshot 中取未改变的资源，再重新查询已经改变的资源，并<strong>以此创建新的 Snapshot 并更新给 xds-cache</strong>。具体流程如下：</p>
+<ol>
+<li>首先从 xds-cache 中查询老的 Snapshot。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">id := r.hasher.ID(node)</span><br><span class="line">old, _ := r.cache.GetSnapshot(id)</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>对于<strong>未变更的资源</strong>，直接<strong>从老的 Snapshot 中获取</strong>。接着调用 <code>r.generator.GenerateSnapshot</code> 方法，<strong>重新查询已经修改的资源</strong>，并根据已变更和未变更的资源<strong>创建新的 Snapshot</strong>。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// construct builder with unchanged types from the old snapshot</span></span><br><span class="line">builder := cache.NewSnapshotBuilder()</span><br><span class="line"><span class="keyword">if</span> old != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">for</span> _, typ := <span class="keyword">range</span> util_dds.GetSupportedTypes() &#123;</span><br><span class="line">      resType := core_model.ResourceType(typ)</span><br><span class="line">      <span class="keyword">if</span> _, ok := changedTypes[resType]; ok &#123;</span><br><span class="line">         <span class="keyword">continue</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      oldRes := old.GetResources(typ)</span><br><span class="line">      <span class="keyword">if</span> <span class="built_in">len</span>(oldRes) &gt; <span class="number">0</span> &#123;</span><br><span class="line">         builder = builder.With(resType, maps.Values(oldRes))</span><br><span class="line">      &#125;</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="built_in">new</span>, err := r.generator.GenerateSnapshot(ctx, node, builder, changedTypes)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> err, <span class="literal">false</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> <span class="built_in">new</span> == <span class="literal">nil</span> &#123;</span><br><span class="line">   <span class="keyword">return</span> errors.New(<span class="string">&quot;nil snapshot&quot;</span>), <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>若新的 Snapshot 相比于老的<strong>发生了修改</strong>，则<strong>同步</strong>到 xds-cache 中。</li>
+</ol>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">new</span>, changed := r.Version(<span class="built_in">new</span>, old)</span><br><span class="line"><span class="keyword">if</span> changed &#123;</span><br><span class="line">   r.logChanges(logger, <span class="built_in">new</span>, old, node)</span><br><span class="line">   r.meterConfigReadyForDelivery(<span class="built_in">new</span>, old, node.Id)</span><br><span class="line">   <span class="keyword">return</span> r.cache.SetSnapshot(ctx, id, <span class="built_in">new</span>), <span class="literal">true</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br></pre></td></tr></table></figure>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/" class="post-title-link" itemprop="url">Pulsar消息队列(4)延迟消息投递</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-02-22 20:19:25" itemprop="dateCreated datePublished" datetime="2024-02-22T20:19:25+08:00">2024-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="延迟消息投递"><a href="#延迟消息投递" class="headerlink" title="延迟消息投递"></a>延迟消息投递</h1><p>开源的 NSQ、RabbitMQ、ActiveMQ 和 Pulsar 也都内置了延迟消息的处理能力。虽然每个 MQ 项目的使用和实现方式不同，但核心实现思路都一样：<strong>Producer 将一个延迟消息发送到某个 Topic 中，Broker 将延迟消息放到临时存储进行暂存，延迟跟踪服务（Delayed Tracker Service）会检查消息是否到期，将到期的消息进行投递</strong>。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.png" alt="图片"></p>
+<p>延迟消息投递是要暂缓对当前消息的处理，在未来的某个时间点再触发投递，实际的应用场景非常多，比如异常检测重试、订单超时取消、预约提醒等。</p>
+<p>Pulsar 最早是在 2.4.0 引入了延迟消息投递的特性，在 Pulsar 中使用延迟消息，可以精确指定延迟投递的时间，有 deliverAfter 和 deliverAt 两种方式。其中 deliverAt 可以指定具体的时间戳；deliverAfter 可以指定在当前多长时间后执行。</p>
+<p>在 Pulsar 中，可以支持跨度很大的延时消息，比方说一个月、半年；同时在一个 Topic 里，既支持延时消息，也支持非延时消息。下图展示了 Pulsar 中延迟消息的具体过程：</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640-20240222202207636.png" alt="图片"></p>
+<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>Pulsar 实现延迟消息投递的方式比较简单，<strong>Delayed Message Tracker 在堆外内存维护着一个 delayed index 优先级队列</strong>，根据延迟时间进行堆排序，延迟时间最短的会放在头上，时间越长越靠后。</p>
+<p>Consumer 在消费时，会先去 Delayed Message Tracker 检查，是否有到期需要投递的消息，如果有到期的消息，则从 Tracker 中拿出对应的 index，找到对应的消息进行消费；如果没有到期的消息，则直接消费正常的消息。</p>
+<p>如果集群出现 Broker 宕机，Pulsar 会重建 delayed index 队列，来保证延迟投递的消息能够正常工作。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-4-%E5%BB%B6%E8%BF%9F%E6%B6%88%E6%81%AF%E6%8A%95%E9%80%92/640.jpeg" alt="图片"></p>
+<h2 id="风险"><a href="#风险" class="headerlink" title="风险"></a>风险</h2><p>从 Pulsar 的延迟消息投递实现原理可以看出，该方法简单高效，对 Pulsar 内核侵入性较小，可以支持到任意时间的延迟消息。但同时发现，Pulsar 的实现方案无法支持大规模使用延迟消息，主要有以下两个原因：</p>
+<p><strong>1. delayed index队列受到内存限制</strong></p>
+<p><strong>2. delayed index队列重建时间开销</strong></p>
+<h2 id="未来工作"><a href="#未来工作" class="headerlink" title="未来工作"></a>未来工作</h2><p>Pulsar 目前的延迟消息投递方案简单高效，但处理大规模延迟消息时仍然存在风险。关于延迟消息投递，社区和数据平台部 MQ 团队下一步将聚焦在支持大规模延迟消息。目前讨论的方案是在 delayed index 队列加入时间分区，Broker 只加载当前较近的时间片 delayed index 到内存，其余时间片分区持久化磁盘，</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">Pulsar消息队列(3)订阅模式</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-02-22 20:12:02" itemprop="dateCreated datePublished" datetime="2024-02-22T20:12:02+08:00">2024-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Consumer 订阅 Topic 的时候，通过<strong>订阅模式</strong>来控制消息的使用模式，指定如何将消息投递给一个组一个的或多个的 Consumer。Pulsar 支持 4 种订阅模式:</p>
+<ul>
+<li>exclusive（独占模式）</li>
+<li>failover（故障转移模式，也叫灾备模式）</li>
+<li>shared（共享模式）</li>
+<li>key-shared（基于key的共享模式）</li>
+</ul>
+<h1 id="订阅模式"><a href="#订阅模式" class="headerlink" title="订阅模式"></a>订阅模式</h1><h2 id="exclusive"><a href="#exclusive" class="headerlink" title="exclusive"></a>exclusive</h2><p>独占模式，只能有一个 Consumer 绑定到订阅上。如果多于一个 Consumer 尝试以使用相同的订阅订阅 Topic，就会抛出异常且无法连接。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-exclusive-subscriptions.png" alt="pulsar-exclusive-subscriptions.png"></p>
+<h2 id="failover"><a href="#failover" class="headerlink" title="failover"></a>failover</h2><p>在灾备订阅模式中，多个 Consumer 可以绑定到同一个订阅上， Consumer 将会<strong>按字典顺序排序</strong>，<strong>第一个 Consumer 被初始化为唯一接受消息的消费者</strong>，被称为 Master Consumer。 当 Master Consumer 断开时，所有的未被确认和后续进入的消息将会被投递给下一个 Consumer。</p>
+<blockquote>
+<p>灾备模式提供了高可用性。</p>
+</blockquote>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-failover-subscriptions.png" alt="pulsar-failover-subscriptions.png"></p>
+<h2 id="shared"><a href="#shared" class="headerlink" title="shared"></a>shared</h2><p>在共享模式中，多个 Consumer 可以绑定到同一个订阅上。 <strong>消息通过 round robin 轮询机制分发给不同的消费者</strong>，并且每个消息仅会被分发给一个消费者。 当一个消费者断开连接时，所有已经投递给它但还没有被确认的消息将被重新投递，分发给其它存活的消费者。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-3-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F/pulsar-shared-subscriptions.png" alt="pulsar-shared-subscriptions.png"></p>
+<h2 id="key-shared"><a href="#key-shared" class="headerlink" title="key-shared"></a>key-shared</h2><p>key-shared 模式是共享模式的一种特例，它也允许多个 Consumer 可以绑定到同一个订阅上，与共享模式中的 round robin 轮询消费消息不同，key-shared 模式增加了一个辅助 key，<strong>确保具有相同 key 的消息被交付给相同的消费者</strong>。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/02/22/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/" class="post-title-link" itemprop="url">Pulsar消息队列(2)租户 命名空间 Topic</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-02-22 20:02:09" itemprop="dateCreated datePublished" datetime="2024-02-22T20:02:09+08:00">2024-02-22</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">Pulsar消息队列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>Pulsar 在逻辑上的层级，从上到下依次为租户、命名空间、Topic。</p>
+<p>每个租户都可以有单独的认证和授权机制，可以针对租户设置存储配额、消息生存时间 TTL 和隔离策略。</p>
+<p><img src="/../images/Pulsar%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-2-%E7%A7%9F%E6%88%B7-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4-Topic/pulsar-logical-arch2.png" alt="pulsar-logical-arch2.png"></p>
+<p>默认情况下一个 Topic 中的消息只能由 Pulsar 服务层中的一个 Broker 提供服务，因此单个 Topic 的吞吐量受限于为其提供服务的 Broker 的计算能力。 </p>
+<p>好在 Pulsar 还支持<strong>分区主题</strong>，这允许多个 Broker 提供服务，就可以将负载分布到多台机器上。在 Pulsar 内部，<strong>分区主题被实现为 N 个内部 Topic</strong>，N 是分区数量，分区跨 Broker 的分布<strong>由 Pulsar 自动管理</strong>，这对用户来说是完全透明的。 Pulsar 将分区主题实现为多个内部主题，这样就可以在需要增加分区数量的时候不必重新平衡整个主题，Pulsar 只需在其内部创建新的内部主题就能够立即接收新的消息，使客户端能在不中断的情况下对现有分区进行消息读写。</p>
+<p>当生产者发布消息到分区主题时，不需要特意指定路由模式，默认以轮循的方式将消息均匀分布到各个分区。支持以下3种路由模式:</p>
+<ul>
+<li><strong>SinglePartition：</strong>如果没有消息 key 提供，生产者将会随机选择一个固定的分区来发布消息（同一个生产者生产在同一个分区中），可用于将来自特定生产者的消息分组在一起，以在没有键值时维护消息顺序。</li>
+<li><strong>RoundRobinPartition：</strong>如果没有消息 key 提供，将以轮循的方式将消息均匀分布到各个分区。</li>
+<li><strong>CustomPartition：</strong>定制实现路由模式，控制消息分发到 Topic 的分区中。</li>
+</ul>
+<p>如果提供了消息 key，<strong>会以 key 做 hash，然后分配消息到指定分区</strong>。因此分区中消息的顺序与路由模式和消息的key有关，所有拥有相同的 key 的消息有序，将会被发送到相同的分区</p>
+
       
     </div>
 
@@ -1166,7 +1053,7 @@
 
   
   <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/page/4/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/4/">4</a><span class="page-number current">5</span><a class="page-number" href="/page/6/">6</a><span class="space">&hellip;</span><a class="page-number" href="/page/39/">39</a><a class="extend next" rel="next" href="/page/6/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <a class="extend prev" rel="prev" href="/page/4/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="space">&hellip;</span><a class="page-number" href="/page/4/">4</a><span class="page-number current">5</span><a class="page-number" href="/page/6/">6</a><span class="space">&hellip;</span><a class="page-number" href="/page/42/">42</a><a class="extend next" rel="next" href="/page/6/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1232,20 +1119,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">388</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">50</span>
+        <span class="site-state-item-count">53</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">51</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
