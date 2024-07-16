@@ -20,18 +20,18 @@
     var CONFIG = {"hostname":"dawnzzz.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta name="description" content="创建 sku 订单在创建 sku 订单时，分为两个步骤：  活动责任链校验： 活动基础信息校验，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。 sku 库存校验，与之前的奖品库存校验方法基本一致。   以数据库事务的方式，进行sku 订单入库、更新活动账户信息： sku 订单入库，以外部业务 ID 作为唯一索引，保证 sku 订单不重复创建。 更新活动账户总表、日表、月表，增">
+  <meta name="description" content="创建 sku 订单在创建 sku 订单时，分为三个步骤：  查询基础信息，包括查询 sku 实体信息、活动信息（优先缓存）、活动次数信息（优先缓存）。 活动责任链校验： 活动基础信息校验，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。 sku 库存校验，与之前的奖品库存校验方法基本一致。   以数据库事务的方式，进行sku 订单入库、更新活动账户信息： sku 订单入库，以外">
 <meta property="og:type" content="article">
 <meta property="og:title" content="大营销平台项目 (5) 活动领域之创建sku订单 创建抽奖订单">
 <meta property="og:url" content="http://dawnzzz.github.io/2024/05/23/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/index.html">
 <meta property="og:site_name" content="Dawn&#39;s Blogs">
-<meta property="og:description" content="创建 sku 订单在创建 sku 订单时，分为两个步骤：  活动责任链校验： 活动基础信息校验，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。 sku 库存校验，与之前的奖品库存校验方法基本一致。   以数据库事务的方式，进行sku 订单入库、更新活动账户信息： sku 订单入库，以外部业务 ID 作为唯一索引，保证 sku 订单不重复创建。 更新活动账户总表、日表、月表，增">
+<meta property="og:description" content="创建 sku 订单在创建 sku 订单时，分为三个步骤：  查询基础信息，包括查询 sku 实体信息、活动信息（优先缓存）、活动次数信息（优先缓存）。 活动责任链校验： 活动基础信息校验，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。 sku 库存校验，与之前的奖品库存校验方法基本一致。   以数据库事务的方式，进行sku 订单入库、更新活动账户信息： sku 订单入库，以外">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://dawnzzz.github.io/images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523202515316.png">
 <meta property="og:image" content="http://dawnzzz.github.io/images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523201909941.png">
 <meta property="og:image" content="http://dawnzzz.github.io/images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523203028364.png">
 <meta property="article:published_time" content="2024-05-23T07:32:17.000Z">
-<meta property="article:modified_time" content="2024-05-23T12:33:12.286Z">
+<meta property="article:modified_time" content="2024-05-27T07:11:39.490Z">
 <meta property="article:author" content="DawnZH">
 <meta property="article:tag" content="项目">
 <meta name="twitter:card" content="summary">
@@ -188,10 +188,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-05-23 15:32:17 / 修改时间：20:33:12" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:17+08:00">2024-05-23</time>
+              <time title="创建时间：2024-05-23 15:32:17" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:17+08:00">2024-05-23</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-27 15:11:39" itemprop="dateModified" datetime="2024-05-27T15:11:39+08:00">2024-05-27</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -213,8 +219,9 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <h1 id="创建-sku-订单"><a href="#创建-sku-订单" class="headerlink" title="创建 sku 订单"></a>创建 sku 订单</h1><p>在创建 sku 订单时，分为两个步骤：</p>
+        <h1 id="创建-sku-订单"><a href="#创建-sku-订单" class="headerlink" title="创建 sku 订单"></a>创建 sku 订单</h1><p>在创建 sku 订单时，分为三个步骤：</p>
 <ol>
+<li>查询基础信息，包括查询 sku 实体信息、活动信息（优先缓存）、活动次数信息（优先缓存）。</li>
 <li><strong>活动责任链校验：</strong><ol>
 <li><strong>活动基础信息校验</strong>，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。</li>
 <li><strong>sku 库存校验</strong>，与之前的奖品库存校验方法基本一致。</li>
@@ -231,7 +238,7 @@
 <li><strong>活动基础信息校验</strong>，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存（如果获取到的库存小于等于 0，则说明 sku 库存一定不足）。</li>
 <li><strong>sku 库存校验</strong>，与之前的奖品库存校验方法基本一致。<ul>
 <li><strong>采用 decr+setnx 保证不超卖</strong>，使用<strong>延迟队列</strong>扣减数据库中的库存，<strong>定时任务</strong>保证数据库和缓存最终一致性。</li>
-<li>不同的是，当库存等于 0 时，<strong>发送 MQ 消息直接通知数据库更新库存为 0，并且清空延迟队列</strong>。这一步主要是为了减少额外的性能开销，如果库存已经到 0 了，后续定时任务也不需要执行了直接更新数据库库存为 0 即可。也不需要添加到 task 任务表，这里消息丢失对业务没有影响。</li>
+<li>不同的是，当库存等于 0 时，<strong>发送 MQ 消息直接通知数据库更新库存为 0，并且清空延迟队列</strong>。这一步主要是为了减少额外的性能开销，如果库存已经到 0 了，后续定时任务也不需要执行了直接更新数据库库存为 0 即可。<strong>也不需要添加到 task 任务表，这里消息丢失对业务没有影响</strong>，只是会消耗一些算力，用于一个一个递减活动库存。</li>
 </ul>
 </li>
 </ol>
@@ -249,7 +256,14 @@
 <p><strong>以 user_id 作为分库键</strong>，可以保证事务的发生都在一个数据库中，<strong>不会出现分布式事务</strong>。</p>
 </blockquote>
 <p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523201909941.png" alt="image-20240523201909941"></p>
-<h1 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h1><p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523203028364.png" alt="image-20240523203028364"></p>
+<h3 id="核心代码"><a href="#核心代码" class="headerlink" title="核心代码"></a>核心代码</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">transactionTemplate.execute(status -&gt; &#123;</span><br><span class="line">    <span class="keyword">try</span>&#123;</span><br><span class="line">        <span class="comment">// 1. 写入订单</span></span><br><span class="line">        raffleActivityOrderDao.insert(raffleActivityOrder);</span><br><span class="line">        <span class="comment">// 2. 更新账户</span></span><br><span class="line">        <span class="keyword">int</span> count = raffleActivityAccountDao.updateAccountQuota(raffleActivityAccount);</span><br><span class="line">        <span class="comment">// 3. 创建账户 - 更新为0，则账户不存在，创新新账户。</span></span><br><span class="line">        <span class="keyword">if</span> (count == <span class="number">0</span>) &#123;</span><br><span class="line">            raffleActivityAccountDao.insert(raffleActivityAccount);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 4. 更新账户 - 月</span></span><br><span class="line">        raffleActivityAccountMonthDao.addAccountQuota(raffleActivityAccountMonth);</span><br><span class="line">        <span class="comment">// 5. 更新账户 - 日</span></span><br><span class="line">        raffleActivityAccountDayDao.addAccountQuota(raffleActivityAccountDay);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (DuplicateKeyException e) &#123;</span><br><span class="line">        status.setRollbackOnly();</span><br><span class="line">        log.error(<span class="string">&quot;写入订单记录，唯一索引冲突 userId: &#123;&#125; activityId: &#123;&#125; sku: &#123;&#125;&quot;</span>, activityOrderEntity.getUserId(), activityOrderEntity.getActivityId(), activityOrderEntity.getSku(), e);</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> AppException(Constants.ResponseCode.INDEX_DUP.getCode(), Constants.ResponseCode.INDEX_DUP.getInfo());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<h1 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h1><p>在用户抽奖前需要创建抽奖订单，为什么需要先创建订单再进行抽奖？</p>
+<ol>
+<li><strong>增加容错性。</strong>整个抽奖流程长，有策略计算、信息入库，如果抽奖过程中出现了错误，下一次抽奖直接使用上次未完成的抽奖订单即可。保证了失败的抽奖流程，不会消耗有效的抽奖次数。</li>
+<li><strong>方便后续扩展。</strong>后续实现积分抽奖功能，可以直接将积分兑换成未使用的抽奖订单。</li>
+</ol>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523203028364.png" alt="image-20240523203028364"></p>
 
     </div>
 
@@ -333,7 +347,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA-sku-%E8%AE%A2%E5%8D%95"><span class="nav-number">1.</span> <span class="nav-text">创建 sku 订单</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B4%BB%E5%8A%A8%E8%B4%A3%E4%BB%BB%E9%93%BE%E6%A0%A1%E9%AA%8C"><span class="nav-number">1.1.</span> <span class="nav-text">活动责任链校验</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#sku-%E8%AE%A2%E5%8D%95%E5%85%A5%E5%BA%93"><span class="nav-number">1.2.</span> <span class="nav-text">sku 订单入库</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95"><span class="nav-number">2.</span> <span class="nav-text">创建抽奖订单</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA-sku-%E8%AE%A2%E5%8D%95"><span class="nav-number">1.</span> <span class="nav-text">创建 sku 订单</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B4%BB%E5%8A%A8%E8%B4%A3%E4%BB%BB%E9%93%BE%E6%A0%A1%E9%AA%8C"><span class="nav-number">1.1.</span> <span class="nav-text">活动责任链校验</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#sku-%E8%AE%A2%E5%8D%95%E5%85%A5%E5%BA%93"><span class="nav-number">1.2.</span> <span class="nav-text">sku 订单入库</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E4%BB%A3%E7%A0%81"><span class="nav-number">1.2.1.</span> <span class="nav-text">核心代码</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95"><span class="nav-number">2.</span> <span class="nav-text">创建抽奖订单</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 

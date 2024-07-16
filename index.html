@@ -263,10 +263,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-05-23 15:32:17 / 修改时间：20:33:12" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:17+08:00">2024-05-23</time>
+              <time title="创建时间：2024-05-23 15:32:17" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:17+08:00">2024-05-23</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-27 15:11:39" itemprop="dateModified" datetime="2024-05-27T15:11:39+08:00">2024-05-27</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -288,8 +294,9 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h1 id="创建-sku-订单"><a href="#创建-sku-订单" class="headerlink" title="创建 sku 订单"></a>创建 sku 订单</h1><p>在创建 sku 订单时，分为两个步骤：</p>
+          <h1 id="创建-sku-订单"><a href="#创建-sku-订单" class="headerlink" title="创建 sku 订单"></a>创建 sku 订单</h1><p>在创建 sku 订单时，分为三个步骤：</p>
 <ol>
+<li>查询基础信息，包括查询 sku 实体信息、活动信息（优先缓存）、活动次数信息（优先缓存）。</li>
 <li><strong>活动责任链校验：</strong><ol>
 <li><strong>活动基础信息校验</strong>，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存。</li>
 <li><strong>sku 库存校验</strong>，与之前的奖品库存校验方法基本一致。</li>
@@ -306,7 +313,7 @@
 <li><strong>活动基础信息校验</strong>，包括活动的开始结束时间、活动的状态、从 redis 中获取到的库存（如果获取到的库存小于等于 0，则说明 sku 库存一定不足）。</li>
 <li><strong>sku 库存校验</strong>，与之前的奖品库存校验方法基本一致。<ul>
 <li><strong>采用 decr+setnx 保证不超卖</strong>，使用<strong>延迟队列</strong>扣减数据库中的库存，<strong>定时任务</strong>保证数据库和缓存最终一致性。</li>
-<li>不同的是，当库存等于 0 时，<strong>发送 MQ 消息直接通知数据库更新库存为 0，并且清空延迟队列</strong>。这一步主要是为了减少额外的性能开销，如果库存已经到 0 了，后续定时任务也不需要执行了直接更新数据库库存为 0 即可。也不需要添加到 task 任务表，这里消息丢失对业务没有影响。</li>
+<li>不同的是，当库存等于 0 时，<strong>发送 MQ 消息直接通知数据库更新库存为 0，并且清空延迟队列</strong>。这一步主要是为了减少额外的性能开销，如果库存已经到 0 了，后续定时任务也不需要执行了直接更新数据库库存为 0 即可。<strong>也不需要添加到 task 任务表，这里消息丢失对业务没有影响</strong>，只是会消耗一些算力，用于一个一个递减活动库存。</li>
 </ul>
 </li>
 </ol>
@@ -324,7 +331,14 @@
 <p><strong>以 user_id 作为分库键</strong>，可以保证事务的发生都在一个数据库中，<strong>不会出现分布式事务</strong>。</p>
 </blockquote>
 <p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523201909941.png" alt="image-20240523201909941"></p>
-<h1 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h1><p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523203028364.png" alt="image-20240523203028364"></p>
+<h3 id="核心代码"><a href="#核心代码" class="headerlink" title="核心代码"></a>核心代码</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">transactionTemplate.execute(status -&gt; &#123;</span><br><span class="line">    <span class="keyword">try</span>&#123;</span><br><span class="line">        <span class="comment">// 1. 写入订单</span></span><br><span class="line">        raffleActivityOrderDao.insert(raffleActivityOrder);</span><br><span class="line">        <span class="comment">// 2. 更新账户</span></span><br><span class="line">        <span class="keyword">int</span> count = raffleActivityAccountDao.updateAccountQuota(raffleActivityAccount);</span><br><span class="line">        <span class="comment">// 3. 创建账户 - 更新为0，则账户不存在，创新新账户。</span></span><br><span class="line">        <span class="keyword">if</span> (count == <span class="number">0</span>) &#123;</span><br><span class="line">            raffleActivityAccountDao.insert(raffleActivityAccount);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 4. 更新账户 - 月</span></span><br><span class="line">        raffleActivityAccountMonthDao.addAccountQuota(raffleActivityAccountMonth);</span><br><span class="line">        <span class="comment">// 5. 更新账户 - 日</span></span><br><span class="line">        raffleActivityAccountDayDao.addAccountQuota(raffleActivityAccountDay);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (DuplicateKeyException e) &#123;</span><br><span class="line">        status.setRollbackOnly();</span><br><span class="line">        log.error(<span class="string">&quot;写入订单记录，唯一索引冲突 userId: &#123;&#125; activityId: &#123;&#125; sku: &#123;&#125;&quot;</span>, activityOrderEntity.getUserId(), activityOrderEntity.getActivityId(), activityOrderEntity.getSku(), e);</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> AppException(Constants.ResponseCode.INDEX_DUP.getCode(), Constants.ResponseCode.INDEX_DUP.getInfo());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<h1 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h1><p>在用户抽奖前需要创建抽奖订单，为什么需要先创建订单再进行抽奖？</p>
+<ol>
+<li><strong>增加容错性。</strong>整个抽奖流程长，有策略计算、信息入库，如果抽奖过程中出现了错误，下一次抽奖直接使用上次未完成的抽奖订单即可。保证了失败的抽奖流程，不会消耗有效的抽奖次数。</li>
+<li><strong>方便后续扩展。</strong>后续实现积分抽奖功能，可以直接将积分兑换成未使用的抽奖订单。</li>
+</ol>
+<p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-5-%E6%B4%BB%E5%8A%A8%E9%A2%86%E5%9F%9F%E4%B9%8B%E5%88%9B%E5%BB%BAsku%E8%AE%A2%E5%8D%95-%E5%88%9B%E5%BB%BA%E6%8A%BD%E5%A5%96%E8%AE%A2%E5%8D%95/image-20240523203028364.png" alt="image-20240523203028364"></p>
 
       
     </div>
@@ -367,10 +381,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-05-23 15:32:06 / 修改时间：21:34:09" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:06+08:00">2024-05-23</time>
+              <time title="创建时间：2024-05-23 15:32:06" itemprop="dateCreated datePublished" datetime="2024-05-23T15:32:06+08:00">2024-05-23</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-27 15:17:35" itemprop="dateModified" datetime="2024-05-27T15:17:35+08:00">2024-05-27</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -399,7 +419,7 @@
 <ol>
 <li>在一个<strong>事务</strong>中，保存中奖记录、修改抽奖订单状态为已使用、保存 Task 发送消息任务。</li>
 <li><strong>发送 MQ 消息</strong>，通知奖品发货（可以优化为异步发送 MQ 消息），消息发送成功后，修改 Task 任务状态为已完成。</li>
-<li>开启一个<strong>定时任务</strong>，定时查询 task 表中发送失败的消息，<strong>进行发奖消息的补偿重发</strong>。</li>
+<li>开启一个<strong>定时任务</strong>，定时查询 task 表中发送失败的消息，<strong>进行发奖消息的补偿重发</strong>（此过程用线程池实现，每一次查出十条消息，每一条消息开启一个线程进行消息补偿重发）。</li>
 <li>奖品发货消息消费者监听 MQ 消息，进行奖品发货，利用 MQ 消息的不丢机制，保证奖品一定发货。</li>
 </ol>
 <blockquote>
@@ -448,10 +468,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-05-23 15:26:47 / 修改时间：21:33:38" itemprop="dateCreated datePublished" datetime="2024-05-23T15:26:47+08:00">2024-05-23</time>
+              <time title="创建时间：2024-05-23 15:26:47" itemprop="dateCreated datePublished" datetime="2024-05-23T15:26:47+08:00">2024-05-23</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-07-16 22:39:15" itemprop="dateModified" datetime="2024-07-16T22:39:15+08:00">2024-07-16</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -479,16 +505,19 @@
 <li><strong>参与次数表 raffle_activity_count：</strong>与 sku 绑定，即用户下单 sku 后，用户活动账户增加的次数。</li>
 <li><strong>活动 sku 表 raffle_activity_sku：</strong>将活动作为一种<strong>商品</strong>。可以实现比如签到给一次抽奖机会、下单给两次抽奖机会这样的场景，一种场景对应于一条 sku 记录。</li>
 <li><strong>活动下单记录 raffle_activity_order（分库分表）：</strong>当用户领取活动抽奖机会时，会<strong>产生一条 sku 下单记录</strong>，并增加活动账户表（总、月、日）中的抽奖次数、剩余抽奖次数（在一个事务中）。</li>
-<li>![image-20240523192710849](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523192710849.png)</li>
 </ul>
+<p>![image-20240523192710849](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523192710849.png)</p>
 <h2 id="创建抽奖订单"><a href="#创建抽奖订单" class="headerlink" title="创建抽奖订单"></a>创建抽奖订单</h2><p><strong>用户活动账户总表 raffle_activity_account（分库不分表）：</strong>记录用户总的抽奖次数、当前月/日抽奖次数。</p>
 <p><strong>用户活动账户月表 raffle_activity_account_month（分库不分表）：</strong>记录用户每月的抽奖次数和剩余抽奖次数，相当于用户每月抽奖次数的流水记录，运营需要。</p>
 <p><strong>用户活动账户日表 raffle_activity_account_day（分库不分表）：</strong>记录用户每日的抽奖参与次数和剩余抽奖次数，相当于用户每日抽奖次数的流水记录，运营需要。</p>
 <p><strong>用户抽奖订单表 user_raffle_order（分库分表）：</strong>每一次用户抽奖都会生成一个用户抽奖订单，每次抽奖前都会查看用户是否有未消费的订单。保证用户在抽奖时，只会消耗一次抽奖机会。</p>
 <p><strong>任务表 task（分库不分表）：</strong>用于发送MQ消息。通过任务扫描发送，发送补偿消息，是一种兜底策略。</p>
 <p>![image-20240523192255781](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523192255781.png)</p>
-<h1 id="活动装配"><a href="#活动装配" class="headerlink" title="活动装配"></a>活动装配</h1><h2 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h2><p>首先查询活动下配置的所有 sku，并把 sku 库存和活动库存加载到缓存中。</p>
-<p>其次查询活动配置信息，将活动加载到缓存中。</p>
+<h1 id="活动装配"><a href="#活动装配" class="headerlink" title="活动装配"></a>活动装配</h1><h2 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h2><p>活动装配的就是<strong>缓存预热</strong>，主要是预热 sku 库存、将活动信息加载到缓存中。</p>
+<ul>
+<li>首先查询活动下配置的所有 sku，并把 sku 库存、次数配置（raffle_activity_count）加载到缓存中。</li>
+<li>其次查询活动配置信息，将活动加载到缓存中。</li>
+</ul>
 <p>![image-20240523184348917](../images/大营销平台项目-4-活动领域之数据库设计 活动装配/image-20240523184348917.png)</p>
 <h2 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">assembleActivitySkuByActivityId</span><span class="params">(Long activityId)</span> </span>&#123;</span><br><span class="line">    List&lt;ActivitySkuEntity&gt; activitySkuEntityList = activityRepository.queryActivitySkuListByActivityId(activityId);</span><br><span class="line">    <span class="keyword">for</span> (ActivitySkuEntity activitySkuEntity : activitySkuEntityList) &#123;</span><br><span class="line">        Long sku = activitySkuEntity.getSku();</span><br><span class="line">        cacheActivitySkuStockCount(sku, activitySkuEntity.getStockCountSurplus());</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 预热活动次数【查询时预热到缓存】</span></span><br><span class="line">        activityRepository.queryActivityCountByActivityCountId(activitySkuEntity.getActivityCountId());</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 预热活动【查询时预热到缓存】</span></span><br><span class="line">    activityRepository.queryActivityByActivityId(activityId);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
       
@@ -532,10 +561,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-05-23 15:18:39 / 修改时间：18:42:38" itemprop="dateCreated datePublished" datetime="2024-05-23T15:18:39+08:00">2024-05-23</time>
+              <time title="创建时间：2024-05-23 15:18:39" itemprop="dateCreated datePublished" datetime="2024-05-23T15:18:39+08:00">2024-05-23</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-28 22:10:46" itemprop="dateModified" datetime="2024-05-28T22:10:46+08:00">2024-05-28</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -558,6 +593,7 @@
 
       
           <p>抽奖流程如下：</p>
+<p>整个抽奖流程应用到了<strong>模板方法设计模式</strong>，抽奖流程如下：</p>
 <p><img src="/../images/%E5%A4%A7%E8%90%A5%E9%94%80%E5%B9%B3%E5%8F%B0%E9%A1%B9%E7%9B%AE-3-%E6%8A%BD%E5%A5%96%E7%AD%96%E7%95%A5%E9%A2%86%E5%9F%9F%E4%B9%8B%E8%B4%A3%E4%BB%BB%E9%93%BE-%E8%A7%84%E5%88%99%E6%A0%91/FnjGpdxV5WZ88pMCciqIsTbbdL6h" alt="img"></p>
           <!--noindex-->
             <div class="post-button">
@@ -608,10 +644,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-05-23 15:14:12 / 修改时间：21:26:14" itemprop="dateCreated datePublished" datetime="2024-05-23T15:14:12+08:00">2024-05-23</time>
+              <time title="创建时间：2024-05-23 15:14:12" itemprop="dateCreated datePublished" datetime="2024-05-23T15:14:12+08:00">2024-05-23</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-27 13:34:00" itemprop="dateModified" datetime="2024-05-27T13:34:00+08:00">2024-05-27</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -634,18 +676,18 @@
 
       
           <h1 id="数据库设计"><a href="#数据库设计" class="headerlink" title="数据库设计"></a>数据库设计</h1><p><strong>抽奖策略配置表 strategy：</strong>配置抽奖策略的基本信息。</p>
-<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy` (</span><br><span class="line">`id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">`strategy_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">`strategy_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略描述&#x27;</span>,</span><br><span class="line">`rule_models` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;规则模型，rule配置的模型同步到此表，便于使用&#x27;</span>,</span><br><span class="line">`create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">`update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line"><span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">KEY `idx_strategy_id` (`strategy_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">7</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略&#x27;</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy` (</span><br><span class="line">    `id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `strategy_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">    `strategy_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略描述&#x27;</span>,</span><br><span class="line">    `rule_models` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;规则模型，rule配置的模型同步到此表，便于使用&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    KEY `idx_strategy_id` (`strategy_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">7</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略&#x27;</span></span><br></pre></td></tr></table></figure>
 
 <p><strong>抽奖策略奖品配置表 strategy_award：</strong>配置奖品的中奖概率，以及奖品的库存。</p>
 <figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy_award` (</span><br><span class="line">    `id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `strategy_id` <span class="type">bigint</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">    `award_id` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品ID - 内部流转使用&#x27;</span>,</span><br><span class="line">    `award_title` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品标题&#x27;</span>,</span><br><span class="line">    `award_subtitle` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品副标题&#x27;</span>,</span><br><span class="line">    `award_count` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;奖品库存总量&#x27;</span>,</span><br><span class="line">    `award_count_surplus` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;奖品库存剩余&#x27;</span>,</span><br><span class="line">    `award_rate` <span class="type">decimal</span>(<span class="number">6</span>,<span class="number">4</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;奖品中奖概率&#x27;</span>,</span><br><span class="line">    `rule_models` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;规则模型，rule配置的模型同步到此表，便于使用&#x27;</span>,</span><br><span class="line">    `sort` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;排序&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;修改时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    KEY `idx_strategy_id_award_id` (`strategy_id`,`award_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">30</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略奖品概率&#x27;</span></span><br></pre></td></tr></table></figure>
 
-<p><strong>抽奖策略规则表 strategy_rule：</strong>配置策略级别的规则（抽奖前规则，包括黑名单  black_list 和权重抽奖 rule_weight）。award_id 和 rule_type 字段废弃，奖品级别的规则迁移至决策树中配置。</p>
+<p><strong>抽奖策略规则表 strategy_rule：</strong>若 award_id 为空，则为策略级别的规则（抽奖前责任链中的规则，包括黑名单  black_list 和权重抽奖 rule_weight）。若 award_id 非空，则为奖品级别的规则。</p>
 <figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> `strategy_rule` (</span><br><span class="line">    `id` <span class="type">bigint</span> unsigned <span class="keyword">NOT</span> <span class="keyword">NULL</span> AUTO_INCREMENT COMMENT <span class="string">&#x27;自增ID&#x27;</span>,</span><br><span class="line">    `strategy_id` <span class="type">int</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖策略ID&#x27;</span>,</span><br><span class="line">    `award_id` <span class="type">int</span> <span class="keyword">DEFAULT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖奖品ID【规则类型为策略，则不需要奖品ID】&#x27;</span>,</span><br><span class="line">    `rule_type` tinyint(<span class="number">1</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;0&#x27;</span> COMMENT <span class="string">&#x27;抽象规则类型；1-策略规则、2-奖品规则&#x27;</span>,</span><br><span class="line">    `rule_model` <span class="type">varchar</span>(<span class="number">16</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖规则类型【black_list rule_weight】&#x27;</span>,</span><br><span class="line">    `rule_value` <span class="type">varchar</span>(<span class="number">256</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖规则比值&#x27;</span>,</span><br><span class="line">    `rule_desc` <span class="type">varchar</span>(<span class="number">128</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> COMMENT <span class="string">&#x27;抽奖规则描述&#x27;</span>,</span><br><span class="line">    `create_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;创建时间&#x27;</span>,</span><br><span class="line">    `update_time` datetime <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">DEFAULT</span> <span class="built_in">CURRENT_TIMESTAMP</span> <span class="keyword">ON</span> UPDATE <span class="built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="string">&#x27;更新时间&#x27;</span>,</span><br><span class="line">    <span class="keyword">PRIMARY</span> KEY (`id`),</span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY `uq_strategy_id_rule_model` (`strategy_id`,`rule_model`),</span><br><span class="line">    KEY `idx_strategy_id_award_id` (`strategy_id`,`award_id`)</span><br><span class="line">) ENGINE<span class="operator">=</span>InnoDB AUTO_INCREMENT<span class="operator">=</span><span class="number">17</span> <span class="keyword">DEFAULT</span> CHARSET<span class="operator">=</span>utf8mb4 <span class="keyword">COLLATE</span><span class="operator">=</span>utf8mb4_0900_ai_ci COMMENT<span class="operator">=</span><span class="string">&#x27;抽奖策略规则&#x27;</span></span><br></pre></td></tr></table></figure>
 
-<h1 id="策略装配"><a href="#策略装配" class="headerlink" title="策略装配"></a>策略装配</h1><p>策略装配的流程：</p>
+<h1 id="策略装配"><a href="#策略装配" class="headerlink" title="策略装配"></a>策略装配</h1><p>抽奖策略装配实际上是在做<strong>缓存预热</strong>，将奖品的剩余库存以及概率表存储在 redis 中，防止缓存穿透和缓存击穿（剩余库存标识了策略 ID，如果抽奖时在缓存中查询不到剩余库存，则会返回错误。）。策略装配的流程：</p>
 <ol>
 <li>从数据库中查询策略奖品配置（优先从 redis 缓存中获取），得到该策略下的所有策略奖品信息（包括奖品信息、库存、每个奖品的概率）。</li>
-<li>缓存奖品库存，为后续用户抽奖时扣减库存 decr 做准备。</li>
+<li><strong>缓存奖品库存</strong>，为后续用户抽奖时扣减库存 decr 做准备。</li>
 <li>装配中奖概率到 redis，装配<strong>概率表</strong>（redis hash 存储，value 为奖品 ID）和<strong>概率范围</strong>（用于在抽奖时获取随机范围）<ol>
 <li>装配<strong>默认中奖概率</strong>，即该策略下的全量中奖概率。首先获取概率表，然后进行乱序，转为 map 后存入 redis。</li>
 <li>装配<strong>权重策略中奖概率</strong>。</li>
