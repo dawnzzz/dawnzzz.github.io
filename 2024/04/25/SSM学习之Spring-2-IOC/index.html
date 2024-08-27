@@ -29,7 +29,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://dawnzzz.github.io/images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-2-IOC/spring-bean-lifestyle.png">
 <meta property="article:published_time" content="2024-04-25T08:10:20.000Z">
-<meta property="article:modified_time" content="2024-04-28T07:22:52.351Z">
+<meta property="article:modified_time" content="2024-07-30T16:48:49.740Z">
 <meta property="article:author" content="DawnZH">
 <meta property="article:tag" content="SSM - Java">
 <meta name="twitter:card" content="summary">
@@ -194,7 +194,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-04-28 15:22:52" itemprop="dateModified" datetime="2024-04-28T15:22:52+08:00">2024-04-28</time>
+                <time title="修改时间：2024-07-31 00:48:49" itemprop="dateModified" datetime="2024-07-31T00:48:49+08:00">2024-07-31</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -305,6 +305,57 @@
 </li>
 </ol>
 <p><img src="/../images/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpring-2-IOC/spring-bean-lifestyle.png" alt="img"></p>
+<h1 id="Spring-中的循环依赖"><a href="#Spring-中的循环依赖" class="headerlink" title="Spring 中的循环依赖"></a>Spring 中的循环依赖</h1><h2 id="三级缓存"><a href="#三级缓存" class="headerlink" title="三级缓存"></a>三级缓存</h2><p>Spring 通过三级缓存来解决循环依赖问题，确保即使在循环依赖的情况下也能正确创建 Bean。Spring 中的三级缓存其实就是三个 Map，如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 一级缓存</span></span><br><span class="line"><span class="comment">/** Cache of singleton objects: bean name to bean instance. */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Object&gt; singletonObjects = <span class="keyword">new</span> ConcurrentHashMap&lt;&gt;(<span class="number">256</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 二级缓存</span></span><br><span class="line"><span class="comment">/** Cache of early singleton objects: bean name to bean instance. */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Object&gt; earlySingletonObjects = <span class="keyword">new</span> HashMap&lt;&gt;(<span class="number">16</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 三级缓存</span></span><br><span class="line"><span class="comment">/** Cache of singleton factories: bean name to ObjectFactory. */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, ObjectFactory&lt;?&gt;&gt; singletonFactories = <span class="keyword">new</span> HashMap&lt;&gt;(<span class="number">16</span>);</span><br></pre></td></tr></table></figure>
+
+<p>简单来说，Spring 的三级缓存包括：</p>
+<ol>
+<li><strong>一级缓存（singletonObjects）</strong>：存放最终形态的 Bean（已经实例化、属性填充、初始化），单例池。一般情况获取 Bean 都是从这里获取的，但是并不是所有的 Bean 都在单例池里面，例如原型 Bean 就不在里面。</li>
+<li><strong>二级缓存（earlySingletonObjects）</strong>：存放过渡 Bean（半成品，尚未属性填充），也就是三级缓存中 <code>ObjectFactory</code> 产生的对象，与三级缓存配合使用的，可以防止 AOP 的情况下，每次调用 <code>ObjectFactory#getObject()</code> 都是会产生新的代理对象的。</li>
+<li><strong>三级缓存（singletonFactories）</strong>：存放 <code>ObjectFactory</code>，<code>ObjectFactory</code> 的 <code>getObject()</code> 方法（最终调用的是 <code>getEarlyBeanReference()</code> 方法）可以生成原始 Bean 对象或者代理对象（如果 Bean 被 AOP 切面代理）。三级缓存只会对单例 Bean 生效。</li>
+</ol>
+<h3 id="Spring-创建-bean-的过程"><a href="#Spring-创建-bean-的过程" class="headerlink" title="Spring 创建 bean 的过程"></a>Spring 创建 bean 的过程</h3><p>Spring 创建 Bean 的流程：</p>
+<ol>
+<li>先去<strong>一级缓存</strong> singletonObjects 中获取，存在就返回；</li>
+<li>如果不存在或者对象正在创建中，于是去 <strong>二级缓存</strong> earlySingletonObjects 中获取；</li>
+<li>如果还没有获取到，就去 <strong>三级缓存</strong> singletonFactories 中获取，通过执行 <code>ObjectFacotry</code> 的 <code>getObject()</code> 就可以获取该对象，获取成功之后，从三级缓存移除，并将该对象加入到二级缓存中。</li>
+</ol>
+<p>Spring 在创建 Bean 的时候，如果允许循环依赖的话，Spring 就会将刚刚实例化完成，但是属性还没有初始化完的 Bean 对象给提前暴露出去，这里通过 <code>addSingletonFactory</code> 方法，向三级缓存中添加一个 <code>ObjectFactory</code> 对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// AbstractAutowireCapableBeanFactory # doCreateBean #</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractAutowireCapableBeanFactory</span> ... </span>&#123;</span><br><span class="line">	<span class="function"><span class="keyword">protected</span> Object <span class="title">doCreateBean</span><span class="params">(...)</span> </span>&#123;</span><br><span class="line">        <span class="comment">//..</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// 支撑循环依赖：将 ()-&gt;getEarlyBeanReference 作为一个 ObjectFactory 对象的 getObject() 方法加入到三级缓存中</span></span><br><span class="line">		addSingletonFactory(beanName, () -&gt; getEarlyBeanReference(beanName, mbd, bean));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="如何解决循环依赖"><a href="#如何解决循环依赖" class="headerlink" title="如何解决循环依赖"></a>如何解决循环依赖</h3><p>如 A 和 B 发生了循环依赖，则会发生如下：</p>
+<ul>
+<li>当 Spring 创建 A 之后，发现 A 依赖了 B ，又去创建 B，B 依赖了 A ，又去创建 A；</li>
+<li>在 B 创建 A 的时候，那么此时 A 就发生了循环依赖，由于 A 此时还没有初始化完成，因此在 <strong>一二级缓存</strong> 中肯定没有 A；</li>
+<li>那么此时就去三级缓存中调用 <code>getObject()</code> 方法去获取 A 的 <strong>前期暴露的对象</strong> ，也就是调用 <code>getEarlyBeanReference()</code> 方法，生成一个 A 的 <strong>前期暴露对象</strong>；</li>
+<li>然后就将这个 <code>ObjectFactory</code> 从三级缓存中移除，并且将前期暴露对象放入到二级缓存中，那么 B 就将这个前期暴露对象注入到依赖，来支持循环依赖。</li>
+</ul>
+<h3 id="只有两级缓存够吗"><a href="#只有两级缓存够吗" class="headerlink" title="只有两级缓存够吗"></a>只有两级缓存够吗</h3><p>在没有 AOP 的情况下，确实可以只使用一级和三级缓存来解决循环依赖问题。但是，当涉及到 AOP 时，二级缓存就显得非常重要了，因为它确保了即使在 Bean 的创建过程中有多次对早期引用的请求，也始终只返回同一个代理对象，从而避免了同一个 Bean 有多个代理对象的问题。</p>
+<p>有 AOP 的流程：</p>
+<ol>
+<li>生成一个 A 原始对象，A 对象在三级缓存中注册 ObjectFactory（一个回调函数），用于创建 A 的代理对象。</li>
+<li>A 引用 B 对象，B 又引用 A 对象。B 回调 ObjectFactory 创建 A 的代理对象，B 引用 A 的代理对象。</li>
+<li>B 将 A 的 ObjectFactory 移出三级缓存，<strong>将 A 的代理对象放入二级缓存</strong>。</li>
+<li>A 填充 B 对象，完成属性填充。</li>
+<li>A 在 BeanPostProcessor 接口的 postProcessAfterInitialization 的方法中，A 尝试生成代理对象，首先<strong>检查二级缓存</strong>，若二级缓存中有代理则不会生成新的代理对象。</li>
+</ol>
+<h2 id="Lazy"><a href="#Lazy" class="headerlink" title="@Lazy"></a>@Lazy</h2><p>@Lazy 用来标识类是否需要懒加载/延迟加载，可以作用在类上、方法上、构造器上、方法参数上、成员变量中。</p>
+<p>Spring Boot 2.2 新增了全局懒加载属性，开启后全局 bean 被设置为懒加载，需要时再去创建。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#默认false</span></span><br><span class="line"><span class="attr">spring.main.lazy-initialization</span>=<span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<p>如非必要，尽量不要用全局懒加载。全局懒加载会让 Bean 第一次使用的时候加载会变慢，并且它会延迟应用程序问题的发现（当 Bean 被初始化时，问题才会出现）。</p>
+<p>如果一个 Bean 没有被标记为懒加载，那么它会在 Spring IoC 容器启动的过程中被创建和初始化。如果一个 Bean 被标记为懒加载，那么它不会在 Spring IoC 容器启动时立即实例化，而是在第一次被请求时才创建。这可以帮助<strong>减少应用启动时的初始化时间</strong>，也可以用来<strong>解决循环依赖</strong>问题。</p>
+<h3 id="如何解决循环依赖-1"><a href="#如何解决循环依赖-1" class="headerlink" title="如何解决循环依赖"></a>如何解决循环依赖</h3><p>如 A 和 B 发生了循环依赖，A 的构造器上添加 @Lazy 注解后（延迟 Bean B 的实例化），加载的流程如下：</p>
+<ul>
+<li><p>首先 Spring 会去创建 A 的 Bean，创建时需要注入 B 的属性；</p>
+</li>
+<li><p>由于在 A 上标注了 @Lazy 注解，因此 Spring 会去创建一个 B 的代理对象，将这个代理对象注入到 A 中的 B 属性；</p>
+<p>之后开始执行 B 的实例化、初始化，在注入 B 中的 A 属性时，此时 A 已经创建完毕了，就可以将 A 给注入进去。</p>
+</li>
+</ul>
+<blockquote>
+<p>关键点就在于对 A 中的属性 B 进行注入时，<strong>注入的是 B 的代理对象</strong>，因此不会循环依赖。</p>
+</blockquote>
 
     </div>
 
@@ -388,7 +439,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#IOC"><span class="nav-number">1.</span> <span class="nav-text">IOC</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Bean"><span class="nav-number">2.</span> <span class="nav-text">Bean</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A3%B0%E6%98%8E-Bean"><span class="nav-number">2.1.</span> <span class="nav-text">声明 Bean</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%9C%E7%94%A8%E4%BA%8E%E7%B1%BB%E7%9A%84%E6%B3%A8%E8%A7%A3"><span class="nav-number">2.1.1.</span> <span class="nav-text">作用于类的注解</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Bean-%E6%B3%A8%E8%A7%A3"><span class="nav-number">2.1.2.</span> <span class="nav-text">@Bean 注解</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E5%85%A5-Bean"><span class="nav-number">2.2.</span> <span class="nav-text">注入 Bean</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Autowired-%E5%92%8C-Resource-%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-number">2.2.1.</span> <span class="nav-text">@Autowired 和 @Resource 的区别</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Autowired"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">@Autowired</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Resource"><span class="nav-number">2.2.1.2.</span> <span class="nav-text">@Resource</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bean-%E7%9A%84%E4%BD%9C%E7%94%A8%E5%9F%9F"><span class="nav-number">2.3.</span> <span class="nav-text">Bean 的作用域</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bean-%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">2.4.</span> <span class="nav-text">Bean 的生命周期</span></a></li></ol></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#IOC"><span class="nav-number">1.</span> <span class="nav-text">IOC</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Bean"><span class="nav-number">2.</span> <span class="nav-text">Bean</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A3%B0%E6%98%8E-Bean"><span class="nav-number">2.1.</span> <span class="nav-text">声明 Bean</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%9C%E7%94%A8%E4%BA%8E%E7%B1%BB%E7%9A%84%E6%B3%A8%E8%A7%A3"><span class="nav-number">2.1.1.</span> <span class="nav-text">作用于类的注解</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Bean-%E6%B3%A8%E8%A7%A3"><span class="nav-number">2.1.2.</span> <span class="nav-text">@Bean 注解</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E5%85%A5-Bean"><span class="nav-number">2.2.</span> <span class="nav-text">注入 Bean</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Autowired-%E5%92%8C-Resource-%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-number">2.2.1.</span> <span class="nav-text">@Autowired 和 @Resource 的区别</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Autowired"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">@Autowired</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Resource"><span class="nav-number">2.2.1.2.</span> <span class="nav-text">@Resource</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bean-%E7%9A%84%E4%BD%9C%E7%94%A8%E5%9F%9F"><span class="nav-number">2.3.</span> <span class="nav-text">Bean 的作用域</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Bean-%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-number">2.4.</span> <span class="nav-text">Bean 的生命周期</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Spring-%E4%B8%AD%E7%9A%84%E5%BE%AA%E7%8E%AF%E4%BE%9D%E8%B5%96"><span class="nav-number">3.</span> <span class="nav-text">Spring 中的循环依赖</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E7%BA%A7%E7%BC%93%E5%AD%98"><span class="nav-number">3.1.</span> <span class="nav-text">三级缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Spring-%E5%88%9B%E5%BB%BA-bean-%E7%9A%84%E8%BF%87%E7%A8%8B"><span class="nav-number">3.1.1.</span> <span class="nav-text">Spring 创建 bean 的过程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%BE%AA%E7%8E%AF%E4%BE%9D%E8%B5%96"><span class="nav-number">3.1.2.</span> <span class="nav-text">如何解决循环依赖</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%AA%E6%9C%89%E4%B8%A4%E7%BA%A7%E7%BC%93%E5%AD%98%E5%A4%9F%E5%90%97"><span class="nav-number">3.1.3.</span> <span class="nav-text">只有两级缓存够吗</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Lazy"><span class="nav-number">3.2.</span> <span class="nav-text">@Lazy</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%BE%AA%E7%8E%AF%E4%BE%9D%E8%B5%96-1"><span class="nav-number">3.2.1.</span> <span class="nav-text">如何解决循环依赖</span></a></li></ol></li></ol></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -402,7 +453,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">416</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

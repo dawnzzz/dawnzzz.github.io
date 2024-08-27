@@ -158,6 +158,165 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/10/30/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/10/30/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/" class="post-title-link" itemprop="url">模型是如何部署在线上的</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-10-30 10:41:50" itemprop="dateCreated datePublished" datetime="2023-10-30T10:41:50+08:00">2023-10-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%A8%A1%E5%9E%8B%E9%83%A8%E7%BD%B2/" itemprop="url" rel="index"><span itemprop="name">模型部署</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>模型部署按照部署设备分类，主要分为两类：</p>
+<ul>
+<li><strong>云端/服务器</strong>上的部署，将模型作为一个线上服务进行部署。</li>
+<li><strong>移动端/设备端</strong>上的部署，就是将模型作为 SDK 进行部署。</li>
+</ul>
+<p>本文主要探讨模型作为一个线上服务进行部署。</p>
+<h1 id="作为线上服务部署"><a href="#作为线上服务部署" class="headerlink" title="作为线上服务部署"></a>作为线上服务部署</h1><p>把 AI 模型作为一个线上服务部署，就需要提供外界访问的接口：</p>
+<ul>
+<li><strong>Restful HTTP 接口</strong>，使用 Flask、Django 等构建 HTTP API 服务。</li>
+<li>RPC 接口，如 GRPC、Thrift 等。</li>
+</ul>
+<p>也可以使用深度学习框架 Serving 实现快速部署：Torch Serving、Tensorflow Serving、Triton 等。</p>
+<h1 id="服务优化"><a href="#服务优化" class="headerlink" title="服务优化"></a>服务优化</h1><p>模型部署涉及到了服务优化，例如内存占用太大怎么办、响应速度太慢怎么办，如何在线模型更新等等问题。</p>
+<h2 id="更小的内存占用"><a href="#更小的内存占用" class="headerlink" title="更小的内存占用"></a>更小的内存占用</h2><p>优化内存占用，有两个基本思路：</p>
+<ul>
+<li>模型的参数都需要保存在内存中？</li>
+<li>把模型变小。</li>
+</ul>
+<h3 id="分布式-kv-存储"><a href="#分布式-kv-存储" class="headerlink" title="分布式 kv 存储"></a>分布式 kv 存储</h3><p>如下图的模型结构，分为两个部分：</p>
+<ul>
+<li><strong>dense 网络：</strong>右侧深层网络，输入用户画像、用户行为序列等高级特征，结构较复杂。</li>
+<li><strong>sparse 网络：</strong>左侧浅层网络，输入用户或物料 id，结构非常简单。</li>
+</ul>
+<blockquote>
+<p>推荐模型中，由于用于、候选物料极多， <strong>sparse 网络的参数占模型参数的 99%<strong>。但是进行预测时，sparse 网络</strong>只有输入的用户和候选内容 ID 对应的节点参与运算</strong>，dense 网络<strong>大部分节点都参与运算</strong>。</p>
+</blockquote>
+<p><img src="/../images/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/image-20231030113409693.png" alt="image-20231030113409693"></p>
+<p>dense 网络每次计算都用到，且占用空间小，不适合独立存储；sparse 网络每次计算只用到很少一部分参数，适合独立存储。</p>
+<p>所以<strong>将 dense 网络存储在内存中，sparse 网络以分布式 kv 的方式进行存储</strong>。</p>
+<h3 id="压缩模型"><a href="#压缩模型" class="headerlink" title="压缩模型"></a>压缩模型</h3><p>多用于 NLP、CV 等领域，可以使用：</p>
+<ul>
+<li><strong>模型量化</strong>（把模型从浮点数变为整数 INT8）。</li>
+<li>蒸馏（将复杂的网络特征提取出来，迁移到参数量小的网络中）。</li>
+</ul>
+<p>压缩模型会使得模型的效果变差，要在模型效果和计算速度上进行 balance。</p>
+<h2 id="更快的推理速度"><a href="#更快的推理速度" class="headerlink" title="更快的推理速度"></a>更快的推理速度</h2><p>模型加速推理的优化方向：</p>
+<ul>
+<li><strong>算法层加速：</strong><ul>
+<li>训练前：选用轻量级的网络。</li>
+<li><strong>训练后加速</strong>。</li>
+</ul>
+</li>
+<li><strong>框架层加速</strong>：tensorRT 等。</li>
+<li><strong>硬件层加速：</strong>使用 GPU 而不是 CPU。</li>
+</ul>
+<h3 id="算法层加速-训练后加速"><a href="#算法层加速-训练后加速" class="headerlink" title="算法层加速 - 训练后加速"></a>算法层加速 - 训练后加速</h3><p>训练后加速方法：</p>
+<ul>
+<li>模型量化。</li>
+<li>模型蒸馏。</li>
+<li><strong>模型剪枝：</strong>去掉模型中不重要的参数。</li>
+</ul>
+<blockquote>
+<p><strong>模型剪枝可行性：</strong>研究表明，并不是所有的参数都在模型中发挥作用，部分参数作用有限、表达冗余，甚至会降低模型的性能。</p>
+<p><img src="/../images/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/image-20231030114328061.png" alt="image-20231030114328061"></p>
+</blockquote>
+<ul>
+<li><strong>模型拆分：</strong>模型按照计算逻辑拆分成几部分，推理时只需要计算部分模型，<strong>其他部分在合适时机提前计算、存储好</strong>。</li>
+</ul>
+<h3 id="框架层加速"><a href="#框架层加速" class="headerlink" title="框架层加速"></a>框架层加速</h3><p><strong>使用 tensorRT 等加速计算框架</strong>，可以合并网络结构、提高计算的并发度。</p>
+<h3 id="硬件加速"><a href="#硬件加速" class="headerlink" title="硬件加速"></a>硬件加速</h3><p>硬件加速就是<strong>使用 GPU 来进行推理</strong>，而不是使用 CPU。</p>
+<blockquote>
+<p>硬件加速并不是万能药，对于<strong>简单模型不适合硬件加速</strong>，I/O 耗时大于计算耗时。</p>
+</blockquote>
+<h2 id="更快的模型更新"><a href="#更快的模型更新" class="headerlink" title="更快的模型更新"></a>更快的模型更新</h2><p>模型热更新时，有<strong>模型文件大</strong>，<strong>加载时间长</strong>，<strong>加载/更新时不可用来预测</strong>的问题，所以通过<strong>加锁</strong>的方式解决模型热更新，会造成服务短暂<strong>不可用</strong>。</p>
+<h3 id="double-buffer-机制"><a href="#double-buffer-机制" class="headerlink" title="double buffer 机制"></a>double buffer 机制</h3><p>为了解决加锁时服务不可用的问题，所以可以<strong>在内存空间中保存两份模型</strong>，一份用于正常运行，另一份用于更新模型，模型更新完成后切换新模型进行预测。</p>
+<h3 id="online-learning-在线学习"><a href="#online-learning-在线学习" class="headerlink" title="online learning 在线学习"></a>online learning 在线学习</h3><p>在推荐领域经常用到，这里只是提出来不做详细解释。</p>
+<p><img src="/../images/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/image-20231030115700729.png" alt="image-20231030115700729"></p>
+<h2 id="可维护性-amp-开发效率提升"><a href="#可维护性-amp-开发效率提升" class="headerlink" title="可维护性 &amp; 开发效率提升"></a>可维护性 &amp; 开发效率提升</h2><h3 id="Serving-框架"><a href="#Serving-框架" class="headerlink" title="Serving 框架"></a>Serving 框架</h3><p>成熟的 Serving 框架可以简化开发，提供包括但不限于以下：</p>
+<ul>
+<li>对外暴露 HTTP/GRPC 接口。</li>
+<li>模型版本管理。</li>
+<li>动态 batch。</li>
+</ul>
+<h3 id="A-B-实验"><a href="#A-B-实验" class="headerlink" title="A/B 实验"></a>A/B 实验</h3><p>部署多个模型服务，用于接收 client 的请求，通过流量控制实现 A/B 实验。</p>
+<p><img src="/../images/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/image-20231030120530335.png" alt="image-20231030120530335"></p>
+<h3 id="MLOps"><a href="#MLOps" class="headerlink" title="MLOps"></a>MLOps</h3><p><strong>MLOps = ML + Dev + Ops</strong>，MLOps 的原则：</p>
+<ul>
+<li>Automation：环节尽可能自动化</li>
+<li>Continuous：模型的持续集成、持续部署、持续监控、持续训练</li>
+<li>Versioning：代码、数据、模型的版本管理</li>
+<li>Experiment Tracking：实验记录</li>
+<li>Testing：数据、模型、应用的自动化测试</li>
+<li>Monitoring：输入数据、模型输出的监控、降级</li>
+<li>Reproducibility：减少随机性，保证可复现</li>
+</ul>
+<p><img src="/../images/%E6%A8%A1%E5%9E%8B%E6%98%AF%E5%A6%82%E4%BD%95%E9%83%A8%E7%BD%B2%E5%9C%A8%E7%BA%BF%E4%B8%8A%E7%9A%84/image-20231030120327944.png" alt="image-20231030120327944"></p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/10/23/Istio%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-8-Pilot-xDS%E5%BC%82%E6%AD%A5%E5%88%86%E5%8F%91/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -992,97 +1151,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/10/07/Kubernetes%E5%AD%A6%E4%B9%A0-10-%E8%AE%A4%E8%AF%81%E5%92%8C%E6%8E%88%E6%9D%83/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/10/07/Kubernetes%E5%AD%A6%E4%B9%A0-10-%E8%AE%A4%E8%AF%81%E5%92%8C%E6%8E%88%E6%9D%83/" class="post-title-link" itemprop="url">Kubernetes学习 (10) 认证和授权</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-10-07 11:50:38" itemprop="dateCreated datePublished" datetime="2023-10-07T11:50:38+08:00">2023-10-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Kubernetes学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h1><p>在 Kubernetes API 服务器中，<strong>使用 ServiceAcount 进行认证</strong>。在 Pod 中如果没有指定 ServiceAcount 则会使用<strong>默认</strong>的 ServcieAcount。</p>
-<blockquote>
-<p>在 Pod 中，认证 token 被存储在 /var/run/secrets/kubernetes.io/serviceaccount/token 文件中，这个文件通过加密卷挂载进每个容器的文件系统中。</p>
-</blockquote>
-<h2 id="ServiceAcount-资源"><a href="#ServiceAcount-资源" class="headerlink" title="ServiceAcount 资源"></a>ServiceAcount 资源</h2><p>ServiceAcount 在 K8s 中也是一种<strong>资源</strong>，在每一个 namespace 中都有一个默认的 ServiceAcount，Pod 使用在<strong>同一命名空间中的 ServiceAcount 进行认证</strong>。spec.serviceAccountName 字段可以指定 ServiceAcount。</p>
-<p>API 服务器在收到 token 时会<strong>认证 token 属于哪一个 ServiceAcount</strong>，进而<strong>使用 RBAC 插件进行授权</strong>。</p>
-<h1 id="授权"><a href="#授权" class="headerlink" title="授权"></a>授权</h1><p>Kubernetes 使用 RBAC 插件进行授权，RBAC 插件检查用户的动作是否可以被执行。</p>
-<h2 id="动词"><a href="#动词" class="headerlink" title="动词"></a>动词</h2><p>RBAC 插件中的动作与 Restful HTTP 请求方法对应，动作包括 get、list、create、update、patch、delete、deletecollection。</p>
-<p><img src="/../images/Kubernetes%E5%AD%A6%E4%B9%A0-10-%E8%AE%A4%E8%AF%81%E5%92%8C%E6%8E%88%E6%9D%83/image-20231007122832271.png" alt="image-20231007122832271"></p>
-<p>RBAC 动作针对<strong>某一类资源</strong>，也可以指定某个资源实例，甚至是<strong>非资源的 URL 路径</strong>（因为并不是 API 服务器对外暴露的每个路径都映射到一个资源，如 /api 路径本身或服务器健康信息路径 /healthz）。</p>
-<h2 id="RBAC-资源"><a href="#RBAC-资源" class="headerlink" title="RBAC 资源"></a>RBAC 资源</h2><p>RBAC 授权规则是通过四种资源来进行配置的，可以分为两组：</p>
-<ul>
-<li><strong>Role 和 ClusterRole：</strong>指定可以<strong>在资源上执行哪些动词</strong>。</li>
-<li><strong>RoleBinding 和 ClusterRoleBinding：</strong>将上述角色<strong>绑定到 ServiceAcount 上</strong>。</li>
-</ul>
-<blockquote>
-<p>前缀是否有 Cluster，<strong>区别</strong>在于：是否是<strong>集群级别</strong>的资源。</p>
-</blockquote>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1152,7 +1220,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">416</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

@@ -158,6 +158,132 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-12-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-12-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">Simple-Redis实现 (12) 分布式事务</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-12 16:16:13" itemprop="dateCreated datePublished" datetime="2023-12-12T16:16:13+08:00">2023-12-12</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
+<p>Simple-Redis 是支持分布式事务的，采用 TCC（Try-Commit-Cancel）实现分布式事务，以当前节点为<strong>事务协调者</strong>，控制分布在其他节点的<strong>本地事务</strong>。所以 Simple-Redis 的分布式事务实现包括两个部分：</p>
+<ul>
+<li>事务协调者：一个分布式事务的控制器。</li>
+<li>本地事务：用于执行命令，并进行 commit 或者 cancel。</li>
+</ul>
+<h1 id="事务协调者"><a href="#事务协调者" class="headerlink" title="事务协调者"></a>事务协调者</h1><h2 id="定义"><a href="#定义" class="headerlink" title="定义"></a>定义</h2><p>TCC 事务协调者定义如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Coordinator TCC事务协调者</span></span><br><span class="line"><span class="keyword">type</span> Coordinator <span class="keyword">struct</span> &#123;</span><br><span class="line">    id      <span class="keyword">string</span>                        <span class="comment">// 事务id</span></span><br><span class="line">    dbIndex <span class="keyword">int</span>                           <span class="comment">// 数据库id</span></span><br><span class="line">    self    <span class="keyword">string</span>                        <span class="comment">// 自己的地址</span></span><br><span class="line">    peers   cluster.PeerPicker            <span class="comment">// 一致性哈希，用于选择节点</span></span><br><span class="line">    getters <span class="keyword">map</span>[<span class="keyword">string</span>]cluster.PeerGetter <span class="comment">// 用于和远程节点通信</span></span><br><span class="line"></span><br><span class="line">    watching <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// key为peer地址，记录被watch的key的版本号</span></span><br><span class="line"></span><br><span class="line">    cmdLinesNum <span class="keyword">int</span></span><br><span class="line">    indexMap    <span class="keyword">map</span>[<span class="keyword">string</span>][]<span class="keyword">int</span> <span class="comment">// key为peer，value为cmdline在原来multi队列中的下标，用于重组reply</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h2><p>一次分布式事务的流程如下：</p>
+<ul>
+<li>对命令和 watch 的 key，按照节点的不同进行<strong>分组</strong>。</li>
+<li>对每一组节点<strong>发送 try 命令</strong>，try 命令比较复杂又分为几个子命令：<ul>
+<li>try start：通知节点有新建一个本地分布式事务。</li>
+<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
+<li>try xxx：依次发送在该节点上执行的命令。</li>
+<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
+</ul>
+</li>
+<li>对每一组节点<strong>发送 commit 或者 cancel 命令</strong>。</li>
+<li><strong>重组</strong>事务的返回结果，按照正常的顺序进行返回。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ExecTx 执行TCC分布式事务</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(coordinator *Coordinator)</span> <span class="title">ExecTx</span><span class="params">(cmdLines [][][]<span class="keyword">byte</span>, watching <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="comment">// 首先对命令进行分组，以同一个节点上执行的所有命令为一组</span></span><br><span class="line">    groupByMap := coordinator.groupByCmdLines(cmdLines)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对watch的key进行分组</span></span><br><span class="line">    coordinator.groupByWatch(watching)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对每一组中发送try命令</span></span><br><span class="line">    needCancel := <span class="literal">false</span> <span class="comment">// 记录是否需要回滚</span></span><br><span class="line">    <span class="keyword">for</span> peer, cmd := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">       r := coordinator.sendTry(peer, cmd)</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          needCancel = <span class="literal">true</span></span><br><span class="line">          <span class="keyword">break</span></span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 返回之前发送end消息，通知各个分布式节点结束事务</span></span><br><span class="line">       <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">          coordinator.sendEnd(peer)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 向各个节点提交/回滚分布式事务</span></span><br><span class="line">    replies := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]redis.Reply)</span><br><span class="line">    <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">       <span class="keyword">if</span> needCancel &#123;</span><br><span class="line">          <span class="comment">// 取消事务</span></span><br><span class="line">          coordinator.sendCancel(peer)</span><br><span class="line">       &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="comment">// 提交事务</span></span><br><span class="line">          r := coordinator.sendCommit(peer)</span><br><span class="line">          <span class="keyword">if</span> config.Properties.OpenAtomicTx &amp;&amp; reply.IsErrorReply(r) &#123;</span><br><span class="line">             <span class="comment">// 如果开启了原子事务并且提交发生了错误，则进行所有的节点进行回滚</span></span><br><span class="line">             needCancel = <span class="literal">true</span></span><br><span class="line">             <span class="keyword">break</span></span><br><span class="line">          &#125;</span><br><span class="line">          replies[peer] = r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果开启了原子事务，并且发生了错误，所有节点进行回滚</span></span><br><span class="line">    <span class="keyword">if</span> needCancel &amp;&amp; config.Properties.OpenAtomicTx &#123;</span><br><span class="line">       <span class="keyword">for</span> peer := <span class="keyword">range</span> groupByMap &#123;</span><br><span class="line">          <span class="comment">// 取消事务，进行回滚</span></span><br><span class="line">          coordinator.sendCancel(peer)</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;EXECABORT Transaction rollback because of errors during executing. (atomic tx is open)&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> needCancel &#123;</span><br><span class="line">       <span class="comment">// 没有开启原子事务，但是发送了错误（如watch的key变化了），则返回(nil)</span></span><br><span class="line">       <span class="keyword">return</span> reply.MakeNullBulkStringReply()</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 正常提交，重组reply</span></span><br><span class="line">    <span class="keyword">return</span> coordinator.recombineReplies(replies)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="try"><a href="#try" class="headerlink" title="try"></a>try</h3><p>try 命令比较复杂，分为几个子命令：</p>
+<ul>
+<li>try start：通知节点有新建一个本地分布式事务。</li>
+<li>try watched：发送 wath 时的 version，比较 version 是否发生变化。</li>
+<li>try xxx：依次发送在该节点上执行的命令。</li>
+<li>try end：通知 try 阶段已经结束，本地事务检查版本是否变化、锁定相关的 key。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(coordinator *Coordinator)</span> <span class="title">sendTry</span><span class="params">(peer <span class="keyword">string</span>, cmdLines [][][]<span class="keyword">byte</span>)</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="comment">// 获取getter</span></span><br><span class="line">    getter := coordinator.getters[peer]</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> r redis.Reply</span><br><span class="line">    <span class="comment">// 发送try开始命令</span></span><br><span class="line">    r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;start&quot;</span>))</span><br><span class="line">    <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">       <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">       <span class="keyword">return</span> r</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送watch时的version，比较version是否发生变化</span></span><br><span class="line">    watching := coordinator.watching[peer]</span><br><span class="line">    <span class="keyword">for</span> key, version := <span class="keyword">range</span> watching &#123;</span><br><span class="line">       versionStr := strconv.FormatInt(<span class="keyword">int64</span>(version), <span class="number">10</span>)</span><br><span class="line">       r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;watched&quot;</span>, key, versionStr))</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 如果发生变化，则中断try，直接返回</span></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 依次发送需要执行的命令，每一条命令=try tx_id cmdline，如 try 123456 set k1 v1</span></span><br><span class="line">    <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> cmdLines &#123;</span><br><span class="line">       tryCmd := <span class="built_in">make</span>([][]<span class="keyword">byte</span>, <span class="number">0</span>, <span class="number">2</span>+<span class="built_in">len</span>(cmdLine))</span><br><span class="line">       tryCmd = <span class="built_in">append</span>(tryCmd, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id)...)</span><br><span class="line">       tryCmd = <span class="built_in">append</span>(tryCmd, cmdLine...)</span><br><span class="line">       r = getter.RemoteExec(coordinator.dbIndex, tryCmd)</span><br><span class="line">       <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送try结束命令</span></span><br><span class="line">    r = getter.RemoteExec(coordinator.dbIndex, utils.StringsToCmdLine(<span class="string">&quot;try&quot;</span>, coordinator.id, <span class="string">&quot;end&quot;</span>))</span><br><span class="line">    <span class="keyword">if</span> reply.IsErrorReply(r) &#123;</span><br><span class="line">       <span class="comment">// 如果发生错误，则中断try，直接返回</span></span><br><span class="line">       <span class="keyword">return</span> r</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="本地事务"><a href="#本地事务" class="headerlink" title="本地事务"></a>本地事务</h1><p>本地事务就是分布式事务在节点上的实际执行者，下面是本地事务的定义：</p>
+<ul>
+<li>watchedKeys 对应 try watched 命令，记录 watch 时的版本，用于在执行时进行版本比较。</li>
+<li>cmdLines 对应 try xxx 命令，记录当前节点的本地事务中，包含的所有需要执行的命令。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Transaction TCC本地事务</span></span><br><span class="line"><span class="keyword">type</span> Transaction <span class="keyword">struct</span> &#123;</span><br><span class="line">    id    <span class="keyword">string</span> <span class="comment">// 事务id</span></span><br><span class="line">    phase <span class="keyword">int</span>    <span class="comment">// 阶段，分别是try、commit、cancel三个阶段</span></span><br><span class="line"></span><br><span class="line">    writeKeys   []<span class="keyword">string</span></span><br><span class="line">    readKeys    []<span class="keyword">string</span></span><br><span class="line">    watchedKeys <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// 记录watch时的版本</span></span><br><span class="line"></span><br><span class="line">    cmdLines       [][][]<span class="keyword">byte</span>   <span class="comment">// 本次事务中包含的命令</span></span><br><span class="line">    undoLogs       [][][][]<span class="keyword">byte</span> <span class="comment">// 本次事务的undo log</span></span><br><span class="line">    addVersionKeys []<span class="keyword">string</span>     <span class="comment">// 需要增加版本的key</span></span><br><span class="line"></span><br><span class="line">    db *engine.DB</span><br><span class="line"></span><br><span class="line">    mu sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Try"><a href="#Try" class="headerlink" title="Try"></a>Try</h2><p>在收到 try end 命令后，表明 try 阶段已经结束，此时本地事务：</p>
+<ul>
+<li>锁定需要读写的 key。</li>
+<li>在在时间轮中添加任务, 自动回滚超时未提交的事务。</li>
+<li>读取版本是否变化，如果有变化则返回错误。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Try TCC事务的结束try阶段，锁定key</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Try</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    <span class="keyword">if</span> tx.phase != phaseTry &#123;</span><br><span class="line">       <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;ERR TRY ERROR&quot;</span>)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 锁定需要读写的key</span></span><br><span class="line">    tx.db.RWLocks(tx.writeKeys, tx.readKeys)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 在时间轮中添加任务, 自动回滚超时未提交的事务</span></span><br><span class="line">    taskKey := tx.id</span><br><span class="line">    timewheel.Delay(maxLockTime, taskKey, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="keyword">if</span> tx.phase == phaseTry &#123;</span><br><span class="line">          logger.Info(<span class="string">&quot;abort transaction: &quot;</span> + tx.id)</span><br><span class="line">          _ = tx.Cancel()</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取版本是否变化</span></span><br><span class="line">    <span class="keyword">for</span> key, oldVersion := <span class="keyword">range</span> tx.watchedKeys &#123;</span><br><span class="line">       newVersion := tx.db.GetVersion(key)</span><br><span class="line">       <span class="keyword">if</span> oldVersion != newVersion &#123;</span><br><span class="line">          <span class="comment">// 获取key的版本，如果版本变化了，则返回错误</span></span><br><span class="line">          <span class="keyword">return</span> reply.MakeErrReply(<span class="string">&quot;ERR VERSION CHANGED&quot;</span>)</span><br><span class="line">       &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Commit"><a href="#Commit" class="headerlink" title="Commit"></a>Commit</h2><p>在本地事务收到 commit 命令后，会执行命令，（如果开启原子事务）并记录 undolog。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Commit TCC事务的commit阶段</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Commit</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    tx.mu.Lock() <span class="comment">// Commit互斥进行操作，防止commit时调用cancel，发生冲突</span></span><br><span class="line">    <span class="keyword">defer</span> tx.mu.Unlock()</span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 设置阶段</span></span><br><span class="line">       tx.phase = phaseCommit</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 依次执行命令</span></span><br><span class="line">    <span class="keyword">var</span> results [][]<span class="keyword">byte</span> <span class="comment">// 存储命令执行的结果</span></span><br><span class="line">    <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> tx.cmdLines &#123;</span><br><span class="line">       cmdName := <span class="keyword">string</span>(cmdLine[<span class="number">0</span>])</span><br><span class="line">       key := <span class="keyword">string</span>(cmdLine[<span class="number">1</span>])</span><br><span class="line">       <span class="keyword">if</span> !engine.IsReadOnlyCommand(cmdName) &#123;</span><br><span class="line">          <span class="comment">// 写命令，则记录需要add版本的key</span></span><br><span class="line">          tx.addVersionKeys = <span class="built_in">append</span>(tx.addVersionKeys, key)</span><br><span class="line">          <span class="keyword">if</span> config.Properties.OpenAtomicTx &#123;</span><br><span class="line">             <span class="comment">// 开启了原子性事务，则记录undo log</span></span><br><span class="line">             tx.undoLogs = <span class="built_in">append</span>(tx.undoLogs, tx.db.GetUndoLog(key))</span><br><span class="line">          &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// 执行命令</span></span><br><span class="line">       r := tx.db.ExecWithLock(cmdLine)</span><br><span class="line"></span><br><span class="line">       <span class="keyword">if</span> config.Properties.OpenAtomicTx &amp;&amp; reply.IsErrorReply(r) &#123;</span><br><span class="line">          <span class="comment">// 开启了原子性事务，并且如果发生错误，直接返回错误</span></span><br><span class="line">          <span class="keyword">if</span> !engine.IsReadOnlyCommand(cmdName) &#123;</span><br><span class="line">             <span class="comment">// 删除错误命令的undo log，不需要增加版本号</span></span><br><span class="line">             tx.addVersionKeys = tx.addVersionKeys[:<span class="built_in">len</span>(tx.addVersionKeys)<span class="number">-1</span>]</span><br><span class="line">             tx.undoLogs = tx.undoLogs[:<span class="built_in">len</span>(tx.undoLogs)<span class="number">-1</span>]</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          <span class="keyword">return</span> r</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       results = <span class="built_in">append</span>(results, []<span class="keyword">byte</span>(r.DataString()))</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeMultiBulkStringReply(results)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Cancel"><a href="#Cancel" class="headerlink" title="Cancel"></a>Cancel</h2><p>在收到 cancel 命令后，（如果开启原子性事务）会执行 undo log 进行回滚。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Cancel TCC事务的cancel阶段</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(tx *Transaction)</span> <span class="title">Cancel</span><span class="params">()</span> <span class="title">redis</span>.<span class="title">Reply</span></span> &#123;</span><br><span class="line">    tx.mu.Lock() <span class="comment">// Cancel互斥进行操作，防止commit时调用cancel，发生冲突</span></span><br><span class="line">    <span class="keyword">defer</span> tx.mu.Unlock()</span><br><span class="line">    <span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">       <span class="comment">// 设置阶段</span></span><br><span class="line">       tx.phase = phaseCancel</span><br><span class="line">    &#125;()</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 从后向前依次执行undo日志，只有开启原子性事务时，len(tx.undoLogs)才可能大于0</span></span><br><span class="line">    <span class="keyword">for</span> i := <span class="built_in">len</span>(tx.undoLogs) - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i-- &#123;</span><br><span class="line">       undoLog := tx.undoLogs[i]</span><br><span class="line">       <span class="keyword">if</span> <span class="built_in">len</span>(undoLog) == <span class="number">0</span> &#123;</span><br><span class="line">          <span class="keyword">continue</span></span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">for</span> _, cmdLine := <span class="keyword">range</span> undoLog &#123;</span><br><span class="line">          tx.db.ExecWithLock(cmdLine)</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 清空</span></span><br><span class="line">    tx.undoLogs = <span class="literal">nil</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> reply.MakeOkReply()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/12/Simple-Redis%E5%AE%9E%E7%8E%B0-11-%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1009,97 +1135,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/" class="post-title-link" itemprop="url">Simple-Redis实现 (2) 客户端</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-12-11 21:44:30" itemprop="dateCreated datePublished" datetime="2023-12-11T21:44:30+08:00">2023-12-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
-<h1 id="客户端连接"><a href="#客户端连接" class="headerlink" title="客户端连接"></a>客户端连接</h1><p>在上一篇文章中，Handler 在 Handle 方法中，对于一个新的连接 conn 要初始化一个<strong>客户端与服务器连接的抽象 connect.Connection</strong>。这个结构体定义在 redis/connection/conn.go 中。</p>
-<h2 id="Connection-结构体"><a href="#Connection-结构体" class="headerlink" title="Connection 结构体"></a>Connection 结构体</h2><p>Connection 的结构体定义如下，有一些字段需要说明：</p>
-<ul>
-<li><strong>sendingData：</strong>用于优雅的结束连接。当结束连接时会等待，直到数据发送完成或者超时。</li>
-<li>password：当配置了 password 后，当发送 auth 命令时就会修改这个字段，数据库服务器就会检查这个字段是否是正确的。</li>
-<li><strong>selectedDB：</strong>当客户端发送 select 命令时，就会修改此字段的值，用于控制当前客户端处于哪个数据库中。</li>
-<li>isMulti，queue，syntaxErrQueue，watching，TxID：与事务相关的字段。</li>
-<li>subscribeChannels：记录客户端订阅的频道。</li>
-</ul>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Connection represents a connection with a client</span></span><br><span class="line"><span class="keyword">type</span> Connection <span class="keyword">struct</span> &#123;</span><br><span class="line">   conn net.Conn</span><br><span class="line"></span><br><span class="line">   <span class="comment">// wait until finish sending data, used for graceful shutdown</span></span><br><span class="line">   sendingData wait.Wait</span><br><span class="line"></span><br><span class="line">   <span class="comment">// lock while server sending response</span></span><br><span class="line">   mu sync.Mutex</span><br><span class="line"></span><br><span class="line">   <span class="comment">// password may be changed by CONFIG command during runtime, so store the password</span></span><br><span class="line">   password <span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// selected db</span></span><br><span class="line">   selectedDB <span class="keyword">int</span></span><br><span class="line"></span><br><span class="line">   isMulti        <span class="keyword">bool</span>              <span class="comment">// 表明是否在 multi 开启事务中</span></span><br><span class="line">   queue          [][][]<span class="keyword">byte</span>        <span class="comment">// 事务中排队的命令</span></span><br><span class="line">   syntaxErrQueue []redis.Reply     <span class="comment">// 事务中的语法错误</span></span><br><span class="line">   watching       <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// 正在WATCH的key值</span></span><br><span class="line">   TxID           <span class="keyword">string</span>            <span class="comment">// 事务ID，在分布式事务中用到</span></span><br><span class="line"></span><br><span class="line">   subscribeChannels <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125; <span class="comment">// 订阅的频道</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1169,7 +1204,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">416</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

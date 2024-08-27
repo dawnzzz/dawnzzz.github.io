@@ -158,6 +158,127 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/" class="post-title-link" itemprop="url">凤凰架构笔记 (3) 透明多级分流系统之缓存</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-07 15:58:30" itemprop="dateCreated datePublished" datetime="2023-06-07T15:58:30+08:00">2023-06-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="客户端缓存"><a href="#客户端缓存" class="headerlink" title="客户端缓存"></a>客户端缓存</h1><p>客户端缓存依赖于 HTTP 缓存机制，通过 HTTP Header 控制。</p>
+<h2 id="强制缓存"><a href="#强制缓存" class="headerlink" title="强制缓存"></a>强制缓存</h2><p>HTTP 强制缓存<strong>规定了一个过期时间</strong>，在这个时间点之前客户端可以不发出请求，直接使用本地缓存。</p>
+<p>根据约定，强制缓存在浏览器的地址输入、页面链接跳转、新开窗口、前进和后退中均可生效，但在用户主动<strong>刷新</strong>页面时应当自动<strong>失效</strong>。</p>
+<p>两类 HTTP Header 保证了强制缓存：</p>
+<ul>
+<li><strong>Expires：</strong>Expires 是 HTTP 1.0 提供的 Header，后面跟随一个截止时间用于定于缓存的有效时间。</li>
+</ul>
+<blockquote>
+<p>Expires 有设计缺陷：</p>
+<ul>
+<li>受限于客户端的本地时间。</li>
+<li>无法处理涉及客户端身份的私有资源。</li>
+<li>无法描述不缓存。</li>
+</ul>
+</blockquote>
+<ul>
+<li><strong>Cache-Control：</strong>Cache-Control 是 HTTP 1.1 种定义的 Header，如果 Cache-Control 和 Expires 同时存在，并且语义存在冲突，规定必须以 Cache-Control 为准。它有一系列参数：<ul>
+<li><strong>max-age 和 s-maxage：</strong>max-age 后面跟随一个以秒为单位的数字，表明相对于请求时间多少秒以内缓存是有效的。s-maxage 中的 s 为 Share，即允许被 CDN、代理等持有的缓存有效时间。</li>
+<li><strong>public 和 private：</strong>指明是否涉及到用户身份的私有资源，如果是 public，则可以被代理、CDN 等缓存，如果是 private，则只能由用户的客户端进行私有缓存。</li>
+<li><strong>no-cache 和 no-store：</strong>no-cache 指明该资源不应该被缓存，如果一个页面中引用了两张相同的图片，则会请求两次。no-store 指不能保存在本地，但是用一个页面中引用了两张相同的图片，只会请求一次。</li>
+<li><strong>no-transform：</strong>禁止资源被任何形式地修改。某些 CDN、透明代理支持自动 GZip 压缩图片或文本，以提升网络性能，而 no-transform 就禁止了这样的行为。</li>
+<li><strong>min-fresh 和 only-if-cached：</strong>这两个参数是仅用于客户端的请求 Header。min-fresh 后续跟随一个以秒为单位的数字，用于建议服务器能返回一个不少于该时间的缓存资源。only-if-cached 表示客户端要求不必给它发送资源的具体内容，此时客户端就仅能使用事先缓存的资源来进行响应，若缓存不能命中，就直接返回 503/Service Unavailable 错误。</li>
+</ul>
+</li>
+</ul>
+<h2 id="协商缓存"><a href="#协商缓存" class="headerlink" title="协商缓存"></a>协商缓存</h2><p><strong>强制缓存</strong>有一个缓存过期时间，<strong>没有一个检测变化的机制</strong>，如果缓存还没有过期即使内容发生变化，客户端也不会向服务器请求而是使用本地缓存。</p>
+<p><strong>协商缓存</strong>在一致性上有更好的表现，但是<strong>性能</strong>上会<strong>差一些</strong>，因为需要<strong>一次检测变化的开销</strong>。</p>
+<blockquote>
+<p>强制缓存和协商缓存是完全<strong>并行工作</strong>的，当强制缓存存在时，直接从强制缓存中返回资源，无须进行变动检查；而当强制缓存超过时效，或者被禁止（no-cache）时，协商缓存依然可以工作。</p>
+</blockquote>
+<p>协商缓存有两种变化检测机制，分别是根据资源的<strong>修改时间</strong>、以及根据资源<strong>唯一标识符</strong>进行检查。</p>
+<ul>
+<li><strong>Last-Modified 和 If-Modified-Since：</strong>服务器通过 Last-Modified 告诉客户端资源最后修改时间，客户端通过 If-Modified-Since 将这个时间回送给服务器。</li>
+<li><strong>Etag 和 If-None-Match：</strong>服务器通过 Etag 告诉客户端这个资源的唯一标识符，客户端通过 If-None-Match 将这个唯一标识符回送给服务器。</li>
+</ul>
+<p>如果此时服务端发现资源<strong>没有变动</strong>（通过最后修改时间或者唯一标识符），就只要<strong>返回一个 304/Not Modified 的响应</strong>即可，无须附带消息体。如果发现<strong>有变动</strong>，则<strong>返回 200 并携带完整内容</strong>。</p>
+<blockquote>
+<p>Last-Modified 只能精确到秒级，如果一秒之内发生了多次变化，则不能准确标注修改时间。</p>
+</blockquote>
+<p>HTTP Vary Header 在响应中，用于<strong>指定其他 HTTP 头部作为客户端缓存命中的依据</strong>，如下表示根据 MIME 类型和浏览器类型来缓存资源。</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Vary</span><span class="punctuation">: </span>Accept, User-Agent</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/05/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-2-%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1099,97 +1220,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/" class="post-title-link" itemprop="url">微服务架构设计模式 (4) 使用Saga管理事务</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-05-18 16:58:39" itemprop="dateCreated datePublished" datetime="2023-05-18T16:58:39+08:00">2023-05-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" itemprop="url" rel="index"><span itemprop="name">微服务架构设计模式</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Saga-分布式事务"><a href="#Saga-分布式事务" class="headerlink" title="Saga 分布式事务"></a>Saga 分布式事务</h1><p>Saga 是一种分布式事务实现方式，Saga 通过<strong>异步消息</strong>来协调<strong>一系列的本地事务</strong>，从而维护多个服务之间的数据一致性。</p>
-<blockquote>
-<p>异步消息的一个重要好处就是<strong>确保 Saga 的所有步骤都被执行</strong>，即使一个或者多个 Saga 的参与方暂时不可用。</p>
-</blockquote>
-<p>Saga 缺少了 ACID 事务中的隔离性。此外，因为每个本地事务都提交了更改，必须使用<strong>补偿事务（只有修改操作有补偿事务）</strong>回滚 Saga。</p>
-<p>在 Saga 的一系列的步骤中，若前 N 个步骤后面跟着的步骤可能失败，称为<strong>可补偿性事务</strong>。第 N+1 个步骤后面全部都是不可能失败的步骤，称 N+1 步骤为<strong>关键性事务</strong>。关键性之后的步骤称之为<strong>可重复性事务</strong>。</p>
-<h2 id="Saga-的协调模式"><a href="#Saga-的协调模式" class="headerlink" title="Saga 的协调模式"></a>Saga 的协调模式</h2><p>Saga 由一些列本地事务组成，如何协调 Saga 中一系列的本地事务进行下一步操作还是执行补偿事务尤为关键，总共有两种方式：</p>
-<ul>
-<li><strong>协同式：</strong>把 Saga 的决策和执行顺序<strong>分布在 Saga 的每一个参与方中</strong>，它们通过交换事件的方式进行沟通。</li>
-<li><strong>编排式：</strong>将 Saga 的决策和执行顺序集中在一个<strong>集中的编排器</strong>中，编排器发送消息给各个Saga 参与方。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/05/18/%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F-4-%E4%BD%BF%E7%94%A8Saga%E7%AE%A1%E7%90%86%E4%BA%8B%E5%8A%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1259,7 +1289,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">416</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

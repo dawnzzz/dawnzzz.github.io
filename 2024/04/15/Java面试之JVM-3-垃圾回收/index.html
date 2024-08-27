@@ -33,7 +33,7 @@
 <meta property="og:image" content="http://dawnzzz.github.io/images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/cms-garbage-collector.png">
 <meta property="og:image" content="http://dawnzzz.github.io/images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/g1-garbage-collector.png">
 <meta property="article:published_time" content="2024-04-15T02:36:12.000Z">
-<meta property="article:modified_time" content="2024-04-15T07:48:13.233Z">
+<meta property="article:modified_time" content="2024-07-27T13:26:35.053Z">
 <meta property="article:author" content="DawnZH">
 <meta property="article:tag" content="Java">
 <meta name="twitter:card" content="summary">
@@ -190,10 +190,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2024-04-15 10:36:12 / 修改时间：15:48:13" itemprop="dateCreated datePublished" datetime="2024-04-15T10:36:12+08:00">2024-04-15</time>
+              <time title="创建时间：2024-04-15 10:36:12" itemprop="dateCreated datePublished" datetime="2024-04-15T10:36:12+08:00">2024-04-15</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-07-27 21:26:35" itemprop="dateModified" datetime="2024-07-27T21:26:35+08:00">2024-07-27</time>
+              </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
                 <i class="far fa-folder"></i>
@@ -313,7 +319,8 @@
 <h3 id="Parallel-Scavenge-Parallel-Old-收集器"><a href="#Parallel-Scavenge-Parallel-Old-收集器" class="headerlink" title="Parallel Scavenge/Parallel Old 收集器"></a>Parallel Scavenge/Parallel Old 收集器</h3><p><strong>Parallel Scavenge 收集器是负责年轻代的垃圾回收</strong>，也是使用<strong>标记-复制</strong>算法的多线程收集器。Parallel Scavenge 收集器关注点是吞吐量，CMS 等垃圾收集器的关注点更多的是用户线程的停顿时间（提高用户体验）。Parallel Scavenge 收集器提供了很多参数供用户找到最合适的停顿时间或最大吞吐量，如果对于收集器运作不太了解，手工优化存在困难的时候，使用 Parallel Scavenge 收集器配合自适应调节策略，把内存管理优化交给虚拟机去完成也是一个不错的选择。</p>
 <p><strong>Parallel Old 是 Parallel Scavenge 收集器的老年代版本</strong>。使用多线程和<strong>标记-整理</strong>算法。</p>
 <p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/parallel-scavenge-garbage-collector.png" alt="Parallel Old收集器运行示意图"></p>
-<h3 id="CMS-收集器"><a href="#CMS-收集器" class="headerlink" title="CMS 收集器"></a>CMS 收集器</h3><p><strong>CMS（Concurrent Mark Sweep）收集器是一种以获取最短回收停顿时间为目标的收集器。它非常符合在注重用户体验的应用上使用。</strong></p>
+<h3 id="CMS-收集器"><a href="#CMS-收集器" class="headerlink" title="CMS 收集器"></a>CMS 收集器</h3><p>CMS 主要关注<strong>老年代</strong>的对象收集，ParNew 作为年轻代的对象收集配合使用。</p>
+<p><strong>CMS（Concurrent Mark Sweep）收集器是一种以获取最短回收停顿时间为目标的收集器。它非常符合在注重用户体验的应用上使用。</strong></p>
 <p><strong>CMS（Concurrent Mark Sweep）收集器是 HotSpot 虚拟机第一款真正意义上的并发收集器，它第一次实现了让垃圾收集线程与用户线程（基本上）同时工作。</strong></p>
 <p>CMS 收集器是一种<strong>标记-清除算法</strong>实现的，它的运作过程相比于前面几种垃圾收集器来说更加复杂一些。整个过程分为四个步骤：</p>
 <ul>
@@ -322,13 +329,16 @@
 <li><strong>重新标记：</strong> 重新标记阶段就是为了修正并发标记期间因为用户程序继续运行而导致标记产生变动的那一部分对象的标记记录，这个阶段的停顿时间一般会比初始标记阶段的时间稍长，远远比并发标记阶段时间短。</li>
 <li><strong>并发清除：</strong> 开启用户线程，同时 GC 线程开始对未标记的区域做清扫。</li>
 </ul>
+<blockquote>
+<p>CMS 在并行标记阶段使用三色标记法+插入和删除写屏障，保证黑色节点不会指向白色节点。</p>
+</blockquote>
 <p>主要优点：<strong>并发收集、低停顿</strong>。但是它有下面三个明显的缺点：</p>
 <ul>
 <li><strong>对 CPU 资源敏感；</strong></li>
 <li><strong>无法处理浮动垃圾；</strong></li>
 <li><strong>它使用的回收算法-“标记-清除”算法会导致收集结束时会有大量空间碎片产生。</strong></li>
 </ul>
-<p><strong>从 JDK9 开始，CMS 收集器已被弃用。</strong></p>
+<p><strong>CMS 垃圾回收器在 Java 9 中已经被标记为过时(deprecated)，在 JDK 14 被移除。</strong></p>
 <p><img src="/../images/Java%E9%9D%A2%E8%AF%95%E4%B9%8BJVM-3-%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/cms-garbage-collector.png" alt="CMS 收集器"></p>
 <h3 id="G1-收集器"><a href="#G1-收集器" class="headerlink" title="G1 收集器"></a>G1 收集器</h3><p><strong>G1 (Garbage-First) 是一款面向服务器的垃圾收集器，主要针对配备多颗处理器及大容量内存的机器。以极高概率满足 GC 停顿时间要求的同时，还具备高吞吐量性能特征。</strong></p>
 <p>它具备以下特点：</p>
@@ -446,7 +456,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">416</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

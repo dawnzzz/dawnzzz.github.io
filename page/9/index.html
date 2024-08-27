@@ -158,6 +158,97 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/" class="post-title-link" itemprop="url">Simple-Redis实现 (2) 客户端</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-11 21:44:30" itemprop="dateCreated datePublished" datetime="2023-12-11T21:44:30+08:00">2023-12-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/simple-redis%E5%AE%9E%E7%8E%B0/" itemprop="url" rel="index"><span itemprop="name">simple-redis实现</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本项目完整地址 <a target="_blank" rel="noopener" href="https://github.com/dawnzzz/simple-redis">simple-redis</a></p>
+<h1 id="客户端连接"><a href="#客户端连接" class="headerlink" title="客户端连接"></a>客户端连接</h1><p>在上一篇文章中，Handler 在 Handle 方法中，对于一个新的连接 conn 要初始化一个<strong>客户端与服务器连接的抽象 connect.Connection</strong>。这个结构体定义在 redis/connection/conn.go 中。</p>
+<h2 id="Connection-结构体"><a href="#Connection-结构体" class="headerlink" title="Connection 结构体"></a>Connection 结构体</h2><p>Connection 的结构体定义如下，有一些字段需要说明：</p>
+<ul>
+<li><strong>sendingData：</strong>用于优雅的结束连接。当结束连接时会等待，直到数据发送完成或者超时。</li>
+<li>password：当配置了 password 后，当发送 auth 命令时就会修改这个字段，数据库服务器就会检查这个字段是否是正确的。</li>
+<li><strong>selectedDB：</strong>当客户端发送 select 命令时，就会修改此字段的值，用于控制当前客户端处于哪个数据库中。</li>
+<li>isMulti，queue，syntaxErrQueue，watching，TxID：与事务相关的字段。</li>
+<li>subscribeChannels：记录客户端订阅的频道。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Connection represents a connection with a client</span></span><br><span class="line"><span class="keyword">type</span> Connection <span class="keyword">struct</span> &#123;</span><br><span class="line">   conn net.Conn</span><br><span class="line"></span><br><span class="line">   <span class="comment">// wait until finish sending data, used for graceful shutdown</span></span><br><span class="line">   sendingData wait.Wait</span><br><span class="line"></span><br><span class="line">   <span class="comment">// lock while server sending response</span></span><br><span class="line">   mu sync.Mutex</span><br><span class="line"></span><br><span class="line">   <span class="comment">// password may be changed by CONFIG command during runtime, so store the password</span></span><br><span class="line">   password <span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">   <span class="comment">// selected db</span></span><br><span class="line">   selectedDB <span class="keyword">int</span></span><br><span class="line"></span><br><span class="line">   isMulti        <span class="keyword">bool</span>              <span class="comment">// 表明是否在 multi 开启事务中</span></span><br><span class="line">   queue          [][][]<span class="keyword">byte</span>        <span class="comment">// 事务中排队的命令</span></span><br><span class="line">   syntaxErrQueue []redis.Reply     <span class="comment">// 事务中的语法错误</span></span><br><span class="line">   watching       <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">uint32</span> <span class="comment">// 正在WATCH的key值</span></span><br><span class="line">   TxID           <span class="keyword">string</span>            <span class="comment">// 事务ID，在分布式事务中用到</span></span><br><span class="line"></span><br><span class="line">   subscribeChannels <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">struct</span>&#123;&#125; <span class="comment">// 订阅的频道</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-2-%E5%AE%A2%E6%88%B7%E7%AB%AF/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/12/11/Simple-Redis%E5%AE%9E%E7%8E%B0-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1067,87 +1158,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/11/27/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0%E5%AE%9E%E7%8E%B0-4-%E6%9C%8D%E5%8A%A1%E5%99%A8-%E6%B5%8B%E8%AF%95-%E5%9B%9E%E6%BA%AF%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/11/27/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0%E5%AE%9E%E7%8E%B0-4-%E6%9C%8D%E5%8A%A1%E5%99%A8-%E6%B5%8B%E8%AF%95-%E5%9B%9E%E6%BA%AF%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">用户增长 实时归因实现 (4) 服务器 测试&回溯模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-11-27 14:04:19" itemprop="dateCreated datePublished" datetime="2023-11-27T14:04:19+08:00">2023-11-27</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          这是一篇加密文章，需要密码才能继续阅读
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/11/27/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0%E5%AE%9E%E7%8E%B0-4-%E6%9C%8D%E5%8A%A1%E5%99%A8-%E6%B5%8B%E8%AF%95-%E5%9B%9E%E6%BA%AF%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1217,7 +1227,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">416</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
