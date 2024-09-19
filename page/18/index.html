@@ -158,138 +158,6 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/" class="post-title-link" itemprop="url">Go语言高性能编程 (4) 并发编程——关闭通道</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-03-26 22:00:21" itemprop="dateCreated datePublished" datetime="2023-03-26T22:00:21+08:00">2023-03-26</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go语言高性能编程</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>channel 的三种状态和操作结果：</p>
-<table>
-<thead>
-<tr>
-<th align="left">操作</th>
-<th align="left">空值(nil)</th>
-<th align="left">非空已关闭</th>
-<th align="left">非空未关闭</th>
-</tr>
-</thead>
-<tbody><tr>
-<td align="left">关闭</td>
-<td align="left">panic</td>
-<td align="left">panic</td>
-<td align="left">成功关闭</td>
-</tr>
-<tr>
-<td align="left">发送数据</td>
-<td align="left">永久阻塞</td>
-<td align="left">panic</td>
-<td align="left">阻塞或成功发送</td>
-</tr>
-<tr>
-<td align="left">接收数据</td>
-<td align="left">永久阻塞</td>
-<td align="left">永不阻塞</td>
-<td align="left">阻塞或者成功接收</td>
-</tr>
-</tbody></table>
-<blockquote>
-<p>在 select 中，如果<strong>其中的全部通道都被关闭</strong>，则<strong>一定不</strong>会执行 defaul 而是随机选择其中一个被关闭的 case 去执行。</p>
-</blockquote>
-<h1 id="关闭通道"><a href="#关闭通道" class="headerlink" title="关闭通道"></a>关闭通道</h1><blockquote>
-<p><strong>通道关闭原则：</strong></p>
-<p>一个常用的使用 Go 通道的原则是<strong>不要在数据接收方或者在有多个发送者的情况下关闭通道</strong>。换句话说，我们<strong>只应该让一个通道唯一的发送者关闭此通道</strong>。</p>
-</blockquote>
-<p>关闭 channel 的方法有以下几种方法。</p>
-<h2 id="粗鲁的方法"><a href="#粗鲁的方法" class="headerlink" title="粗鲁的方法"></a>粗鲁的方法</h2><p>如果关闭已经关闭的通道，则会触发 panic，可以<strong>用 recover 使得程序回复正常</strong>。</p>
-<p>这种方法违反了通道关闭原则，因为这种方法使得多个协程都可以关闭通道。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">SafeClose</span><span class="params">(ch <span class="keyword">chan</span> T)</span> <span class="params">(justClosed <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="keyword">if</span> <span class="built_in">recover</span>() != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">// 一个函数的返回结果可以在defer调用中修改。</span></span><br><span class="line">			justClosed = <span class="literal">false</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 假设ch != nil。</span></span><br><span class="line">	<span class="built_in">close</span>(ch)   <span class="comment">// 如果 ch 已关闭，将 panic</span></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">true</span> <span class="comment">// &lt;=&gt; justClosed = true; return</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="礼貌的方式"><a href="#礼貌的方式" class="headerlink" title="礼貌的方式"></a>礼貌的方式</h2><p><strong>使用 sync.Once 或者互斥锁</strong>来保证 channel 只被关闭一次。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyChannel <span class="keyword">struct</span> &#123;</span><br><span class="line">	C    <span class="keyword">chan</span> T</span><br><span class="line">	once sync.Once</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(mc *MyChannel)</span> <span class="title">SafeClose</span><span class="params">()</span></span> &#123;</span><br><span class="line">	mc.once.Do(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="built_in">close</span>(mc.C)</span><br><span class="line">	&#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>也可以使用 sync.Mutex 来关闭通道，维护一个布尔值来表示通道是否已经被关闭（需要用 sync.Mutex 保证互斥访问）：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyChannel <span class="keyword">struct</span> &#123;</span><br><span class="line">	C      <span class="keyword">chan</span> T</span><br><span class="line">	closed <span class="keyword">bool</span></span><br><span class="line">	mutex  sync.Mutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="优雅的方式"><a href="#优雅的方式" class="headerlink" title="优雅的方式"></a>优雅的方式</h2><ul>
-<li>情形一：<strong>M 个接收者和一个发送者</strong>，发送者通过关闭用来传输数据的通道来传递发送结束信号。</li>
-<li>情形二：<strong>一个接收者和 N 个发送者</strong>，此唯一接收者通过关闭一个额外的信号通道来通知发送者不要再发送数据了。</li>
-<li>情形三：<strong>M 个接收者和 N 个发送者</strong>，它们中的任何协程都可以让一个中间调解协程帮忙发出停止数据传送的信号。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/03/26/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-4-%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E2%80%94%E2%80%94%E5%85%B3%E9%97%AD%E9%80%9A%E9%81%93/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/23/Go%E8%AF%AD%E8%A8%80%E9%AB%98%E6%80%A7%E8%83%BD%E7%BC%96%E7%A8%8B-3-%E5%B8%B8%E7%94%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94%E7%A9%BA%E7%BB%93%E6%9E%84%E4%BD%93%E5%92%8C%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1241,6 +1109,115 @@
   
   
 
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/" class="post-title-link" itemprop="url">GO专家编程读书笔记 (1) 常见数据结构实现原理之chan slice</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-03-18 10:02:56" itemprop="dateCreated datePublished" datetime="2023-03-18T10:02:56+08:00">2023-03-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B/" itemprop="url" rel="index"><span itemprop="name">Go专家编程</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="chan"><a href="#chan" class="headerlink" title="chan"></a>chan</h1><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>channel 的数据结构如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> hchan <span class="keyword">struct</span> &#123;</span><br><span class="line">    qcount   <span class="keyword">uint</span>           <span class="comment">// 当前队列中剩余元素个数</span></span><br><span class="line">    dataqsiz <span class="keyword">uint</span>           <span class="comment">// 环形队列长度，即可以存放的元素个数</span></span><br><span class="line">    buf      unsafe.Pointer <span class="comment">// 环形队列指针</span></span><br><span class="line">    elemsize <span class="keyword">uint16</span>         <span class="comment">// 每个元素的大小</span></span><br><span class="line">    closed   <span class="keyword">uint32</span>            <span class="comment">// 标识关闭状态</span></span><br><span class="line">    elemtype *_type         <span class="comment">// 元素类型</span></span><br><span class="line">    sendx    <span class="keyword">uint</span>           <span class="comment">// 队列下标，指示元素写入时存放到队列中的位置</span></span><br><span class="line">    recvx    <span class="keyword">uint</span>           <span class="comment">// 队列下标，指示元素从队列的该位置读出</span></span><br><span class="line">    recvq    waitq          <span class="comment">// 等待读消息的goroutine队列</span></span><br><span class="line">    sendq    waitq          <span class="comment">// 等待写消息的goroutine队列</span></span><br><span class="line">    lock mutex              <span class="comment">// 互斥锁，chan不允许并发读写</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，channel 的<strong>底层数据结构</strong>由一个<strong>环形队列</strong>构成。</p>
+<p><strong>lock 保证了 channel 的线程安全</strong>，在一个时间点上只会被一个线程（协程）访问。</p>
+<h3 id="环形队列"><a href="#环形队列" class="headerlink" title="环形队列"></a>环形队列</h3><p>channel 内部实现了一个<strong>环形队列</strong>作为其缓冲区，环形队列的长度（dataqsiz）是创建 channel 时指定的。如下所示：</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f1b42d200c5d94d02eeacef7c99aa81b_r.png" alt="img"></p>
+<h3 id="等待队列"><a href="#等待队列" class="headerlink" title="等待队列"></a>等待队列</h3><p>从 channel 读数据，如果 channel 缓冲区为空或者没有缓冲区，当前 goroutine 会被阻塞。同样的，向 channel 写数据，如果 channel 缓冲区已满或者没有缓冲区，当前 goroutine 会被阻塞。</p>
+<p>被<strong>阻塞</strong>的 goroutine 将会<strong>挂在 channel 的等待队列</strong>（recvq 和 sendq）中：</p>
+<ul>
+<li>因<strong>读阻塞</strong>的 goroutine 会被<strong>向 channel 写入数据的 goroutine 唤醒</strong>。</li>
+<li>因<strong>写阻塞</strong>的 goroutine 会被<strong>从 channel 读数据的 goroutine 唤醒</strong>。</li>
+</ul>
+<p>下图展示了一个没有缓冲区的 channel，有几个 goroutine 阻塞等待读数据：</p>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_f48c37e012c38de53aeb532c993b6d2d_r.png" alt="img"></p>
+<blockquote>
+<p>一般情况下，sendq 和 recvq 至少有一个为空。</p>
+<p><strong>只有一个例外</strong>，就是用同一个 goroutine 使用 select 语句向 channel 一边读数据一边写数据。</p>
+</blockquote>
+<h2 id="channel-读写"><a href="#channel-读写" class="headerlink" title="channel 读写"></a>channel 读写</h2><h3 id="写数据"><a href="#写数据" class="headerlink" title="写数据"></a>写数据</h3><p>向一个 channel 中写数据的流程如下：</p>
+<ul>
+<li>如果队列 recvq 不为空，则说明缓存区中没有数据或者没有缓冲区，此时从 recvq 中取出 G，并且把数据写入 G 中，最后唤醒 G。</li>
+<li>如果队列 recvq 为空：<ul>
+<li>如果环形队列有空位，则将数据写入环形队列中。</li>
+<li>如果环形队列没有空位，则将当前 goroutine 加入到 sendq 中，等待被唤醒。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/m_b235ef1f2c6ac1b5d63ec5660da97bd2_r.png" alt="img"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/03/18/GO%E4%B8%93%E5%AE%B6%E7%BC%96%E7%A8%8B%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-1-%E5%B8%B8%E8%A7%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E4%B9%8Bchan-slice/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
 
   
   <nav class="pagination">
@@ -1310,7 +1287,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">416</span>
+          <span class="site-state-item-count">415</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
