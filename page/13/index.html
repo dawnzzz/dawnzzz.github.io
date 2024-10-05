@@ -158,6 +158,263 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/" class="post-title-link" itemprop="url">阅读dubbo-kubernetes的启发 (1) 抽象文件系统</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-20 11:12:46" itemprop="dateCreated datePublished" datetime="2023-09-20T11:12:46+08:00">2023-09-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/dubbo-kubernetes/" itemprop="url" rel="index"><span itemprop="name">dubbo-kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="文件系统抽象"><a href="#文件系统抽象" class="headerlink" title="文件系统抽象"></a>文件系统抽象</h1><p>在 dubbo-kubernetes 中，利用 golang 提供的 fs 抽象接口，实现了多种不同文件系统。各种文件系统的实现在 <code>app/dubboctl/internal/filesystem</code> 文件夹下，首先定义了一个 Filesystem 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Filesystem <span class="keyword">interface</span> &#123;</span><br><span class="line">	fs.ReadDirFS</span><br><span class="line">	fs.StatFS</span><br><span class="line">	Readlink(link <span class="keyword">string</span>) (<span class="keyword">string</span>, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Filesystem 接口将访问 template 文件（至于什么是模版，可以不知道）的各种实现差异，封装到这个接口中。Filesystem 接口的实现包括以下：</p>
+<ul>
+<li><strong>zipFS：</strong>用于<strong>对 zip 压缩文件</strong>的读写，将 zip 压缩文件作为一个文件系统，压缩文件中的一个个被压缩的文件或者文件夹就是文件系统中的文件。</li>
+<li><strong>billyFS：</strong>表示 git repo 中的文件系统，用于访问在<strong>远程 git 仓库</strong>中的 template。</li>
+<li><strong>osFilesystem：</strong>由操作系统支持的文件系统，用于访问 template。</li>
+<li><strong>subFS：</strong>表示 Filesystem 中的<strong>子目录</strong>，单独作为一个文件系统。</li>
+<li><strong>maskingFS：</strong>基于 Filesystem，用于<strong>屏蔽</strong>某些文件的文件系统。</li>
+</ul>
+<blockquote>
+<p>Golang 提供了 io.Reader 和 io.Writer 接口，抽象出对文件、字节流、socket 的读写。至于问什么提出这样的接口，将对象看作是文件一样读写，可以在 Linux 中找到启发：<strong>Linux 中，一切皆是文件</strong>。</p>
+<p>在 1.6 中提供了 fs.FS 抽象文件系统抽象，既然很多对象可以被看作是对象，那么这些抽象的文件聚集起来，就可以抽象出文件系统。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/09/20/%E9%98%85%E8%AF%BBdubbo-kubernetes%E7%9A%84%E5%90%AF%E5%8F%91-1-%E6%8A%BD%E8%B1%A1%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/" class="post-title-link" itemprop="url">用户增长-实时归因</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-18 10:26:36" itemprop="dateCreated datePublished" datetime="2023-09-18T10:26:36+08:00">2023-09-18</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-03-14 15:01:48" itemprop="dateModified" datetime="2024-03-14T15:01:48+08:00">2024-03-14</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          这是一篇加密文章，需要密码才能继续阅读
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/09/18/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%AE%9E%E6%97%B6%E5%BD%92%E5%9B%A0/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/" class="post-title-link" itemprop="url">用户增长-增长平台业务梳理</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-09-14 20:29:42" itemprop="dateCreated datePublished" datetime="2023-09-14T20:29:42+08:00">2023-09-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF%E4%BD%93%E7%B3%BB/" itemprop="url" rel="index"><span itemprop="name">用户增长体系</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          这是一篇加密文章，需要密码才能继续阅读
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/09/14/%E7%94%A8%E6%88%B7%E5%A2%9E%E9%95%BF-%E5%A2%9E%E9%95%BF%E5%B9%B3%E5%8F%B0%E4%B8%9A%E5%8A%A1%E6%A2%B3%E7%90%86/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/28/MongoDB%E5%AD%A6%E4%B9%A0-4-%E7%B4%A2%E5%BC%95%E5%92%8C%E5%85%B3%E7%B3%BB%E5%BC%95%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -935,331 +1192,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (2) 存储与检索</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-08-02 14:47:12" itemprop="dateCreated datePublished" datetime="2023-08-02T14:47:12+08:00">2023-08-02</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="索引"><a href="#索引" class="headerlink" title="索引"></a>索引</h1><p>OLTP 数据库存储引擎的核心在于索引，所以介绍几种索引机制。</p>
-<h2 id="哈希索引"><a href="#哈希索引" class="headerlink" title="哈希索引"></a>哈希索引</h2><p>假设我们的数据存储只是一个<strong>追加写入</strong>的文件（日志），最简单的索引策略就是：在内存中维护一个 hash map，记录键和文件偏移量的映射。</p>
-<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/fig3-1.png" alt="img"></p>
-<h3 id="文件分段与压缩"><a href="#文件分段与压缩" class="headerlink" title="文件分段与压缩"></a>文件分段与压缩</h3><p>为了防止日志文件无限制的增长，可以采取<strong>文件分段</strong>和<strong>压缩</strong>的策略。</p>
-<ul>
-<li>将日志分为特定大小的段，当日志增长到特定大小时就关闭，开始写入一个新的段文件。</li>
-<li>将段进行压缩，只保留每一个键最新的值。同样的，也可以把多个段的内容压缩合并到一起。</li>
-</ul>
-<p>每一个段都有自己的 hash map，将键映射到文件偏移量中。在查询时，从后向前检索每一个段的 hash map 即可。</p>
-<blockquote>
-<p>参考 Redis AOF 压缩的思路，在进行压缩时：</p>
-<ul>
-<li>首先<strong>记录位置</strong>，开启一个<strong>后台线程</strong>开始压缩位置<strong>之前</strong>的数据。</li>
-<li>正常写入 AOF 文件，后台线程将压缩之后的数据写入一个<strong>新的 AOF 文件</strong>中。</li>
-<li><strong>暂停写入</strong>，将开始压缩后写入的数据<strong>追加</strong>到新文件中，用新的 AOF 文件<strong>替换</strong>旧的 AOF 文件。</li>
-</ul>
-</blockquote>
-<h3 id="崩溃恢复与并发控制"><a href="#崩溃恢复与并发控制" class="headerlink" title="崩溃恢复与并发控制"></a>崩溃恢复与并发控制</h3><h4 id="崩溃恢复"><a href="#崩溃恢复" class="headerlink" title="崩溃恢复"></a>崩溃恢复</h4><p>数据库可能在追加写入文件时崩溃，所以需要包含<strong>校验和</strong>用于检测和忽略日志的损坏部分。</p>
-<p>在数据库<strong>重新启动</strong>时，内存中的 hash map 将丢失。原则上需要重新顺序读取段文件来重新构建 hash map，但是如果段文件非常大这是十分耗时的。所以可以通过<strong>在磁盘上保存 hash map 的快照</strong>，用于快速加载到内存中。</p>
-<h4 id="并发控制"><a href="#并发控制" class="headerlink" title="并发控制"></a>并发控制</h4><p>由于写操作是以严格顺序的顺序附加到日志中的，所以常见的实现选择是<strong>只有一个写线程</strong>，但是可以有<strong>多个线程同时读取</strong>。</p>
-<h3 id="局限性"><a href="#局限性" class="headerlink" title="局限性"></a>局限性</h3><p>哈希索引也有两个局限性：</p>
-<ul>
-<li><strong>哈希表必须全部放入内存</strong>。原则上可以在磁盘上维护哈希表，但是这样会有大量的<strong>随机 I/O</strong>，性能表现很难优秀。</li>
-<li><strong>范围查询效率不高。</strong>范围查询必须顺序查找每一个键。</li>
-</ul>
-<h2 id="LSM-树"><a href="#LSM-树" class="headerlink" title="LSM 树"></a>LSM 树</h2><h3 id="SSTable"><a href="#SSTable" class="headerlink" title="SSTable"></a>SSTable</h3><p>之前文件中的键值顺序为写入顺序，现在做出一个改变：键值对的顺序按照键进行排序，把这个格式称为<strong>排序字符串表（Sorted String Table，SSTable）</strong>。还要求每个键只在每个合并的段文件中出现<strong>一次</strong>（压缩过程已经保证）。</p>
-<h4 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h4><p>SSTable 相比于哈希索引顺序写入的日志文件相比，有以下几个优势：</p>
-<ul>
-<li><strong>合并段是简单且高效的</strong>，即使文件大于可用内存。类似于<strong>归并</strong>算法，每一次合并只取几个段中的最小键值（遇到相同的键时只需要最新的，其他旧段中的丢弃）。</li>
-<li><strong>不需要保存所有键的索引</strong>，因为键在文件中的存储是有序的，所以部分索引就可以知道键值对所在的区间。</li>
-<li>对<strong>索引区间内的数据</strong>，在保存到磁盘之前可以进行<strong>压缩</strong>，这样节省了磁盘空间。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (1) 数据模型与查询语言</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-08-02 10:42:06" itemprop="dateCreated datePublished" datetime="2023-08-02T10:42:06+08:00">2023-08-02</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="常见数据模型"><a href="#常见数据模型" class="headerlink" title="常见数据模型"></a>常见数据模型</h1><h2 id="关系模型"><a href="#关系模型" class="headerlink" title="关系模型"></a>关系模型</h2><p>关系模型是最常见，也是最著名的数据模型，SQL 就是基于关系模型的。</p>
-<h3 id="ORM-映射"><a href="#ORM-映射" class="headerlink" title="ORM 映射"></a>ORM 映射</h3><p>关系型数据模型和编程语言对象之间是不匹配的，需要一个转换层，即对象关系映射（ORM）。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">数据库中的一个表 &lt;---&gt; 一个类</span><br><span class="line">表中的一条数据 &lt;---&gt; 类的一个对象</span><br><span class="line">表中的一个列 &lt;---&gt; 类中的一个字段（field）</span><br></pre></td></tr></table></figure>
-
-<h3 id="一对多的关系"><a href="#一对多的关系" class="headerlink" title="一对多的关系"></a>一对多的关系</h3><p>在个人简历中，在工作经历一栏可能会有多个工作经历，并且可能有多段教育经历等<strong>一对多</strong>的关系。</p>
-<p>这样的一对多关系，关系模型可以采用多种方式表示：</p>
-<ul>
-<li>在关系模型中，可以将工作经历、教育经历等放在<strong>单独的数据表</strong>中，并且使用<strong>外键</strong>引用。</li>
-<li>如果<strong>关系型数据库支持</strong>结构化的 Json（MySQL、PostgreSQL）或者 XML（Oracle、SQL Server、PostgreSQL）数据格式，可以将这些多值数据存储在一个属性内，并且支持查询和索引。</li>
-<li>将工作经历、教育经历<strong>编码为 Json 或者 XML 格式</strong>，存储在关系型数据库的<strong>文本列</strong>中，由<strong>应用程序解释</strong>其结构和内容。</li>
-</ul>
-<h2 id="文档模型"><a href="#文档模型" class="headerlink" title="文档模型"></a>文档模型</h2><p>使用文档型数据库，就可以天然的解决关系模型中的一对多问题。并且<strong>文档型</strong>数据库在<strong>读取一对多关系的数据</strong>上，具有更好的<strong>局部性</strong>。如果在<strong>关系模型</strong>中读取一份简历，要么执行<strong>多个查询</strong>，要么进行<strong>多表联结</strong>查询。而在<strong>文档型</strong>数据库中，所有的信息都在一个地方，<strong>一次查询</strong>就已经足够了。</p>
-<p>但是，文档型数据库通常<strong>不支持数据联结</strong>操作，只能在应用层通过多次查询来模拟联结。</p>
-<h3 id="多对一和多对多的关系"><a href="#多对一和多对多的关系" class="headerlink" title="多对一和多对多的关系"></a>多对一和多对多的关系</h3><p>在表示<strong>多对一</strong>和<strong>多对多</strong>的关系时，关系数据库和文档数据库的思想并<strong>没有根本的不同</strong>：相关项都由<strong>唯一的标识符引用</strong>。</p>
-<ul>
-<li>在<strong>关系</strong>模型中，这个唯一标识符为<strong>外键</strong>。</li>
-<li>在<strong>文档</strong>模型中，被称为文档<strong>引用</strong>。</li>
-</ul>
-<blockquote>
-<p>如果存在<strong>多对多</strong>关系，那么<strong>文档模型就不太适用</strong>了。</p>
-<ul>
-<li>可以通过<strong>反范式化来减少联结</strong>，但是需要在<strong>应用层做出额外的工作去保证数据的一致性</strong>。</li>
-<li>也可以在<strong>应用层执行多次查询来模拟联结</strong>，但是这通常比数据库内的专用代码慢，使得文档型数据库<strong>应用程序代码复、性能差</strong>。</li>
-</ul>
-</blockquote>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/" class="post-title-link" itemprop="url">软件架构设计读书笔记 (4) 高并发</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-06-29 14:07:32" itemprop="dateCreated datePublished" datetime="2023-06-29T14:07:32+08:00">2023-06-29</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="高并发读"><a href="#高并发读" class="headerlink" title="高并发读"></a>高并发读</h1><h2 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h2><p>在高并发读的场景下，首先想到的就是加<strong>缓存</strong>。</p>
-<ul>
-<li><strong>本地缓存或者 Redis/Memcached 集中式缓存。</strong>在缓存时，注意缓存的一致性、以及缓存雪崩缓存击穿等问题。</li>
-<li><strong>MySQL 的 Master/Slave。</strong>如果查询是多张表的联合查询结果，而不是 kv 对（当然也可以用 kv 来缓存，但缺点就是任何一张数据库表变化了，缓存都需要更新），可以采用 MySQL 的 Master/Slave 集群，<strong>通过 Slave 来分担读压力</strong>。</li>
-<li><strong>CDN。</strong>对于<strong>静态文件</strong>，如图片、HTML、CSS、JS 等文件，可以采用 CDN 内容分发网络，CDN 的本质就是在<strong>传输链路上做就近缓存</strong>。</li>
-</ul>
-<h2 id="并发读"><a href="#并发读" class="headerlink" title="并发读"></a>并发读</h2><p>将串行操作改为<strong>并行</strong>操作是常用的优化策略。</p>
-<ul>
-<li><strong>异步 RPC。</strong>当查询的内容没有依赖关系时，可以采用异步 RPC 来减少查询时间。</li>
-<li><strong>冗余请求。</strong>如果在集群中，每一个节点都可能以很小的概率出现调用延迟，可以对同一种请求<strong>发出多个冗余请求</strong>，取出最快的响应作为查询结果。</li>
-</ul>
-<h2 id="重写轻读"><a href="#重写轻读" class="headerlink" title="重写轻读"></a>重写轻读</h2><p>在查询数据时需要聚合数据的场景下，可以采用<strong>重写轻读</strong>的方式进行优化。重写轻读的思路，就是<strong>将聚合数据的操作，提前到写入数据时完成，查询的是已经聚合过的数据</strong>。</p>
-<h3 id="推送-拉取"><a href="#推送-拉取" class="headerlink" title="推送 拉取"></a>推送 拉取</h3><p>比如某个用户需要获取他关注的人发的微博，可以分为两种获取方式：</p>
-<ul>
-<li><strong>推送：</strong>在用户发微博时，写入自己的数据库就成功返回。然后利用后台程序，把这条微博<strong>主动推送给所有粉丝的收件箱</strong>（可以采用 Redis 实现，收件箱可以是一个 list，记录被推送的微博）中。</li>
-<li><strong>拉取：</strong>如果用户粉丝数量很大，那么推送给全部的粉丝这一操作本身就是十分耗时的。所以在查询时还可以<strong>主动的从数据库中拉取数据</strong>。</li>
-</ul>
-<blockquote>
-<p>在实际应用中，可以采用<strong>推拉结合</strong>的方式。</p>
-<p>对于<strong>粉丝数量少</strong>的用户，可以采用<strong>推送</strong>的方式。对于<strong>粉丝数量多</strong>的用户，只<strong>推送给在线粉丝</strong>，<strong>离线粉丝</strong>采用主动<strong>拉取</strong>的方式。</p>
-<p>对于<strong>读取的一方</strong>，有的是推送给他的、有的是主动拉取的，返回查询结果时，需要把二者再<strong>聚合</strong>起来。</p>
-</blockquote>
-<h2 id="总结-CQRS"><a href="#总结-CQRS" class="headerlink" title="总结 - CQRS"></a>总结 - CQRS</h2><p>上述的方法本质上都是<strong>读写分离</strong>，也就是 CQRS（Command Query Responsibility Separation）。CQRS 的特点如下：</p>
-<ul>
-<li><strong>读写两侧可以采用不同的数据结构：</strong>在写入的一侧通常采用 MySQL 这类关系型数据库，可以采用分库分表缓解读压力。而在读的这一侧则根据业务需求选择合适的数据库。</li>
-<li><strong>读和写的串联：</strong>可以在读写之间加入消息队列，来保证读写的<strong>最终一致性</strong>。</li>
-</ul>
-<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/image-20230629151531310.png" alt="image-20230629151531310"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1329,7 +1261,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

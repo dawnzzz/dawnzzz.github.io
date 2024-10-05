@@ -158,6 +158,285 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/" class="post-title-link" itemprop="url">GO语言杂谈 (4) 操作Kafka</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-11 10:22:30" itemprop="dateCreated datePublished" datetime="2022-03-11T10:22:30+08:00">2022-03-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="消息队列通信模型"><a href="#消息队列通信模型" class="headerlink" title="消息队列通信模型"></a>消息队列通信模型</h1><h2 id="队列模式"><a href="#队列模式" class="headerlink" title="队列模式"></a>队列模式</h2><p>消息⽣产者⽣产消息发送到<strong>队列</strong>queue中，然后消息消费者从queue中取出并且消费消息。 ⼀条消息被消费以后，queue中就没有了，不存在重复消费。</p>
+<h2 id="发布-订阅"><a href="#发布-订阅" class="headerlink" title="发布/订阅"></a>发布/订阅</h2><p>消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费</p>
+<hr>
+<p>发布订阅模式下，当发布者消息量很⼤时，显然单个订阅者的处理能⼒是不⾜的。实际上现实场景中是多个订阅者节点组成⼀个订阅组负载均衡消费topic消息即分组订阅，这样订阅者很容易实现消费能⼒线性扩展。可以看成是⼀个topic下有多个queue，每个queue是点对点的⽅式，queue之间是发布订阅⽅式。</p>
+<h1 id="Kafka"><a href="#Kafka" class="headerlink" title="Kafka"></a>Kafka</h1><p>Kafka是一种高吞吐量的分布式发布订阅消息系统。</p>
+<p>同时Kafka<strong>结合队列模型和发布订阅模型</strong>：</p>
+<ul>
+<li>对于同一个消费者组Consumer Group，一个message只有被一个consumer消费</li>
+<li>同一个消息可以被广播到不同的Consumer Group中</li>
+</ul>
+<h2 id="架构介绍"><a href="#架构介绍" class="headerlink" title="架构介绍"></a>架构介绍</h2><p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646902518112.png" alt="Kafka架构"></p>
+<ul>
+<li><strong>Producer：</strong>Producer即⽣产者，消息的产⽣者，是消息的⼊⼝。</li>
+<li><strong>kafka cluster：</strong>kafka集群，⼀台或多台服务器组成<ul>
+<li><strong>Broker：</strong>Broker是指部署了Kafka实例的服务器节点。每个服务器上有⼀个或多个kafka的实例，我们姑且认为每个broker对应⼀台服务器。每个kafka集群内的broker都有⼀个<strong>不重复</strong>的编号。</li>
+<li><strong>Topic：</strong>消息的<strong>主题</strong>，可以理解为<strong>消息的分类</strong>，kafka的数据就保存在topic。在每个broker上都可以创建多个topic。实际应⽤中通常是⼀个业务线建⼀个topic。</li>
+<li><strong>Partition：</strong>Topic的分区，每个topic可以有多个分区，分区的作⽤是做<strong>负载，提⾼kafka的吞吐量</strong>。同⼀个topic在不同的分区的数据是不重复的，partition的表现形式就是⼀个⼀个的⽂件夹。为了提高可靠性，提出分区的<strong>副本</strong>，分为Leader和Follower，生产和消费只针对Leader。</li>
+<li><strong>Replication：</strong>每⼀个分区都有多个副本，副本的作⽤是做<strong>备份</strong>。当主分区（Leader）故障的时候会选择⼀个备胎（Follower）上位，成为Leader。在kafka中默认副本的最⼤数量是10个，且副本的数量不能⼤于Broker的数量，follower和leader绝对是在不同的机器，同⼀机器对同⼀个分区也只可能存放⼀个副本（包括⾃⼰）。</li>
+</ul>
+</li>
+<li><strong>Consumer：</strong>消费者，即消息的消费⽅，是消息的出⼝。<ul>
+<li><strong>Consumer Group：</strong>我们可以将多个消费组组成⼀个消费者组，在kafka的设计中<strong>同⼀个分区的数据只能被消费者组中的某⼀个消费者消费</strong>。<strong>同⼀个消费者组的消费者可以消费同⼀个topic的不同分区的数据</strong>，这也是为了提⾼kafka的吞吐量！</li>
+</ul>
+</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/" class="post-title-link" itemprop="url">GO语言杂谈 (3) Context标准库</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-10 14:47:24" itemprop="dateCreated datePublished" datetime="2022-03-10T14:47:24+08:00">2022-03-10</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>context主要用来在<strong>goroutine之间传递上下文信息</strong>。</p>
+<p>Go1.7加入了一个新的标准库<code>context</code>，它定义了<code>Context</code>类型，专门用来简化 对于处理单个请求的多个 goroutine 之间与请求域的数据、取消信号、截止时间等相关操作。</p>
+<p>可以使用<code>WithCancel</code>、<code>WithDeadline</code>、<code>WithTimeout</code>或<code>WithValue</code>创建的派生上下文。当一个上下文被取消时，它派生的所有上下文也被取消。</p>
+<h2 id="为什么需要Context？"><a href="#为什么需要Context？" class="headerlink" title="为什么需要Context？"></a>为什么需要Context？</h2><p>如何解决通知goroutine退出？</p>
+<h3 id="全局变量"><a href="#全局变量" class="headerlink" title="全局变量"></a>全局变量</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// 全局变量的方式</span></span><br><span class="line"><span class="keyword">var</span> exit <span class="keyword">bool</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">		time.Sleep(time.Second)</span><br><span class="line">		<span class="keyword">if</span> exit &#123;	<span class="comment">// 查看全局变量，检测是否退出</span></span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker()</span><br><span class="line">	<span class="comment">// 如何优雅的实现结束子goroutine</span></span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	exit = <span class="literal">true</span>		<span class="comment">// 修改全局变量</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="channel"><a href="#channel" class="headerlink" title="channel"></a>channel</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// channel方式通知goroutine退出</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">(exitChan &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">label:</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-exitChan:</span><br><span class="line">			<span class="keyword">break</span> label</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">			time.Sleep(time.Second)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line"></span><br><span class="line">    exitChan := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;) <span class="comment">// 定义退出管道</span></span><br><span class="line"></span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker(exitChan)</span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	exitChan &lt;- <span class="keyword">struct</span>&#123;&#125;            <span class="comment">// 通知协程退出</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="context-官方方案"><a href="#context-官方方案" class="headerlink" title="context - 官方方案"></a>context - 官方方案</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// context方式通知协程退出</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">label:</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">			<span class="keyword">break</span> label</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">			time.Sleep(time.Second)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line"></span><br><span class="line">	ctx, cancel := context.WithCancel(context.Background())</span><br><span class="line"></span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker(ctx)</span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	cancel()                    <span class="comment">// 调用cancel函数，告诉goroutine退出</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当goroutine又启动一个goroutine时，只需要将ctx传入即可。通过context库，可以控制子孙协程的退出。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/" class="post-title-link" itemprop="url">算法刷题笔记 (24) 复制带随机指针的链表 基本计算器II 最大数 移掉K位数字</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-09 20:22:31" itemprop="dateCreated datePublished" datetime="2022-03-09T20:22:31+08:00">2022-03-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="复制带随机指针的链表"><a href="#复制带随机指针的链表" class="headerlink" title="复制带随机指针的链表"></a>复制带随机指针的链表</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/copy-list-with-random-pointer">复制带随机指针的链表</a></p>
+<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>我们用<strong>哈希表</strong>记录每一个节点对应新节点的创建情况。</p>
+<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a Node.</span></span><br><span class="line"><span class="comment"> * type Node struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Next *Node</span></span><br><span class="line"><span class="comment"> *     Random *Node</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">copyRandomList</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span> &#123;</span><br><span class="line">    cachedNode := <span class="keyword">map</span>[*Node]*Node&#123;&#125;</span><br><span class="line">    <span class="keyword">var</span> deepCopy <span class="function"><span class="keyword">func</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span></span><br><span class="line">    deepCopy = <span class="function"><span class="keyword">func</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span> &#123;</span><br><span class="line">        <span class="keyword">if</span> head == <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> node, ok := cachedNode[head]; ok &#123;</span><br><span class="line">            <span class="comment">// 已经创建了这个节点</span></span><br><span class="line">            <span class="keyword">return</span> node</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 创建新的节点</span></span><br><span class="line">        newNode := &amp;Node&#123; Val: head.Val &#125;</span><br><span class="line">        <span class="comment">// 记录在哈希表中</span></span><br><span class="line">        cachedNode[head] = newNode</span><br><span class="line">        newNode.Next = deepCopy(head.Next)</span><br><span class="line">        newNode.Random = deepCopy(head.Random)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> newNode</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> deepCopy(head)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/09/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-10-GORM/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -771,275 +1050,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/" class="post-title-link" itemprop="url">Redis学习 (6) 主从复制和哨兵模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-02-25 17:47:09" itemprop="dateCreated datePublished" datetime="2022-02-25T17:47:09+08:00">2022-02-25</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>主从复制就是，主机数据更新后，自动同步到备机的<strong>master/slaver机制，master以写为主，slaver以读为主</strong>。</p>
-<p><strong>好处：</strong></p>
-<ul>
-<li>读写分离</li>
-<li>容灾快速恢复（一台服务器宕机了，转到其他服务器）</li>
-</ul>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/1646618358482.png" alt="主从复制"></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"># 在从机上使用slaveof命令加入主机，host为主机地址，port为主机端口</span><br><span class="line"># slaveof是异步操作，不论成功与否，直接返回OK，然后在后台异步与主机连接</span><br><span class="line">slaveof host port</span><br><span class="line"></span><br><span class="line"># 查看主从状态</span><br><span class="line">info replication</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/02/25/Redis%E5%AD%A6%E4%B9%A0-6-%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/" class="post-title-link" itemprop="url">算法刷题笔记 (22) 零钱兑换II 打家劫舍 奇偶链表 Pow(x,n) 二叉搜索树中第K小的元素</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-02-24 21:24:39" itemprop="dateCreated datePublished" datetime="2022-02-24T21:24:39+08:00">2022-02-24</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="零钱兑换-II"><a href="#零钱兑换-II" class="headerlink" title="零钱兑换 II"></a>零钱兑换 II</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/coin-change-2">零钱兑换 II</a></p>
-<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>利用<strong>动态规划</strong>，<code>dp[i]</code>表示金额为<code>i</code>的硬币组合数，边界条件是<code>dp[0] = 1</code>，表示组成金额<code>0</code>有一种组合数。</p>
-<ul>
-<li>初始化：<code>dp[0] = 1</code></li>
-<li>遍历<code>coins</code>，对于其中的每个元素<code>coin</code>：<ul>
-<li>遍历<code>i</code>从<code>coin</code>到amount，<code>dp[i] += dp[i-coin]</code></li>
-</ul>
-</li>
-<li><code>dp[amount]</code>为最终答案</li>
-</ul>
-<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">change</span><span class="params">(amount <span class="keyword">int</span>, coins []<span class="keyword">int</span>)</span> <span class="title">int</span></span> &#123;</span><br><span class="line">    dp := <span class="built_in">make</span>([]<span class="keyword">int</span>, amount+<span class="number">1</span>)     <span class="comment">// dp[i]表示组成金额i的组合数</span></span><br><span class="line">    dp[<span class="number">0</span>] = <span class="number">1</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> _, coin := <span class="keyword">range</span> coins &#123;</span><br><span class="line">        <span class="keyword">for</span> i := coin; i &lt;= amount; i++ &#123;</span><br><span class="line">            dp[i] += dp[i-coin]</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> dp[amount]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/02/24/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-22/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/" class="post-title-link" itemprop="url">MySQL高级 (10) 锁</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-02-24 10:59:26" itemprop="dateCreated datePublished" datetime="2022-02-24T10:59:26+08:00">2022-02-24</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-02-26 16:20:16" itemprop="dateModified" datetime="2024-02-26T16:20:16+08:00">2024-02-26</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/MySQL%E9%AB%98%E7%BA%A7/" itemprop="url" rel="index"><span itemprop="name">MySQL高级</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>MySQL中利用<strong>锁</strong>来保证事务的<strong>隔离性</strong>，对并发操作进行控制。同时，锁冲突也是影响数据库<strong>并发访问性能</strong>的重要因素。</p>
-<h1 id="并发问题的解决"><a href="#并发问题的解决" class="headerlink" title="并发问题的解决"></a>并发问题的解决</h1><h2 id="脏写"><a href="#脏写" class="headerlink" title="脏写"></a>脏写</h2><p>对于<strong>两个事务都进行写数据（写-写情况）</strong>的操作，可能会产生<strong>脏写</strong>问题，这是任何一种隔离级别都不允许这种问题的发生的。</p>
-<p>所以在多个未提交事务相继对一条记录做改动时，需要让它们<strong>排队执行</strong>（通过锁实现）。</p>
-<h2 id="脏读-不可重复读-幻读"><a href="#脏读-不可重复读-幻读" class="headerlink" title="脏读 不可重复读 幻读"></a>脏读 不可重复读 幻读</h2><p>对于<strong>一个事务进行读取操作</strong>，<strong>一个事务进行写数据的操作（读-写情况）</strong>，可能会产生<strong>脏读、不可重复读和幻读</strong>的问题。对于这些问题，有两种解决方案。</p>
-<h3 id="方案一：读操作利用多版本并发控制MVCC，写操作进行加锁"><a href="#方案一：读操作利用多版本并发控制MVCC，写操作进行加锁" class="headerlink" title="方案一：读操作利用多版本并发控制MVCC，写操作进行加锁"></a>方案一：读操作利用多版本并发控制MVCC，写操作进行加锁</h3><p>所谓MVCC，就是生成一个<strong>ReadView</strong>，通过ReadView找到符合条件的记录版本。查询语句只能<strong>读</strong>到生成ReadView之前<strong>已提交事务所做的更改</strong>。而<strong>写操作</strong>肯定针对的是<strong>最新的版本信息</strong>，<strong>读</strong>记录的历史版本和<strong>改动</strong>记录的最新版本并<strong>不冲突</strong>，也就是采用MVCC时，<strong>读-写并不冲突</strong>。</p>
-<p>普通的SELECT语句在<code>READ COMMITTED</code>和<code>REPEATABLE READ</code>隔离级别下会使用到MVCC读取记录：</p>
-<ul>
-<li>在<code>READ COMMITTED</code>隔离级别下，一个事务在执行过程中<strong>每次执行SELECT操作</strong>时都会<strong>生成一个ReadView</strong>，ReadView的存在本身就保证了事务不可以读取到未提交的事务所做的更改，也就是避免了<strong>脏读</strong>现象。</li>
-<li>在<code>REPEATABLE READ</code>隔离级别下，一个事务在执行过程中只有<strong>第一次执行SELECT操作才会生成一个ReadView</strong>，之后的SELECT操作都<strong>复用</strong>这个ReadView，这样也就避免了<strong>不可重复读</strong>和<strong>幻读</strong>的问题。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/02/24/MySQL%E9%AB%98%E7%BA%A7-10-%E9%94%81/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1109,7 +1119,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

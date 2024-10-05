@@ -158,6 +158,331 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (2) 存储与检索</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-02 14:47:12" itemprop="dateCreated datePublished" datetime="2023-08-02T14:47:12+08:00">2023-08-02</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="索引"><a href="#索引" class="headerlink" title="索引"></a>索引</h1><p>OLTP 数据库存储引擎的核心在于索引，所以介绍几种索引机制。</p>
+<h2 id="哈希索引"><a href="#哈希索引" class="headerlink" title="哈希索引"></a>哈希索引</h2><p>假设我们的数据存储只是一个<strong>追加写入</strong>的文件（日志），最简单的索引策略就是：在内存中维护一个 hash map，记录键和文件偏移量的映射。</p>
+<p><img src="/../images/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/fig3-1.png" alt="img"></p>
+<h3 id="文件分段与压缩"><a href="#文件分段与压缩" class="headerlink" title="文件分段与压缩"></a>文件分段与压缩</h3><p>为了防止日志文件无限制的增长，可以采取<strong>文件分段</strong>和<strong>压缩</strong>的策略。</p>
+<ul>
+<li>将日志分为特定大小的段，当日志增长到特定大小时就关闭，开始写入一个新的段文件。</li>
+<li>将段进行压缩，只保留每一个键最新的值。同样的，也可以把多个段的内容压缩合并到一起。</li>
+</ul>
+<p>每一个段都有自己的 hash map，将键映射到文件偏移量中。在查询时，从后向前检索每一个段的 hash map 即可。</p>
+<blockquote>
+<p>参考 Redis AOF 压缩的思路，在进行压缩时：</p>
+<ul>
+<li>首先<strong>记录位置</strong>，开启一个<strong>后台线程</strong>开始压缩位置<strong>之前</strong>的数据。</li>
+<li>正常写入 AOF 文件，后台线程将压缩之后的数据写入一个<strong>新的 AOF 文件</strong>中。</li>
+<li><strong>暂停写入</strong>，将开始压缩后写入的数据<strong>追加</strong>到新文件中，用新的 AOF 文件<strong>替换</strong>旧的 AOF 文件。</li>
+</ul>
+</blockquote>
+<h3 id="崩溃恢复与并发控制"><a href="#崩溃恢复与并发控制" class="headerlink" title="崩溃恢复与并发控制"></a>崩溃恢复与并发控制</h3><h4 id="崩溃恢复"><a href="#崩溃恢复" class="headerlink" title="崩溃恢复"></a>崩溃恢复</h4><p>数据库可能在追加写入文件时崩溃，所以需要包含<strong>校验和</strong>用于检测和忽略日志的损坏部分。</p>
+<p>在数据库<strong>重新启动</strong>时，内存中的 hash map 将丢失。原则上需要重新顺序读取段文件来重新构建 hash map，但是如果段文件非常大这是十分耗时的。所以可以通过<strong>在磁盘上保存 hash map 的快照</strong>，用于快速加载到内存中。</p>
+<h4 id="并发控制"><a href="#并发控制" class="headerlink" title="并发控制"></a>并发控制</h4><p>由于写操作是以严格顺序的顺序附加到日志中的，所以常见的实现选择是<strong>只有一个写线程</strong>，但是可以有<strong>多个线程同时读取</strong>。</p>
+<h3 id="局限性"><a href="#局限性" class="headerlink" title="局限性"></a>局限性</h3><p>哈希索引也有两个局限性：</p>
+<ul>
+<li><strong>哈希表必须全部放入内存</strong>。原则上可以在磁盘上维护哈希表，但是这样会有大量的<strong>随机 I/O</strong>，性能表现很难优秀。</li>
+<li><strong>范围查询效率不高。</strong>范围查询必须顺序查找每一个键。</li>
+</ul>
+<h2 id="LSM-树"><a href="#LSM-树" class="headerlink" title="LSM 树"></a>LSM 树</h2><h3 id="SSTable"><a href="#SSTable" class="headerlink" title="SSTable"></a>SSTable</h3><p>之前文件中的键值顺序为写入顺序，现在做出一个改变：键值对的顺序按照键进行排序，把这个格式称为<strong>排序字符串表（Sorted String Table，SSTable）</strong>。还要求每个键只在每个合并的段文件中出现<strong>一次</strong>（压缩过程已经保证）。</p>
+<h4 id="优势"><a href="#优势" class="headerlink" title="优势"></a>优势</h4><p>SSTable 相比于哈希索引顺序写入的日志文件相比，有以下几个优势：</p>
+<ul>
+<li><strong>合并段是简单且高效的</strong>，即使文件大于可用内存。类似于<strong>归并</strong>算法，每一次合并只取几个段中的最小键值（遇到相同的键时只需要最新的，其他旧段中的丢弃）。</li>
+<li><strong>不需要保存所有键的索引</strong>，因为键在文件中的存储是有序的，所以部分索引就可以知道键值对所在的区间。</li>
+<li>对<strong>索引区间内的数据</strong>，在保存到磁盘之前可以进行<strong>压缩</strong>，这样节省了磁盘空间。</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-2-%E5%AD%98%E5%82%A8%E4%B8%8E%E6%A3%80%E7%B4%A2/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/" class="post-title-link" itemprop="url">数据密集型应用系统设计 (1) 数据模型与查询语言</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-08-02 10:42:06" itemprop="dateCreated datePublished" datetime="2023-08-02T10:42:06+08:00">2023-08-02</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" itemprop="url" rel="index"><span itemprop="name">数据密集型应用系统设计</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="常见数据模型"><a href="#常见数据模型" class="headerlink" title="常见数据模型"></a>常见数据模型</h1><h2 id="关系模型"><a href="#关系模型" class="headerlink" title="关系模型"></a>关系模型</h2><p>关系模型是最常见，也是最著名的数据模型，SQL 就是基于关系模型的。</p>
+<h3 id="ORM-映射"><a href="#ORM-映射" class="headerlink" title="ORM 映射"></a>ORM 映射</h3><p>关系型数据模型和编程语言对象之间是不匹配的，需要一个转换层，即对象关系映射（ORM）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">数据库中的一个表 &lt;---&gt; 一个类</span><br><span class="line">表中的一条数据 &lt;---&gt; 类的一个对象</span><br><span class="line">表中的一个列 &lt;---&gt; 类中的一个字段（field）</span><br></pre></td></tr></table></figure>
+
+<h3 id="一对多的关系"><a href="#一对多的关系" class="headerlink" title="一对多的关系"></a>一对多的关系</h3><p>在个人简历中，在工作经历一栏可能会有多个工作经历，并且可能有多段教育经历等<strong>一对多</strong>的关系。</p>
+<p>这样的一对多关系，关系模型可以采用多种方式表示：</p>
+<ul>
+<li>在关系模型中，可以将工作经历、教育经历等放在<strong>单独的数据表</strong>中，并且使用<strong>外键</strong>引用。</li>
+<li>如果<strong>关系型数据库支持</strong>结构化的 Json（MySQL、PostgreSQL）或者 XML（Oracle、SQL Server、PostgreSQL）数据格式，可以将这些多值数据存储在一个属性内，并且支持查询和索引。</li>
+<li>将工作经历、教育经历<strong>编码为 Json 或者 XML 格式</strong>，存储在关系型数据库的<strong>文本列</strong>中，由<strong>应用程序解释</strong>其结构和内容。</li>
+</ul>
+<h2 id="文档模型"><a href="#文档模型" class="headerlink" title="文档模型"></a>文档模型</h2><p>使用文档型数据库，就可以天然的解决关系模型中的一对多问题。并且<strong>文档型</strong>数据库在<strong>读取一对多关系的数据</strong>上，具有更好的<strong>局部性</strong>。如果在<strong>关系模型</strong>中读取一份简历，要么执行<strong>多个查询</strong>，要么进行<strong>多表联结</strong>查询。而在<strong>文档型</strong>数据库中，所有的信息都在一个地方，<strong>一次查询</strong>就已经足够了。</p>
+<p>但是，文档型数据库通常<strong>不支持数据联结</strong>操作，只能在应用层通过多次查询来模拟联结。</p>
+<h3 id="多对一和多对多的关系"><a href="#多对一和多对多的关系" class="headerlink" title="多对一和多对多的关系"></a>多对一和多对多的关系</h3><p>在表示<strong>多对一</strong>和<strong>多对多</strong>的关系时，关系数据库和文档数据库的思想并<strong>没有根本的不同</strong>：相关项都由<strong>唯一的标识符引用</strong>。</p>
+<ul>
+<li>在<strong>关系</strong>模型中，这个唯一标识符为<strong>外键</strong>。</li>
+<li>在<strong>文档</strong>模型中，被称为文档<strong>引用</strong>。</li>
+</ul>
+<blockquote>
+<p>如果存在<strong>多对多</strong>关系，那么<strong>文档模型就不太适用</strong>了。</p>
+<ul>
+<li>可以通过<strong>反范式化来减少联结</strong>，但是需要在<strong>应用层做出额外的工作去保证数据的一致性</strong>。</li>
+<li>也可以在<strong>应用层执行多次查询来模拟联结</strong>，但是这通常比数据库内的专用代码慢，使得文档型数据库<strong>应用程序代码复、性能差</strong>。</li>
+</ul>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/08/02/%E6%95%B0%E6%8D%AE%E5%AF%86%E9%9B%86%E5%9E%8B%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1-1-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/" class="post-title-link" itemprop="url">软件架构设计读书笔记 (4) 高并发</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-06-29 14:07:32" itemprop="dateCreated datePublished" datetime="2023-06-29T14:07:32+08:00">2023-06-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">软件架构设计读书笔记</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="高并发读"><a href="#高并发读" class="headerlink" title="高并发读"></a>高并发读</h1><h2 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h2><p>在高并发读的场景下，首先想到的就是加<strong>缓存</strong>。</p>
+<ul>
+<li><strong>本地缓存或者 Redis/Memcached 集中式缓存。</strong>在缓存时，注意缓存的一致性、以及缓存雪崩缓存击穿等问题。</li>
+<li><strong>MySQL 的 Master/Slave。</strong>如果查询是多张表的联合查询结果，而不是 kv 对（当然也可以用 kv 来缓存，但缺点就是任何一张数据库表变化了，缓存都需要更新），可以采用 MySQL 的 Master/Slave 集群，<strong>通过 Slave 来分担读压力</strong>。</li>
+<li><strong>CDN。</strong>对于<strong>静态文件</strong>，如图片、HTML、CSS、JS 等文件，可以采用 CDN 内容分发网络，CDN 的本质就是在<strong>传输链路上做就近缓存</strong>。</li>
+</ul>
+<h2 id="并发读"><a href="#并发读" class="headerlink" title="并发读"></a>并发读</h2><p>将串行操作改为<strong>并行</strong>操作是常用的优化策略。</p>
+<ul>
+<li><strong>异步 RPC。</strong>当查询的内容没有依赖关系时，可以采用异步 RPC 来减少查询时间。</li>
+<li><strong>冗余请求。</strong>如果在集群中，每一个节点都可能以很小的概率出现调用延迟，可以对同一种请求<strong>发出多个冗余请求</strong>，取出最快的响应作为查询结果。</li>
+</ul>
+<h2 id="重写轻读"><a href="#重写轻读" class="headerlink" title="重写轻读"></a>重写轻读</h2><p>在查询数据时需要聚合数据的场景下，可以采用<strong>重写轻读</strong>的方式进行优化。重写轻读的思路，就是<strong>将聚合数据的操作，提前到写入数据时完成，查询的是已经聚合过的数据</strong>。</p>
+<h3 id="推送-拉取"><a href="#推送-拉取" class="headerlink" title="推送 拉取"></a>推送 拉取</h3><p>比如某个用户需要获取他关注的人发的微博，可以分为两种获取方式：</p>
+<ul>
+<li><strong>推送：</strong>在用户发微博时，写入自己的数据库就成功返回。然后利用后台程序，把这条微博<strong>主动推送给所有粉丝的收件箱</strong>（可以采用 Redis 实现，收件箱可以是一个 list，记录被推送的微博）中。</li>
+<li><strong>拉取：</strong>如果用户粉丝数量很大，那么推送给全部的粉丝这一操作本身就是十分耗时的。所以在查询时还可以<strong>主动的从数据库中拉取数据</strong>。</li>
+</ul>
+<blockquote>
+<p>在实际应用中，可以采用<strong>推拉结合</strong>的方式。</p>
+<p>对于<strong>粉丝数量少</strong>的用户，可以采用<strong>推送</strong>的方式。对于<strong>粉丝数量多</strong>的用户，只<strong>推送给在线粉丝</strong>，<strong>离线粉丝</strong>采用主动<strong>拉取</strong>的方式。</p>
+<p>对于<strong>读取的一方</strong>，有的是推送给他的、有的是主动拉取的，返回查询结果时，需要把二者再<strong>聚合</strong>起来。</p>
+</blockquote>
+<h2 id="总结-CQRS"><a href="#总结-CQRS" class="headerlink" title="总结 - CQRS"></a>总结 - CQRS</h2><p>上述的方法本质上都是<strong>读写分离</strong>，也就是 CQRS（Command Query Responsibility Separation）。CQRS 的特点如下：</p>
+<ul>
+<li><strong>读写两侧可以采用不同的数据结构：</strong>在写入的一侧通常采用 MySQL 这类关系型数据库，可以采用分库分表缓解读压力。而在读的这一侧则根据业务需求选择合适的数据库。</li>
+<li><strong>读和写的串联：</strong>可以在读写之间加入消息队列，来保证读写的<strong>最终一致性</strong>。</li>
+</ul>
+<p><img src="/../images/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/image-20230629151531310.png" alt="image-20230629151531310"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/06/29/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-4-%E9%AB%98%E5%B9%B6%E5%8F%91/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/25/%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0-3-%E6%95%B0%E6%8D%AE%E5%BA%93/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -892,312 +1217,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/" class="post-title-link" itemprop="url">凤凰架构笔记 (5) 安全之认证和凭证</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-06-08 21:09:35" itemprop="dateCreated datePublished" datetime="2023-06-08T21:09:35+08:00">2023-06-08</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h1><p>认证就是识别用户的身份，通常而言有两种方式进行认证，一是 HTTP 认证（在请求资源时认证），二是Web 内容认证（在获取服务时认证）。</p>
-<h2 id="HTTP-认证"><a href="#HTTP-认证" class="headerlink" title="HTTP 认证"></a>HTTP 认证</h2><p>HTTP 认证<strong>通过 Authication Header 实现</strong>，服务器告知客户端应该采用哪种认证方式：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">WWW-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br><span class="line"><span class="attribute">Proxy-Authenticate</span><span class="punctuation">: </span>&lt;认证方案&gt; realm=&lt;安全区域&gt;</span><br></pre></td></tr></table></figure>
-
-<p>客户端进行响应：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br><span class="line"><span class="attribute">Proxy-Authorization</span><span class="punctuation">: </span>&lt;认证方案&gt; &lt;凭证内容&gt;</span><br></pre></td></tr></table></figure>
-
-<p>认证方案如下：</p>
-<ul>
-<li><strong>Basic：</strong>让用户输入用户名和密码，经过 Base64 编码后作为凭证内容。</li>
-<li><strong>Digest：</strong>HTTP 摘要认证，Digest 认证把用户名和密码加盐（Nonce）后通过哈希后发送出去。</li>
-<li><strong>Bearer：</strong>基于 OAuth 2 规范来完成认证。</li>
-</ul>
-<h2 id="Web-认证"><a href="#Web-认证" class="headerlink" title="Web 认证"></a>Web 认证</h2><p>Web 认证就是通过 Web 表单让用户去填写用户名密码等信息。</p>
-<blockquote>
-<p>这种认证方法<strong>没有固定的标准</strong>，没有一个统一的标准去规定用户名、密码、验证码是否需要加密，并且用何种方法进行加密。这不是缺点，<strong>反而是一大优点</strong>，因为足够的<strong>自主性</strong>，可以设计出符合需求的各种认证方式。</p>
-</blockquote>
-<p>请注意，Web 认证是可以基于 HTTP 认证实现的，也就是说可以使用 HTTP Authentication Header 记录认证信息。</p>
-<h3 id="WebAuthn"><a href="#WebAuthn" class="headerlink" title="WebAuthn"></a>WebAuthn</h3><p>2019 年 W3C 起草了<strong>第一份 Web 内容认证标准 WebAuthn</strong>，WebAuthn 彻底抛弃了传统的密码登录方式，改为直接采用<strong>生物识别</strong>（指纹、人脸、虹膜、声纹）或者<strong>实体密钥</strong>（以 USB、蓝牙、NFC 连接的物理密钥容器）来作为身份凭证。所以，这个规范不关注界面该是什么样子、要不要验证码、是否要前端校验这些问题。</p>
-<p>WebAuthn包含注册和登录两大流程。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/06/08/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-5-%E5%AE%89%E5%85%A8%E4%B9%8B%E8%AE%A4%E8%AF%81%E5%92%8C%E5%87%AD%E8%AF%81/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/" class="post-title-link" itemprop="url">凤凰架构笔记 (4) 透明多级分流系统之传输链路</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-06-07 22:07:51" itemprop="dateCreated datePublished" datetime="2023-06-07T22:07:51+08:00">2023-06-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="传输链路"><a href="#传输链路" class="headerlink" title="传输链路"></a>传输链路</h1><p>数据通过 HTTP 协议进行通信，所以这里的传输链路指的是 HTTP 在传输链路上的优化。</p>
-<h2 id="连接数优化"><a href="#连接数优化" class="headerlink" title="连接数优化"></a>连接数优化</h2><p>HTTP over TCP，需要三次握手才能进行传输，并且 TCP 还有慢启动的特性，所以减少连接数可以优化传输时延。</p>
-<h3 id="HTTP-1-x"><a href="#HTTP-1-x" class="headerlink" title="HTTP 1.x"></a>HTTP 1.x</h3><p>在 HTTP 1.0 版本就已经支持<strong>连接复用</strong>技术（在 HTTP 1.0 默认关闭，在 HTTP 1.1 默认开启），即与服务器维护一个或者多个持久连接。客户端维护一个 FIFO 队列，每一次得到完整的响应后发出下一个请求。这种方法的问题在于队头阻塞，如果第一个请求的响应非常慢那么会直接阻塞后续请求的发出。</p>
-<p>后续又<strong>提出 HTTP 管道复用</strong>技术，令 HTTP 服务器也维护一个 FIFO 队列，客户端一次性把所有的请求都发送给服务器，由服务端来安排返回顺序。由于 HTTP 管道需要多方共同支持，协调起来相当复杂，推广得并不算成功。</p>
-<h3 id="HTTP-2-0"><a href="#HTTP-2-0" class="headerlink" title="HTTP 2.0"></a>HTTP 2.0</h3><p>HTTP 2.0 中，<strong>帧（Frame）是传输的最小单位</strong>，每一个帧都<strong>附带一个 ID 用于标识这个帧属于哪个流</strong>，从而可以通过不同流重组出 HTTP 请求和响应，被<strong>称为 HTTP 2 多路复用技术</strong>。HTTP 与同一个服务器只维护<strong>一个连接</strong>。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-4-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E4%BC%A0%E8%BE%93%E9%93%BE%E8%B7%AF/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/" class="post-title-link" itemprop="url">凤凰架构笔记 (3) 透明多级分流系统之缓存</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-06-07 15:58:30" itemprop="dateCreated datePublished" datetime="2023-06-07T15:58:30+08:00">2023-06-07</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">凤凰架构笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="客户端缓存"><a href="#客户端缓存" class="headerlink" title="客户端缓存"></a>客户端缓存</h1><p>客户端缓存依赖于 HTTP 缓存机制，通过 HTTP Header 控制。</p>
-<h2 id="强制缓存"><a href="#强制缓存" class="headerlink" title="强制缓存"></a>强制缓存</h2><p>HTTP 强制缓存<strong>规定了一个过期时间</strong>，在这个时间点之前客户端可以不发出请求，直接使用本地缓存。</p>
-<p>根据约定，强制缓存在浏览器的地址输入、页面链接跳转、新开窗口、前进和后退中均可生效，但在用户主动<strong>刷新</strong>页面时应当自动<strong>失效</strong>。</p>
-<p>两类 HTTP Header 保证了强制缓存：</p>
-<ul>
-<li><strong>Expires：</strong>Expires 是 HTTP 1.0 提供的 Header，后面跟随一个截止时间用于定于缓存的有效时间。</li>
-</ul>
-<blockquote>
-<p>Expires 有设计缺陷：</p>
-<ul>
-<li>受限于客户端的本地时间。</li>
-<li>无法处理涉及客户端身份的私有资源。</li>
-<li>无法描述不缓存。</li>
-</ul>
-</blockquote>
-<ul>
-<li><strong>Cache-Control：</strong>Cache-Control 是 HTTP 1.1 种定义的 Header，如果 Cache-Control 和 Expires 同时存在，并且语义存在冲突，规定必须以 Cache-Control 为准。它有一系列参数：<ul>
-<li><strong>max-age 和 s-maxage：</strong>max-age 后面跟随一个以秒为单位的数字，表明相对于请求时间多少秒以内缓存是有效的。s-maxage 中的 s 为 Share，即允许被 CDN、代理等持有的缓存有效时间。</li>
-<li><strong>public 和 private：</strong>指明是否涉及到用户身份的私有资源，如果是 public，则可以被代理、CDN 等缓存，如果是 private，则只能由用户的客户端进行私有缓存。</li>
-<li><strong>no-cache 和 no-store：</strong>no-cache 指明该资源不应该被缓存，如果一个页面中引用了两张相同的图片，则会请求两次。no-store 指不能保存在本地，但是用一个页面中引用了两张相同的图片，只会请求一次。</li>
-<li><strong>no-transform：</strong>禁止资源被任何形式地修改。某些 CDN、透明代理支持自动 GZip 压缩图片或文本，以提升网络性能，而 no-transform 就禁止了这样的行为。</li>
-<li><strong>min-fresh 和 only-if-cached：</strong>这两个参数是仅用于客户端的请求 Header。min-fresh 后续跟随一个以秒为单位的数字，用于建议服务器能返回一个不少于该时间的缓存资源。only-if-cached 表示客户端要求不必给它发送资源的具体内容，此时客户端就仅能使用事先缓存的资源来进行响应，若缓存不能命中，就直接返回 503/Service Unavailable 错误。</li>
-</ul>
-</li>
-</ul>
-<h2 id="协商缓存"><a href="#协商缓存" class="headerlink" title="协商缓存"></a>协商缓存</h2><p><strong>强制缓存</strong>有一个缓存过期时间，<strong>没有一个检测变化的机制</strong>，如果缓存还没有过期即使内容发生变化，客户端也不会向服务器请求而是使用本地缓存。</p>
-<p><strong>协商缓存</strong>在一致性上有更好的表现，但是<strong>性能</strong>上会<strong>差一些</strong>，因为需要<strong>一次检测变化的开销</strong>。</p>
-<blockquote>
-<p>强制缓存和协商缓存是完全<strong>并行工作</strong>的，当强制缓存存在时，直接从强制缓存中返回资源，无须进行变动检查；而当强制缓存超过时效，或者被禁止（no-cache）时，协商缓存依然可以工作。</p>
-</blockquote>
-<p>协商缓存有两种变化检测机制，分别是根据资源的<strong>修改时间</strong>、以及根据资源<strong>唯一标识符</strong>进行检查。</p>
-<ul>
-<li><strong>Last-Modified 和 If-Modified-Since：</strong>服务器通过 Last-Modified 告诉客户端资源最后修改时间，客户端通过 If-Modified-Since 将这个时间回送给服务器。</li>
-<li><strong>Etag 和 If-None-Match：</strong>服务器通过 Etag 告诉客户端这个资源的唯一标识符，客户端通过 If-None-Match 将这个唯一标识符回送给服务器。</li>
-</ul>
-<p>如果此时服务端发现资源<strong>没有变动</strong>（通过最后修改时间或者唯一标识符），就只要<strong>返回一个 304/Not Modified 的响应</strong>即可，无须附带消息体。如果发现<strong>有变动</strong>，则<strong>返回 200 并携带完整内容</strong>。</p>
-<blockquote>
-<p>Last-Modified 只能精确到秒级，如果一秒之内发生了多次变化，则不能准确标注修改时间。</p>
-</blockquote>
-<p>HTTP Vary Header 在响应中，用于<strong>指定其他 HTTP 头部作为客户端缓存命中的依据</strong>，如下表示根据 MIME 类型和浏览器类型来缓存资源。</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">Vary</span><span class="punctuation">: </span>Accept, User-Agent</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/06/07/%E5%87%A4%E5%87%B0%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-3-%E9%80%8F%E6%98%8E%E5%A4%9A%E7%BA%A7%E5%88%86%E6%B5%81%E7%B3%BB%E7%BB%9F%E4%B9%8B%E7%BC%93%E5%AD%98/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1267,7 +1286,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

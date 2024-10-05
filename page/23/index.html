@@ -158,6 +158,287 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/" class="post-title-link" itemprop="url">godis源码阅读 (4) 存储数据结构之List和SortedSet</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-06 21:30:37" itemprop="dateCreated datePublished" datetime="2023-01-06T21:30:37+08:00">2023-01-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="List"><a href="#List" class="headerlink" title="List"></a>List</h1><p>simple-redis 中定义了 List 接口，以定义 List 的各种操作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Expected check whether given item is equals to expected value</span></span><br><span class="line"><span class="keyword">type</span> Expected <span class="function"><span class="keyword">func</span><span class="params">(a <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Consumer traverses list.</span></span><br><span class="line"><span class="comment">// It receives index and value as params, returns true to continue traversal, while returns false to break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(i <span class="keyword">int</span>, v <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> List <span class="keyword">interface</span> &#123;</span><br><span class="line">   Add(val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Get(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Set(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Insert(index <span class="keyword">int</span>, val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   Remove(index <span class="keyword">int</span>) (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveLast() (val <span class="keyword">interface</span>&#123;&#125;)</span><br><span class="line">   RemoveAllByVal(expected Expected) <span class="keyword">int</span></span><br><span class="line">   RemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   ReverseRemoveByVal(expected Expected, count <span class="keyword">int</span>) <span class="keyword">int</span></span><br><span class="line">   Len() <span class="keyword">int</span></span><br><span class="line">   ForEach(consumer Consumer)</span><br><span class="line">   Contains(expected Expected) <span class="keyword">bool</span></span><br><span class="line">   Range(start <span class="keyword">int</span>, stop <span class="keyword">int</span>) []<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="快速链表"><a href="#快速链表" class="headerlink" title="快速链表"></a>快速链表</h3><p>在 simple-redis 中，采用<strong>快速链表</strong>作为 List 的数据结构。</p>
+<p>快速链表实际上就是一个<strong>双向链表</strong>，但是双向链表中的每一个节点不是存储一个数据，而是<strong>将数据连续存放形成一段连续的存储空间</strong>作为链表的节点。</p>
+<p>这一段连续的存储空间在 godis 中被称为 page（每一个 page 的大小为 1024），page 的类型为<strong>空接口切片</strong>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> (</span><br><span class="line">	pageSize = <span class="number">1024</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// QuickList 快速链表，用于实现list</span></span><br><span class="line"><span class="keyword">type</span> QuickList <span class="keyword">struct</span> &#123;</span><br><span class="line">	data *list.List</span><br><span class="line">	size <span class="keyword">int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="迭代器"><a href="#迭代器" class="headerlink" title="迭代器"></a>迭代器</h3><p>又定义了 iterator 为快速链表的迭代器，在 <code>[-1, QuickList.Len()]</code> 范围内移动。</p>
+<ul>
+<li>node 表示元素所在的 page。</li>
+<li>offset 表示这个元素在 page 中的下标。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// iterator of QuickList, move between [-1, ql.Len()]</span></span><br><span class="line"><span class="keyword">type</span> iterator <span class="keyword">struct</span> &#123;</span><br><span class="line">   node   *list.Element</span><br><span class="line">   offset <span class="keyword">int</span></span><br><span class="line">   ql     *QuickList</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-4-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BList%E5%92%8CSortedSet/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/" class="post-title-link" itemprop="url">godis源码阅读 (3) 存储数据结构之Hash表和LockMap</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-06 19:58:52" itemprop="dateCreated datePublished" datetime="2023-01-06T19:58:52+08:00">2023-01-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Hash-表"><a href="#Hash-表" class="headerlink" title="Hash 表"></a>Hash 表</h1><p>KV 内存数据库的核心是并发安全的哈希表，godis 采用<strong>分段锁</strong>策略。<strong>将 key 分散到固定数量的 shard 中，在一个 shard 内的读写操作不会阻塞其他 shard 内的操作</strong>。</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>定义 Dict 接口，该接口表示一个哈希表的操作：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Consumer is used to traversal dict, if it returns false the traversal will be break</span></span><br><span class="line"><span class="keyword">type</span> Consumer <span class="function"><span class="keyword">func</span><span class="params">(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">bool</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// Dict is interface of a key-value data structure</span></span><br><span class="line"><span class="keyword">type</span> Dict <span class="keyword">interface</span> &#123;</span><br><span class="line">   Get(key <span class="keyword">string</span>) (val <span class="keyword">interface</span>&#123;&#125;, exists <span class="keyword">bool</span>)</span><br><span class="line">   Len() <span class="keyword">int</span></span><br><span class="line">   Put(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">   PutIfAbsent(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">   PutIfExists(key <span class="keyword">string</span>, val <span class="keyword">interface</span>&#123;&#125;) (result <span class="keyword">int</span>)</span><br><span class="line">   Remove(key <span class="keyword">string</span>) (result <span class="keyword">int</span>)</span><br><span class="line">   ForEach(consumer Consumer)</span><br><span class="line">   Keys() []<span class="keyword">string</span></span><br><span class="line">   RandomKeys(limit <span class="keyword">int</span>) []<span class="keyword">string</span></span><br><span class="line">   RandomDistinctKeys(limit <span class="keyword">int</span>) []<span class="keyword">string</span></span><br><span class="line">   Clear()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>定义 ConcurrentDict 实现了 Dict 接口，ConcurrentDict 为并发安全的哈希表。<strong>将 key 映射到不同的 shard 中，不同 shard 上的操作是不会相互影响的</strong>，提高了<strong>并发性</strong>。</p>
+<blockquote>
+<p>注意，这里 shard 的数量恒为 2 的整数幂。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ConcurrentDict is thread safe map using sharding lock</span></span><br><span class="line"><span class="keyword">type</span> ConcurrentDict <span class="keyword">struct</span> &#123;</span><br><span class="line">   table      []*shard</span><br><span class="line">   count      <span class="keyword">int32</span></span><br><span class="line">   shardCount <span class="keyword">int</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> shard <span class="keyword">struct</span> &#123;</span><br><span class="line">   m     <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">   mutex sync.RWMutex</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-3-%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B9%8BHash%E8%A1%A8%E5%92%8CLockMap/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/" class="post-title-link" itemprop="url">godis源码阅读 (2) Redis协议解析器</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-06 10:12:36" itemprop="dateCreated datePublished" datetime="2023-01-06T10:12:36+08:00">2023-01-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB/" itemprop="url" rel="index"><span itemprop="name">godis源码阅读</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Redis-通信协议"><a href="#Redis-通信协议" class="headerlink" title="Redis 通信协议"></a>Redis 通信协议</h1><p><strong>Redis 自 2.0 版本起使用了统一的协议 RESP（REdis Serialization Protocol，Redis 序列化协议）</strong>，该协议易于实现，计算机可以高效的进行解析且易于被人类读懂。</p>
+<p>RESP 是一个<strong>二进制安全</strong>的文本协议，工作于 TCP 协议上。RESP 以<strong>行</strong>作为单位，客户端和服务器发送的命令或数据一律以 \r\n （CRLF）作为换行符。</p>
+<h2 id="RESP-的五种格式"><a href="#RESP-的五种格式" class="headerlink" title="RESP 的五种格式"></a>RESP 的五种格式</h2><p>RESP 定义了 5 种格式：</p>
+<ul>
+<li><strong>简单字符串（Simple String）：</strong>服务器用来返回简单的结果，比如 OK。非二进制安全，不允许换行。</li>
+<li><strong>错误信息（Error）：</strong>服务器用来返回简单的错误信息，比如 ERR Invalid Synatx。非二进制安全，且不允许换行。</li>
+<li><strong>整数（Integer）：</strong>llen、scard 等命令的返回值，64位有符号整数。</li>
+<li><strong>字符串（Bulk String）：</strong>二进制安全字符串。</li>
+<li><strong>数组（Array，又称 Multi Bulk Strings）：</strong>Bulk String 数组，客户端发送指令以及 lrange 等命令响应的格式。</li>
+</ul>
+<p>RESP 通过第一个字符表示格式：</p>
+<ul>
+<li><strong>简单字符串：以 + 开始</strong>，如 +OK\r\n。</li>
+<li><strong>错误：以 - 开始</strong>，如 -ERR Invalid Syntax\r\n。</li>
+<li><strong>整数：以 : 开始</strong>，如 :1\r\n。</li>
+<li><strong>字符串：以 $ 开始</strong>。Bulk String 有两行，第一行为 $+正文长度，第二行为实际内容。$-1 表示 nil，当使用 get 查询一个不存在的 key 时，响应为 nil。</li>
+<li><strong>数组：以 * 开始</strong>。第一行为 *+数组长度，其后是相应数量的 Bulk String。</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-2-Redis%E5%8D%8F%E8%AE%AE%E8%A7%A3%E6%9E%90%E5%99%A8/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2023/01/06/godis%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB-1-TCP%E6%9C%8D%E5%8A%A1%E5%99%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -878,282 +1159,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/29/Redis%E5%AD%A6%E4%B9%A0-7-%E9%9B%86%E7%BE%A4/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/12/29/Redis%E5%AD%A6%E4%B9%A0-7-%E9%9B%86%E7%BE%A4/" class="post-title-link" itemprop="url">Redis学习 (7) 集群</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-12-29 10:41:14" itemprop="dateCreated datePublished" datetime="2022-12-29T10:41:14+08:00">2022-12-29</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Redis%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Redis学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <blockquote>
-<p>目前有如下两个问题：</p>
-<ul>
-<li>容量不够，Redis 如何进行扩容。</li>
-<li>并发写操作，Redis 如何分摊操作。</li>
-</ul>
-<p>解决方法：<strong>无中心化集群</strong>。</p>
-</blockquote>
-<h1 id="Redis集群"><a href="#Redis集群" class="headerlink" title="Redis集群"></a>Redis集群</h1><p>Redis 集群实现了对 Redis 的<strong>水平扩容</strong>，即启动 N 个 Redis 节点，将整个数据库分布存储在这 N 个节点中，<strong>每个节点存储总数据的 1/N</strong>。</p>
-<p>Redis 集群通过分区（partition）来提供一定程度的可用性（availability）： 即使集群中有一部分节点失效或者无法进行通讯， 集群也可以继续处理命令请求。</p>
-<p><img src="/../images/Redis%E5%AD%A6%E4%B9%A0-7-%E9%9B%86%E7%BE%A4/fdb12b685b0787b29cf395ac67e74718.png" alt="image-20210702164116027"></p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/12/29/Redis%E5%AD%A6%E4%B9%A0-7-%E9%9B%86%E7%BE%A4/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/27/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-docker-compose%E7%9A%84%E4%BD%BF%E7%94%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/12/27/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-docker-compose%E7%9A%84%E4%BD%BF%E7%94%A8/" class="post-title-link" itemprop="url">Docker学习笔记 (6) docker-compose的使用</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-12-27 11:40:21" itemprop="dateCreated datePublished" datetime="2022-12-27T11:40:21+08:00">2022-12-27</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">docker学习笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Compose-的使用"><a href="#Compose-的使用" class="headerlink" title="Compose 的使用"></a>Compose 的使用</h1><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>Compose 项目是 Docker 官方的开源项目，负责实现<strong>对 Docker 容器集群的快速编排</strong>。它允许用户通过一个<strong>单独的 docker-compose.yml 模板文件</strong>（YAML 格式）来定义一组相关联的应用容器为一个项目（project）。</p>
-<p>Compose 中有两个重要的概念：</p>
-<ul>
-<li>服务（service）：一个个应用容器实例，比如订单微服务、库存微服务、mysql容器、nginx容器或者redis容器。</li>
-<li>项目（project）：由一组关联的应用容器组成的一个完整业务单元，在 docker-compose.yml 文件中定义。</li>
-</ul>
-<p>Compose 的默认<strong>管理对象是项目</strong>，通过子命令对项目中的一组容器进行便捷地生命周期管理。</p>
-<h2 id="docker-compose-常用命令"><a href="#docker-compose-常用命令" class="headerlink" title="docker-compose 常用命令"></a>docker-compose 常用命令</h2><p>dockers-compose 的常用命令如下：</p>
-<ul>
-<li><strong>docker-compose up：</strong>启动所有 docker-compose 服务，<strong>加上 -d 参数表示后台运行</strong>。</li>
-<li><strong>docker-compose down：</strong>停止并删除容器、网络、卷、镜像。</li>
-<li>docker-compose exec 服务：进入指定的容器内部。</li>
-<li>docker-compose ps：展示当前 docker-compose 编排过的运行的所有容器。</li>
-<li>docker-compose top：展示当前 docker-compose 编排过的容器进程。</li>
-<li>docker-compose logs 服务：查看指定服务容器输出日志。</li>
-<li><strong>docker-compose config：</strong>验证 Compose 文件格式是否正确，若正确则显示配置，若格式错误显示错误原因。</li>
-<li>docker-compose restart：重启服务。</li>
-<li>docker-compose start：启动服务。</li>
-<li>docker-compose stop：停止服务。</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/12/27/Docker%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0-6-docker-compose%E7%9A%84%E4%BD%BF%E7%94%A8/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/12/27/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-6-%E8%87%AA%E5%AE%9A%E4%B9%89HTTP%E9%85%8D%E7%BD%AE%E5%92%8C%E8%BF%90%E8%A1%8C%E5%A4%9A%E4%B8%AA%E6%9C%8D%E5%8A%A1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/12/27/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-6-%E8%87%AA%E5%AE%9A%E4%B9%89HTTP%E9%85%8D%E7%BD%AE%E5%92%8C%E8%BF%90%E8%A1%8C%E5%A4%9A%E4%B8%AA%E6%9C%8D%E5%8A%A1/" class="post-title-link" itemprop="url">Gin基本使用 (6) 自定义HTTP配置和运行多个服务</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-12-27 10:54:26" itemprop="dateCreated datePublished" datetime="2022-12-27T10:54:26+08:00">2022-12-27</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Gin%E5%9F%BA%E7%A1%80/" itemprop="url" rel="index"><span itemprop="name">Gin基础</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="自定义-HTTP-配置"><a href="#自定义-HTTP-配置" class="headerlink" title="自定义 HTTP 配置"></a>自定义 HTTP 配置</h1><p>直接使用 <code>http.ListenAndServe()</code>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">    router := gin.Default()</span><br><span class="line">    http.ListenAndServe(<span class="string">&quot;:8080&quot;</span>, router)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>或者首先定义 <code>http.Server</code>，再调用 <code>http.Server.ListenAndServe()</code>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	router := gin.Default()</span><br><span class="line"></span><br><span class="line">	s := &amp;http.Server&#123;</span><br><span class="line">		Addr:           <span class="string">&quot;:8080&quot;</span>,</span><br><span class="line">		Handler:        router,</span><br><span class="line">		ReadTimeout:    <span class="number">10</span> * time.Second,</span><br><span class="line">		WriteTimeout:   <span class="number">10</span> * time.Second,</span><br><span class="line">		MaxHeaderBytes: <span class="number">1</span> &lt;&lt; <span class="number">20</span>,</span><br><span class="line">	&#125;</span><br><span class="line">	s.ListenAndServe()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/12/27/Gin%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-6-%E8%87%AA%E5%AE%9A%E4%B9%89HTTP%E9%85%8D%E7%BD%AE%E5%92%8C%E8%BF%90%E8%A1%8C%E5%A4%9A%E4%B8%AA%E6%9C%8D%E5%8A%A1/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1223,7 +1228,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

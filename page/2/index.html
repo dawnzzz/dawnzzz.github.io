@@ -158,6 +158,387 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/07/Spring-Boot%E5%AD%A6%E4%B9%A0-5-%E8%87%AA%E5%8A%A8%E9%85%8D%E7%BD%AE%E5%8E%9F%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/07/Spring-Boot%E5%AD%A6%E4%B9%A0-5-%E8%87%AA%E5%8A%A8%E9%85%8D%E7%BD%AE%E5%8E%9F%E7%90%86/" class="post-title-link" itemprop="url">Spring Boot学习 (5) 自动配置原理</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-05-07 22:58:09" itemprop="dateCreated datePublished" datetime="2024-05-07T22:58:09+08:00">2024-05-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-05-08 20:34:10" itemprop="dateModified" datetime="2024-05-08T20:34:10+08:00">2024-05-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Bean-的加载"><a href="#Bean-的加载" class="headerlink" title="Bean 的加载"></a>Bean 的加载</h1><h2 id="Bean-的加载方式"><a href="#Bean-的加载方式" class="headerlink" title="Bean 的加载方式"></a>Bean 的加载方式</h2><p>Bean 的加载方式包括：</p>
+<ul>
+<li><p>XML 配置文件方式导入。</p>
+<ul>
+<li>使用 bean 标签导入。</li>
+<li>使用 @ImportResource 导入配置文件。</li>
+</ul>
+</li>
+<li><p>@Component 注解和 @Bean 注解。</p>
+<ul>
+<li>@Component 注解。</li>
+<li>@Configuration + @Bean 注解。</li>
+<li>类实现 FactoryBean 接口，并使用 @Bean 修饰方法返回实现 FactoryBean 的实现类。</li>
+</ul>
+</li>
+<li><p>@Import 导入。</p>
+<ul>
+<li>@Import 直接导入 Bean 类、配置类。</li>
+<li>@Import 导入 ImportSelector 接口。</li>
+<li>@Import 导入 ImportBeanDefinitionRegistrar 接口。</li>
+<li>@Import 导入 BeanDefinitionRegistryPostProcessor 接口。</li>
+</ul>
+</li>
+<li><p>在 IOC 容器初始化完成后再注册 Bean，即 AnnotationConfigApplicationContext 调用 register 方法注册 bean。</p>
+</li>
+</ul>
+<p>下面说明 ImportSelector 接口、ImportBeanDefinitionRegitrar 接口、BeanDefinitionRegistryPostProcessor 接口。</p>
+<p>ImportSelector 接口可以根据注解元数据 AnnotationMetadata 进行一系列判断，返回的是需要被导入的全路径名。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> MyImportSelector implements ImportSelector &#123;</span><br><span class="line">    <span class="keyword">public</span> String[] selectImports(AnnotationMetadata metadata) &#123;</span><br><span class="line">        <span class="comment">// 。。。</span></span><br><span class="line">        <span class="comment">// 可以根据 AnnotationMetadata 做出一系列判断，如：</span></span><br><span class="line">        <span class="keyword">boolean</span> flag = metadata.hasAnnotation(<span class="string">&quot;org.springframework.context.annotation.Import&quot;</span>);</span><br><span class="line">        <span class="keyword">if</span> flag &#123;</span><br><span class="line">            <span class="keyword">return</span> []String&#123;<span class="comment">/* ... */</span>&#125;;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">return</span> []String&#123;<span class="comment">/* ... */</span>&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ImportBeanDefinitionRegistrar 接口，不仅可以通过元数据 AnnotationMetadata 进行判断，而且可以通过 BeanDefinition 注册器来手动注册 Bean，控制 Bean 的注册过程。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> MyImportBeanDefinitionRegistrar implements InportBeanDefinitionRegistrar &#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">registerBeanDefinitions</span><span class="params">(AnnotationMetadata metadata, BeanDefinitionRegistry registry)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 。。。</span></span><br><span class="line">        <span class="comment">// 使用 AnnotationMetadata 做出判断</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 注册 bean</span></span><br><span class="line">        BeanDefinition beanDefinition = BeanDefinitionBuilder.rootBeanDefinition(xxx.class).getBeanDefinition();</span><br><span class="line">        registry.registerBeanDefinition(<span class="string">&quot;beanName&quot;</span>, beanDefinition);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>BeanDefinitionRegistryPostProcessor 接口，通过 BeanDefinition 注册器注册 bean，实现对 bean 的最终裁定（可以覆盖前面 bean 的注册）。</p>
+<h2 id="Bean-的加载控制"><a href="#Bean-的加载控制" class="headerlink" title="Bean 的加载控制"></a>Bean 的加载控制</h2><p>Bean 的加载控制就是<strong>根据特定情况进行选择性的加载</strong>，控制 Bean 的加载过程。可以分为两种方式，编程式和注解式。</p>
+<ul>
+<li>编程式：<ul>
+<li>@Import 导入 ImportSelector 接口。</li>
+<li>@Import 导入 ImportBeanDefinitionRegistrar 接口。</li>
+<li>@Import 导入 BeanDefinitionRegistryPostProcessor 接口。</li>
+<li>AnnotationConfigApplicationContext 调用 register 方法注册 bean。</li>
+</ul>
+</li>
+<li>注解式：<ul>
+<li>使用 @Conditional 注解及其衍生注解 @ConditionalOnXxx 设置 Bean 的加载条件。</li>
+</ul>
+</li>
+</ul>
+<h1 id="自动配置"><a href="#自动配置" class="headerlink" title="自动配置"></a>自动配置</h1><p>SpringBoot 在启动时会扫描外部引用 jar 包中的 META-INF/spring.factories 文件，将文件中配置的类型信息加载到 Spring 容器，并执行类中定义的各种操作。对于外部 jar 来说，只需要按照 SpringBoot 定义的标准，就能将自己的功能装置进 SpringBoot。</p>
+<p>从 SpringBoot 3.0 开始，自动配置包的路径从 META-INF/spring.factories 改为 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports。</p>
+<p>引入 starter 之后，可以通过少量注解和一些简单的配置就能使用第三方组件提供的功能了，<strong>通过注解或者一些简单的配置就能在 Spring Boot 的帮助下实现某块功能。</strong></p>
+<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>SpringBoot 的核心注解 @SpringBootApplication ，主要包含三个注解 @SpringBootConfiguration、@ComponentScan、@EnableAutoConfiguration。</p>
+<ul>
+<li>@SpringBootConfiguration：可以看作是 @Configuration，允许在上下文中注册额外的 bean 或导入其他配置类。</li>
+<li>@ComponentScan：扫描被 @Component 注解的 Bean，注解默认会扫描启动类所在的包下所有的类 ，可以自定义不扫描某些 bean。同时，容器中将排除 <code>TypeExcludeFilter </code>和 <code>AutoConfigurationExcludeFilter</code>。</li>
+<li>@EnableAutoConfiguration：开启自动配置，是自动配置的关键注解。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(&#123;ElementType.TYPE&#125;)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.RUNTIME)</span></span><br><span class="line"><span class="meta">@Documented</span></span><br><span class="line"><span class="meta">@Inherited</span></span><br><span class="line"><span class="meta">@SpringBootConfiguration</span></span><br><span class="line"><span class="meta">@ComponentScan</span></span><br><span class="line"><span class="meta">@EnableAutoConfiguration</span></span><br><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> SpringBootApplication &#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="EnableAutoConfiguration"><a href="#EnableAutoConfiguration" class="headerlink" title="@EnableAutoConfiguration"></a>@EnableAutoConfiguration</h3><p>@EnableAutoConfiguration 其中包含了两个主要注解：</p>
+<ul>
+<li>@AutoConfigurationPackage：将 @SpringBootApplication 路径下的所有 Bean 注册到容器中。</li>
+<li>@Import({AutoConfigurationImportSelector.class})：加载自动装配类。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Target(&#123;ElementType.TYPE&#125;)</span></span><br><span class="line"><span class="meta">@Retention(RetentionPolicy.RUNTIME)</span></span><br><span class="line"><span class="meta">@Documented</span></span><br><span class="line"><span class="meta">@Inherited</span></span><br><span class="line"><span class="meta">@AutoConfigurationPackage</span> <span class="comment">//作用：将main包下的所有组件注册到容器中</span></span><br><span class="line"><span class="meta">@Import(&#123;AutoConfigurationImportSelector.class&#125;)</span> <span class="comment">//加载自动装配类 xxxAutoconfiguration</span></span><br><span class="line"><span class="keyword">public</span> <span class="meta">@interface</span> EnableAutoConfiguration &#123;</span><br><span class="line">    String ENABLED_OVERRIDE_PROPERTY = <span class="string">&quot;spring.boot.enableautoconfiguration&quot;</span>;</span><br><span class="line"></span><br><span class="line">    Class&lt;?&gt;[] exclude() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line"></span><br><span class="line">    String[] excludeName() <span class="keyword">default</span> &#123;&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="AutoConfigurationImportSelector-加载自动装配类"><a href="#AutoConfigurationImportSelector-加载自动装配类" class="headerlink" title="AutoConfigurationImportSelector 加载自动装配类"></a>AutoConfigurationImportSelector 加载自动装配类</h3><p>AutoConfigurationImportSelector 的声明如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AutoConfigurationImportSelector</span> <span class="keyword">implements</span> <span class="title">DeferredImportSelector</span>, <span class="title">BeanClassLoaderAware</span>, <span class="title">ResourceLoaderAware</span>, <span class="title">BeanFactoryAware</span>, <span class="title">EnvironmentAware</span>, <span class="title">Ordered</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DeferredImportSelector</span> <span class="keyword">extends</span> <span class="title">ImportSelector</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">ImportSelector</span> </span>&#123;</span><br><span class="line">    String[] selectImports(AnnotationMetadata var1);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>AutoConfigurationImportSelector 实现了 ImportSelector 类，作用是<strong>获取所有符合条件的类的全限定类名，这些类需要被加载到 IoC 容器中</strong>。通过 getAutoConfigurationEntry 方法来实现获取所有需要自动配置的全限定类名。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String[] NO_IMPORTS = <span class="keyword">new</span> String[<span class="number">0</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> String[] selectImports(AnnotationMetadata annotationMetadata) &#123;</span><br><span class="line">    <span class="comment">// &lt;1&gt;.判断自动装配开关是否打开</span></span><br><span class="line">    <span class="keyword">if</span> (!<span class="keyword">this</span>.isEnabled(annotationMetadata)) &#123;</span><br><span class="line">        <span class="keyword">return</span> NO_IMPORTS;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    	<span class="comment">//&lt;2&gt;.获取所有需要装配的bean</span></span><br><span class="line">        AutoConfigurationMetadata autoConfigurationMetadata = AutoConfigurationMetadataLoader.loadMetadata(<span class="keyword">this</span>.beanClassLoader);</span><br><span class="line">        AutoConfigurationImportSelector.AutoConfigurationEntry autoConfigurationEntry = <span class="keyword">this</span>.getAutoConfigurationEntry(autoConfigurationMetadata, annotationMetadata);</span><br><span class="line">        <span class="keyword">return</span> StringUtils.toStringArray(autoConfigurationEntry.getConfigurations());</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="getAutoConfigurationEntry-方法"><a href="#getAutoConfigurationEntry-方法" class="headerlink" title="getAutoConfigurationEntry 方法"></a>getAutoConfigurationEntry 方法</h3><p>getAutoConfigurationEntry 方法如下，主要有流程：</p>
+<ol>
+<li>判断自动装配开关是否打开，默认为 true。</li>
+<li>获取 @EnableAutoConfiguration 注解中的 exclude 和 excludeName 属性。</li>
+<li>获取所有自动装配的配置类，读取所有引入 jar 包下的 META-INF/spring.factories 文件。</li>
+<li>自动配装配的配置类通过 @ConditionalOnXxx 进行选择性的加载控制，在 getAutoConfigurationEntry 中剔除不需要被加载的配置。</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> AutoConfigurationEntry EMPTY_ENTRY = <span class="keyword">new</span> AutoConfigurationEntry();</span><br><span class="line"></span><br><span class="line"><span class="function">AutoConfigurationEntry <span class="title">getAutoConfigurationEntry</span><span class="params">(AutoConfigurationMetadata autoConfigurationMetadata, AnnotationMetadata annotationMetadata)</span> </span>&#123;</span><br><span class="line">        <span class="comment">//&lt;1&gt;.</span></span><br><span class="line">        <span class="keyword">if</span> (!<span class="keyword">this</span>.isEnabled(annotationMetadata)) &#123;</span><br><span class="line">            <span class="keyword">return</span> EMPTY_ENTRY;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">//&lt;2&gt;.</span></span><br><span class="line">            AnnotationAttributes attributes = <span class="keyword">this</span>.getAttributes(annotationMetadata);</span><br><span class="line">            <span class="comment">//&lt;3&gt;.</span></span><br><span class="line">            List&lt;String&gt; configurations = <span class="keyword">this</span>.getCandidateConfigurations(annotationMetadata, attributes);</span><br><span class="line">            <span class="comment">//&lt;4&gt;.</span></span><br><span class="line">            configurations = <span class="keyword">this</span>.removeDuplicates(configurations);</span><br><span class="line">            Set&lt;String&gt; exclusions = <span class="keyword">this</span>.getExclusions(annotationMetadata, attributes);</span><br><span class="line">            <span class="keyword">this</span>.checkExcludedClasses(configurations, exclusions);</span><br><span class="line">            configurations.removeAll(exclusions);</span><br><span class="line">            configurations = <span class="keyword">this</span>.filter(configurations, autoConfigurationMetadata);</span><br><span class="line">            <span class="keyword">this</span>.fireAutoConfigurationImportEvents(configurations, exclusions);</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> AutoConfigurationImportSelector.AutoConfigurationEntry(configurations, exclusions);</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="自实现-starter"><a href="#自实现-starter" class="headerlink" title="自实现 starter"></a>自实现 starter</h2><p>了解了自动配置的原理后，自实现 starter 的流程如下：</p>
+<ol>
+<li>引入 spring boot 相关依赖</li>
+<li>创建自动配置类，用 @ConditionalOnXxx 修饰</li>
+<li>将自动配置类填写到 META-INF/spring.factories 文件下</li>
+<li>新建工程引入 xxx-spring-boot-starter</li>
+</ol>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-4-%E7%BC%93%E5%AD%98-%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1/" class="post-title-link" itemprop="url">Spring Boot学习 (4) 缓存 定时任务</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-06 21:58:02 / 修改时间：23:13:08" itemprop="dateCreated datePublished" datetime="2024-05-06T21:58:02+08:00">2024-05-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="缓存"><a href="#缓存" class="headerlink" title="缓存"></a>缓存</h1><p>Spring 框架提供了透明添加缓存到应用程序的支持。 只要通过使用 @EnableCaching 注解启用缓存支持，Spring Boot就会自动配置缓存基础设施。</p>
+<h2 id="Spring-Cache"><a href="#Spring-Cache" class="headerlink" title="Spring Cache"></a>Spring Cache</h2><p>Spring Boot 提供的缓存包括：JCache、Redis、Simple 等。通过 spring.cache.type 配置参数来指定缓存类型，当该值为 None 时为完全禁用缓存。</p>
+<p>在方法上使用 @Cachable、@CacheEvict、@CachePut 表示缓存的行为。</p>
+<h3 id="Simple"><a href="#Simple" class="headerlink" title="Simple"></a>Simple</h3><p>Simple 作为<strong>默认</strong>的缓存实现，使用 ConcurrentHashMap 作为缓存存储。</p>
+<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>如果已经引入了 spring-boot-starter-redis，缓存的配置信息可以通过 <code>spring.cache.redis.*</code> 来设置。</p>
+<p>如果需要对配置信息进行更多的控制，可以考虑注册一个 <code>RedisCacheManagerBuilderCustomizer</code> bean。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> java.time.Duration;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;</span><br><span class="line"><span class="keyword">import</span> org.springframework.context.annotation.Bean;</span><br><span class="line"><span class="keyword">import</span> org.springframework.context.annotation.Configuration;</span><br><span class="line"><span class="keyword">import</span> org.springframework.data.redis.cache.RedisCacheConfiguration;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Configuration(proxyBeanMethods = false)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyRedisCacheManagerConfiguration</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> RedisCacheManagerBuilderCustomizer <span class="title">myRedisCacheManagerBuilderCustomizer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> (builder) -&gt; builder</span><br><span class="line">                .withCacheConfiguration(<span class="string">&quot;cache1&quot;</span>, RedisCacheConfiguration</span><br><span class="line">                        .defaultCacheConfig().entryTtl(Duration.ofSeconds(<span class="number">10</span>)))</span><br><span class="line">                .withCacheConfiguration(<span class="string">&quot;cache2&quot;</span>, RedisCacheConfiguration</span><br><span class="line">                        .defaultCacheConfig().entryTtl(Duration.ofMinutes(<span class="number">1</span>)));</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>@Configuration 注解：</p>
+<ul>
+<li>@Configuration 是 Spring 框架提供的一个元注解，用于表示一个类是一个配置类。</li>
+<li>配置类通常包含 @Bean 注解，定义了创建和配置 Bean 的方法。</li>
+<li>Spring 会扫描 @Configuration 类，并将其中的 @Bean 方法注册为 Spring 容器中的 Bean（name 默认为方法名）。</li>
+</ul>
+<p>@Configuration 注解的 proxyBeanMethods 属性：用于控制@Bean方法的<strong>代理</strong>行为，默认为 true。</p>
+<ul>
+<li><strong>当 proxyBeanMethods 属性设置为 true 时</strong>，Spring 会对 @Configuration 类<strong>进行 CGLIB 代理</strong>。调用 @Bean 方法时，Spring 会<strong>检查是否已经存在该 Bean</strong>，如果存在，则直接返回已存在的 Bean，否则调用方法创建新的 Bean 并<strong>缓存</strong>起来。</li>
+<li><strong>当 proxyBeanMethods 属性设置为 false 时</strong>，会<strong>禁用 CGLIB 代理</strong>。这种情况下，<strong>每一次调用 @Bean 都会执行一次方法体</strong>，不会缓存 Bean 对象，适用于那些<strong>需要每次返回新实例的场景</strong>。</li>
+</ul>
+</blockquote>
+<h2 id="JetCache"><a href="#JetCache" class="headerlink" title="JetCache"></a>JetCache</h2><p>JetCache 是一个基于 Java 的缓存系统封装，提供统一的 API 和注解来简化缓存的使用。 JetCache 提供了比 SpringCache 更加强大的注解，可以原生的支持 TTL、两级缓存、分布式自动刷新，还提供了 <code>Cache</code> 接口用于手工缓存操作，支持 Spring Boot、支持统计信息。 目前有四个实现：</p>
+<ul>
+<li>远程缓存：<ul>
+<li>redis</li>
+<li>tair</li>
+</ul>
+</li>
+<li>本地缓存：<ul>
+<li>caffeine</li>
+<li>linked hash map</li>
+</ul>
+</li>
+</ul>
+<p>@EnableMethodCache、@EnableCreateCacheAnnotation 这两个注解分别激活 @Cached 和 @CreateCache 注解。也就是说，可以直接使用 @Cached 实现方法缓存，或者使用创建一个 Cache 实例两种方式，来使用 JetCache。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> com.company.mypackage;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.alicp.jetcache.anno.config.EnableCreateCacheAnnotation;</span><br><span class="line"><span class="keyword">import</span> com.alicp.jetcache.anno.config.EnableMethodCache;</span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.SpringApplication;</span><br><span class="line"><span class="keyword">import</span> org.springframework.boot.autoconfigure.SpringBootApplication;</span><br><span class="line"></span><br><span class="line"><span class="meta">@SpringBootApplication</span></span><br><span class="line"><span class="meta">@EnableMethodCache(basePackages = &quot;com.company.mypackage&quot;)</span></span><br><span class="line"><span class="meta">@EnableCreateCacheAnnotation</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySpringBootApp</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>&#123;</span><br><span class="line">        SpringApplication.run(MySpringBootApp.class);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>配置信息参见：<a target="_blank" rel="noopener" href="https://github.com/alibaba/jetcache/blob/master/docs/CN/Config.md">https://github.com/alibaba/jetcache/blob/master/docs/CN/Config.md</a></p>
+<h3 id="创建-Cache-实例"><a href="#创建-Cache-实例" class="headerlink" title="创建 Cache 实例"></a>创建 Cache 实例</h3><p>有两种方法创建 Cache 实例，分别是 CacheManager 和 @CacheCreate 注解（在jetcache 2.7 版本CreateCache注解已经废弃）。</p>
+<ul>
+<li>使用 CacheManager 可以创建 Cache 实例，area 和 name 相同的情况下，它和 Cached 注解使用同一个 Cache 实例。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Autowired</span></span><br><span class="line"><span class="keyword">private</span> CacheManager cacheManager;</span><br><span class="line"><span class="keyword">private</span> Cache&lt;String, UserDO&gt; userCache;</span><br><span class="line"></span><br><span class="line"><span class="meta">@PostConstruct</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    QuickConfig qc = QuickConfig.newBuilder(<span class="string">&quot;userCache&quot;</span>)</span><br><span class="line">        .expire(Duration.ofSeconds(<span class="number">100</span>))</span><br><span class="line">        .cacheType(CacheType.BOTH) <span class="comment">// two level cache</span></span><br><span class="line">        .syncLocal(<span class="keyword">true</span>) <span class="comment">// invalidate local cache in all jvm process after update</span></span><br><span class="line">        .build();</span><br><span class="line">    userCache = cacheManager.getOrCreateCache(qc);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用 @CreateCache 注解创建一个Cache实例，在jetcache 2.7 版本CreateCache注解已经废弃</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@CreateCache(expire = 100)</span></span><br><span class="line"><span class="keyword">private</span> Cache&lt;Long, UserDO&gt; userCache;</span><br></pre></td></tr></table></figure>
+
+<h3 id="方法缓存"><a href="#方法缓存" class="headerlink" title="方法缓存"></a>方法缓存</h3><p>在 spring 环境下，使用 @Cached 注解可以为一个方法添加缓存，@CacheUpdate 用于更新缓存，@CacheInvalidate 用于移除缓存元素。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">UserService</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Cached(name=&quot;userCache.&quot;, key=&quot;#userId&quot;, expire = 3600)</span></span><br><span class="line">    <span class="function">User <span class="title">getUserById</span><span class="params">(<span class="keyword">long</span> userId)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@CacheUpdate(name=&quot;userCache.&quot;, key=&quot;#user.userId&quot;, value=&quot;#user&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">updateUser</span><span class="params">(User user)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@CacheInvalidate(name=&quot;userCache.&quot;, key=&quot;#userId&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">deleteUser</span><span class="params">(<span class="keyword">long</span> userId)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="定时任务"><a href="#定时任务" class="headerlink" title="定时任务"></a>定时任务</h1><h2 id="Quartz"><a href="#Quartz" class="headerlink" title="Quartz"></a>Quartz</h2><p>Spring Boot 提供了 Quartz 的 starter，spring-boot-starter-quartz。如果 Quartz 可用，就会自动配置一个 Scheduler。以下类型的 Bean 会被自动装配并与 Scheduler 关联：</p>
+<ul>
+<li><code>JobDetail</code>：定义了一个特定的 Job。 <code>JobDetail</code> 实例可以通过 <code>JobBuilder</code> API建立。</li>
+<li><code>Calendar</code>。</li>
+<li><code>Trigger</code>：定义了一个特定的 Job 何时被触发。</li>
+</ul>
+<h3 id="定义任务"><a href="#定义任务" class="headerlink" title="定义任务"></a>定义任务</h3><p>通过继承 QuartzJobBean 来定义自己的任务，重写 executeInternal 方法，并且可以通过 setter 注入属性。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> org.quartz.JobExecutionContext;</span><br><span class="line"><span class="keyword">import</span> org.quartz.JobExecutionException;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> org.springframework.scheduling.quartz.QuartzJobBean;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySampleJob</span> <span class="keyword">extends</span> <span class="title">QuartzJobBean</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> MyService myService;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Inject &quot;MyService&quot; bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setMyService</span><span class="params">(MyService myService)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.myService = myService;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Inject the &quot;name&quot; job data property</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setName</span><span class="params">(String name)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.name = name;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">executeInternal</span><span class="params">(JobExecutionContext context)</span> <span class="keyword">throws</span> JobExecutionException </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.myService.someMethod(context.getFireTime(), <span class="keyword">this</span>.name);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="持久化任务"><a href="#持久化任务" class="headerlink" title="持久化任务"></a>持久化任务</h3><p>默认情况下，使用内存中的 <code>JobStore</code>。 然而，如果你的应用程序中有一个 <code>DataSource</code> Bean，并且相应地配置了 <code>spring.quartz.job-store-type</code> 属性，也可以配置一个基于 JDBC 的 store。</p>
+<p>要让 Quartz 使用应用程序主 <code>DataSource</code> 以外的 <code>DataSource</code>，可以声明一个 <code>DataSource</code> bean，用 <code>@QuartzDataSource</code> 注释其 <code>@Bean</code> 方法。这样做可以确保Quartz特定的数据源被 <code>SchedulerFactoryBean</code> 和schema初始化所使用。</p>
+<p>同样地，为了让 Quartz 使用应用程序的主 <code>TransactionManager</code> 以外的 <code>TransactionManager</code>，需要声明一个 <code>TransactionManager</code> Bean，用 <code>@QuartzTransactionManager</code> 注释其 <code>@Bean</code> 方法。</p>
+<p>默认情况下，通过配置创建的Job不会覆盖已经从持久性 JobStore 中读取的已注册Job。 要启用覆盖现有作业定义，需要设置 <code>spring.quartz.overwrite-existing-jobs</code> 属性。</p>
+<h2 id="Spring-Task"><a href="#Spring-Task" class="headerlink" title="Spring Task"></a>Spring Task</h2><p>Spring 原生的支持定时任务功能，使用 @EnableScheduling 注解开启定时任务功能，使用 @Scheduled 注解指定定时任务。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyBean</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Scheduled(cron = &quot;1 * * * * ?&quot;)</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">myTask</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-3-Redis-MongoDB-ES/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2024/05/06/Spring-Boot%E5%AD%A6%E4%B9%A0-3-Redis-MongoDB-ES/" class="post-title-link" itemprop="url">Spring Boot学习 (3) Redis MongoDB ES</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-05-06 16:23:33 / 修改时间：17:24:15" itemprop="dateCreated datePublished" datetime="2024-05-06T16:23:33+08:00">2024-05-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spring-Boot%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">Spring Boot学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h1><p>通过引入 spring-boot-start-data-redis，就可以在 Spring Boot 中集成 Redis；同时也可以引入 spring-boot-starter-data-redis-reactive，支持与 Redis 的响应式异步交互。</p>
+<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>通过引入 starter，就可以注入一个自动配置的 RedisConnectionFactory、StringRedisTemplate、RedisTemplate。通过 StringRedisTemplate 就可以与 Redis 进行交互。</p>
+<h2 id="客户端"><a href="#客户端" class="headerlink" title="客户端"></a>客户端</h2><p>Spring Boot 支持两种 Redis 客户端，分别是 lettuce 和 jedis，lettuce 是默认的 Redis 客户端。</p>
+<h3 id="区别"><a href="#区别" class="headerlink" title="区别"></a>区别</h3><p>lettuce 与 jedis 区别：</p>
+<ul>
+<li>jedis 连接 Redis 服务器是直连模式，当多线程模式下使用 jedis 会存在<strong>线程安全问题</strong>，解决方案可以通过配置连接池使每个连接专用，但是会产生性能问题。</li>
+<li>lettcus 基于 Netty 框架进行与 Redis 服务器连接，底层设计中采用 StatefulRedisConnection。StatefulRedisConnection 自身是线程安全的，可以<strong>保障并发访问安全问题</strong>，一个连接可以<strong>被多线程复用</strong>。</li>
+</ul>
+<h1 id="MongoDB"><a href="#MongoDB" class="headerlink" title="MongoDB"></a>MongoDB</h1><p>通过引入 spring-boot-start-data-mongodb，就可以在 Spring Boot 中集成 MongoDB；同时也可以引入 spring-boot-starter-data-mongodb-reactive，支持与 MongoDB 的响应式异步交互。</p>
+<p>可以注入 MongoTemplate 类来操作 MongoDB。</p>
+<h1 id="ElasticSearch"><a href="#ElasticSearch" class="headerlink" title="ElasticSearch"></a>ElasticSearch</h1><p>通过引入 spring-boot-start-data-elasticsearch，就可以在 Spring Boot 中集成 ES；同时也可以引入 spring-boot-starter-data-elasticsearch-reactive，支持与 ES 的响应式异步交互。</p>
+<p>Spring Boot支持多个客户端。</p>
+<ul>
+<li>官方低级别的 REST 客户端（low-level REST client）</li>
+<li>官方的 Java API 客户端</li>
+<li>Spring Data Elasticsearch 提供的  <code>ReactiveElasticsearchClient</code>。</li>
+</ul>
+<p>通过 ElasticsearchTemplate 来操作 ES。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/05/05/Spring-Boot%E5%AD%A6%E4%B9%A0-2-%E6%97%A5%E5%BF%97-%E7%83%AD%E9%83%A8%E7%BD%B2/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -898,243 +1279,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-4-%E6%8B%A6%E6%88%AA%E5%99%A8/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-4-%E6%8B%A6%E6%88%AA%E5%99%A8/" class="post-title-link" itemprop="url">SSM学习之SpringMVC (4) 拦截器</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-28 22:07:50 / 修改时间：23:00:37" itemprop="dateCreated datePublished" datetime="2024-04-28T22:07:50+08:00">2024-04-28</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="Interceptor"><a href="#Interceptor" class="headerlink" title="Interceptor"></a>Interceptor</h1><p>Interceptor 是 Spring MVC 框架中的一个组件，用于拦截和处理HTTP请求。在 Java Spring 中，<strong>Interceptor 是通过实现 HandlerInterceptor 接口来实现的</strong>。Interceptor 可以对请求进行预处理，也可以对响应进行后处理。Interceptor 的主要作用是在请求到达 Controller 之前或响应离开 Controller 之后，对请求和响应进行处理。</p>
-<h2 id="使用开发方法"><a href="#使用开发方法" class="headerlink" title="使用开发方法"></a>使用开发方法</h2><p>使用方法就是：定义拦截器类，实现 HandlerInterceptor 接口，并重写其中的方法。</p>
-<ul>
-<li><strong>preHandle：</strong>在调用 Handler 之前执行，返回值决定了是否会调用 Handler。如果返回值为 false，不会执行 Handler，也不会执行下面的两个方法。</li>
-<li><strong>postHandle：</strong>在 Handler 执行完成之后执行。</li>
-<li><strong>afterCompletion：</strong>在 DispatcherServlet 进行视图的渲染之后执行，多用于清理资源。</li>
-</ul>
-<h2 id="和-Filter-的区别"><a href="#和-Filter-的区别" class="headerlink" title="和 Filter 的区别"></a>和 Filter 的区别</h2><p>Interceptor 和 Filter 都可以拦截和处理请求，但是有以下区别：</p>
-<ol>
-<li><strong>实现方式。</strong>Filter 是通过实现 javax.servlet.Filter 接口来实现的，而 Interceptor 是通过实现 HandlerInterceptor 接口来实现的。因此，Filter 依赖于 Servlet API，而 Interceptor 依赖于 Spring MVC 框架。</li>
-<li><strong>使用范围。</strong>Filter 不仅可以应用于 Web 应用程序，还可以应用于其他基于 Java 的应用程序，如 Java SE、Java EE 等。而 Interceptor 仅适用于基于 Spring MVC 框架的 Web 应用程序。</li>
-<li><strong>生命周期。</strong>Filter 的生命周期比 Interceptor 更加灵活。Filter 可以在请求到达 Controller 之前或响应离开 Controller 之后的任何阶段进行拦截和处理。而 Interceptor 的拦截和处理只能在 Controller 方法执行之前或之后进行。</li>
-</ol>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-3-%E7%BB%9F%E4%B8%80%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-3-%E7%BB%9F%E4%B8%80%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/" class="post-title-link" itemprop="url">SSM学习之SpringMVC (3) 统一异常处理</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-28 22:07:34 / 修改时间：22:39:32" itemprop="dateCreated datePublished" datetime="2024-04-28T22:07:34+08:00">2024-04-28</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="统一异常处理"><a href="#统一异常处理" class="headerlink" title="统一异常处理"></a>统一异常处理</h1><p>统一的异常处理方式，就是<strong>定义 ExceptionHandler</strong>。具体来说，就是使用 @ControllerAdvice 和 @ExceptionHandler 两个注解。</p>
-<p>这种异常处理下，会给所有或者指定的 Controller 织入异常处理的逻辑（AOP）。当 Controller 方法抛出异常后，由被 @ExceptionHandler 修饰的方法进行处理。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@ControllerAdvice</span></span><br><span class="line"><span class="meta">@ResponseBody</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GlobalExceptionHandler</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@ExceptionHandler(BaseException.class)</span></span><br><span class="line">    <span class="keyword">public</span> ResponseEntity&lt;?&gt; handleAppException(BaseException ex, HttpServletRequest request) &#123;</span><br><span class="line">      <span class="comment">//......</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@ExceptionHandler(value = ResourceNotFoundException.class)</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> ResponseEntity&lt;ErrorReponse&gt; <span class="title">handleResourceNotFoundException</span><span class="params">(ResourceNotFoundException ex, HttpServletRequest request)</span> </span>&#123;</span><br><span class="line">      <span class="comment">//......</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h2><p>ExceptionHandlerMethodResolver 中 getMappedMethod 方法决定了异常具体被哪个被 @ExceptionHandler 注解修饰的方法处理异常。</p>
-<p>具体来说，就是<strong>首先找到可以匹配处理异常的所有方法信息，然后对其进行从小到大的排序，最后取最小的那一个匹配的方法（匹配程度最高的那一个）。</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Nullable</span></span><br><span class="line">  <span class="function"><span class="keyword">private</span> Method <span class="title">getMappedMethod</span><span class="params">(Class&lt;? extends Throwable&gt; exceptionType)</span> </span>&#123;</span><br><span class="line">    List&lt;Class&lt;? extends Throwable&gt;&gt; matches = <span class="keyword">new</span> ArrayList&lt;&gt;();</span><br><span class="line">    <span class="comment">//找到可以处理的所有异常信息。mappedMethods 中存放了异常和处理异常的方法的对应关系</span></span><br><span class="line">    <span class="keyword">for</span> (Class&lt;? extends Throwable&gt; mappedException : <span class="keyword">this</span>.mappedMethods.keySet()) &#123;</span><br><span class="line">      <span class="keyword">if</span> (mappedException.isAssignableFrom(exceptionType)) &#123;</span><br><span class="line">        matches.add(mappedException);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 不为空说明有方法处理异常</span></span><br><span class="line">    <span class="keyword">if</span> (!matches.isEmpty()) &#123;</span><br><span class="line">      <span class="comment">// 按照匹配程度从小到大排序</span></span><br><span class="line">      matches.sort(<span class="keyword">new</span> ExceptionDepthComparator(exceptionType));</span><br><span class="line">      <span class="comment">// 返回处理异常的方法</span></span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">this</span>.mappedMethods.get(matches.get(<span class="number">0</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-2-%E8%AF%B7%E6%B1%82%E4%B8%8E%E5%93%8D%E5%BA%94/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/04/28/SSM%E5%AD%A6%E4%B9%A0%E4%B9%8BSpringMVC-2-%E8%AF%B7%E6%B1%82%E4%B8%8E%E5%93%8D%E5%BA%94/" class="post-title-link" itemprop="url">SSM学习之SpringMVC (2) 请求与响应</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2024-04-28 22:07:13 / 修改时间：22:33:10" itemprop="dateCreated datePublished" datetime="2024-04-28T22:07:13+08:00">2024-04-28</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/SSM%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">SSM学习</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="请求"><a href="#请求" class="headerlink" title="请求"></a>请求</h1><h2 id="请求路径映射"><a href="#请求路径映射" class="headerlink" title="请求路径映射"></a>请求路径映射</h2><p>通过 @RequestMapping 注解实现请求路径的映射。</p>
-<h2 id="请求参数"><a href="#请求参数" class="headerlink" title="请求参数"></a>请求参数</h2><p>默认情况下 Controller 方法的参数名，就是请求参数的映射名字。</p>
-<ul>
-<li>也可以通过 @RequestParam（用于 URL 或者表单）和 @RequestBody（用于接收 json 数据）注解，指定请求参数。</li>
-<li>通过 @DateTimeFormat 注解，指定日期格式。</li>
-<li>通过 @PathVariable 注解，指定路径参数（@RequestMapping 中使用 <code>&#123;id&#125;</code> 指定路径参数）</li>
-</ul>
-<h1 id="响应"><a href="#响应" class="headerlink" title="响应"></a>响应</h1><p>使用 @RequestBody 注解，设置 Controller 的返回值作为响应体。</p>
-<ul>
-<li>方法的返回值为字符串，会将其作为文本内容直接响应给前端。</li>
-<li>方法的返回值为对象，会将对象转换成 Json 文本响应给前端。</li>
-</ul>
-<blockquote>
-<p>如果不适用 @RequestBody，返回的字符串代表 HTML 文件名，会返回对应的 HTML 文件。</p>
-</blockquote>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1204,7 +1348,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

@@ -158,6 +158,329 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/30/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-7-%E4%BD%BF%E7%94%A8Protobuf%E9%80%9A%E4%BF%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/05/30/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-7-%E4%BD%BF%E7%94%A8Protobuf%E9%80%9A%E4%BF%A1/" class="post-title-link" itemprop="url">从零实现分布式缓存 (7) 使用Protobuf通信</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-30 15:09:13" itemprop="dateCreated datePublished" datetime="2022-05-30T15:09:13+08:00">2022-05-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本节实现 protobuf 进行节点间的通信。最终代码结构如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">dawncachepb/</span><br><span class="line">	|--dawncachepb.pb.go</span><br><span class="line">	|--dawncachepb.proto</span><br><span class="line">lru/</span><br><span class="line">	|--lru.go</span><br><span class="line">	|--lru_test.go</span><br><span class="line">singleflight/</span><br><span class="line">	|--singleflight.go</span><br><span class="line">byteview.go</span><br><span class="line">cache.go</span><br><span class="line">consistenthash.go</span><br><span class="line">dawncache.go</span><br><span class="line">dawncache_test.go</span><br><span class="line">go.mod</span><br><span class="line">http.go</span><br><span class="line">peers.go</span><br></pre></td></tr></table></figure>
+
+<h1 id="使用-protobuf-通信"><a href="#使用-protobuf-通信" class="headerlink" title="使用 protobuf 通信"></a>使用 protobuf 通信</h1><h2 id="编写-proto-文件"><a href="#编写-proto-文件" class="headerlink" title="编写 proto 文件"></a>编写 proto 文件</h2><p><code>dawncachepb/dawncachepb.proto</code></p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">syntax = <span class="string">&quot;proto3&quot;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> dawncachepb;</span><br><span class="line"></span><br><span class="line"><span class="keyword">option</span> go_package = <span class="string">&quot;./;dawncachepb&quot;</span>;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">Request</span> </span>&#123;</span><br><span class="line">  <span class="built_in">string</span> <span class="keyword">group</span> = <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">string</span> key = <span class="number">2</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">message</span> <span class="title">Response</span> </span>&#123;</span><br><span class="line">  <span class="built_in">bytes</span> value = <span class="number">1</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">service</span> <span class="title">GroupCache</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">rpc</span> Get(Request) <span class="keyword">returns</span> (Response)</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="生成-pb-go-代码"><a href="#生成-pb-go-代码" class="headerlink" title="生成 pb.go 代码"></a>生成 pb.go 代码</h2><p>生成 <code>dawncachepb.pb.go</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">protoc --go_out=. *.proto</span><br></pre></td></tr></table></figure>
+
+<p><code>dawncachepb/dawncachepb.pb.go</code> 有如下数据类型：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Request <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">	Group <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,1,opt,name=group,proto3&quot; json:&quot;group,omitempty&quot;`</span></span><br><span class="line">	Key   <span class="keyword">string</span> <span class="string">`protobuf:&quot;bytes,2,opt,name=key,proto3&quot; json:&quot;key,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Response <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">	Value []<span class="keyword">byte</span> <span class="string">`protobuf:&quot;bytes,1,opt,name=value,proto3&quot; json:&quot;value,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="修改-PeerGetter-接口"><a href="#修改-PeerGetter-接口" class="headerlink" title="修改 PeerGetter 接口"></a>修改 PeerGetter 接口</h2><p>修改 <code>peers.go</code> 中的 <code>PeerGetter</code> 接口，参数使用 <code>geecachepb.pb.go</code> 中的数据类型。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// PeerGetter 远程获取数据的接口</span></span><br><span class="line"><span class="keyword">type</span> PeerGetter <span class="keyword">interface</span> &#123;</span><br><span class="line">	<span class="comment">// Get 根据 groupName 和 key 获取源数据</span></span><br><span class="line">	Get(in *pb.Request, out *pb.Response) error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="修改使用-PeerGetter-接口的代码"><a href="#修改使用-PeerGetter-接口的代码" class="headerlink" title="修改使用 PeerGetter 接口的代码"></a>修改使用 PeerGetter 接口的代码</h2><p><code>dawncache.go</code></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// getFromPeer 从 peer 处获取数据</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(g *Group)</span> <span class="title">getFromPeer</span><span class="params">(peer PeerGetter, key <span class="keyword">string</span>)</span> <span class="params">(ByteView, error)</span></span> &#123;</span><br><span class="line">	req := &amp;pb.Request&#123;</span><br><span class="line">		Group: g.name,</span><br><span class="line">		Key:   key,</span><br><span class="line">	&#125;</span><br><span class="line">	res := &amp;pb.Response&#123;&#125;</span><br><span class="line">	err := peer.Get(req, res)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> ByteView&#123;&#125;, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> ByteView&#123;b: res.Value&#125;, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>http.go</code></p>
+<ul>
+<li><code>ServeHTTP()</code> 中使用 <code>proto.Marshal()</code> 编码 HTTP 响应。</li>
+<li><code>Get()</code> 中使用 <code>proto.Unmarshal()</code> 解码 HTTP 响应。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ServeHTTP 处理查询缓存的请求，实现了 http.Handler 接口</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *HTTPPool)</span> <span class="title">ServeHTTP</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 判断是否有 basePath</span></span><br><span class="line">	<span class="keyword">if</span> !strings.HasPrefix(r.URL.Path, p.basePath) &#123;</span><br><span class="line">		http.Error(w, <span class="string">&quot;HTTPPool serving unexpected path: &quot;</span>+r.URL.Path, http.StatusBadRequest)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 检查是否有 groupName 和 key</span></span><br><span class="line">	parts := strings.SplitN(r.URL.Path[<span class="built_in">len</span>(p.basePath):], <span class="string">&quot;/&quot;</span>, <span class="number">2</span>)</span><br><span class="line">	<span class="keyword">if</span> <span class="built_in">len</span>(parts) != <span class="number">2</span> &#123;</span><br><span class="line">		http.Error(w, <span class="string">&quot;bad request&quot;</span>, http.StatusBadRequest)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	groupName := parts[<span class="number">0</span>]</span><br><span class="line">	key := parts[<span class="number">1</span>]</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 通过 groupName 获取 group</span></span><br><span class="line">	group := GetGroup(groupName)</span><br><span class="line">	<span class="keyword">if</span> group == <span class="literal">nil</span> &#123;</span><br><span class="line">		http.Error(w, <span class="string">&quot;no such group:&quot;</span>+groupName, http.StatusBadRequest)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 从缓存中获取数据</span></span><br><span class="line">	view, err := group.Get(key)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		http.Error(w, err.Error(), http.StatusInternalServerError)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 响应客户端</span></span><br><span class="line">	body, err := proto.Marshal(&amp;pb.Response&#123;Value: view.ByteSlice()&#125;) <span class="comment">// 编码</span></span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		http.Error(w, err.Error(), http.StatusInternalServerError)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	w.Header().Set(<span class="string">&quot;Content-Type&quot;</span>, <span class="string">&quot;application/octet-stream&quot;</span>)</span><br><span class="line">	w.Write(body)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Get 实现了 PeerGetter 接口，用于远程获取源数据</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(h *HTTPGetter)</span> <span class="title">Get</span><span class="params">(in *pb.Request, out *pb.Response)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	url := fmt.Sprintf(<span class="string">&quot;%s%s/%s&quot;</span>, h.basePath, url.QueryEscape(in.GetGroup()), url.QueryEscape(in.GetKey()))</span><br><span class="line"></span><br><span class="line">	res, err := http.Get(url)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 发送请求失败</span></span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">defer</span> res.Body.Close()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> res.StatusCode != http.StatusOK &#123;</span><br><span class="line">		<span class="comment">// 状态码不是 200</span></span><br><span class="line">		<span class="keyword">return</span> fmt.Errorf(<span class="string">&quot;server status code: %v&quot;</span>, res.StatusCode)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	data, err := ioutil.ReadAll(res.Body)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 读取数据失败</span></span><br><span class="line">		<span class="keyword">return</span> errors.New(<span class="string">&quot;read response body failed&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> err = proto.Unmarshal(data, out); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> fmt.Errorf(<span class="string">&quot;decoding response body: %v&quot;</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/29/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-6-%E9%98%B2%E6%AD%A2%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/05/29/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-6-%E9%98%B2%E6%AD%A2%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF/" class="post-title-link" itemprop="url">从零实现分布式缓存 (6) 防止缓存击穿</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-29 17:05:20" itemprop="dateCreated datePublished" datetime="2022-05-29T17:05:20+08:00">2022-05-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本节实现实现了防止缓存击穿的措施，通过多个并发请求映射为一个请求来实现。最终代码结构如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">lru/</span><br><span class="line">	|--lru.go</span><br><span class="line">	|--lru_test.go</span><br><span class="line">singleflight/</span><br><span class="line">	|--singleflight.go</span><br><span class="line">byteview.go</span><br><span class="line">cache.go</span><br><span class="line">consistenthash.go</span><br><span class="line">dawncache.go</span><br><span class="line">dawncache_test.go</span><br><span class="line">go.mod</span><br><span class="line">http.go</span><br><span class="line">peers.go</span><br></pre></td></tr></table></figure>
+
+<h1 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h1><ul>
+<li><strong>缓存雪崩</strong>：缓存在<strong>同一时刻全部失效</strong>，造成瞬时 DB 请求量过大、压力骤增。缓存雪崩通常因为<strong>缓存服务器宕机</strong>、缓存的 key 设置了<strong>相同的过期时间</strong>等引起。</li>
+<li><strong>缓存击穿</strong>：一个存在的 key，在<strong>缓存过期的一瞬间</strong>，同时有大量的请求，这些请求都会击穿到 DB ，造成瞬时DB请求量大、压力骤增。</li>
+<li><strong>缓存穿透</strong>：查询一个<strong>不存在的数据</strong>，因为不存在则不会写到缓存中，所以每次都会去请求 DB。</li>
+</ul>
+<h1 id="singleflight-实现"><a href="#singleflight-实现" class="headerlink" title="singleflight 实现"></a>singleflight 实现</h1><p><code>singleflight/singleflight.go</code></p>
+<p>dawncache 通过 singleflight 来实现防止缓存击穿。</p>
+<h2 id="定义结构体"><a href="#定义结构体" class="headerlink" title="定义结构体"></a>定义结构体</h2><p>首先定义 <strong>call</strong>，代表一次请求：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// call 代表一次查询请求</span></span><br><span class="line"><span class="keyword">type</span> call <span class="keyword">struct</span> &#123;</span><br><span class="line">	wg  sync.WaitGroup</span><br><span class="line">	val <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">	err error</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Group</strong> 记录了待查询的 key 和一次请求之间的映射关系。</p>
+<p>当 key 还在 hashMap 中时，视为一次请求即可。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Group <span class="keyword">struct</span> &#123;</span><br><span class="line">	mu      sync.Mutex       <span class="comment">// 对 hashMap 的访问互斥</span></span><br><span class="line">	hashMap <span class="keyword">map</span>[<span class="keyword">string</span>]*call <span class="comment">// 保存 key 和请求的映射关系</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="实现-Do-方法"><a href="#实现-Do-方法" class="headerlink" title="实现 Do 方法"></a>实现 Do 方法</h2><p><strong>Do 方法</strong>实现了多次相同的查询，到一次请求的映射操作：</p>
+<ul>
+<li><strong>查询 hashMap</strong> 中是否已经记录了 key 对应的 call 操作，如果有，则等待这一次请求得到数据并返回结果。</li>
+<li>如果不在 hashMap 中，则<strong>新建一个查询</strong>请求 call 并记录在 hashMap 中，待执行过查询操作之后再返回数据。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(g *Group)</span> <span class="title">Do</span><span class="params">(key <span class="keyword">string</span>, fn <span class="keyword">func</span>()</span> <span class="params">(<span class="keyword">interface</span>&#123;&#125;, error)</span>) <span class="params">(<span class="keyword">interface</span>&#123;&#125;, error)</span></span> &#123;</span><br><span class="line">	g.mu.Lock()</span><br><span class="line">	<span class="keyword">if</span> g.hashMap == <span class="literal">nil</span> &#123; <span class="comment">// 延迟初始化</span></span><br><span class="line">		g.hashMap = <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*call)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> c, ok := g.hashMap[key]; ok &#123;</span><br><span class="line">		<span class="comment">// 已在 hashMap 中记录，等待结果即可</span></span><br><span class="line">		g.mu.Unlock()</span><br><span class="line">		c.wg.Wait()</span><br><span class="line">		<span class="keyword">return</span> c.val, c.err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 没有在 hashMap 中记录</span></span><br><span class="line">	<span class="comment">// 新建 call 在 hashMap 中记录</span></span><br><span class="line">	c := <span class="built_in">new</span>(call)</span><br><span class="line">	c.wg.Add(<span class="number">1</span>)</span><br><span class="line">	g.hashMap[key] = c</span><br><span class="line">	g.mu.Unlock()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 远程请求数据</span></span><br><span class="line">	c.val, c.err = fn()</span><br><span class="line">	c.wg.Done() <span class="comment">// 得到数据</span></span><br><span class="line"></span><br><span class="line">	g.mu.Lock()</span><br><span class="line">	<span class="built_in">delete</span>(g.hashMap, key)</span><br><span class="line">	g.mu.Unlock()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> c.val, c.err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="修改主流程"><a href="#修改主流程" class="headerlink" title="修改主流程"></a>修改主流程</h1><p><code>dawncache.go</code></p>
+<p>需要修改 <strong>Group 结构体</strong>，使之能够防止缓存穿透：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Group <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">	loader    *singleflight.Group</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// NewGroup 新建一个 *Group 缓存</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewGroup</span><span class="params">(name <span class="keyword">string</span>, cacheBytes <span class="keyword">int64</span>, getter Getter)</span> *<span class="title">Group</span></span> &#123;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">	g := &amp;Group&#123;</span><br><span class="line">		<span class="comment">// ...</span></span><br><span class="line">		loader:    <span class="built_in">new</span>(singleflight.Group),</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>修改 <strong>load 方法</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// load 从别处加载数据</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(g *Group)</span> <span class="title">load</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="params">(ByteView, error)</span></span> &#123;</span><br><span class="line">	view, err := g.loader.Do(key, <span class="function"><span class="keyword">func</span><span class="params">()</span> <span class="params">(<span class="keyword">interface</span>&#123;&#125;, error)</span></span> &#123;</span><br><span class="line">		<span class="keyword">if</span> g.peers != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">// peers 不为空，可以从远程获取数据</span></span><br><span class="line">			<span class="keyword">if</span> peer, ok := g.peers.PickPeer(key); ok &#123;</span><br><span class="line">				<span class="comment">// 从远程获取数据</span></span><br><span class="line">				view, err := g.getFromPeer(peer, key)</span><br><span class="line">				<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">					log.Println(<span class="string">&quot;[GeeCache] Failed to get from peer&quot;</span>, err)</span><br><span class="line">					<span class="keyword">return</span> ByteView&#123;&#125;, err</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">return</span> view, <span class="literal">nil</span></span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 本地通过回调函数获取数据</span></span><br><span class="line">		<span class="keyword">return</span> g.getLocally(key)</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> ByteView&#123;&#125;, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> view.(ByteView), <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-5-%E5%88%86%E5%B8%83%E5%BC%8F%E8%8A%82%E7%82%B9/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-5-%E5%88%86%E5%B8%83%E5%BC%8F%E8%8A%82%E7%82%B9/" class="post-title-link" itemprop="url">从零实现分布式缓存 (5) 分布式节点</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-05-28 22:13:44" itemprop="dateCreated datePublished" datetime="2022-05-28T22:13:44+08:00">2022-05-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>本节实现一致性哈希选择节点，并且实现了 HTTP 客户端。最终代码结构如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">lru/</span><br><span class="line">	|--lru.go</span><br><span class="line">	|--lru_test.go</span><br><span class="line">byteview.go</span><br><span class="line">cache.go</span><br><span class="line">consistenthash.go</span><br><span class="line">dawncache.go</span><br><span class="line">dawncache_test.go</span><br><span class="line">go.mod</span><br><span class="line">http.go</span><br><span class="line">peers.go</span><br></pre></td></tr></table></figure>
+
+<h1 id="PeerPicker"><a href="#PeerPicker" class="headerlink" title="PeerPicker"></a>PeerPicker</h1><p>分布式缓存获取数据的流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">                            是</span><br><span class="line">接收 key --&gt; 检查是否被缓存 -----&gt; 返回缓存值 ⑴</span><br><span class="line">                |  否                         是</span><br><span class="line">                |-----&gt; 是否应当从远程节点获取 -----&gt; 与远程节点交互 --&gt; 返回缓存值 ⑵</span><br><span class="line">                            |  否</span><br><span class="line">                            |-----&gt; 调用`回调函数`，获取值并添加到缓存 --&gt; 返回缓存值 ⑶</span><br></pre></td></tr></table></figure>
+
+<p>之前已经实现了 (1) 和 (3) 现在需要实现流程 (2) 从远程获取数据：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">使用一致性哈希选择节点        是                                    是</span><br><span class="line">    |-----&gt; 是否是远程节点 -----&gt; HTTP 客户端访问远程节点 --&gt; 成功？-----&gt; 服务端返回返回值</span><br><span class="line">                    |  否                                    ↓  否</span><br><span class="line">                    |----------------------------&gt; 回退到本地节点处理。</span><br></pre></td></tr></table></figure>
+
+<h2 id="抽象-PeerPicker"><a href="#抽象-PeerPicker" class="headerlink" title="抽象 PeerPicker"></a>抽象 PeerPicker</h2><p><code>peers.go</code></p>
+<ul>
+<li><p>现在需要定义一个 <strong>PeerPicker 接口</strong>，用于选择与哪一个节点进行通信。</p>
+</li>
+<li><p><strong>PeerGetter 接口</strong>用于具体的远程获取数据的操作。</p>
+</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// PeerPicker 选取节点的接口</span></span><br><span class="line"><span class="keyword">type</span> PeerPicker <span class="keyword">interface</span> &#123;</span><br><span class="line">	<span class="comment">// PickPeer 根据 key 选择相应的 PeerGetter 获取数据</span></span><br><span class="line">	PickPeer(key <span class="keyword">string</span>) (peer PeerGetter, ok <span class="keyword">bool</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// PeerGetter 远程获取数据的接口</span></span><br><span class="line"><span class="keyword">type</span> PeerGetter <span class="keyword">interface</span> &#123;</span><br><span class="line">	<span class="comment">// Get 根据 groupName 和 key 获取源数据</span></span><br><span class="line">	Get(groupName <span class="keyword">string</span>, key <span class="keyword">string</span>) ([]<span class="keyword">byte</span>, error)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="节点选择与-HTTP-客户端"><a href="#节点选择与-HTTP-客户端" class="headerlink" title="节点选择与 HTTP 客户端"></a>节点选择与 HTTP 客户端</h1><p><code>http.go</code></p>
+<h2 id="实现-PeerGetter"><a href="#实现-PeerGetter" class="headerlink" title="实现 PeerGetter"></a>实现 PeerGetter</h2><p>首先定义一个 <strong>HTTPGetter 结构体</strong>，用于实现 <strong>PeerGetter</strong> 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// HTTPGetter 通过 HTTP 远程获取数据</span></span><br><span class="line"><span class="keyword">type</span> HTTPGetter <span class="keyword">struct</span> &#123;</span><br><span class="line">	basePath <span class="keyword">string</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>实现 Get 方法，用于远程获取数据，它通过发送 HTTP GET 请求来从远程获取数据。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Get 实现了 PeerGetter 接口，用于远程获取源数据</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(h *HTTPGetter)</span> <span class="title">Get</span><span class="params">(groupName <span class="keyword">string</span>, key <span class="keyword">string</span>)</span> <span class="params">([]<span class="keyword">byte</span>, error)</span></span> &#123;</span><br><span class="line">	url := fmt.Sprintf(<span class="string">&quot;%s%s/%s&quot;</span>, h.basePath, groupName, key)</span><br><span class="line"></span><br><span class="line">	res, err := http.Get(url)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 发送请求失败</span></span><br><span class="line">		<span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">defer</span> res.Body.Close()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> res.StatusCode != http.StatusOK &#123;</span><br><span class="line">		<span class="comment">// 状态码不是 200</span></span><br><span class="line">		<span class="keyword">return</span> <span class="literal">nil</span>, fmt.Errorf(<span class="string">&quot;server status code: %v&quot;</span>, res.StatusCode)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	data, err := ioutil.ReadAll(res.Body)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 读取数据失败</span></span><br><span class="line">		<span class="keyword">return</span> <span class="literal">nil</span>, errors.New(<span class="string">&quot;read response body failed&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> data, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> _ PeerGetter = (*HTTPGetter)(<span class="literal">nil</span>) <span class="comment">// 检查实现 PeerGetter 接口</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="实现-PeerPicker"><a href="#实现-PeerPicker" class="headerlink" title="实现 PeerPicker"></a>实现 PeerPicker</h2><p>修改 <strong>HTTPPool 结构体</strong>，使之记录<strong>一致性哈希</strong>的结构体以及 <strong>HTTPGetter</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> HTTPPool <span class="keyword">struct</span> &#123;</span><br><span class="line">	self        <span class="keyword">string</span> <span class="comment">// 如 http://127.0.0.1:8080</span></span><br><span class="line">	basePath    <span class="keyword">string</span> <span class="comment">// 节点间通讯地址的前缀，如 http:// 127.0.1:8080/basePath/groupName/key 用于请求数据</span></span><br><span class="line">	mu          sync.Mutex</span><br><span class="line">	peers       *Map                   <span class="comment">// 一致性哈希，根据 key 来选择节点</span></span><br><span class="line">	httpGetters <span class="keyword">map</span>[<span class="keyword">string</span>]*HTTPGetter <span class="comment">// 根据 baseURL 选择 HTTPGetter</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Set 方法</strong>用于添加节点，即在一致性哈希的哈希环中添加节点：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Set 添加节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *HTTPPool)</span> <span class="title">Set</span><span class="params">(peers ...<span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">	p.mu.Lock()</span><br><span class="line">	<span class="keyword">defer</span> p.mu.Unlock()</span><br><span class="line">	p.peers = New(defaultReplicas, <span class="literal">nil</span>)</span><br><span class="line">	p.peers.Add(peers...)</span><br><span class="line">	p.httpGetters = <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*HTTPGetter)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> _, peer := <span class="keyword">range</span> peers &#123;</span><br><span class="line">		p.httpGetters[peer] = &amp;HTTPGetter&#123;basePath: peer + p.basePath&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>PickPeer 方法</strong>用于根据 key 选择节点，实现 PeerPicker 接口：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// PickPeer 实现 PeerPicker 接口，用于根据 key 选择节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(p *HTTPPool)</span> <span class="title">PickPeer</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="params">(PeerGetter, <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	p.mu.Lock()</span><br><span class="line">	<span class="keyword">defer</span> p.mu.Unlock()</span><br><span class="line">	<span class="keyword">if</span> peer := p.peers.Get(key); peer != <span class="string">&quot;&quot;</span> &amp;&amp; peer != p.self &#123;</span><br><span class="line">		p.Log(<span class="string">&quot;Pick peer %s&quot;</span>, peer)</span><br><span class="line">		<span class="keyword">return</span> p.httpGetters[peer], <span class="literal">true</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="实现主流程"><a href="#实现主流程" class="headerlink" title="实现主流程"></a>实现主流程</h1><p><code>dawncache.go</code></p>
+<p>修改 Group 结构体，<strong>添加 PeerPicker</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Group <span class="keyword">struct</span> &#123;</span><br><span class="line">	name      <span class="keyword">string</span> <span class="comment">// 一个组的命名空间，用于区分不同的缓存，如学生姓名、成绩可以放到不同的缓存中去</span></span><br><span class="line">	getter    Getter <span class="comment">// 当查找数据未命中时，调用该函数获取值</span></span><br><span class="line">	mainCache cache  <span class="comment">// 底层缓存</span></span><br><span class="line">	peers     PeerPicker</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>实现一个方法用于<strong>注册 PeerPicker</strong>：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// RegisterPeers 注册 PeerPicker</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(g *Group)</span> <span class="title">RegisterPeers</span><span class="params">(peers PeerPicker)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> g.peers != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// RegisterPeers 不允许调用超过1次</span></span><br><span class="line">		<span class="built_in">panic</span>(<span class="string">&quot;RegisterPeerPicker called more than once&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	g.peers = peers</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>修改 <strong>load 方法</strong>，使之：</p>
+<ul>
+<li>既能够从<strong>远程</strong>获取数据。</li>
+<li>又能够在<strong>本地通过回调函数</strong>获取数据。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// load 从别处加载数据</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(g *Group)</span> <span class="title">load</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="params">(ByteView, error)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> g.peers != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// peers 不为空，可以从远程获取数据</span></span><br><span class="line">		<span class="keyword">if</span> peer, ok := g.peers.PickPeer(key); ok &#123;</span><br><span class="line">			<span class="comment">// 从远程获取数据</span></span><br><span class="line">			view, err := g.getFromPeer(peer, key)</span><br><span class="line">			<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">				log.Println(<span class="string">&quot;[GeeCache] Failed to get from peer&quot;</span>, err)</span><br><span class="line">				<span class="keyword">return</span> ByteView&#123;&#125;, err</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">return</span> view, <span class="literal">nil</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 本地通过回调函数获取数据</span></span><br><span class="line">	<span class="keyword">return</span> g.getLocally(key)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// getFromPeer 从 peer 处获取数据</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(g *Group)</span> <span class="title">getFromPeer</span><span class="params">(peer PeerGetter, key <span class="keyword">string</span>)</span> <span class="params">(ByteView, error)</span></span> &#123;</span><br><span class="line">	data, err := peer.Get(g.name, key)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> ByteView&#123;&#125;, err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> ByteView&#123;b: data&#125;, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/28/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E7%BC%93%E5%AD%98-4-%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -976,311 +1299,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/25/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-5-%E4%B8%AD%E9%97%B4%E4%BB%B6/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/05/25/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-5-%E4%B8%AD%E9%97%B4%E4%BB%B6/" class="post-title-link" itemprop="url">从零实现一个Web框架 (5) 中间件</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-05-25 11:21:19" itemprop="dateCreated datePublished" datetime="2022-05-25T11:21:19+08:00">2022-05-25</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>在本节，最终的代码目录结构如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">dain/</span><br><span class="line">	|--context.go</span><br><span class="line">	|--dain.go</span><br><span class="line">	|--logger.go</span><br><span class="line">	|--router.go</span><br><span class="line">	|--trie.go</span><br><span class="line">	|--go.mod</span><br><span class="line">main.go</span><br><span class="line">go.mod</span><br></pre></td></tr></table></figure>
-
-<h1 id="实现目标"><a href="#实现目标" class="headerlink" title="实现目标"></a>实现目标</h1><p>实现中间件的添加以及 Logger 中间件（用于记录请求处理时间和响应码）。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;DawnGin/dain&quot;</span></span><br><span class="line">	<span class="string">&quot;net/http&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	e := dain.New()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 使用 Logger 中间件</span></span><br><span class="line">	e.Use(dain.Logger())</span><br><span class="line"></span><br><span class="line">	e.Get(<span class="string">&quot;/hello/:name&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *dain.Context)</span></span> &#123;</span><br><span class="line">		name := c.Param(<span class="string">&quot;name&quot;</span>)</span><br><span class="line">		c.String(http.StatusOK, <span class="string">&quot;Hello, you are %v, URL path = %v&quot;</span>, name, c.Path)</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 分组路由</span></span><br><span class="line">	v1 := e.Group(<span class="string">&quot;/v1&quot;</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		v1.Get(<span class="string">&quot;/video/:name&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *dain.Context)</span></span> &#123;</span><br><span class="line">			videoName := c.Param(<span class="string">&quot;name&quot;</span>)</span><br><span class="line">			c.String(http.StatusOK, <span class="string">&quot;Hello, this is v1 group, video name = %v, path = %v&quot;</span>, videoName, c.Path)</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	e.Run(<span class="string">&quot;:9000&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<h1 id="中间件"><a href="#中间件" class="headerlink" title="中间件"></a>中间件</h1><h2 id="Context"><a href="#Context" class="headerlink" title="Context"></a>Context</h2><p><code> dain/context</code></p>
-<p>在上下文 Context 中需要保存中间件信息，以及需要保存执行到第几个中间件了：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Context <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// HTTP 请求 响应</span></span><br><span class="line">	Writer http.ResponseWriter</span><br><span class="line">	Req    *http.Request</span><br><span class="line">	<span class="comment">// 请求信息</span></span><br><span class="line">	Path   <span class="keyword">string</span>            <span class="comment">// 请求路径</span></span><br><span class="line">	Method <span class="keyword">string</span>            <span class="comment">// 请求方法</span></span><br><span class="line">	Params <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span> <span class="comment">// 路由参数，如 /hello/:user 匹配 /hello/dawn，则 Params[&quot;user&quot;]=dawn</span></span><br><span class="line">	<span class="comment">// 响应信息</span></span><br><span class="line">	StatusCode <span class="keyword">int</span> <span class="comment">// 响应码</span></span><br><span class="line">	<span class="comment">// 中间件</span></span><br><span class="line">	handlers []HandlerFunc <span class="comment">// 存储中间件</span></span><br><span class="line">	index    <span class="keyword">int</span>           <span class="comment">// 执行的中间件下标</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewContext</span><span class="params">(w http.ResponseWriter, r *http.Request)</span> *<span class="title">Context</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> &amp;Context&#123;</span><br><span class="line">		Writer: w,</span><br><span class="line">		Req:    r,</span><br><span class="line">		Path:   r.URL.Path,</span><br><span class="line">		Method: r.Method,</span><br><span class="line">		index:  <span class="number">-1</span>,</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><code>c.Next</code> 方法可以执行下一个中间件，实现在执行下一个中间件之后再进行一些额外的操作：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Next 执行下一个中间件</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Context)</span> <span class="title">Next</span><span class="params">()</span></span> &#123;</span><br><span class="line">	c.index++</span><br><span class="line">	<span class="keyword">for</span> ; c.index &lt; <span class="built_in">len</span>(c.handlers); c.index++ &#123;</span><br><span class="line">		c.handlers[c.index](c)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="将中间件应用到-Group"><a href="#将中间件应用到-Group" class="headerlink" title="将中间件应用到 Group"></a>将中间件应用到 Group</h2><p><code>dain/dain.go</code></p>
-<p>定义 <strong>Use</strong> 函数，用于将中间件<strong>添加</strong>到 Group 中。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Use 为分组添加中间件</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(group *RouterGroup)</span> <span class="title">Use</span><span class="params">(middlewares ...HandlerFunc)</span></span> &#123;</span><br><span class="line">	group.middleware = <span class="built_in">append</span>(group.middleware, middlewares...)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>同时，需要重写 <strong>ServeHTTP</strong> 函数，当我们接收到一个具体请求时，要判断该请求适用于哪些中间件，在这里我们简单通过 URL 的前缀来判断，将对应的中间件加入到 context 中。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 实现 http.Handler 接口，自定义路由器</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(e *Engine)</span> <span class="title">ServeHTTP</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> &#123;</span><br><span class="line">	c := NewContext(w, r)</span><br><span class="line">	<span class="keyword">for</span> _, group := <span class="keyword">range</span> e.groups &#123;</span><br><span class="line">		<span class="keyword">if</span> strings.HasPrefix(r.URL.Path, group.prefix) &#123;</span><br><span class="line">			c.handlers = <span class="built_in">append</span>(c.handlers, group.middleware...)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	e.router.handle(c)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="修改-router"><a href="#修改-router" class="headerlink" title="修改 router"></a>修改 router</h2><p><code>dain/router.go</code></p>
-<p>需要修改 <strong>router.handle</strong> 方法，将最后的请求处理逻辑 <strong>Handler 添加在中间件的最后</strong>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// handle 实现路由功能</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *router)</span> <span class="title">handle</span><span class="params">(c *Context)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 在前缀树种查找路由，获取路由参数</span></span><br><span class="line">	n, params := r.getRoute(c.Method, c.Path)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> n != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 匹配路由</span></span><br><span class="line">		key := c.Method + <span class="string">&quot;-&quot;</span> + n.pattern</span><br><span class="line">		c.Params = params</span><br><span class="line">		c.handlers = <span class="built_in">append</span>(c.handlers, r.handlers[key])</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		c.handlers = <span class="built_in">append</span>(c.handlers, <span class="function"><span class="keyword">func</span><span class="params">(c *Context)</span></span> &#123;</span><br><span class="line">			c.String(http.StatusNotFound, <span class="string">&quot;404 NOT FOUND FOR PATH: %v&quot;</span>, c.Path)</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	c.Next()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Logger-中间件"><a href="#Logger-中间件" class="headerlink" title="Logger 中间件"></a>Logger 中间件</h1><p><code>dain/logger.go</code></p>
-<p>预定义一个 <strong>Logger</strong> 中间件，用于记录每一个请求的<strong>处理时间、响应码</strong>。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Logger</span><span class="params">()</span> <span class="title">HandlerFunc</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="function"><span class="keyword">func</span><span class="params">(c *Context)</span></span> &#123;</span><br><span class="line">		<span class="comment">// 开始时间</span></span><br><span class="line">		startTime := time.Now()</span><br><span class="line">		<span class="comment">// 向后处理请求</span></span><br><span class="line">		c.Next()</span><br><span class="line">		<span class="comment">// 处理结束，输出日志</span></span><br><span class="line">		log.Printf(<span class="string">&quot;[%d] %s in %v&quot;</span>, c.StatusCode, c.Req.RequestURI, time.Since(startTime))</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/23/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-4-%E5%88%86%E7%BB%84/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/05/23/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-4-%E5%88%86%E7%BB%84/" class="post-title-link" itemprop="url">从零实现一个Web框架 (4) 分组</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-05-23 16:05:08" itemprop="dateCreated datePublished" datetime="2022-05-23T16:05:08+08:00">2022-05-23</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>在本节，最终的代码目录结构如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">dain/</span><br><span class="line">	|--context.go</span><br><span class="line">	|--dain.go</span><br><span class="line">	|--router.go</span><br><span class="line">	|--trie.go</span><br><span class="line">	|--go.mod</span><br><span class="line">main.go</span><br><span class="line">go.mod</span><br></pre></td></tr></table></figure>
-
-<h1 id="实现目标"><a href="#实现目标" class="headerlink" title="实现目标"></a>实现目标</h1><p>可以对路由进行分组，每一组内的路由都可以有相似用途，也对分组定义中间件。</p>
-<p><code>main.go</code></p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;DawnGin/dain&quot;</span></span><br><span class="line">	<span class="string">&quot;net/http&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	e := dain.New()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 分组路由</span></span><br><span class="line">	v1 := e.Group(<span class="string">&quot;/v1&quot;</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		v1.Get(<span class="string">&quot;/video/:name&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *dain.Context)</span></span> &#123;</span><br><span class="line">			videoName := c.Param(<span class="string">&quot;name&quot;</span>)</span><br><span class="line">			c.String(http.StatusOK, <span class="string">&quot;Hello, this is v1 group, video name = %v, path = %v&quot;</span>, videoName, c.Path)</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	e.Run(<span class="string">&quot;:9000&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<h1 id="分组控制"><a href="#分组控制" class="headerlink" title="分组控制"></a>分组控制</h1><p><code>dain/dain.go</code></p>
-<h2 id="结构体"><a href="#结构体" class="headerlink" title="结构体"></a>结构体</h2><p>我们需要通过<strong>前缀</strong>来区分分组路由，同时还需要记录当前分组的<strong>上一层</strong>、应用于当前分组的<strong>中间件</strong>以及最顶层的 <strong>Engine</strong>：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// RouterGroup 分组路由</span></span><br><span class="line"><span class="keyword">type</span> RouterGroup <span class="keyword">struct</span> &#123;</span><br><span class="line">	prefix     <span class="keyword">string</span>        <span class="comment">// 当前分组的公共前缀</span></span><br><span class="line">	parent     *RouterGroup  <span class="comment">// 记录当前分组的上一层</span></span><br><span class="line">	middleware []HandlerFunc <span class="comment">// 记录中间件</span></span><br><span class="line">	engine     *Engine       <span class="comment">// 记录所属的 Engine</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>可以<strong>将 Engine 作为最顶层的分组</strong>，也就是说 Engine 具有 RouterGroup 的所有能力：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Engine <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// 路由器</span></span><br><span class="line">	router *router</span><br><span class="line">	<span class="comment">// 继承 RouterGroup，把根也看作是一个分组</span></span><br><span class="line">	*RouterGroup</span><br><span class="line">	<span class="comment">// 记录所有的路由分组</span></span><br><span class="line">	groups []*RouterGroup</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// New 返回一个 Engine 指针</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">New</span><span class="params">()</span> *<span class="title">Engine</span></span> &#123;</span><br><span class="line">	engine := &amp;Engine&#123;router: NewRouter()&#125;</span><br><span class="line">	engine.RouterGroup = &amp;RouterGroup&#123;engine: engine&#125;</span><br><span class="line">	engine.groups = []*RouterGroup&#123;engine.RouterGroup&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> engine</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="添加分组"><a href="#添加分组" class="headerlink" title="添加分组"></a>添加分组</h2><p>通过 <strong>Group</strong> 函数可以添加分组：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(group *RouterGroup)</span> <span class="title">Group</span><span class="params">(prefix <span class="keyword">string</span>)</span> *<span class="title">RouterGroup</span></span> &#123;</span><br><span class="line">	engine := group.engine</span><br><span class="line">	newGroup := &amp;RouterGroup&#123;</span><br><span class="line">		prefix: group.prefix + prefix,</span><br><span class="line">		parent: group,</span><br><span class="line">		engine: engine,</span><br><span class="line">	&#125;</span><br><span class="line">	engine.groups = <span class="built_in">append</span>(engine.groups, newGroup) <span class="comment">// 在 Engine 中保存新的分组</span></span><br><span class="line">	<span class="keyword">return</span> newGroup</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="注册路由"><a href="#注册路由" class="headerlink" title="注册路由"></a>注册路由</h2><p>因为<strong>分组也可以注册路由</strong>，所以将 Engine 的路由注册方法更改为 RouterGroup 的方法：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// addRouter 实现路由注册功能</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(group *RouterGroup)</span> <span class="title">addRouter</span><span class="params">(method, pattern <span class="keyword">string</span>, handler HandlerFunc)</span></span> &#123;</span><br><span class="line">	pattern = group.prefix + pattern</span><br><span class="line">	group.engine.router.addRouter(method, pattern, handler)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Get 路由注册 GET 请求方式</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(group *RouterGroup)</span> <span class="title">Get</span><span class="params">(pattern <span class="keyword">string</span>, handler HandlerFunc)</span></span> &#123;</span><br><span class="line">	group.addRouter(<span class="string">&quot;GET&quot;</span>, pattern, handler)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Post 路由注册 POST 请求方式</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(group *RouterGroup)</span> <span class="title">Post</span><span class="params">(pattern <span class="keyword">string</span>, handler HandlerFunc)</span></span> &#123;</span><br><span class="line">	group.addRouter(<span class="string">&quot;POST&quot;</span>, pattern, handler)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/05/22/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-3-%E5%89%8D%E7%BC%80%E6%A0%91%E8%B7%AF%E7%94%B1/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/05/22/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AAWeb%E6%A1%86%E6%9E%B6-3-%E5%89%8D%E7%BC%80%E6%A0%91%E8%B7%AF%E7%94%B1/" class="post-title-link" itemprop="url">从零实现一个Web框架 (3) 前缀树路由</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-05-22 22:04:16" itemprop="dateCreated datePublished" datetime="2022-05-22T22:04:16+08:00">2022-05-22</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E4%BB%8E%E9%9B%B6%E5%AE%9E%E7%8E%B0%E7%B3%BB%E5%88%97/" itemprop="url" rel="index"><span itemprop="name">从零实现系列</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>在本节，最终的代码目录结构如下：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">dain/</span><br><span class="line">	|--context.go</span><br><span class="line">	|--dain.go</span><br><span class="line">	|--router.go</span><br><span class="line">	|--trie.go</span><br><span class="line">	|--go.mod</span><br><span class="line">main.go</span><br><span class="line">go.mod</span><br></pre></td></tr></table></figure>
-
-<h1 id="实现目标"><a href="#实现目标" class="headerlink" title="实现目标"></a>实现目标</h1><p>利用前缀树（Trie 树）实现动态路由解析，并且支持 <code>:name</code> 和    <code>*filename</code> 两种模式。</p>
-<p><code>main.go</code></p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	e := dain.New()</span><br><span class="line"></span><br><span class="line">	e.Get(<span class="string">&quot;/hello/:name&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *dain.Context)</span></span> &#123;</span><br><span class="line">		name := c.Param(<span class="string">&quot;name&quot;</span>)</span><br><span class="line">		c.String(http.StatusOK, <span class="string">&quot;Hello, you are %v, URL path = %v&quot;</span>, name, c.Path)</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	e.Get(<span class="string">&quot;/file/*filename&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">(c *dain.Context)</span></span> &#123;</span><br><span class="line">		filename := c.Param(<span class="string">&quot;filename&quot;</span>)</span><br><span class="line">		c.JSON(http.StatusOK, dain.H&#123;</span><br><span class="line">			<span class="string">&quot;filename&quot;</span>: filename,</span><br><span class="line">			<span class="string">&quot;msg&quot;</span>:      <span class="string">&quot;OK&quot;</span>,</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	e.Run(<span class="string">&quot;:9000&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Trie-树"><a href="#Trie-树" class="headerlink" title="Trie 树"></a>Trie 树</h1><p><code>dain/trie.go</code></p>
-<p>在之前的版本种，使用了 map 来存储路由与处理函数的映射，但是这不能支持动态路由。</p>
-<p>Trie 树（前缀树）可以实现动态路由，一个节点的所有子节点都有相同的前缀。</p>
-<p><code>/:user/info</code>、<code>/:user/doc</code>、<code>/p/video</code>、<code>/p/book</code>、<code>/file/*filepath</code> 对应的前缀树如下所示：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">                      /</span><br><span class="line">       _______________|______________</span><br><span class="line">      |               |              |</span><br><span class="line">    :user             p            file</span><br><span class="line">   ___|___         ___|___           |</span><br><span class="line">  |       |       |       |          |</span><br><span class="line">info     doc    video    book    *filepath		</span><br></pre></td></tr></table></figure>
-
-<h2 id="节点结构"><a href="#节点结构" class="headerlink" title="节点结构"></a>节点结构</h2><p>首先需要知道前缀树的节点的结构。</p>
-<p>其中，<code>matchChild</code> 匹配第一个节点，用于将剩余路由信息插入到匹配的节点之下。<code>matchChildren</code> 用于匹配所有的节点，用于查找请求的路径信息是否匹配。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> node <span class="keyword">struct</span> &#123;</span><br><span class="line">	pattern  <span class="keyword">string</span>  <span class="comment">// 待匹配的路由，只在pattern定义的最后一个节点存储</span></span><br><span class="line">	part     <span class="keyword">string</span>  <span class="comment">// 路由中的一部分</span></span><br><span class="line">	children []*node <span class="comment">// 叶子节点</span></span><br><span class="line">	isWild   <span class="keyword">bool</span>    <span class="comment">// 若不是精确匹配则为 true；否则为 false</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// matchChild 匹配第一个节点，用于插入</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(n *node)</span> <span class="title">matchChild</span><span class="params">(part <span class="keyword">string</span>)</span> *<span class="title">node</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> _, child := <span class="keyword">range</span> n.children &#123;</span><br><span class="line">		<span class="keyword">if</span> child.part == part || child.isWild &#123;</span><br><span class="line">			<span class="keyword">return</span> child</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// matchChildren 匹配所有的节点，用于查找</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(n *node)</span> <span class="title">matchChildren</span><span class="params">(part <span class="keyword">string</span>)</span> []*<span class="title">node</span></span> &#123;</span><br><span class="line">	children := <span class="built_in">make</span>([]*node, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">for</span> _, child := <span class="keyword">range</span> n.children &#123;</span><br><span class="line">		<span class="keyword">if</span> child.part == part || child.isWild &#123;</span><br><span class="line">			children = <span class="built_in">append</span>(children, child)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> children</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="插入和搜索"><a href="#插入和搜索" class="headerlink" title="插入和搜索"></a>插入和搜索</h2><p>在<strong>添加路由</strong>时，需要在前缀树中<strong>插入</strong>节点。</p>
-<p>在<strong>匹配路由</strong>时，需要<strong>查找</strong>当前请求的路径是否能匹配到节点。</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// insert 插入节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(n *node)</span> <span class="title">insert</span><span class="params">(pattern <span class="keyword">string</span>, parts []<span class="keyword">string</span>, height <span class="keyword">int</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> <span class="built_in">len</span>(parts) == height &#123;</span><br><span class="line">		<span class="comment">// 到达叶子节点</span></span><br><span class="line">		<span class="comment">// 仅仅在pattern定义的最后一个节点存储</span></span><br><span class="line">		n.pattern = pattern</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	part := parts[height]</span><br><span class="line">	child := n.matchChild(part)</span><br><span class="line">	<span class="keyword">if</span> child == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 若当前层没有匹配，新建一个节点，并插入到孩子节点中</span></span><br><span class="line">		child = &amp;node&#123;part: part, isWild: part[<span class="number">0</span>] == <span class="string">&#x27;:&#x27;</span> || part[<span class="number">0</span>] == <span class="string">&#x27;*&#x27;</span>&#125;</span><br><span class="line">		n.children = <span class="built_in">append</span>(n.children, child)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 向下一层继续插入</span></span><br><span class="line">	child.insert(pattern, parts, height+<span class="number">1</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// search 查找节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(n *node)</span> <span class="title">search</span><span class="params">(parts []<span class="keyword">string</span>, height <span class="keyword">int</span>)</span> *<span class="title">node</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> <span class="built_in">len</span>(parts) == height || strings.HasPrefix(n.part, <span class="string">&quot;*&quot;</span>) &#123;</span><br><span class="line">		<span class="comment">// 到达叶子节点 或者 匹配到“*”</span></span><br><span class="line">		<span class="keyword">if</span> n.pattern == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">			<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> n</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	part := parts[height]</span><br><span class="line">	children := n.matchChildren(part)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> _, child := <span class="keyword">range</span> children &#123;</span><br><span class="line">		<span class="comment">// 在下一层中继续查找</span></span><br><span class="line">		result := child.search(parts, height+<span class="number">1</span>)</span><br><span class="line">		<span class="keyword">if</span> result != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">// 找到节点</span></span><br><span class="line">			<span class="keyword">return</span> result</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="路由器-Router"><a href="#路由器-Router" class="headerlink" title="路由器 Router"></a>路由器 Router</h1><p><code>dain/router.go</code></p>
-<h2 id="router-结构"><a href="#router-结构" class="headerlink" title="router 结构"></a>router 结构</h2><p>在 router 中记录前缀树的<strong>根节点 roots</strong>，用于记录和匹配路由；<strong>handlers</strong> 用于记录 pattern 和 HandlerFunc 的映射关系：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> router <span class="keyword">struct</span> &#123;</span><br><span class="line">	roots    <span class="keyword">map</span>[<span class="keyword">string</span>]*node       <span class="comment">// 保存 trie 树的根，key为 Method，value为树根</span></span><br><span class="line">	handlers <span class="keyword">map</span>[<span class="keyword">string</span>]HandlerFunc <span class="comment">// 保存 pattern 与 HandlerFunc 的映射关系</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewRouter</span><span class="params">()</span> *<span class="title">router</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> &amp;router&#123;</span><br><span class="line">		roots:    <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]*node),</span><br><span class="line">		handlers: <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]HandlerFunc),</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="添加路由"><a href="#添加路由" class="headerlink" title="添加路由"></a>添加路由</h2><p>因为增加了前缀树用来保存路由 pattern，所以需要在<strong>添加路由</strong>的同时在前缀树中<strong>插入</strong>节点：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// parsePattern 解析 pattern，返回对应的 parts（路由中的一部分）</span></span><br><span class="line"><span class="comment">// 如 pattern 为 /hello/world，那么对应的 parts 为 []&#123;&quot;hello&quot;, &quot;world&quot;&#125;</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">parsePattern</span><span class="params">(pattern <span class="keyword">string</span>)</span> []<span class="title">string</span></span> &#123;</span><br><span class="line">	vs := strings.Split(pattern, <span class="string">&quot;/&quot;</span>)</span><br><span class="line"></span><br><span class="line">	parts := <span class="built_in">make</span>([]<span class="keyword">string</span>, <span class="number">0</span>, <span class="built_in">len</span>(vs))</span><br><span class="line">	<span class="keyword">for</span> _, item := <span class="keyword">range</span> vs &#123;</span><br><span class="line">		<span class="keyword">if</span> item != <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">			<span class="comment">// 不为空，加入到 parts 中</span></span><br><span class="line">			parts = <span class="built_in">append</span>(parts, item)</span><br><span class="line">			<span class="keyword">if</span> item[<span class="number">0</span>] == <span class="string">&#x27;*&#x27;</span> &#123;</span><br><span class="line">				<span class="comment">// 遇到通配符直接退出</span></span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> parts</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// addRouter 实现路由注册功能</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *router)</span> <span class="title">addRouter</span><span class="params">(method, pattern <span class="keyword">string</span>, handler HandlerFunc)</span></span> &#123;</span><br><span class="line">	log.Printf(<span class="string">&quot;Router %v - %v\n&quot;</span>, method, pattern)</span><br><span class="line">	key := method + <span class="string">&quot;-&quot;</span> + pattern</span><br><span class="line"></span><br><span class="line">	_, ok := r.roots[method]</span><br><span class="line">	<span class="keyword">if</span> !ok &#123;</span><br><span class="line">		r.roots[method] = &amp;node&#123;&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	parts := parsePattern(pattern)</span><br><span class="line">	r.roots[method].insert(pattern, parts, <span class="number">0</span>) <span class="comment">// 插入到前缀树中</span></span><br><span class="line">	r.handlers[key] = handler</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="路由功能"><a href="#路由功能" class="headerlink" title="路由功能"></a>路由功能</h2><p>添加一个函数 <strong>getRouter</strong> 用于查找对应的叶子节点和路由参数，并且重新实现 <strong>handle</strong> 路由功能：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// getRoute 根据请求的 method 和 path，找到对应的前缀树叶子节点和路由参数</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *router)</span> <span class="title">getRoute</span><span class="params">(method, path <span class="keyword">string</span>)</span> <span class="params">(*node, <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">	searchParts := parsePattern(path) <span class="comment">// 查找的 parts</span></span><br><span class="line">	params := <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>)</span><br><span class="line">	root, ok := r.roots[method]</span><br><span class="line">	<span class="keyword">if</span> !ok &#123;</span><br><span class="line">		<span class="comment">// 方法没有定义路由，直接返回</span></span><br><span class="line">		<span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	n := root.search(searchParts, <span class="number">0</span>) <span class="comment">// 查找叶子节点</span></span><br><span class="line">	<span class="keyword">if</span> n != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 可以找到</span></span><br><span class="line">		parts := parsePattern(n.pattern)</span><br><span class="line">		<span class="keyword">for</span> index, part := <span class="keyword">range</span> parts &#123;</span><br><span class="line">			<span class="keyword">if</span> part[<span class="number">0</span>] == <span class="string">&#x27;:&#x27;</span> &#123;</span><br><span class="line">				params[part[<span class="number">1</span>:]] = searchParts[index]</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">if</span> part[<span class="number">0</span>] == <span class="string">&#x27;*&#x27;</span> &amp;&amp; <span class="built_in">len</span>(part) &gt; <span class="number">1</span> &#123;</span><br><span class="line">				params[part[<span class="number">1</span>:]] = strings.Join(searchParts[index:], <span class="string">&quot;/&quot;</span>)</span><br><span class="line">				<span class="keyword">break</span></span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">return</span> n, params</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// handle 实现路由功能</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *router)</span> <span class="title">handle</span><span class="params">(c *Context)</span></span> &#123;</span><br><span class="line">	<span class="comment">// 在前缀树种查找路由，获取路由参数</span></span><br><span class="line">	n, params := r.getRoute(c.Method, c.Path)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> n != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="comment">// 匹配路由</span></span><br><span class="line">		key := c.Method + <span class="string">&quot;-&quot;</span> + n.pattern</span><br><span class="line">		c.Params = params</span><br><span class="line">		r.handlers[key](c)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		fmt.Fprintf(c.Writer, <span class="string">&quot;404 NOT FOUND FOR PATH: %v&quot;</span>, c.Path)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h1 id="Context"><a href="#Context" class="headerlink" title="Context"></a>Context</h1><p><code>dain/context.go</code></p>
-<h2 id="Context-结构"><a href="#Context-结构" class="headerlink" title="Context 结构"></a>Context 结构</h2><p>为了访问到路由参数，所以需要修改 Context 结构体，向其中添加 <strong>Params</strong>，用来记录路由参数：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Context <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// HTTP 请求 响应</span></span><br><span class="line">	Writer http.ResponseWriter</span><br><span class="line">	Req    *http.Request</span><br><span class="line">	<span class="comment">// 请求信息</span></span><br><span class="line">	Path   <span class="keyword">string</span>            <span class="comment">// 请求路径</span></span><br><span class="line">	Method <span class="keyword">string</span>            <span class="comment">// 请求方法</span></span><br><span class="line">	Params <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span> <span class="comment">// 路由参数，如 /hello/:user 匹配 /hello/dawn，则 Params[&quot;user&quot;]=dawn</span></span><br><span class="line">	<span class="comment">// 响应信息</span></span><br><span class="line">	StatusCode <span class="keyword">int</span> <span class="comment">// 响应码</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="获取路由参数"><a href="#获取路由参数" class="headerlink" title="获取路由参数"></a>获取路由参数</h2><p>增加可以用过键值获取相应路由参数的函数：</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Param 获取路由参数</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Context)</span> <span class="title">Param</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	value, _ := c.Params[key]</span><br><span class="line">	<span class="keyword">return</span> value</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1350,7 +1368,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

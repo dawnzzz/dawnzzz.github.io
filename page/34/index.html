@@ -158,6 +158,285 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-9-%E6%93%8D%E4%BD%9CZooKeeper/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/15/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-9-%E6%93%8D%E4%BD%9CZooKeeper/" class="post-title-link" itemprop="url">GO语言杂谈 (9) 操作ZooKeeper</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-15 15:42:43" itemprop="dateCreated datePublished" datetime="2022-03-15T15:42:43+08:00">2022-03-15</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="基本操作"><a href="#基本操作" class="headerlink" title="基本操作"></a>基本操作</h1><h2 id="连接zookeeper"><a href="#连接zookeeper" class="headerlink" title="连接zookeeper"></a>连接zookeeper</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 连接zookeeper服务器</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="增"><a href="#增" class="headerlink" title="增"></a>增</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">conn zookeeper连接</span></span><br><span class="line"><span class="comment">path 节点</span></span><br><span class="line"><span class="comment">data 节点数据</span></span><br><span class="line"><span class="comment">flags有4种取值：</span></span><br><span class="line"><span class="comment">   0:永久，除非手动删除</span></span><br><span class="line"><span class="comment">   zk.FlagEphemeral = 1:短暂，session断开则改节点也被删除</span></span><br><span class="line"><span class="comment">   zk.FlagSequence  = 2:会自动在节点后面添加序号</span></span><br><span class="line"><span class="comment">   3:Ephemeral和Sequence，即，短暂且自动添加序号</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	s, err := conn.Create(path, data, flags, acls)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create success:&quot;</span>, s)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="删"><a href="#删" class="headerlink" title="删"></a>删</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get version failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="改"><a href="#改" class="headerlink" title="改"></a>改</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 更新节点</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">set</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get version failed, err:&quot;</span>, err)</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 更新</span></span><br><span class="line">	stat, err = conn.Set(path, data, stat.Version)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;set failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;set success ,stat: %v\n&quot;</span>, stat)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="查"><a href="#查" class="headerlink" title="查"></a>查</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 查询</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">get</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="params">([]<span class="keyword">byte</span>, error)</span></span> &#123;</span><br><span class="line">	b, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;get failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;info of node for %v: %v\n&quot;</span>, path, stat)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> b, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Watch机制"><a href="#Watch机制" class="headerlink" title="Watch机制"></a>Watch机制</h1><h2 id="只监听一次"><a href="#只监听一次" class="headerlink" title="只监听一次"></a>只监听一次</h2><p>调用<code>zk.WithEventCallback(callback)</code>设置回调</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/samuel/go-zookeeper/zk&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// zk watch 回调函数</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">callback</span><span class="params">(event zk.Event)</span></span> &#123;</span><br><span class="line">	<span class="comment">// zk.EventNodeCreated</span></span><br><span class="line">	<span class="comment">// zk.EventNodeDeleted</span></span><br><span class="line">	fmt.Println(<span class="string">&quot;###########################&quot;</span>)</span><br><span class="line">	fmt.Println(<span class="string">&quot;path: &quot;</span>, event.Path)</span><br><span class="line">	fmt.Println(<span class="string">&quot;type: &quot;</span>, event.Type.String())</span><br><span class="line">	fmt.Println(<span class="string">&quot;state: &quot;</span>, event.State.String())</span><br><span class="line">	fmt.Println(<span class="string">&quot;---------------------------&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	eventCallbackOption := zk.WithEventCallback(callback)</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>, eventCallbackOption)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	_, err := conn.Create(path, data, flags, acls)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listenOne</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">//调用conn.ExistsW(path) 或GetW(path)为对应节点设置监听，该监听只生效一次</span></span><br><span class="line">	_, _, _, err := conn.ExistsW(path)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := initZk()</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	path := <span class="string">&quot;/dawn111&quot;</span></span><br><span class="line">	data := []<span class="keyword">byte</span>(<span class="string">&quot;hello world&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 开始监听path，只监听一次</span></span><br><span class="line">	err = listenOne(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 触发创建数据操作</span></span><br><span class="line">	err = add(conn, path, data, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;创建数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//再次监听path</span></span><br><span class="line">	err = listenOne(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 触发删除数据操作</span></span><br><span class="line">	err = <span class="built_in">delete</span>(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;删除数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="开启一个channel处理"><a href="#开启一个channel处理" class="headerlink" title="开启一个channel处理"></a>开启一个channel处理</h2><p>可以开一一个协程来处理chanel中传来的event事件，可以持续监听</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	<span class="string">&quot;github.com/samuel/go-zookeeper/zk&quot;</span></span><br><span class="line">	<span class="string">&quot;log&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">initZk</span><span class="params">()</span> <span class="params">(*zk.Conn, error)</span></span> &#123;</span><br><span class="line">	servers := []<span class="keyword">string</span>&#123;<span class="string">&quot;127.0.0.1:2181&quot;</span>&#125;</span><br><span class="line">	conn, _, err := zk.Connect(servers, time.Second*<span class="number">5</span>)</span><br><span class="line">	<span class="keyword">return</span> conn, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">add</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>, data []<span class="keyword">byte</span>, flags <span class="keyword">int32</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	acls := zk.WorldACL(zk.PermAll)</span><br><span class="line">	_, err := conn.Create(path, data, flags, acls)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 删除</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">delete</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">// 获取版本</span></span><br><span class="line">	_, stat, err := conn.Get(path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除</span></span><br><span class="line">	err = conn.Delete(path, stat.Version)</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listenOneChannel</span><span class="params">(conn *zk.Conn, path <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	_, _, ch, err := conn.ExistsW(path)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		event := &lt;-ch</span><br><span class="line">		fmt.Println(<span class="string">&quot;*******************&quot;</span>)</span><br><span class="line">		fmt.Println(<span class="string">&quot;path:&quot;</span>, event.Path)</span><br><span class="line">		fmt.Println(<span class="string">&quot;type:&quot;</span>, event.Type.String())</span><br><span class="line">		fmt.Println(<span class="string">&quot;state:&quot;</span>, event.State.String())</span><br><span class="line">		fmt.Println(<span class="string">&quot;-------------------&quot;</span>)</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	conn, err := initZk()</span><br><span class="line">	<span class="keyword">defer</span> conn.Close()</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		fmt.Println(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	path := <span class="string">&quot;/dawn111&quot;</span></span><br><span class="line">	data := []<span class="keyword">byte</span>(<span class="string">&quot;hello world&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 开启一个管道持续监听</span></span><br><span class="line">	err = listenOneChannel(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 创建数据触发事件</span></span><br><span class="line">	err = add(conn, path, data, <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;create failed, err:&quot;</span>, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;创建数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 删除数据触发事件</span></span><br><span class="line">	err = <span class="built_in">delete</span>(conn, path)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		log.Printf(<span class="string">&quot;delete failed for path %s, err: %v\n&quot;</span>, path, err)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		log.Println(<span class="string">&quot;删除数据成功！&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/" class="post-title-link" itemprop="url">ZooKeeper学习 (2) 实现分布式锁和watch机制</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-15 15:00:20" itemprop="dateCreated datePublished" datetime="2022-03-15T15:00:20+08:00">2022-03-15</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-03-15 10:37:20" itemprop="dateModified" datetime="2024-03-15T10:37:20+08:00">2024-03-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="ZooKeeper实现分布式锁"><a href="#ZooKeeper实现分布式锁" class="headerlink" title="ZooKeeper实现分布式锁"></a>ZooKeeper实现分布式锁</h1><p>zookeeper中可以实现两种锁：</p>
+<ul>
+<li><strong>读锁（共享锁）</strong>：可以一起读，但是与写锁互斥。</li>
+<li><strong>写锁（互斥锁）</strong>：与读锁和写锁都互斥。</li>
+</ul>
+<h2 id="实现读锁"><a href="#实现读锁" class="headerlink" title="实现读锁"></a>实现读锁</h2><ul>
+<li>创建⼀个<strong>临时序号节点</strong>，节点的数据是read，表示是读锁</li>
+<li>获取当前zookeeper中序号比自己小的所有节点。若这些节点有写锁，则加锁不成功。</li>
+</ul>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328212101.png" alt="读锁"></p>
+<h2 id="实现写锁"><a href="#实现写锁" class="headerlink" title="实现写锁"></a>实现写锁</h2><ul>
+<li>创建⼀个<strong>临时序号节点</strong>，节点的数据是write，表示是写锁</li>
+<li>获取zookeeper中所有的子节点</li>
+<li>判断自己是否是最小的节点：<ul>
+<li>如果是，则上锁成功</li>
+<li>如果不是，说明前面还有锁，上锁失败，为最小节点设置监听。阻塞等待，watch机制会当最小节点发生变化时通知当前节点，再执行第二步</li>
+</ul>
+</li>
+</ul>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328263477.png" alt="写锁"></p>
+<h2 id="羊群效应"><a href="#羊群效应" class="headerlink" title="羊群效应"></a>羊群效应</h2><p>羊群效应：如果采用上述的上锁方式，只要有节点发生变化，就会触发其他节点的监听事件，这样对于zookeeper的压力非常大。</p>
+<p>可以调整成链式监听：</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/1647328378251.png" alt="链式监听"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/15/ZooKeeper%E5%AD%A6%E4%B9%A0-2-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8Cwatch%E6%9C%BA%E5%88%B6/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="DawnZH">
+      <meta itemprop="description" content="个人博客站点">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Dawn's Blogs">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/" class="post-title-link" itemprop="url">ZooKeeper学习 (1) 介绍</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-03-14 20:43:39" itemprop="dateCreated datePublished" datetime="2022-03-14T20:43:39+08:00">2022-03-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/zookeeper%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">zookeeper学习</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="ZooKeeper介绍"><a href="#ZooKeeper介绍" class="headerlink" title="ZooKeeper介绍"></a>ZooKeeper介绍</h1><p>ZooKeeper是一种<strong>分布式协调服务</strong>，用于<strong>管理大型分布式集群</strong>。在分布式环境中协调和管理服务是一个复杂的过程，但是ZooKeeper通过其简单的架构和API解决了这个问题。</p>
+<h2 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h2><h3 id="分布式协调组件"><a href="#分布式协调组件" class="headerlink" title="分布式协调组件"></a>分布式协调组件</h3><p>在分布式系统中，需要zookeeper作为<strong>分布式协调组件</strong>，协调分布式系统中的状态。如下图，用户更改了一台服务器A-2上的状态，但是另一台主机A-1上的flag没有做出及时的更改，这就需要zookeeper进行协调，更改A-1的状态，以协调分布式系统中所有服务器的状态。</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647262007675.png" alt="zk作为分布式协调组件"></p>
+<h3 id="分布式锁"><a href="#分布式锁" class="headerlink" title="分布式锁"></a>分布式锁</h3><p>zookeeper在实现<strong>分布式锁</strong>上，可以做到<strong>强⼀致性</strong>。</p>
+<p>分布式锁就是将锁放在zookeeper上，当需要上锁时到zookeeper中获取锁。</p>
+<h3 id="无状态化的实现"><a href="#无状态化的实现" class="headerlink" title="无状态化的实现"></a>无状态化的实现</h3><p>对于分布式系统，将Session或者Cookie等状态信息保存在各个主机上是不现实的。可以利用zookeeper实现分布式系统的<strong>无状态化</strong>，将登录信息统一保存在zookeeper中，各个分布式主机在zookeeper中获取状态信息。</p>
+<p><img src="/../images/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/1647262224747.png" alt="zk作为无状态化的实现"></p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2022/03/14/ZooKeeper%E5%AD%A6%E4%B9%A0-1-%E4%BB%8B%E7%BB%8D/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/13/%E4%BB%8E%E9%9B%B6%E5%BC%80%E5%A7%8B%E7%9A%84%E6%97%A5%E5%BF%97%E6%94%B6%E9%9B%86%E9%A1%B9%E7%9B%AE-3-%E6%94%B6%E9%9B%86%E7%B3%BB%E7%BB%9F%E4%BF%A1%E6%81%AF/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -905,285 +1184,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/" class="post-title-link" itemprop="url">GO语言杂谈 (4) 操作Kafka</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-11 10:22:30" itemprop="dateCreated datePublished" datetime="2022-03-11T10:22:30+08:00">2022-03-11</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="消息队列通信模型"><a href="#消息队列通信模型" class="headerlink" title="消息队列通信模型"></a>消息队列通信模型</h1><h2 id="队列模式"><a href="#队列模式" class="headerlink" title="队列模式"></a>队列模式</h2><p>消息⽣产者⽣产消息发送到<strong>队列</strong>queue中，然后消息消费者从queue中取出并且消费消息。 ⼀条消息被消费以后，queue中就没有了，不存在重复消费。</p>
-<h2 id="发布-订阅"><a href="#发布-订阅" class="headerlink" title="发布/订阅"></a>发布/订阅</h2><p>消息⽣产者（发布）将消息发布到topic中，同时有多个消息消费者（订阅）消费该消息。和点对点⽅式不同，发布到topic的消息会被所有订阅者消费</p>
-<hr>
-<p>发布订阅模式下，当发布者消息量很⼤时，显然单个订阅者的处理能⼒是不⾜的。实际上现实场景中是多个订阅者节点组成⼀个订阅组负载均衡消费topic消息即分组订阅，这样订阅者很容易实现消费能⼒线性扩展。可以看成是⼀个topic下有多个queue，每个queue是点对点的⽅式，queue之间是发布订阅⽅式。</p>
-<h1 id="Kafka"><a href="#Kafka" class="headerlink" title="Kafka"></a>Kafka</h1><p>Kafka是一种高吞吐量的分布式发布订阅消息系统。</p>
-<p>同时Kafka<strong>结合队列模型和发布订阅模型</strong>：</p>
-<ul>
-<li>对于同一个消费者组Consumer Group，一个message只有被一个consumer消费</li>
-<li>同一个消息可以被广播到不同的Consumer Group中</li>
-</ul>
-<h2 id="架构介绍"><a href="#架构介绍" class="headerlink" title="架构介绍"></a>架构介绍</h2><p><img src="/../images/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/1646902518112.png" alt="Kafka架构"></p>
-<ul>
-<li><strong>Producer：</strong>Producer即⽣产者，消息的产⽣者，是消息的⼊⼝。</li>
-<li><strong>kafka cluster：</strong>kafka集群，⼀台或多台服务器组成<ul>
-<li><strong>Broker：</strong>Broker是指部署了Kafka实例的服务器节点。每个服务器上有⼀个或多个kafka的实例，我们姑且认为每个broker对应⼀台服务器。每个kafka集群内的broker都有⼀个<strong>不重复</strong>的编号。</li>
-<li><strong>Topic：</strong>消息的<strong>主题</strong>，可以理解为<strong>消息的分类</strong>，kafka的数据就保存在topic。在每个broker上都可以创建多个topic。实际应⽤中通常是⼀个业务线建⼀个topic。</li>
-<li><strong>Partition：</strong>Topic的分区，每个topic可以有多个分区，分区的作⽤是做<strong>负载，提⾼kafka的吞吐量</strong>。同⼀个topic在不同的分区的数据是不重复的，partition的表现形式就是⼀个⼀个的⽂件夹。为了提高可靠性，提出分区的<strong>副本</strong>，分为Leader和Follower，生产和消费只针对Leader。</li>
-<li><strong>Replication：</strong>每⼀个分区都有多个副本，副本的作⽤是做<strong>备份</strong>。当主分区（Leader）故障的时候会选择⼀个备胎（Follower）上位，成为Leader。在kafka中默认副本的最⼤数量是10个，且副本的数量不能⼤于Broker的数量，follower和leader绝对是在不同的机器，同⼀机器对同⼀个分区也只可能存放⼀个副本（包括⾃⼰）。</li>
-</ul>
-</li>
-<li><strong>Consumer：</strong>消费者，即消息的消费⽅，是消息的出⼝。<ul>
-<li><strong>Consumer Group：</strong>我们可以将多个消费组组成⼀个消费者组，在kafka的设计中<strong>同⼀个分区的数据只能被消费者组中的某⼀个消费者消费</strong>。<strong>同⼀个消费者组的消费者可以消费同⼀个topic的不同分区的数据</strong>，这也是为了提⾼kafka的吞吐量！</li>
-</ul>
-</li>
-</ul>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/11/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-4-%E6%93%8D%E4%BD%9CKafka/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/" class="post-title-link" itemprop="url">GO语言杂谈 (3) Context标准库</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-10 14:47:24" itemprop="dateCreated datePublished" datetime="2022-03-10T14:47:24+08:00">2022-03-10</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Go%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88/" itemprop="url" rel="index"><span itemprop="name">Go语言杂谈</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>context主要用来在<strong>goroutine之间传递上下文信息</strong>。</p>
-<p>Go1.7加入了一个新的标准库<code>context</code>，它定义了<code>Context</code>类型，专门用来简化 对于处理单个请求的多个 goroutine 之间与请求域的数据、取消信号、截止时间等相关操作。</p>
-<p>可以使用<code>WithCancel</code>、<code>WithDeadline</code>、<code>WithTimeout</code>或<code>WithValue</code>创建的派生上下文。当一个上下文被取消时，它派生的所有上下文也被取消。</p>
-<h2 id="为什么需要Context？"><a href="#为什么需要Context？" class="headerlink" title="为什么需要Context？"></a>为什么需要Context？</h2><p>如何解决通知goroutine退出？</p>
-<h3 id="全局变量"><a href="#全局变量" class="headerlink" title="全局变量"></a>全局变量</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// 全局变量的方式</span></span><br><span class="line"><span class="keyword">var</span> exit <span class="keyword">bool</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">		time.Sleep(time.Second)</span><br><span class="line">		<span class="keyword">if</span> exit &#123;	<span class="comment">// 查看全局变量，检测是否退出</span></span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker()</span><br><span class="line">	<span class="comment">// 如何优雅的实现结束子goroutine</span></span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	exit = <span class="literal">true</span>		<span class="comment">// 修改全局变量</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="channel"><a href="#channel" class="headerlink" title="channel"></a>channel</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// channel方式通知goroutine退出</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">(exitChan &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">label:</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-exitChan:</span><br><span class="line">			<span class="keyword">break</span> label</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">			time.Sleep(time.Second)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line"></span><br><span class="line">    exitChan := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;) <span class="comment">// 定义退出管道</span></span><br><span class="line"></span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker(exitChan)</span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	exitChan &lt;- <span class="keyword">struct</span>&#123;&#125;            <span class="comment">// 通知协程退出</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="context-官方方案"><a href="#context-官方方案" class="headerlink" title="context - 官方方案"></a>context - 官方方案</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> wg sync.WaitGroup</span><br><span class="line"></span><br><span class="line"><span class="comment">// context方式通知协程退出</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">worker</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">label:</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">select</span> &#123;</span><br><span class="line">		<span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">			<span class="keyword">break</span> label</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			fmt.Println(<span class="string">&quot;worker&quot;</span>)</span><br><span class="line">			time.Sleep(time.Second)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	wg.Done()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line"></span><br><span class="line">	ctx, cancel := context.WithCancel(context.Background())</span><br><span class="line"></span><br><span class="line">	wg.Add(<span class="number">1</span>)</span><br><span class="line">	<span class="keyword">go</span> worker(ctx)</span><br><span class="line">	time.Sleep(time.Second * <span class="number">5</span>) <span class="comment">// 防止退出太快</span></span><br><span class="line">	cancel()                    <span class="comment">// 调用cancel函数，告诉goroutine退出</span></span><br><span class="line">	wg.Wait()</span><br><span class="line">	fmt.Println(<span class="string">&quot;over&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>当goroutine又启动一个goroutine时，只需要将ctx传入即可。通过context库，可以控制子孙协程的退出。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/10/GO%E8%AF%AD%E8%A8%80%E6%9D%82%E8%B0%88-3-Context%E6%A0%87%E5%87%86%E5%BA%93/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://dawnzzz.github.io/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="DawnZH">
-      <meta itemprop="description" content="个人博客站点">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Dawn's Blogs">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/" class="post-title-link" itemprop="url">算法刷题笔记 (24) 复制带随机指针的链表 基本计算器II 最大数 移掉K位数字</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2022-03-09 20:22:31" itemprop="dateCreated datePublished" datetime="2022-03-09T20:22:31+08:00">2022-03-09</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2023-12-15 10:35:06" itemprop="dateModified" datetime="2023-12-15T10:35:06+08:00">2023-12-15</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0/" itemprop="url" rel="index"><span itemprop="name">算法刷题笔记</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="复制带随机指针的链表"><a href="#复制带随机指针的链表" class="headerlink" title="复制带随机指针的链表"></a>复制带随机指针的链表</h1><p><a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/copy-list-with-random-pointer">复制带随机指针的链表</a></p>
-<h2 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h2><p>我们用<strong>哈希表</strong>记录每一个节点对应新节点的创建情况。</p>
-<h2 id="解题代码"><a href="#解题代码" class="headerlink" title="解题代码"></a>解题代码</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a Node.</span></span><br><span class="line"><span class="comment"> * type Node struct &#123;</span></span><br><span class="line"><span class="comment"> *     Val int</span></span><br><span class="line"><span class="comment"> *     Next *Node</span></span><br><span class="line"><span class="comment"> *     Random *Node</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">copyRandomList</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span> &#123;</span><br><span class="line">    cachedNode := <span class="keyword">map</span>[*Node]*Node&#123;&#125;</span><br><span class="line">    <span class="keyword">var</span> deepCopy <span class="function"><span class="keyword">func</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span></span><br><span class="line">    deepCopy = <span class="function"><span class="keyword">func</span><span class="params">(head *Node)</span> *<span class="title">Node</span></span> &#123;</span><br><span class="line">        <span class="keyword">if</span> head == <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> node, ok := cachedNode[head]; ok &#123;</span><br><span class="line">            <span class="comment">// 已经创建了这个节点</span></span><br><span class="line">            <span class="keyword">return</span> node</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 创建新的节点</span></span><br><span class="line">        newNode := &amp;Node&#123; Val: head.Val &#125;</span><br><span class="line">        <span class="comment">// 记录在哈希表中</span></span><br><span class="line">        cachedNode[head] = newNode</span><br><span class="line">        newNode.Next = deepCopy(head.Next)</span><br><span class="line">        newNode.Random = deepCopy(head.Random)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> newNode</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> deepCopy(head)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/03/09/%E7%AE%97%E6%B3%95%E5%88%B7%E9%A2%98%E7%AC%94%E8%AE%B0-24/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1253,7 +1253,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">415</span>
+          <span class="site-state-item-count">418</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
